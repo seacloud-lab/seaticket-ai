@@ -1,0 +1,4 @@
+seaqa_ai_settings.py
+__pycache__/
+*.pyc
+.vscode/
