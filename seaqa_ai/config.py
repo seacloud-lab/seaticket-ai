@@ -21,13 +21,14 @@ APP_NAME = 'seaqa-ai'
 LLM_URL = ''
 LLM_TYPE = 'openai-proxy'
 LLM_KEY = ''
+LLM_MODEL = 'gpt-4o-mini'
 
 # redis
 REDIS_HOST = 'redis'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 
-CONF_DIR = '/opt/seafile/conf/'
+CONF_DIR = '/opt/seaqa/conf/'
 
 try:
     if os.path.exists('seaqa_ai_settings.py'):
@@ -44,9 +45,10 @@ except ImportError as e:
 
 JWT_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY', '') or SEA_QA_AI_PRIVATE_KEY
 
-LLM_TYPE = os.getenv('seaqa_ai_LLM_TYPE') or LLM_TYPE
-LLM_URL = os.getenv('seaqa_ai_LLM_URL') or LLM_URL
-LLM_KEY = os.getenv('seaqa_ai_LLM_KEY') or LLM_KEY
+LLM_TYPE = os.getenv('SEAQA_AI_LLM_TYPE') or LLM_TYPE
+LLM_URL = os.getenv('SEAQA_AI_LLM_URL') or LLM_URL
+LLM_KEY = os.getenv('SEAQA_AI_LLM_KEY') or LLM_KEY
+LLM_MODEL = os.getenv('SEAQA_AI_LLM_MODEL') or LLM_MODEL
 
 LOG_LEVEL = os.getenv('seaqa_ai_LOG_LEVEL') or LOG_LEVEL
 

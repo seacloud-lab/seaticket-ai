@@ -1,20 +1,20 @@
 from seaqa_ai.server.seaqa_ai_http_server import SeaQAAIHttpServer
 from seaqa_ai.data_logging.data_logging import DataLogging
 from seaqa_ai.text_processing.text_processing_manager import TextProcessingManager
+from seaqa_ai.utils.openai_api import OpenAIAPI
 
 
 class SeaQAAIApp(object):
     def __init__(self, config):
         self.config = config
         self.data_logger = DataLogging(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
-        if config.LLM_TYPE == 'openai-proxy':
-            from seaqa_ai.utils.openai_api import OpenAIAPI
-            self.openai_api = OpenAIAPI(config.LLM_URL)
-        elif config.LLM_TYPE == 'openai':
-            from seaqa_ai.utils.openai_api import OpenAIAPI
-            self.openai_api = OpenAIAPI(api_key=config.LLM_KEY)
-        else:
+        llm_type = config.LLM_TYPE
+        base_url = config.LLM_URL
+        api_key = config.LLM_KEY
+        model = config.LLM_MODEL
+        if llm_type not in ['openai-proxy', 'openai', 'other']:
             raise Exception('unknown llm type')
+        self.openai_api = OpenAIAPI(llm_type, base_url, api_key, model)
         self.openai_api.init(self.data_logger)
 
         self.text_processing_manager = TextProcessingManager(self, config.LLM_TYPE)

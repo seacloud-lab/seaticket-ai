@@ -56,7 +56,6 @@ class TextProcessingManager:
                 messages=messages,
                 context=context,
                 temperature=0.1,
-                model='gpt-4o-mini'
             )
             
             logger.info(f"Generated answer for question: {question[:50]}...")
