@@ -19,7 +19,7 @@ def check_auth_token(req):
     if not token:
         return False
 
-    private_key = config.JWT_PRIVATE_KEY
+    private_key = config.SEA_QA_AI_PRIVATE_KEY
     try:
         jwt.decode(token, private_key, algorithms=['HS256'])
     except (jwt.ExpiredSignatureError, jwt.InvalidSignatureError) as e:
@@ -40,25 +40,58 @@ def generate_answer():
         logger.exception(e)
         return {'error_msg': 'Bad request.'}, 400
 
-    question = data.get('question')
-    sources = data.get('sources')
+    query = data.get('query')
     username = data.get('username')
+    project_uuid = data.get('project_uuid')
+    connection_type = data.get('connection_type')
 
     context = {
         'username': username,
     }
 
-    if not question:
+    if not query:
         return {'error_msg': 'question invalid.'}, 400
-    if not sources:
-        return {'error_msg': 'sources invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+    if not connection_type:
+        return {'error_msg': 'connection_type invalid.'}, 400
     if not username:
         return {'error_msg': 'username invalid.'}, 400
 
     try:
-        answer = flask_app.app.text_processing_manager.generate_answer(question, sources, context)
+        english_keywords, chinese_keywords, query_language = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
+        
+        english_results = flask_app.app.seaqa_index_api.search(english_keywords, project_uuid, connection_type)
+        
+        chinese_results = flask_app.app.seaqa_index_api.search(chinese_keywords, project_uuid, connection_type)
+        
+        all_results = []
+        seen_ids = set()
+        
+        if english_results:
+            for result in english_results:
+                result_id = result.get('_id')
+                if result_id and result_id not in seen_ids:
+                    seen_ids.add(result_id)
+                    all_results.append(result)
+        
+        if chinese_results:
+            for result in chinese_results:
+                result_id = result.get('_id')
+                if result_id and result_id not in seen_ids:
+                    seen_ids.add(result_id)
+                    all_results.append(result)
+        
+        search_results = sorted(all_results, key=lambda x: x.get('score', 0), reverse=True)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-
-    return {'answer': answer}, 200
+    
+    if not search_results:
+        return {'answer': 'No relevant information found.', 'sources': []}, 200
+    try:
+        answer, sources = flask_app.app.text_processing_manager.generate_answer(query, search_results, query_language, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return {'answer': answer, 'sources': [source.get('url') for source in sources]}, 200

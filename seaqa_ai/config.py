@@ -10,7 +10,7 @@ sys.path.insert(0, basedir)
 
 SEA_QA_AI_PRIVATE_KEY = ''
 
-# log
+# Log
 LOG_FILE = None
 LOG_LEVEL = 'info'
 ENABLE_SYS_LOG = False
@@ -23,10 +23,14 @@ LLM_TYPE = 'openai-proxy'
 LLM_KEY = ''
 LLM_MODEL = 'gpt-4o-mini'
 
-# redis
+# Redis
 REDIS_HOST = 'redis'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
+
+# SeaQA Index
+WEB_CRAWL_INDEX_SERVER_URL = ''
+SEA_QA_PRIVATE_KEY = ''
 
 CONF_DIR = '/opt/seaqa/conf/'
 
@@ -44,6 +48,7 @@ except ImportError as e:
     pass
 
 JWT_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY', '') or SEA_QA_AI_PRIVATE_KEY
+SEA_QA_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY') or SEA_QA_PRIVATE_KEY
 
 LLM_TYPE = os.getenv('SEAQA_AI_LLM_TYPE') or LLM_TYPE
 LLM_URL = os.getenv('SEAQA_AI_LLM_URL') or LLM_URL
