@@ -8,8 +8,6 @@ basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, basedir)
 
 
-SEA_QA_AI_PRIVATE_KEY = ''
-
 # Log
 LOG_FILE = None
 LOG_LEVEL = 'info'
@@ -30,7 +28,7 @@ REDIS_PASSWORD = ''
 
 # SeaQA Index
 WEB_CRAWL_INDEX_SERVER_URL = ''
-SEA_QA_PRIVATE_KEY = ''
+JWT_PRIVATE_KEY = ''
 
 CONF_DIR = '/opt/seaqa/conf/'
 
@@ -47,8 +45,7 @@ try:
 except ImportError as e:
     pass
 
-JWT_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY', '') or SEA_QA_AI_PRIVATE_KEY
-SEA_QA_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY') or SEA_QA_PRIVATE_KEY
+JWT_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY', '')
 
 LLM_TYPE = os.getenv('SEAQA_AI_LLM_TYPE') or LLM_TYPE
 LLM_URL = os.getenv('SEAQA_AI_LLM_URL') or LLM_URL

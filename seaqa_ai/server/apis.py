@@ -19,7 +19,7 @@ def check_auth_token(req):
     if not token:
         return False
 
-    private_key = config.SEA_QA_AI_PRIVATE_KEY
+    private_key = config.JWT_PRIVATE_KEY
     try:
         jwt.decode(token, private_key, algorithms=['HS256'])
     except (jwt.ExpiredSignatureError, jwt.InvalidSignatureError) as e:
