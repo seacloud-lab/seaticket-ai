@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 logger = logging.getLogger(__name__)
 
 
-class SeaQAIndexAPI:
+class SeaQAIndexerAPI:
     def __init__(self, app, server_url, secret_key, timeout=60):
         self.app = app
         self.server_url = server_url.rstrip('/')
