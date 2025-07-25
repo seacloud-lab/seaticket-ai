@@ -26,8 +26,8 @@ REDIS_HOST = 'redis'
 REDIS_PORT = 6379
 REDIS_PASSWORD = ''
 
-# SeaQA Index
-SEAQA_INDEX_SERVER_URL = ''
+# SeaQA Indexer
+SEAQA_INDEXER_SERVER_URL = ''
 JWT_PRIVATE_KEY = ''
 
 CONF_DIR = '/opt/seaqa/conf/'

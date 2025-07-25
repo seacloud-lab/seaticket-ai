@@ -61,9 +61,9 @@ def generate_answer():
     try:
         english_keywords, chinese_keywords, query_language = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
         
-        english_results = flask_app.app.seaqa_index_api.search(english_keywords, project_uuid, connection_type)
+        english_results = flask_app.app.seaqa_indexer_api.search(english_keywords, project_uuid, connection_type)
         
-        chinese_results = flask_app.app.seaqa_index_api.search(chinese_keywords, project_uuid, connection_type)
+        chinese_results = flask_app.app.seaqa_indexer_api.search(chinese_keywords, project_uuid, connection_type)
         
         all_results = []
         seen_ids = set()
