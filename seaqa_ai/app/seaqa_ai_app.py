@@ -1,9 +1,9 @@
 from seaqa_ai.server.seaqa_ai_http_server import SeaQAAIHttpServer
 from seaqa_ai.data_logging.data_logging import DataLogging
 from seaqa_ai.text_processing.text_processing_manager import TextProcessingManager
-from seaqa_ai.utils.seaqa_index_api import SeaQAIndexAPI
+from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.openai_api import OpenAIAPI
-from seaqa_ai.config import SEAQA_INDEX_SERVER_URL, JWT_PRIVATE_KEY
+from seaqa_ai.config import SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY
 
 
 class SeaQAAIApp(object):
@@ -20,7 +20,7 @@ class SeaQAAIApp(object):
         self.openai_api.init(self.data_logger)
 
         self.text_processing_manager = TextProcessingManager(self, config.LLM_TYPE)
-        self.seaqa_index_api = SeaQAIndexAPI(self, SEAQA_INDEX_SERVER_URL, JWT_PRIVATE_KEY)
+        self.seaqa_indexer_api = SeaQAIndexerAPI(self, SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY)
         self.seaqa_ai_http_server = SeaQAAIHttpServer(self)
 
     def serve_forever(self):
