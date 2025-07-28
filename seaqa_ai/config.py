@@ -52,7 +52,7 @@ LLM_URL = os.getenv('SEAQA_AI_LLM_URL') or LLM_URL
 LLM_KEY = os.getenv('SEAQA_AI_LLM_KEY') or LLM_KEY
 LLM_MODEL = os.getenv('SEAQA_AI_LLM_MODEL') or LLM_MODEL
 
-LOG_LEVEL = os.getenv('seaqa_ai_LOG_LEVEL') or LOG_LEVEL
+LOG_LEVEL = os.getenv('SEAQA_AI_LOG_LEVEL') or LOG_LEVEL
 
 REDIS_HOST = os.getenv('REDIS_HOST') or REDIS_HOST
 REDIS_PORT = os.getenv('REDIS_PORT') or REDIS_PORT
