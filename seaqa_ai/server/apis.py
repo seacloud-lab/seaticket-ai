@@ -4,7 +4,7 @@ import json
 
 from flask import Flask, request
 from seaqa_ai import config
-
+from seaqa_ai.utils.constants import SeasearchType
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -92,4 +92,12 @@ def generate_answer():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-    return {'answer': answer, 'sources': [source.get('url') for source in sources]}, 200
+    citation_url = []
+    for source in sources:
+        type = source.get('type')
+        match type:
+            case SeasearchType.SITE.value:
+                citation_url.append(source.get('url'))
+            case SeasearchType.SEAFILE.value:
+                citation_url.append(source.get('path'))
+    return {'answer': answer, 'sources': citation_url}, 200
