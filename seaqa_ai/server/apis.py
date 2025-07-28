@@ -5,6 +5,7 @@ import json
 from flask import Flask, request
 from seaqa_ai import config
 from seaqa_ai.utils.constants import SeasearchType
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -97,7 +98,17 @@ def generate_answer():
         type = source.get('type')
         match type:
             case SeasearchType.SITE.value:
-                citation_url.append(source.get('url'))
+                citation_url.append({'title': source.get('url'), 'url': source.get('url')})
             case SeasearchType.SEAFILE.value:
-                citation_url.append(source.get('path'))
+                server_url = source.get('server_url').rstrip('/')
+                repo_id = source.get('repo_id')
+                path = source.get('path', '')
+                filename = source.get('filename', '')
+
+                full_path = path.rstrip('/') + '/' + filename
+                encoded_full_path = quote(full_path, safe='/')
+                url = f"{server_url}/lib/{repo_id}/file{encoded_full_path}"
+
+                citation_url.append({'title': source.get('filename'), 'url': url})
+
     return {'answer': answer, 'sources': citation_url}, 200
