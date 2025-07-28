@@ -53,8 +53,6 @@ def generate_answer():
         return {'error_msg': 'question invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
-    if not connection_type:
-        return {'error_msg': 'connection_type invalid.'}, 400
     if not username:
         return {'error_msg': 'username invalid.'}, 400
 
