@@ -98,7 +98,7 @@ def generate_answer():
         type = source.get('type')
         match type:
             case SeasearchType.SITE.value:
-                citation_url.append({'title': source.get('url'), 'url': source.get('url')})
+                citation_url.append({"title": source.get('url'), "url": source.get('url')})
             case SeasearchType.SEAFILE.value:
                 server_url = source.get('server_url').rstrip('/')
                 repo_id = source.get('repo_id')
@@ -109,6 +109,6 @@ def generate_answer():
                 encoded_full_path = quote(full_path, safe='/')
                 url = f"{server_url}/lib/{repo_id}/file{encoded_full_path}"
 
-                citation_url.append({'title': source.get('filename'), 'url': url})
+                citation_url.append({"title": source.get('filename'), "url": url})
 
     return {'answer': answer, 'sources': citation_url}, 200
