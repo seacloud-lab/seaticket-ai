@@ -72,3 +72,37 @@ def generate_answer():
 
         except:
             return {'error_msg': 'Internet server error.'}, 500
+
+
+@flask_app.route('/create-ticket-info', methods=['POST'])
+def create_ticket_info():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    connection_id = data.get('connection_id')
+    username = data.get('username')
+    record_id = data.get('record_id')
+
+    context = {
+        'username': username,
+    }
+
+    if not connection_id:
+        return {'error_msg': 'connection_id invalid.'}, 400
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not record_id:
+        return {'error_msg': 'record_id invalid.'}, 400
+    try:
+        title, description = flask_app.app.text_processing_manager.create_ticket_info(connection_id, record_id, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return {'title': title, 'description': description}, 200
