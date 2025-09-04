@@ -1,14 +1,16 @@
 import logging
 import json
+from seaqa_ai.config import LLM_MODEL
+from seaqa_ai.agent.tools import RetrieverTool
+from seaqa_ai.agent.models import OpenAIServerModel
 
 
 logger = logging.getLogger(__name__)
 
 
 class TextProcessingManager:
-    def __init__(self, app, llm_type):
+    def __init__(self, app):
         self.app = app
-        self.llm_type = llm_type
 
     def generate_search_keywords(self, query, context):
         """
@@ -50,7 +52,7 @@ class TextProcessingManager:
 
             keywords_data = json.loads(response.strip())
             return (
-                keywords_data.get('english_keywords', ''), 
+                keywords_data.get('english_keywords', ''),
                 keywords_data.get('chinese_keywords', ''),
                 keywords_data.get('query_language', 'English')
             )
@@ -81,7 +83,7 @@ class TextProcessingManager:
                 reference_texts.append(reference_text)
 
             references_content = "\n\n".join(reference_texts)
-            
+
             # Determine language instruction based on query_language
             language_instruction = ""
             if query_language.lower() in ['chinese', '中文', 'zh']:
@@ -134,3 +136,14 @@ class TextProcessingManager:
         except Exception as e:
             logger.error(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
+
+    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_types, connection_ids):
+        retriever = self.app.seaqa_indexer_api
+        retriever_tool = RetrieverTool(retriever, project_uuid, connection_types, connection_ids)
+        client = self.app.openai_api
+        server_model = OpenAIServerModel(LLM_MODEL, client=client)
+        agent_name = 'tool_call_agent'
+
+        response = self.app.agent_manager.execute(agent_name,  message, retriever_tool=retriever_tool, server_model=server_model)
+
+        return response, []

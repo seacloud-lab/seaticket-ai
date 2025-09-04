@@ -4,12 +4,13 @@ from seaqa_ai.text_processing.text_processing_manager import TextProcessingManag
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.openai_api import OpenAIAPI
 from seaqa_ai.config import SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY
+from seaqa_ai.agent.agent_manager import AgentManager
 
 
 class SeaQAAIApp(object):
     def __init__(self, config):
         self.config = config
-        self.data_logger = DataLogging(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
+        # self.data_logger = DataLogging(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
         llm_type = config.LLM_TYPE
         base_url = config.LLM_URL
         api_key = config.LLM_KEY
@@ -17,10 +18,13 @@ class SeaQAAIApp(object):
         if llm_type not in ['openai-proxy', 'openai', 'other']:
             raise Exception('unknown llm type')
         self.openai_api = OpenAIAPI(llm_type, base_url, api_key, model)
-        self.openai_api.init(self.data_logger)
+        # self.openai_api.init(self.data_logger)
 
-        self.text_processing_manager = TextProcessingManager(self, config.LLM_TYPE)
-        self.seaqa_indexer_api = SeaQAIndexerAPI(self, SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY)
+        self.text_processing_manager = TextProcessingManager(self)
+        self.seaqa_indexer_api = SeaQAIndexerAPI(SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY)
+
+        self.agent_manager = AgentManager(self)
+
         self.seaqa_ai_http_server = SeaQAAIHttpServer(self)
 
     def serve_forever(self):

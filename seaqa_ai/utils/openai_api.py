@@ -4,6 +4,7 @@ import logging
 
 from seaqa_ai.utils import OpenAIInvalidException, parse_response
 from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,11 +13,9 @@ class OpenAIAPI:
         self.timeout = timeout
         self.model = model
         if llm_type == 'openai-proxy' and base_url:
-            # Proxy mode
             self.mode = 'proxy'
             self.openai_proxy_url = base_url.rstrip('/') + '/api/v1/chat-completions/create'
         elif llm_type == 'openai' and api_key:
-            # OpenAI SDK mode
             self.mode = 'sdk'
             import openai
             client = openai.OpenAI(
@@ -42,9 +41,29 @@ class OpenAIAPI:
     def init(self, data_logger):
         self.data_logger = data_logger
 
+    def create(self, **kwargs):
+        if self.mode == 'proxy':
+            json_data = {
+                **kwargs
+            }
+            response = requests.post(self.openai_proxy_url, json=json_data, timeout=self.timeout)
+            data = parse_response(response)
+
+            return data
+
+        elif self.mode == 'sdk':
+            try:
+                response = self.chat.completions.create(
+                    **kwargs
+                )
+                return response.model_dump()
+            except Exception as e:
+                logger.warning('openai sdk error: %s', str(e))
+                logger.warning('Please check if LLM_URL, LLM_KEY and LLM_MODEL match')
+                raise OpenAIInvalidException('openai sdk error: %s' % e)
+
     def chat_completions(self, messages, context, temperature=0):
         if self.mode == 'proxy':
-            # Use proxy mode
             json_data = {
                 'model': self.model,
                 'messages': messages,
@@ -52,11 +71,11 @@ class OpenAIAPI:
             }
             response = requests.post(self.openai_proxy_url, json=json_data, timeout=self.timeout)
             data = parse_response(response)
-            self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                'model': self.model,
-                'usage': data.get('usage'),
-                'username': context.get('username'),
-            }))
+            # self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
+            #     'model': self.model,
+            #     'usage': data.get('usage'),
+            #     'username': context.get('username'),
+            # }))
 
             try:
                 result = data['choices'][0]['message']['content']
@@ -64,9 +83,8 @@ class OpenAIAPI:
                 logger.warning('openai parse data:%s, error', json.dumps(data))
                 raise OpenAIInvalidException('openai parse data error: %s' % e)
             return result
-        
+
         elif self.mode == 'sdk':
-            # Use OpenAI SDK mode
             try:
                 response = self.chat.completions.create(
                     model=self.model,
@@ -76,11 +94,11 @@ class OpenAIAPI:
                 usage = response.usage.to_dict() if response.usage else None
                 content = response.choices[0].message.content
 
-                self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                    'model': self.model,
-                    'usage': usage,
-                    'username': context.get('username'),
-                }))
+                # self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
+                #     'model': self.model,
+                #     'usage': usage,
+                #     'username': context.get('username'),
+                # }))
 
                 return content
             except Exception as e:

@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class SeaQAIndexerAPI:
-    def __init__(self, app, server_url, secret_key, timeout=60):
-        self.app = app
+    def __init__(self, server_url, secret_key, timeout=60):
         self.server_url = server_url.rstrip('/')
         self.secret_key = secret_key
         self.timeout = timeout
@@ -21,11 +20,12 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def search(self, query, project_uuid, connection_type):
+    def search(self, query, project_uuid, connection_types=None, connection_ids=None):
         params = {
             'query': query,
             'project_uuid': project_uuid,
-            'connection_type': connection_type
+            'connection_types': connection_types,
+            'connection_ids': connection_ids,
         }
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
