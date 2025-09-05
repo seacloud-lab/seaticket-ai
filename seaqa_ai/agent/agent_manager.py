@@ -21,7 +21,6 @@ class AgentManager:
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
-                return_full_result=True,
                 tools=[retriever_tool],  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps

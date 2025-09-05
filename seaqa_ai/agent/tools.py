@@ -1,9 +1,9 @@
 from smolagents import Tool
 
 
-class RetrieverTool(Tool):
-    name = "retriever"
-    description = "Uses semantic search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
+class KeywordsSearch(Tool):
+    name = "keywords_search"
+    description = "Uses keywords search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
     inputs = {
         "query": {
             "type": "string",

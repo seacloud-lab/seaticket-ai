@@ -60,42 +60,20 @@ def generate_answer():
         return {'error_msg': 'username invalid.'}, 400
 
     if resolve_type == 'agent':
-        answer, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_types, connection_ids)
+        answer, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_types, connection_ids, context)
         return {'answer': answer, 'sources': []}, 200
 
     try:
-        english_keywords, chinese_keywords, query_language = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
-
-        english_results = flask_app.app.seaqa_indexer_api.search(english_keywords, project_uuid, connection_types, connection_ids)
-
-        chinese_results = flask_app.app.seaqa_indexer_api.search(chinese_keywords, project_uuid, connection_types, connection_ids)
-
-        all_results = []
-        seen_ids = set()
-
-        if english_results:
-            for result in english_results:
-                result_id = result.get('_id')
-                if result_id and result_id not in seen_ids:
-                    seen_ids.add(result_id)
-                    all_results.append(result)
-
-        if chinese_results:
-            for result in chinese_results:
-                result_id = result.get('_id')
-                if result_id and result_id not in seen_ids:
-                    seen_ids.add(result_id)
-                    all_results.append(result)
-
-        search_results = sorted(all_results, key=lambda x: x.get('score', 0), reverse=True)
+        keywords = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
+        results = flask_app.app.seaqa_indexer_api.search(keywords, project_uuid, connection_types, connection_ids)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
 
-    if not search_results:
+    if not results:
         return {'answer': 'No relevant information found.', 'sources': []}, 200
     try:
-        answer, sources = flask_app.app.text_processing_manager.generate_answer(query, search_results, query_language, context)
+        answer, sources = flask_app.app.text_processing_manager.generate_answer(query, results, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500

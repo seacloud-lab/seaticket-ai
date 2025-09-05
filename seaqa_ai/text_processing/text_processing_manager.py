@@ -1,8 +1,8 @@
 import logging
 import json
 from seaqa_ai.config import LLM_MODEL
-from seaqa_ai.agent.tools import RetrieverTool
-from seaqa_ai.agent.models import OpenAIServerModel
+from seaqa_ai.agent.tools import KeywordsSearch
+from seaqa_ai.agent.models import LiteLLMModel
 
 
 logger = logging.getLogger(__name__)
@@ -19,50 +19,43 @@ class TextProcessingManager:
         try:
             prompt = f"""Based on the user's question, please:
             1. Identify the language of the user's question
-            2. Generate search keywords in both English and Chinese that would help find relevant information.
+            2. Generate keywords that would help find relevant information.
 
             User Question: {query}
 
             Please provide:
-            1. Language of the user's question (e.g., "English", "Chinese", "Mixed", etc.)
-            2. English keywords (3-5 key terms or phrases)
-            3. Chinese keywords (3-5 key terms or phrases)
+            1. Keywords (3-5 key terms or phrases)
 
             Format your response as JSON:
             {{
-                "query_language": "detected language",
-                "english_keywords": "keyword1 keyword2 keyword3",
-                "chinese_keywords": "关键词1 关键词2 关键词3"
+                "keywords": "keyword1 keyword2 keyword3"
             }}
 
             Only return the JSON, no additional text."""
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a professional search keyword generator and language detector. Identify the language of user queries and generate relevant search keywords in both English and Chinese. Always respond with valid JSON format."
+                    "content": "You are a professional search keyword generator. Generate relevant search keywords. Always respond with valid JSON format."
                 },
                 {"role": "user", "content": prompt}
             ]
 
-            response = self.app.openai_api.chat_completions(
+            response = self.app.llm_api.run(
                 messages=messages,
                 context=context,
                 temperature=0.1,
             )
+            content = response.choices[0].message.content
 
-            keywords_data = json.loads(response.strip())
-            return (
-                keywords_data.get('english_keywords', ''),
-                keywords_data.get('chinese_keywords', ''),
-                keywords_data.get('query_language', 'English')
-            )
+            response_data = json.loads(content.strip())
+            return response_data.get("keywords")
 
         except Exception as e:
             logger.error(f"Error generating keywords: {str(e)}")
             # Fallback to original query
-            return query, query, 'English'
+            return query
 
-    def generate_answer(self, question, sources, query_language, context):
+    def generate_answer(self, question, sources, context):
         """
         Generate an answer based on the question and references.
         """
@@ -84,19 +77,10 @@ class TextProcessingManager:
 
             references_content = "\n\n".join(reference_texts)
 
-            # Determine language instruction based on query_language
-            language_instruction = ""
-            if query_language.lower() in ['chinese', '中文', 'zh']:
-                language_instruction = "请用中文回答。"
-            elif query_language.lower() in ['english', '英文', 'en']:
-                language_instruction = "Please answer in English."
-            else:
-                language_instruction = f"Please answer primarily in {query_language} language."
-
             # Build optimized prompt
             prompt = f"""You are a professional technical assistant. Please answer the user's question based on the provided reference materials.
             **Requirements:**
-            1. {language_instruction}
+            1. Please answer in the language of the question first
             2. Keep your answer within 500 words
             3. Cite specific references using [Reference X] format when mentioning information from the sources
             4. Provide accurate, detailed, and helpful information
@@ -117,7 +101,7 @@ class TextProcessingManager:
             messages = [
                 {
                     "role": "system",
-                    "content": f"You are a professional technical assistant specializing in providing accurate answers based on reference materials. Always cite your sources using [Reference X] format and keep responses within 500 words. {language_instruction}"
+                    "content": f"You are a professional technical assistant specializing in providing accurate answers based on reference materials. Always cite your sources using [Reference X] format and keep responses within 500 words. Please answer in the language of the question first."
                 },
                 {
                     "role": "user",
@@ -125,25 +109,26 @@ class TextProcessingManager:
                 }
             ]
 
-            response = self.app.openai_api.chat_completions(
+            response = self.app.llm_api.run(
                 messages=messages,
                 context=context,
                 temperature=0.1,
             )
+            content = response.choices[0].message.content
 
-            return response, top_sources
+            return content, top_sources
 
         except Exception as e:
             logger.error(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
 
-    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_types, connection_ids):
-        retriever = self.app.seaqa_indexer_api
-        retriever_tool = RetrieverTool(retriever, project_uuid, connection_types, connection_ids)
-        client = self.app.openai_api
-        server_model = OpenAIServerModel(LLM_MODEL, client=client)
+    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_types, connection_ids, context):
+        keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_types, connection_ids)
+        client = self.app.llm_api
+        server_model = LiteLLMModel(client, model_id=LLM_MODEL)
+        server_model.context = context
         agent_name = 'tool_call_agent'
 
-        response = self.app.agent_manager.execute(agent_name,  message, retriever_tool=retriever_tool, server_model=server_model)
+        response = self.app.agent_manager.execute(agent_name,  message, retriever_tool=keywords_search, server_model=server_model)
 
         return response, []
