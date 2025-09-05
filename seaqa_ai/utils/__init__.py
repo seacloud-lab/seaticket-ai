@@ -14,5 +14,5 @@ def parse_response(response):
             pass
 
 
-class OpenAIInvalidException(Exception):
+class LLMChatCompletionException(Exception):
     pass
