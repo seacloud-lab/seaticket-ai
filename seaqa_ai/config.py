@@ -17,7 +17,7 @@ APP_NAME = 'seaqa-ai'
 
 # LLM
 LLM_URL = ''
-LLM_TYPE = 'openai-proxy'
+LLM_TYPE = 'proxy'
 LLM_KEY = ''
 LLM_MODEL = 'gpt-4o-mini'
 
