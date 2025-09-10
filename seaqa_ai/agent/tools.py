@@ -3,11 +3,11 @@ from smolagents import Tool
 
 class KeywordsSearch(Tool):
     name = "keywords_search"
-    description = "Uses keywords search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
+    description = "This is a search tool for existing technical documents. You can enter content related to a technical issue, and this tool can search for documents related to this issue. The relevance will decrease from the beginning to the end."
     inputs = {
         "query": {
             "type": "string",
-            "description": "The query to perform. This should be semantically close to your target documents. Use the affirmative form rather than a question.",
+            "description": "The query to perform. The query should be close to your target issue. Use the affirmative form rather than a question.",
         }
     }
     output_type = "string"

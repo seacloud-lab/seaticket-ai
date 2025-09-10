@@ -2,7 +2,7 @@ import logging
 import json
 from seaqa_ai.config import LLM_MODEL
 from seaqa_ai.agent.tools import KeywordsSearch
-from seaqa_ai.agent.models import LiteLLMModel
+from smolagents.models import LiteLLMModel
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class TextProcessingManager:
                 {"role": "user", "content": prompt}
             ]
 
-            response = self.app.llm_api.run(
+            response = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
                 temperature=0.1,
@@ -109,7 +109,7 @@ class TextProcessingManager:
                 }
             ]
 
-            response = self.app.llm_api.run(
+            response = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
                 temperature=0.1,
@@ -125,8 +125,7 @@ class TextProcessingManager:
     def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_types, connection_ids, context):
         keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_types, connection_ids)
         client = self.app.llm_api
-        server_model = LiteLLMModel(client, model_id=LLM_MODEL)
-        server_model.context = context
+        server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
 
         response = self.app.agent_manager.execute(agent_name,  message, retriever_tool=keywords_search, server_model=server_model)
