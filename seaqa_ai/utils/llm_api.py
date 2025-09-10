@@ -1,7 +1,6 @@
 import json
 import logging
-from litellm import completion
-from seaqa_ai.utils import LLMChatCompletionException
+import litellm
 from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME
 
 logger = logging.getLogger(__name__)
@@ -22,8 +21,26 @@ class LLMAPI:
         self.api_key = api_key
         self.timeout = timeout
 
-    def _completion(self, **kwargs):
-        return completion(
+    def completion(self, **kwargs):
+        if 'model' in kwargs:
+            kwargs.pop('model')
+
+        if 'base_url' in kwargs:
+            kwargs.pop('base_url')
+
+        if 'api_key' in kwargs:
+            kwargs.pop('api_key')
+
+        context = {}
+        if 'context' in kwargs:
+            context = kwargs.pop('context')
+
+        success_callback = self.create_success_callback(
+            context
+        )
+        # litellm.success_callback = [success_callback]
+
+        return litellm.completion(
             model=self.model,
             base_url=self.base_url,
             api_key=self.api_key,
@@ -31,27 +48,7 @@ class LLMAPI:
             **kwargs
         )
 
-    def run(self, messages, context={}, **kwargs):
-        """
-        llm completion with a seaAI context:
-        """
-
-        # messages valid check
-        assert isinstance(messages, list) or isinstance(messages, tuple)
-
-        kwargs.update({'messages': messages})
-
-        try:
-            if 'context' in kwargs:
-                kwargs.pop('context')
-            response = self._completion(**kwargs)
-            # self._logger_usage(response, context)
-            return response
-        except Exception as e:
-            logger.error('Chat completion error: %s', str(e))
-            raise LLMChatCompletionException('LLM chat completion error: %s' % e)
-
-    def _logger_usage(self, response, context):
+    def _logger_usage(self, kwargs, response, context):
         try:
             if hasattr(response, 'usage') and response.usage:
                 self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
@@ -62,8 +59,12 @@ class LLMAPI:
                         'total_tokens': response.usage.total_tokens
                     },
                     'username': context.get('username'),
-                    'org_id': context.get('org_id'),
-                    'assistant_uuid': context.get('assistant_uuid'),
                 }))
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")
+
+    def create_success_callback(self, context):
+        def success_callback(kwargs, completion_response, start_time, end_time):
+            self._logger_usage(kwargs, completion_response, context)
+        return success_callback
+
