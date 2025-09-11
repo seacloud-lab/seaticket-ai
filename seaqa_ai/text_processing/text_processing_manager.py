@@ -128,6 +128,6 @@ class TextProcessingManager:
         server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
 
-        response = self.app.agent_manager.execute(agent_name,  message, retriever_tool=keywords_search, server_model=server_model)
+        agent_output, agent_memory = self.app.agent_manager.execute(agent_name,  message, retriever_tool=keywords_search, server_model=server_model)
 
-        return response, []
+        return agent_output, agent_memory, []
