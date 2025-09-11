@@ -20,11 +20,10 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def search(self, query, project_uuid, connection_types=None, connection_ids=None):
+    def search(self, query, project_uuid, connection_ids=None):
         params = {
             'query': query,
             'project_uuid': project_uuid,
-            'connection_types': connection_types,
             'connection_ids': connection_ids,
         }
         payload = {'exp': int(time.time()) + 300, }

@@ -44,7 +44,6 @@ def generate_answer():
     query = data.get('query')
     username = data.get('username')
     project_uuid = data.get('project_uuid')
-    connection_types = data.get('connection_types')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', 'ask')
 
@@ -60,12 +59,12 @@ def generate_answer():
         return {'error_msg': 'username invalid.'}, 400
 
     if resolve_type == 'agent':
-        answer, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_types, connection_ids, context)
+        answer, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context)
         return {'answer': answer, 'sources': []}, 200
 
     try:
         keywords = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
-        results = flask_app.app.seaqa_indexer_api.search(keywords, project_uuid, connection_types, connection_ids)
+        results = flask_app.app.seaqa_indexer_api.search(keywords, project_uuid, connection_ids)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
