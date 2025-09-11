@@ -122,8 +122,8 @@ class TextProcessingManager:
             logger.error(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
 
-    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_types, connection_ids, context):
-        keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_types, connection_ids)
+    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_ids, context):
+        keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_ids)
         client = self.app.llm_api
         server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
