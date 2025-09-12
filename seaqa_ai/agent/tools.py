@@ -29,7 +29,7 @@ class KeywordsSearch(Tool):
         # Format the retrieved documents for readability
         return "\nRetrieved documents:\n" + "".join(
             [
-                f"\n\n===== Document {str(i)} =====\n" + doc.get('content')
+                f"\n\n===== Document {str(i + 1)} ===== Source: {doc.get('url')} =====\n" + doc.get('content')
                 for i, doc in enumerate(docs)
             ]
         )

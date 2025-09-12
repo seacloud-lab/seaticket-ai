@@ -99,6 +99,7 @@ system_prompt: |-
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
   3. Call a tool only when needed: call the search agent if you need information, try to solve the issue based on search results. If no tool call is needed, use final_answer tool to return your answer.
   4. Never re-do a tool call that you previously did with the exact same parameters.
+  5. Always generate a list of sources that address this issue.
 
   Now Begin!
 planning:
