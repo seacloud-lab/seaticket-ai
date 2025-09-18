@@ -59,8 +59,8 @@ def generate_answer():
         return {'error_msg': 'username invalid.'}, 400
 
     if resolve_type == 'agent':
-        agent_output, agent_memory, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context)
-        return {'answer': agent_output, 'agent_memory': agent_memory, 'sources': []}, 200
+        answer, agent_memory, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context)
+        return {'answer': answer, 'agent_memory': agent_memory, 'sources': sources}, 200
 
     try:
         keywords = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
