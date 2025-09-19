@@ -44,6 +44,9 @@ class AgentManager:
 
             output = agent_output.output
             sources = output.get('sources', [])
-            sources = json.loads(sources) if isinstance(sources, str) else sources
+            try:
+                sources = json.loads(sources) if isinstance(sources, str) else sources
+            except Exception as e:
+                sources = []
             return output.get('answer', ''), agent_output.messages, sources
 
