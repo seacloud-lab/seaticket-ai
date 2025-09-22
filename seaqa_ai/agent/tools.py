@@ -34,3 +34,23 @@ class KeywordsSearch(Tool):
             ]
         )
 
+
+class FinalAnswerTool(Tool):
+    name = "final_answer"
+    description = "Provides a final answer to the given problem."
+    inputs = {
+        "answer": {
+            "type": "any", "description": "The final answer to the problem"
+        },
+        "sources": {
+            "type": "any", "description": "The sources of final answer"
+        }
+    }
+    output_type = "any"
+
+    def forward(self, answer, sources):
+        return {
+            "answer": answer,
+            "sources": sources
+        }
+

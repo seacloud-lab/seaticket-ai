@@ -1,6 +1,7 @@
 import logging
 import yaml
 import importlib
+import json
 
 from smolagents import ToolCallingAgent
 from smolagents.monitoring import LogLevel
@@ -15,13 +16,13 @@ class AgentManager:
 
     def execute(self, agent_name, message, **kwargs):
         if agent_name == 'tool_call_agent':
-            retriever_tool = kwargs.get('retriever_tool')
+            tools = kwargs.get('tools', [])
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
-                tools=[retriever_tool],  # List of tools available to the agent
+                tools=tools,  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.OFF,  # Show detailed agent reasoning debug
@@ -41,4 +42,11 @@ class AgentManager:
                 if model_output:
                     msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
 
-            return agent_output.output, agent_output.messages
+            output = agent_output.output
+            sources = output.get('sources', [])
+            try:
+                sources = json.loads(sources) if isinstance(sources, str) else sources
+            except Exception as e:
+                sources = []
+            return output.get('answer', ''), agent_output.messages, sources
+

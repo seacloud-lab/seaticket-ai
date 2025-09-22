@@ -1,11 +1,13 @@
 import logging
 import json
 from seaqa_ai.config import LLM_MODEL
-from seaqa_ai.agent.tools import KeywordsSearch
+from seaqa_ai.agent.tools import KeywordsSearch, FinalAnswerTool
 from smolagents.models import LiteLLMModel
 
 
 logger = logging.getLogger(__name__)
+
+MAX_SOURCES_COUNT = 5
 
 
 class TextProcessingManager:
@@ -61,7 +63,7 @@ class TextProcessingManager:
         """
         try:
             # Extract top 5 sources
-            top_sources = sources[:5] if len(sources) > 5 else sources
+            top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
             # Build reference texts
             reference_texts = []
@@ -88,8 +90,8 @@ class TextProcessingManager:
 
             **User Question:** {question}
 
-            **Reference Materials:**
-            {references_content}
+            # **Reference Materials:**
+            # {references_content}
 
             **Instructions:**
             - Use [Reference 1], [Reference 2], etc. to cite specific sources when mentioning information
@@ -124,10 +126,13 @@ class TextProcessingManager:
 
     def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_ids, context):
         keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_ids)
+        final_answer_tool = FinalAnswerTool()
+        tools = [keywords_search, final_answer_tool]
         client = self.app.llm_api
         server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
 
-        agent_output, agent_memory = self.app.agent_manager.execute(agent_name,  message, retriever_tool=keywords_search, server_model=server_model)
+        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tools, server_model=server_model)
+        top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
-        return agent_output, agent_memory, []
+        return answer, agent_memory, top_sources
