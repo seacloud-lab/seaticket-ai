@@ -7,6 +7,8 @@ from smolagents.models import LiteLLMModel
 
 logger = logging.getLogger(__name__)
 
+MAX_SOURCES_COUNT = 5
+
 
 class TextProcessingManager:
     def __init__(self, app):
@@ -61,7 +63,7 @@ class TextProcessingManager:
         """
         try:
             # Extract top 5 sources
-            top_sources = sources[:5] if len(sources) > 5 else sources
+            top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
             # Build reference texts
             reference_texts = []
@@ -88,8 +90,8 @@ class TextProcessingManager:
 
             **User Question:** {question}
 
-            **Reference Materials:**
-            {references_content}
+            # **Reference Materials:**
+            # {references_content}
 
             **Instructions:**
             - Use [Reference 1], [Reference 2], etc. to cite specific sources when mentioning information
@@ -131,5 +133,6 @@ class TextProcessingManager:
         agent_name = 'tool_call_agent'
 
         answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tools, server_model=server_model)
+        top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
-        return answer, agent_memory, sources
+        return answer, agent_memory, top_sources
