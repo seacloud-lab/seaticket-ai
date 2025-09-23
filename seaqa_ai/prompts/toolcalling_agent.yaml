@@ -21,7 +21,13 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": {"answer": "insert your final answer here"}
+    "arguments": {
+      "answer": "insert your final answer here",
+      "sources": [
+        {"url": "https://example.com/source1", "title": "Source title 1"},
+        {"url": "https://example.com/source2", "title": "Source title 2"}
+      ]
+    }
   }
 
 
@@ -35,6 +41,7 @@ system_prompt: |-
       "arguments": {"document": "document.pdf", "question": "Who is the oldest person mentioned?"}
     }
     Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
+    Source: {"url": "document.pdf", "title": "Project Documentation"}
 
     Action:
     {
@@ -46,7 +53,12 @@ system_prompt: |-
     Action:
     {
       "name": "final_answer",
-      "arguments": "image.png"
+      "arguments": {
+        "answer": "image.png", 
+        "sources": [
+          {"url": "document.pdf", "title": "Project Documentation"}
+        ]
+      }
     }
 
   ---
@@ -62,7 +74,10 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "1302.678"
+    "arguments": {
+      "answer": "1302.678",
+      "sources": []
+    }
   }
 
   ---
@@ -74,7 +89,7 @@ system_prompt: |-
       "arguments": "Usage rate of Python"
   }
   Observation: ['JetBrains Developer Report: Python usage will reach 57% in 2024.']
-
+  Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
 
   Action:
   {
@@ -82,11 +97,17 @@ system_prompt: |-
       "arguments": "Usage rate of Python"
   }
   Observation: 'JetBrains Developer Report predicts Java usage will be 46% in 2024'
+  Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
 
   Action:
   {
     "name": "final_answer",
-    "arguments": "Python"
+    "arguments": {
+      "answer": "Python", 
+      "sources": [
+        {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
+      ]
+    }
   }
 
   Above example were using notional tools that might not exist for you. You only have access to these tools:
@@ -99,7 +120,9 @@ system_prompt: |-
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
   3. Call a tool only when needed: call the search agent if you need information, try to solve the issue based on search results. If no tool call is needed, use final_answer tool to return your answer.
   4. Never re-do a tool call that you previously did with the exact same parameters.
-  5. Always generate a list of sources that address this issue.
+  5. Always generate a list of sources that address this issue and include them in the 'sources' field of your final_answer using the format [{"url": "source url", "title": "source title"}, ...].
+  6. For each tool that provides information, record the source of that information when available, including both URL and title.
+  7. Your final output MUST be a JSON object with exactly two fields: "answer" and "sources".
 
   Now Begin!
 planning:
@@ -185,10 +208,12 @@ managed_agent:
       ---
       You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
 
-      Your final_answer WILL HAVE to contain these parts:
-      ### 1. Task outcome (short version):
-      ### 2. Task outcome (extremely detailed version):
-      ### 3. Additional context (if relevant):
+      Your final_answer MUST be a JSON object with exactly two fields:
+      - "answer": a comprehensive response that includes:
+        * Task outcome (short version)
+        * Task outcome (extremely detailed version)
+        * Additional context (if relevant)
+      - "sources": a list of sources in the format [{"url": "source url", "title": "source title"}, ...]
 
       Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
       And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
@@ -201,3 +226,8 @@ final_answer:
   post_messages: |-
     Based on the above, please provide an answer to the following user task:
     {{task}}
+
+    Your response MUST be a JSON object with exactly two fields: "answer" and "sources".
+    The "sources" field should be a list of objects, each containing "url" and "title", following the format:
+    [{"url": "source url", "title": "source title"}, ...]
+    If no external sources are used, provide an empty list.
