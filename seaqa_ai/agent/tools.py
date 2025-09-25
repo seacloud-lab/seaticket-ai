@@ -54,3 +54,30 @@ class FinalAnswerTool(Tool):
             "sources": sources
         }
 
+class ResolveTicketTool(Tool):
+    name = 'resolve_ticket'
+    description = "Analyzes the ticket contents and determines how to resolve the ticket. Returns a search query for finding relevant documentation."
+    inputs = {
+        "ticket_title": {
+            "type": "string", 
+            "description": "The title of the ticket that needs to be resolved"
+        },
+        "ticket_description": {
+            "type": "string",
+            "description": "The content of the ticket that needs to be resolved"
+        }
+    }
+    output_type = "string"
+
+    def forward(self, ticket_title, ticket_description):
+        """Analyze the ticket and generate a search query for relevant documentation."""
+        if ticket_title and ticket_description:
+            search_query = f"{ticket_title}, {ticket_description}"
+        elif ticket_title:
+            search_query = ticket_title
+        else:
+            search_query = ticket_description
+
+        print(ticket_title, ticket_description)
+        print(search_query)
+        return f"Search query generated for ticket resolution: {search_query}"

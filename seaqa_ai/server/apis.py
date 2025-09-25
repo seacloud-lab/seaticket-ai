@@ -46,6 +46,8 @@ def generate_answer():
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', 'ask')
+    ticket_title = data.get('ticket_title', '')
+    ticket_description = data.get('ticket_description', '')
 
     context = {
         'username': username,
@@ -59,11 +61,25 @@ def generate_answer():
         return {'error_msg': 'username invalid.'}, 400
 
     if resolve_type == 'agent':
-        answer, agent_memory, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context)
+        ticket = None
+        if ticket_title:
+            ticket = {
+                "title": ticket_title,
+                "description": ticket_description
+            }
+        answer, agent_memory, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context, ticket=ticket)
         return {'answer': answer, 'agent_memory': agent_memory, 'sources': sources}, 200
 
     try:
-        keywords = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
+        init_query = query
+        if ticket_title:
+            init_query = f'{query} Title: {ticket_title}'
+        if ticket_description:
+            if ticket_title:
+                init_query = f'{init_query},'
+            init_query = f'{init_query} Description: {ticket_description}'
+
+        keywords = flask_app.app.text_processing_manager.generate_search_keywords(init_query, context)
         results = flask_app.app.seaqa_indexer_api.search(keywords, project_uuid, connection_ids)
     except Exception as e:
         logger.exception(e)

@@ -17,18 +17,32 @@ class AgentManager:
     def execute(self, agent_name, message, **kwargs):
         if agent_name == 'tool_call_agent':
             tools = kwargs.get('tools', [])
+            ticket = kwargs.get('ticket', None)
             server_model = kwargs.get('server_model')
+            max_steps = len(tools) + 1
             agent = ToolCallingAgent(
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
                 tools=tools,  # List of tools available to the agent
                 model=server_model,
-                max_steps=3,  # Limit the number of reasoning steps
+                max_steps=max_steps,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.OFF,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
-            agent_output = agent.run(message)
+
+            initial_message = message
+            if ticket:
+                ticket_title = ticket.get('title', {})
+                ticket_description = ticket.get('description', '')
+                if ticket_title:
+                    initial_message = f'{initial_message} Title: {ticket_title}'
+                if ticket_description:
+                    if ticket_title:
+                       initial_message = f'{initial_message},'
+                    initial_message = f'{initial_message} Description: {ticket_description}'
+
+            agent_output = agent.run(initial_message)
             for msg in agent_output.messages:
                 model_input_messages = msg.get('model_input_messages')
                 if model_input_messages:

@@ -1,7 +1,7 @@
 import logging
 import json
 from seaqa_ai.config import LLM_MODEL
-from seaqa_ai.agent.tools import KeywordsSearch, FinalAnswerTool
+from seaqa_ai.agent.tools import KeywordsSearch, FinalAnswerTool, ResolveTicketTool
 from smolagents.models import LiteLLMModel
 
 
@@ -124,15 +124,20 @@ class TextProcessingManager:
             logger.error(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
 
-    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_ids, context):
+    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_ids, context, **kwargs):
         keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_ids)
         final_answer_tool = FinalAnswerTool()
-        tools = [keywords_search, final_answer_tool]
         client = self.app.llm_api
         server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
 
-        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tools, server_model=server_model)
+        ticket = kwargs.get('ticket', None)
+        tools = [keywords_search, final_answer_tool]
+        if ticket:
+            resolve_ticket_tool = ResolveTicketTool()
+            tools = [resolve_ticket_tool] + tools
+
+        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tools, server_model=server_model, ticket=ticket)
         top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
         return answer, agent_memory, top_sources
