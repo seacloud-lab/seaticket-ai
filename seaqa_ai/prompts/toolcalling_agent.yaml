@@ -13,7 +13,7 @@ system_prompt: |-
 
   Action:
   {
-    "name": "retriever",
+    "name": "keywords_search",
     "arguments": {"query": "How to use seafile"}
   }
 
@@ -85,27 +85,90 @@ system_prompt: |-
 
   Action:
   {
-      "name": "web_search",
-      "arguments": "Usage rate of Python"
+      "name": "keywords_search",
+      "arguments": {"query": "Usage rate of Python"}
   }
-  Observation: ['JetBrains Developer Report: Python usage will reach 57% in 2024.']
+  Observation: "\nRetrieved documents:\n\n===== Document 1 ===== Source: https://www.jetbrains.com/lp/devecosystem-2024/ =====\nJetBrains Developer Report: Python usage will reach 57% in 2024."
   Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
 
   Action:
   {
-      "name": "web_search",
-      "arguments": "Usage rate of Python"
+      "name": "keywords_search",
+      "arguments": {"query": "Usage rate of Java"}
   }
-  Observation: 'JetBrains Developer Report predicts Java usage will be 46% in 2024'
+  Observation: "\nRetrieved documents:\n\n===== Document 1 ===== Source: https://www.jetbrains.com/lp/devecosystem-2024/ =====\nJetBrains Developer Report predicts Java usage will be 46% in 2024"
   Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
 
   Action:
   {
     "name": "final_answer",
     "arguments": {
-      "answer": "Python", 
+      "answer": "Python is more popular than Java based on the latest developer survey", 
       "sources": [
         {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
+      ]
+    }
+  }
+
+  ---
+  Task: "How to resolve this ticket? Title: 'Login failure issue', Description: 'Users cannot login to the system with correct credentials'"
+
+  Action:
+  {
+    "name": "resolve_ticket",
+    "arguments": {
+      "ticket_title": "Login failure issue",
+      "ticket_description": "Users cannot login to the system with correct credentials"
+    }
+  }
+  Observation: "Search query generated for ticket resolution: Login failure issue, Users cannot login to the system with correct credentials"
+
+  Action:
+  {
+    "name": "keywords_search",
+    "arguments": {"query": "login failure, authentication issue, correct credentials not working"}
+  }
+  Observation: "\nRetrieved documents:\n\n===== Document 1 ===== Source: https://example.com/troubleshooting-login =====\nCommon login issues and solutions: 1. Check authentication server status 2. Verify user credentials 3. Review system logs\n\n===== Document 2 ===== Source: https://example.com/authentication-guide =====\nAuthentication system documentation: Ensure network connectivity between components."
+
+  Action:
+  {
+    "name": "final_answer",
+    "arguments": {
+      "answer": "Based on the search results, here are the steps to resolve the login failure issue:\n\n1. Check the authentication server status\n2. Verify user credentials in the database\n3. Review system logs for error messages\n4. Ensure network connectivity between components\n\nAdditional recommendations:\n- Reset user passwords if necessary\n- Check for system updates\n- Verify certificate validity",
+      "sources": [
+        {"url": "https://example.com/troubleshooting-login", "title": "Login Troubleshooting Guide"},
+        {"url": "https://example.com/authentication-guide", "title": "Authentication System Documentation"}
+      ]
+    }
+  }
+
+  ---
+  Task: "How to resolve this ticket? Title: 'Database connection timeout'"
+
+  Action:
+  {
+    "name": "resolve_ticket",
+    "arguments": {
+      "ticket_title": "Database connection timeout",
+      "ticket_description": ""
+    }
+  }
+  Observation: "Search query generated for ticket resolution: Database connection timeout"
+
+  Action:
+  {
+    "name": "keywords_search",
+    "arguments": {"query": "database connection timeout, connection issues, network latency"}
+  }
+  Observation: "\nRetrieved documents:\n\n===== Document 1 ===== Source: https://example.com/db-troubleshooting =====\nDatabase connection issues: Check network connectivity, increase timeout settings, verify database server status."
+
+  Action:
+  {
+    "name": "final_answer",
+    "arguments": {
+      "answer": "To resolve database connection timeout issues:\n\n1. Check network connectivity between application and database server\n2. Increase connection timeout settings in configuration\n3. Verify database server is running and accessible\n4. Monitor database performance and resource usage\n5. Check for firewall or security group restrictions",
+      "sources": [
+        {"url": "https://example.com/db-troubleshooting", "title": "Database Troubleshooting Guide"}
       ]
     }
   }
