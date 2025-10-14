@@ -100,7 +100,7 @@ class ChatManager:
                 }
             ]
 
-            response = self.app.openai_api.chat_completions(
+            response = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
                 temperature=0.1,
