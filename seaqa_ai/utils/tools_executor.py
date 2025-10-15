@@ -49,7 +49,7 @@ def _register(func, tool_name, tool_description, tool_parms_properties, **consta
         call_parms_str += f', {parm_name}={parm_name}'
 
     for kw_name, kw_value in constant_kwargs.items():
-        constant_kwargs_str += f', {kw_name}={kw_value}'
+        constant_kwargs_str += f', {kw_name}={kw_value if not isinstance(kw_value, str) else "\"" + kw_value + "\""}'
 
     all_parms_str = f'{call_parms_str}{constant_kwargs_str}'
     if ', ' == all_parms_str[:2]:
