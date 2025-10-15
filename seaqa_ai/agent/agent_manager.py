@@ -25,7 +25,7 @@ class AgentManager:
                 tools=tools,  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps
-                verbosity_level=LogLevel.OFF,  # Show detailed agent reasoning debug
+                verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
             agent_output = agent.run(message)
