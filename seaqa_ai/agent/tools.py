@@ -1,39 +1,35 @@
 from smolagents import Tool
 
+_TOOL_KETWORDS_SEARCH_RESULT_FORMAT = """The result of this tool has the below format:
+Retrieved documents:
 
-class KeywordsSearch(Tool):
-    name = "keywords_search"
-    description = "This is a search tool for technical documents. You can use a query containing the keywords (separated by ',') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end."
-    inputs = {
-        "query": {
-            "type": "string",
-            "description": "The query containing the keywords (separated by ',') related to the issue.",
+===== Document 1 ===== Source: <URL of document 1> =====
+<Document 1's content>
+
+
+===== Document 2 ===== Source: <URL of document 2> =====
+<Document 2's content>
+"""
+
+Tools = {
+    'keywords_search': {
+        'type': 'function',
+        'function': {
+            'name': 'keywords_search',
+            'description': f'This is a search tool for technical documents. You can use a query containing the keywords (separated by \',\') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end. {_TOOL_KETWORDS_SEARCH_RESULT_FORMAT}. **Note: Not every keyword can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'query': {
+                        'type': 'string',
+                        'description': 'The query containing the keywords (separated by \',\') related to the issue.'
+                    }
+                },
+                'required': ['query']
+            }
         }
     }
-    output_type = "string"
-
-    def __init__(self, retriever, project_uuid, connection_ids=None, **kwargs):
-        super().__init__(**kwargs)
-        self.project_uuid = project_uuid
-        self.connection_ids = connection_ids
-
-        self.retriever = retriever
-
-    def forward(self, query: str) -> str:
-        """Execute the retrieval based on the provided query."""
-        assert isinstance(query, str), "Your search query must be a string"
-
-        # Retrieve relevant documents
-        docs = self.retriever.search(query, self.project_uuid, self.connection_ids)
-
-        # Format the retrieved documents for readability
-        return "\nRetrieved documents:\n" + "".join(
-            [
-                f"\n\n===== Document {str(i + 1)} ===== Source: {doc.get('url')} =====\n" + doc.get('content')
-                for i, doc in enumerate(docs)
-            ]
-        )
-
+}
 
 class FinalAnswerTool(Tool):
     name = "final_answer"

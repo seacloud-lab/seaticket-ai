@@ -1,138 +1,99 @@
 import logging
 import json
 from seaqa_ai.config import LLM_MODEL
-from seaqa_ai.agent.tools import KeywordsSearch, FinalAnswerTool
+from seaqa_ai.agent.tools import Tools
+from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
+from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT, system_prompts
 from smolagents.models import LiteLLMModel
 
 
 logger = logging.getLogger(__name__)
-
-MAX_SOURCES_COUNT = 5
 
 
 class TextProcessingManager:
     def __init__(self, app):
         self.app = app
 
-    def generate_search_keywords(self, query, context):
-        """
-        Generate English and Chinese search keywords based on user query.
-        """
-        try:
-            prompt = f"""Based on the user's question, please:
-            1. Identify the language of the user's question
-            2. Generate keywords that would help find relevant information.
+    def _search(self, query, project_uuid, connection_ids):
+        """Execute the retrieval based on the provided query."""
+        assert isinstance(query, str), "Your search query must be a string"
 
-            User Question: {query}
+        # Retrieve relevant documents
+        docs = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)
 
-            Please provide:
-            1. Keywords (3-5 key terms or phrases)
-
-            Format your response as JSON:
-            {{
-                "keywords": "keyword1 keyword2 keyword3"
-            }}
-
-            Only return the JSON, no additional text."""
-            messages = [
-                {
-                    "role": "system",
-                    "content": "You are a professional search keyword generator. Generate relevant search keywords. Always respond with valid JSON format."
-                },
-                {"role": "user", "content": prompt}
+        # Format the retrieved documents for readability
+        return "\nRetrieved documents:\n" + "".join(
+            [
+                f"\n\n===== Document {str(i + 1)} ===== Source: {doc.get('url')} =====\n" + doc.get('content')
+                for i, doc in enumerate(docs)
             ]
+        )
 
-            response = self.app.llm_api.completion(
-                messages=messages,
-                context=context,
-                temperature=0.1,
-            )
-            content = response.choices[0].message.content
-
-            response_data = json.loads(content.strip())
-            return response_data.get("keywords")
-
-        except Exception as e:
-            logger.error(f"Error generating keywords: {str(e)}")
-            # Fallback to original query
-            return query
-
-    def generate_answer(self, question, sources, context):
+    def generate_answer(self, resolve_type, message, project_uuid, connection_ids, context):
+        if resolve_type == 'agent':
+            return self._gen_ans_agent(message, project_uuid, connection_ids, context)
+        elif resolve_type == 'ask':
+            return self._gen_ans_ask(message, project_uuid, connection_ids, context)
+        else:
+            return f"Invalid resolve type"
+        
+    def _gen_ans_ask(self, question, project_uuid, connection_ids, context):
         """
         Generate an answer based on the question and references.
         """
+        tool_executor = FunctionCallingToolExecutor()
+        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
+
+        messages = [
+            {
+                'role': 'system',
+                'content': system_prompts
+            },
+            {
+                'role': 'user',
+                'content': question
+            }
+        ]
         try:
-            # Extract top 5 sources
-            top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
-
-            # Build reference texts
-            reference_texts = []
-            for i, source in enumerate(top_sources, 1):
-                content = source.get('content', '')
-                title = source.get('title', 'Unknown Title')
-                url = source.get('url', '')
-
-                reference_text = f"Reference {i}:\nTitle: {title}\nContent: {content}"
-                if url:
-                    reference_text += f"\nSource: {url}"
-                reference_texts.append(reference_text)
-
-            references_content = "\n\n".join(reference_texts)
-
-            # Build optimized prompt
-            prompt = f"""You are a professional technical assistant. Please answer the user's question based on the provided reference materials.
-            **Requirements:**
-            1. Please answer in the language of the question first
-            2. Keep your answer within 500 words
-            3. Cite specific references using [Reference X] format when mentioning information from the sources
-            4. Provide accurate, detailed, and helpful information
-            5. If the reference materials are insufficient to fully answer the question, clearly indicate this
-
-            **User Question:** {question}
-
-            # **Reference Materials:**
-            # {references_content}
-
-            **Instructions:**
-            - Use [Reference 1], [Reference 2], etc. to cite specific sources when mentioning information
-            - Focus on the most relevant information from the references
-            - Be concise but comprehensive within the word limit
-            - Maintain professional and helpful tone"""
-
-            # Build message format with enhanced system prompt
-            messages = [
-                {
-                    "role": "system",
-                    "content": f"You are a professional technical assistant specializing in providing accurate answers based on reference materials. Always cite your sources using [Reference X] format and keep responses within 500 words. Please answer in the language of the question first."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-
-            response = self.app.llm_api.completion(
+            tool_calls = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
-                temperature=0.1,
-            )
-            content = response.choices[0].message.content
+                tools=tool_executor.get(),
+                temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1,
+            ).choices[0].message.tool_calls
 
-            return content, top_sources
+            tool_call = tool_calls[0]
 
+            messages.append({
+                'role': 'assistant',
+                'tool_calls': tool_calls
+            })
+
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': tool_call['id'],
+                'content': json.dumps(tool_executor.execute(tool_call))
+            })
+
+            content = json.loads(self.app.llm_api.completion(
+                messages=messages,
+                context=context,
+                temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1,
+            ).choices[0].message.content)
+
+            return content['answer'], content['sources']
+        
         except Exception as e:
             logger.error(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
-
-    def generate_answer_by_tool_call_agent(self, message, project_uuid, connection_ids, context):
-        keywords_search = KeywordsSearch(self.app.seaqa_indexer_api, project_uuid, connection_ids)
-        final_answer_tool = FinalAnswerTool()
-        tools = [keywords_search, final_answer_tool]
+    
+    def _gen_ans_agent(self, message, project_uuid, connection_ids, context):
+        tool_executor = SmolAgentsToolExecutor()
+        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
         client = self.app.llm_api
         server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
         agent_name = 'tool_call_agent'
-
-        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tools, server_model=server_model)
+        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tool_executor.tools, server_model=server_model)
         top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
 
         return answer, agent_memory, top_sources
