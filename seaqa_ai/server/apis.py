@@ -57,41 +57,18 @@ def generate_answer():
         return {'error_msg': 'project_uuid invalid.'}, 400
     if not username:
         return {'error_msg': 'username invalid.'}, 400
+    
+    results = flask_app.app.text_processing_manager.generate_answer(resolve_type, query, project_uuid, connection_ids, context)
 
-    if resolve_type == 'agent':
-        answer, agent_memory, sources = flask_app.app.text_processing_manager.generate_answer_by_tool_call_agent(query, project_uuid, connection_ids, context)
+    try:
+        # agent mode
+        answer, agent_memory, sources = results
         return {'answer': answer, 'agent_memory': agent_memory, 'sources': sources}, 200
+    except:
+        # ask mode
+        try:
+            answer, sources = results
+            return {'answer': answer, 'agent_memory': [], 'sources': sources}, 200
 
-    try:
-        keywords = flask_app.app.text_processing_manager.generate_search_keywords(query, context)
-        results = flask_app.app.seaqa_indexer_api.search(keywords, project_uuid, connection_ids)
-    except Exception as e:
-        logger.exception(e)
-        return {'error_msg': 'Internet server error.'}, 500
-
-    if not results:
-        return {'answer': 'No relevant information found.', 'sources': []}, 200
-    try:
-        answer, sources = flask_app.app.text_processing_manager.generate_answer(query, results, context)
-    except Exception as e:
-        logger.exception(e)
-        return {'error_msg': 'Internet server error.'}, 500
-    citation_url = []
-    for source in sources:
-        type = source.get('type')
-        match type:
-            case SeasearchType.SITE.value:
-                citation_url.append({'title': source.get('url'), 'url': source.get('url')})
-            case SeasearchType.SEAFILE.value:
-                server_url = source.get('server_url').rstrip('/')
-                repo_id = source.get('repo_id')
-                path = source.get('path', '')
-                filename = source.get('filename', '')
-
-                full_path = path.rstrip('/') + '/' + filename
-                encoded_full_path = quote(full_path, safe='/')
-                url = f"{server_url}/lib/{repo_id}/file{encoded_full_path}"
-
-                citation_url.append({'title': source.get('filename'), 'url': url})
-
-    return {'answer': answer, 'agent_memory': [], 'sources': citation_url}, 200
+        except:
+            return {'error_msg': 'Internet server error.'}, 500
