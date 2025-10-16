@@ -36,7 +36,7 @@ class ChatManager:
         else:
             return f"Invalid resolve type"
 
-    def _gen_ans_ask(self, question, project_uuid, connection_ids, context):
+    def _gen_ans_ask(self, message, project_uuid, connection_ids, context):
         """
         Generate an answer based on the question and references.
         """
@@ -44,7 +44,7 @@ class ChatManager:
         tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
 
         try:
-            return self.app.agent_manager.execute('function_calling', question, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
+            return self.app.agent_manager.execute('function_calling', message, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
 
         except Exception as e:
             logger.exception(f"Error generating answer: {str(e)}")
