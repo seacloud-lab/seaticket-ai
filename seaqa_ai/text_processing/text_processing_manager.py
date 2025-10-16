@@ -24,7 +24,7 @@ class TextProcessingManager:
         # Format the retrieved documents for readability
         return "\nRetrieved documents:\n" + "".join(
             [
-                f"\n\n===== Document {str(i + 1)} ===== Source: {doc.get('url')} =====\n" + doc.get('content')
+                f"\n\n===== Document {str(i + 1)} ===== Source: {doc.get('url')} =====\n" + (doc.get('content') or '')
                 for i, doc in enumerate(docs)
             ]
         )
@@ -36,7 +36,7 @@ class TextProcessingManager:
             return self._gen_ans_ask(message, project_uuid, connection_ids, context)
         else:
             return f"Invalid resolve type"
-        
+
     def _gen_ans_ask(self, question, project_uuid, connection_ids, context):
         """
         Generate an answer based on the question and references.
@@ -82,11 +82,11 @@ class TextProcessingManager:
             ).choices[0].message.content)
 
             return content['answer'], content['sources']
-        
+
         except Exception as e:
-            logger.error(f"Error generating answer: {str(e)}")
+            logger.exception(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
-    
+
     def _gen_ans_agent(self, message, project_uuid, connection_ids, context):
         tool_executor = SmolAgentsToolExecutor()
         tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
