@@ -67,31 +67,35 @@ class AgentManager:
                     'content': message
                 }
             ]
-            tool_calls = self.app.llm_api.completion(
+            response = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
                 tools=tool_executor.get() if tool_executor else [],
                 temperature=temperature
-            ).choices[0].message.tool_calls
+            ).choices[0].message
 
-            tool_call = tool_calls[0]
+            if response.tool_calls:
 
-            messages.append({
-                'role': 'assistant',
-                'tool_calls': tool_calls
-            })
+                tool_call = response.tool_calls[0]
 
-            messages.append({
-                'role': 'tool',
-                'tool_call_id': tool_call['id'],
-                'content': json.dumps(tool_executor.execute(tool_call))
-            })
-            
-            content = self.app.llm_api.completion(
-                    messages=messages,
-                    context=context,
-                    temperature=temperature,
-                ).choices[0].message.content
+                messages.append({
+                    'role': 'assistant',
+                    'tool_calls': response.tool_calls
+                })
+
+                messages.append({
+                    'role': 'tool',
+                    'tool_call_id': tool_call['id'],
+                    'content': json.dumps(tool_executor.execute(tool_call))
+                })
+                
+                content = self.app.llm_api.completion(
+                        messages=messages,
+                        context=context,
+                        temperature=temperature,
+                    ).choices[0].message.content
+            else:
+                content = response.content
 
             try:
                 content = json.loads(content)
