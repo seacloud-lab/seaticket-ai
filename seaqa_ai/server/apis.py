@@ -58,7 +58,7 @@ def generate_answer():
     if not username:
         return {'error_msg': 'username invalid.'}, 400
     
-    results = flask_app.app.text_processing_manager.generate_answer(resolve_type, query, project_uuid, connection_ids, context)
+    results = flask_app.app.chat_manager.generate_answer(resolve_type, query, project_uuid, connection_ids, context)
 
     try:
         # agent mode

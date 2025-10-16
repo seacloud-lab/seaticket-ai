@@ -1,6 +1,6 @@
 from seaqa_ai.server.seaqa_ai_http_server import SeaQAAIHttpServer
 from seaqa_ai.data_logging.data_logging import DataLogging
-from seaqa_ai.text_processing.text_processing_manager import TextProcessingManager
+from seaqa_ai.chat.chat_manager import ChatManager
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY
@@ -14,7 +14,7 @@ class SeaQAAIApp(object):
 
         self.llm_api = LLMAPI(self.data_logger, config.LLM_TYPE, config.LLM_URL, config.LLM_KEY, config.LLM_MODEL)
 
-        self.text_processing_manager = TextProcessingManager(self)
+        self.chat_manager = ChatManager(self)
         self.seaqa_indexer_api = SeaQAIndexerAPI(SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY)
 
         self.agent_manager = AgentManager(self)

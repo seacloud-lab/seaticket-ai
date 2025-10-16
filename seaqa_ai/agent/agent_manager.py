@@ -5,6 +5,7 @@ import json
 
 from smolagents import ToolCallingAgent
 from smolagents.monitoring import LogLevel
+from seaqa_ai.prompts.ask import system_prompts
 
 
 logger = logging.getLogger(__name__)
@@ -15,17 +16,18 @@ class AgentManager:
         self.app = app
 
     def execute(self, agent_name, message, **kwargs):
+        # agent mode
         if agent_name == 'tool_call_agent':
-            tools = kwargs.get('tools', [])
+            tool_executor = kwargs.get('tool_executor')
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
-                tools=tools,  # List of tools available to the agent
+                tools=tool_executor.tools if tool_executor else [],  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps
-                verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
+                verbosity_level=LogLevel.OFF,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
             agent_output = agent.run(message)
@@ -46,7 +48,54 @@ class AgentManager:
             sources = output.get('sources', [])
             try:
                 sources = json.loads(sources) if isinstance(sources, str) else sources
-            except Exception as e:
+            except:
                 sources = []
             return output.get('answer', ''), agent_output.messages, sources
+        
+        # ask mode
+        elif agent_name == 'function_calling':
+            tool_executor=kwargs.get('tool_executor')
+            temperature=kwargs.get('temperature', 0.1)
+            context=kwargs.get('context')
+            messages = [
+                {
+                    'role': 'system',
+                    'content': system_prompts
+                },
+                {
+                    'role': 'user',
+                    'content': message
+                }
+            ]
+            tool_calls = self.app.llm_api.completion(
+                messages=messages,
+                context=context,
+                tools=tool_executor.get() if tool_executor else [],
+                temperature=temperature
+            ).choices[0].message.tool_calls
 
+            tool_call = tool_calls[0]
+
+            messages.append({
+                'role': 'assistant',
+                'tool_calls': tool_calls
+            })
+
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': tool_call['id'],
+                'content': json.dumps(tool_executor.execute(tool_call))
+            })
+            
+            content = self.app.llm_api.completion(
+                    messages=messages,
+                    context=context,
+                    temperature=temperature,
+                ).choices[0].message.content
+
+            try:
+                content = json.loads(content)
+                return content['answer'], content['sources']
+            except Exception as e:
+                logger.exception(f"Failure to parse json: {str(e)}")
+                return content, []
