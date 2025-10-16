@@ -8,6 +8,8 @@ from smolagents.models import LiteLLMModel
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.seadb_models.discourse_seadb_api import DiscourseSeaDBAPI
+
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +107,9 @@ class ChatManager:
                 context=context,
                 temperature=0.1,
             )
-
-            ticket_data = json.loads(response.strip())
-            ai_title = ticket_data.get('title', title)
-            ai_description = ticket_data.get('description', '')
+            resp_json = json.loads(response.choices[0].message.content)
+            ai_title = resp_json.get('title', title)
+            ai_description = resp_json.get('description', '')
             return ai_title, ai_description
 
         except Exception as e:
@@ -116,16 +117,19 @@ class ChatManager:
             return title, ''
 
     def create_ticket_info(self, connection_id, record_id, context):
-        connection_type = self.seaqa_db.get_connection_type_by_id(connection_id)
+        connection_type, project_uuid = self.seaqa_db.get_connection_type_pj_uuid_by_id(connection_id)
         if connection_type == ConnectionType.DISCOURSE_FORUM.value:
-            title = self.seaqa_db.get_topic_title_by_id(connection_id, record_id)
-            replies = self.seaqa_db.get_replies_for_topic(connection_id, record_id)
+            discourse_db_api = DiscourseSeaDBAPI(project_uuid)
+            
+            topics = discourse_db_api.get_topics_by_connection_id(connection_id, record_id)
+            title = topics[0].get('title', '') if topics else ''
+            replies = discourse_db_api.get_replies_by_topic(connection_id, record_id)
             body_content = ''
             for reply in replies:
-                if not reply.content:
+                if not reply.get('content'):
                     continue
 
-                content_to_add = reply.content
+                content_to_add = reply.get('content')
                 if body_content:
                     content_to_add = '\n\n' + content_to_add
                 if len(body_content) + len(content_to_add) > 600:
