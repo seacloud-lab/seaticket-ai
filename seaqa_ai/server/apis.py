@@ -101,7 +101,7 @@ def create_ticket_info():
     if not record_id:
         return {'error_msg': 'record_id invalid.'}, 400
     try:
-        title, description = flask_app.app.text_processing_manager.create_ticket_info(connection_id, record_id, context)
+        title, description = flask_app.app.chat_manager.create_ticket_info(connection_id, record_id, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
