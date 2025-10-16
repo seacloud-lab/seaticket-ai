@@ -1,16 +1,15 @@
 import logging
-import json
 from seaqa_ai.config import LLM_MODEL
 from seaqa_ai.agent.tools import Tools
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
-from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT, system_prompts
+from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT
 from smolagents.models import LiteLLMModel
 
 
 logger = logging.getLogger(__name__)
 
 
-class TextProcessingManager:
+class ChatManager:
     def __init__(self, app):
         self.app = app
 
@@ -19,7 +18,7 @@ class TextProcessingManager:
         assert isinstance(query, str), "Your search query must be a string"
 
         # Retrieve relevant documents
-        docs = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)
+        docs = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)[:MAX_SOURCES_COUNT]
 
         # Format the retrieved documents for readability
         return "\nRetrieved documents:\n" + "".join(
@@ -44,44 +43,8 @@ class TextProcessingManager:
         tool_executor = FunctionCallingToolExecutor()
         tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
 
-        messages = [
-            {
-                'role': 'system',
-                'content': system_prompts
-            },
-            {
-                'role': 'user',
-                'content': question
-            }
-        ]
         try:
-            tool_calls = self.app.llm_api.completion(
-                messages=messages,
-                context=context,
-                tools=tool_executor.get(),
-                temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1,
-            ).choices[0].message.tool_calls
-
-            tool_call = tool_calls[0]
-
-            messages.append({
-                'role': 'assistant',
-                'tool_calls': tool_calls
-            })
-
-            messages.append({
-                'role': 'tool',
-                'tool_call_id': tool_call['id'],
-                'content': json.dumps(tool_executor.execute(tool_call))
-            })
-
-            content = json.loads(self.app.llm_api.completion(
-                messages=messages,
-                context=context,
-                temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1,
-            ).choices[0].message.content)
-
-            return content['answer'], content['sources']
+            return self.app.agent_manager.execute('function_calling', question, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
 
         except Exception as e:
             logger.exception(f"Error generating answer: {str(e)}")
@@ -90,10 +53,9 @@ class TextProcessingManager:
     def _gen_ans_agent(self, message, project_uuid, connection_ids, context):
         tool_executor = SmolAgentsToolExecutor()
         tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
-        client = self.app.llm_api
-        server_model = LiteLLMModel(client=client, model_id=LLM_MODEL, context=context)
-        agent_name = 'tool_call_agent'
-        answer, agent_memory, sources = self.app.agent_manager.execute(agent_name, message, tools=tool_executor.tools, server_model=server_model)
-        top_sources = sources[:MAX_SOURCES_COUNT] if len(sources) > MAX_SOURCES_COUNT else sources
+        if 'gpt-5' not in LLM_MODEL:
+            server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context) 
+        else:
+            server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context, temperatute=1)
 
-        return answer, agent_memory, top_sources
+        return self.app.agent_manager.execute('tool_call_agent', message, tool_executor=tool_executor, server_model=server_model)
