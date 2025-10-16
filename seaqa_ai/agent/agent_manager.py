@@ -17,7 +17,7 @@ class AgentManager:
 
     def execute(self, agent_name, message, **kwargs):
         # agent mode
-        if agent_name == 'tool_call_agent':
+        if agent_name == 'reasoning_agent':
             tool_executor = kwargs.get('tool_executor')
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
@@ -101,5 +101,5 @@ class AgentManager:
                 content = json.loads(content)
                 return content['answer'], content['sources']
             except Exception as e:
-                logger.exception(f"Failure to parse json: {str(e)}")
+                logger.warning(f"Failure to parse json: {str(e)}")
                 return content, []

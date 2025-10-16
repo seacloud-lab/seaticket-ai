@@ -58,4 +58,4 @@ class ChatManager:
         else:
             server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context, temperatute=1)
 
-        return self.app.agent_manager.execute('tool_call_agent', message, tool_executor=tool_executor, server_model=server_model)
+        return self.app.agent_manager.execute('reasoning_agent', message, tool_executor=tool_executor, server_model=server_model)
