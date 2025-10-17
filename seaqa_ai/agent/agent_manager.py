@@ -27,7 +27,7 @@ class AgentManager:
                 tools=tool_executor.tools if tool_executor else [],  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps
-                verbosity_level=LogLevel.OFF,  # Show detailed agent reasoning debug
+                verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
             agent_output = agent.run(message)
@@ -51,7 +51,7 @@ class AgentManager:
             except:
                 sources = []
             return output.get('answer', ''), agent_output.messages, sources
-        
+
         # ask mode
         elif agent_name == 'function_calling':
             tool_executor=kwargs.get('tool_executor')
@@ -88,7 +88,7 @@ class AgentManager:
                     'tool_call_id': tool_call['id'],
                     'content': json.dumps(tool_executor.execute(tool_call))
                 })
-                
+
                 content = self.app.llm_api.completion(
                         messages=messages,
                         context=context,
