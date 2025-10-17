@@ -8,8 +8,6 @@ from smolagents.models import LiteLLMModel
 
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.utils.seaqa_db import SeaqaDB
-from seaqa_ai.utils.constants import ConnectionType
-from seaqa_ai.seadb_models.discourse_seadb_api import DiscourseSeaDBAPI
 
 
 logger = logging.getLogger(__name__)
@@ -68,16 +66,14 @@ class ChatManager:
 
         return self.app.agent_manager.execute('reasoning_agent', message, tool_executor=tool_executor, server_model=server_model)
 
-    def generate_ticket(self, title, body_content, context):
+    def gen_ticket_from_record(self, record_detail, context):
         """
         Generate a ticket with a title and description based on the input title and body content.
         """
         try:
             prompt = f"""Based on the provided ticket information, please generate a concise and informative ticket.
 
-            **Ticket Information:**
-            Title: {title}
-            Body: {body_content}
+            {record_detail}
 
             **Instructions:**
             1. Generate a new, clear, and concise title for the ticket.
@@ -109,33 +105,10 @@ class ChatManager:
                 temperature=0.1,
             )
             resp_json = json.loads(response.choices[0].message.content)
-            ai_title = resp_json.get('title', title)
+            ai_title = resp_json.get('title', '')
             ai_description = resp_json.get('description', '')
             return ai_title, ai_description
 
         except Exception as e:
             logger.error(f"Error generating ticket: {str(e)}")
-            return title, ''
-
-    def create_ticket_info(self, connection_id, record_id, context):
-        connection_type, project_uuid = self.seaqa_db.get_connection_type_pj_uuid_by_id(connection_id)
-        if connection_type == ConnectionType.DISCOURSE_FORUM.value:
-            discourse_db_api = DiscourseSeaDBAPI(project_uuid)
-            
-            topics = discourse_db_api.get_topics_by_connection_id(connection_id, record_id)
-            title = topics[0].get('title', '') if topics else ''
-            replies = discourse_db_api.get_replies_by_topic(connection_id, record_id)
-            body_content = ''
-            for reply in replies:
-                if not reply.get('content'):
-                    continue
-
-                content_to_add = reply.get('content')
-                if body_content:
-                    content_to_add = '\n\n' + content_to_add
-                if len(body_content) + len(content_to_add) > 600:
-                    break
-                body_content += content_to_add
-        
-        title, description = self.generate_ticket(title, body_content, context)
-        return title, description
+            return '', ''
