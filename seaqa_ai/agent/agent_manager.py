@@ -85,18 +85,19 @@ class AgentManager:
 
             if response.tool_calls:
 
-                tool_call = response.tool_calls[0]
-
                 messages.append({
                     'role': 'assistant',
                     'tool_calls': response.tool_calls
                 })
 
-                messages.append({
-                    'role': 'tool',
-                    'tool_call_id': tool_call['id'],
-                    'content': json.dumps(tool_executor.execute(tool_call))
-                })
+                messages += [
+                    {
+                        'role': 'tool',
+                        'tool_call_id': tool_call['id'],
+                        'content': json.dumps(tool_executor.execute(tool_call))
+                    }
+                    for tool_call in response.tool_calls
+                ]
 
                 content = self.app.llm_api.completion(
                         messages=messages,
