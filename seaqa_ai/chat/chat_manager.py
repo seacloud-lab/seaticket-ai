@@ -6,9 +6,6 @@ from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgent
 from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT
 from smolagents.models import LiteLLMModel
 
-from seaqa_ai.db import init_db_session_class
-from seaqa_ai.utils.seaqa_db import SeaqaDB
-
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +13,6 @@ logger = logging.getLogger(__name__)
 class ChatManager:
     def __init__(self, app):
         self.app = app
-        self.db_session_class = init_db_session_class()
-        self.seaqa_db = SeaqaDB(self.db_session_class)
 
     def _search(self, query, project_uuid, connection_ids):
         """Execute the retrieval based on the provided query."""
