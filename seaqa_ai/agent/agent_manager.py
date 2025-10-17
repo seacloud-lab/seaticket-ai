@@ -5,6 +5,7 @@ import json
 
 from smolagents import ToolCallingAgent
 from smolagents.monitoring import LogLevel
+from smolagents.agent_types import AgentText
 from seaqa_ai.prompts.ask import system_prompts
 
 
@@ -45,6 +46,14 @@ class AgentManager:
                     msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
 
             output = agent_output.output
+            if isinstance(output, AgentText):
+                try:
+                    output = json.loads(output)
+                except:
+                    output = {
+                        'answer': output,
+                        'sources': []
+                    }
             sources = output.get('sources', [])
             try:
                 sources = json.loads(sources) if isinstance(sources, str) else sources
