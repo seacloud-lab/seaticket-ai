@@ -72,3 +72,35 @@ def generate_answer():
 
         except:
             return {'error_msg': 'Internet server error.'}, 500
+
+
+@flask_app.route('/convert-record-to-ticket', methods=['POST'])
+def convert_record_to_ticket():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    username = data.get('username')
+    record_detail = data.get('record_detail')
+
+    context = {
+        'username': username,
+    }
+
+    if not record_detail:
+        return {'error_msg': 'record_detail invalid.'}, 400
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+
+    try:
+        title, description = flask_app.app.chat_manager.gen_ticket_from_record(record_detail, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return {'title': title, 'description': description}, 200
