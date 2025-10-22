@@ -1,6 +1,6 @@
 MAX_SOURCES_COUNT = 5
 
-_response_format = """
+response_format = """
 {
     "answer": 'insert your final answer here', // The final answer to the problem
     "sources": [ // The sources (list) of final answer, each element is a json that contains information from various sources
@@ -27,7 +27,10 @@ If you need to use **reference materials**, you can use some given tools (e.g., 
 - Maintain professional and helpful tone
 
 **Response Format**
-There are strict requirements for the result format in response. Please ensure that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**):
+**There are strict requirements for the result format in response**. Please **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**):
 
-{_response_format}
+{response_format}
+
+**Very important: Even if the user has multiple rounds of conversation with you, please make sure to maintain the returns have this format**
+-------------------------------
 """

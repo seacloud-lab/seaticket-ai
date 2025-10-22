@@ -3,6 +3,7 @@ import json
 from seaqa_ai.config import LLM_MODEL
 from seaqa_ai.agent.tools import Tools
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
+from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT
 from smolagents.models import LiteLLMModel
 
@@ -30,9 +31,9 @@ class ChatManager:
         )
 
     def generate_answer(self, resolve_type, message, project_uuid, connection_ids, context):
-        if resolve_type == 'agent':
+        if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
             return self._gen_ans_agent(message, project_uuid, connection_ids, context)
-        elif resolve_type == 'ask':
+        elif resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
             return self._gen_ans_ask(message, project_uuid, connection_ids, context)
         else:
             return f"Invalid resolve type"
@@ -45,7 +46,7 @@ class ChatManager:
         tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
 
         try:
-            return self.app.agent_manager.execute('function_calling', message, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
+            return self.app.agent_manager.execute(ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, message, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
 
         except Exception as e:
             logger.exception(f"Error generating answer: {str(e)}")
@@ -59,7 +60,7 @@ class ChatManager:
         else:
             server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context, temperatute=1)
 
-        return self.app.agent_manager.execute('reasoning_agent', message, tool_executor=tool_executor, server_model=server_model)
+        return self.app.agent_manager.execute(AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, message, tool_executor=tool_executor, server_model=server_model, context=context)
 
     def gen_ticket_from_record(self, record_detail, context):
         """
