@@ -32,7 +32,7 @@ class ChatMessages(Base):
         except json.decoder.JSONDecodeError:
             content = self.content
         try:
-            sources = json.loads(self.sources) if self.sources else None
+            sources = json.loads(self.sources.replace('\'', '"')) if self.sources else None
         except json.decoder.JSONDecodeError:
             sources = self.sources
         res = {

@@ -11,11 +11,12 @@ from seaqa_ai.prompts.ask import system_prompts, response_format
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
+from seaqa_ai.utils import format_agent_memory
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 
 logger = logging.getLogger(__name__)
-
+                
 
 class AgentManager:
     def __init__(self, app):
@@ -75,7 +76,7 @@ class AgentManager:
                 sources = json.loads(sources) if isinstance(sources, str) else sources
             except:
                 sources = []
-            return output.get('answer', ''), agent_output.messages, sources
+            return output.get('answer', ''), format_agent_memory(agent_output.messages), sources
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:

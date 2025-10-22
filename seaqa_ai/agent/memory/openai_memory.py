@@ -1,3 +1,5 @@
+import json
+
 class OpenAIMemory:
     """
     SeaQA - AI History Memory (ask mode), iterable
@@ -14,9 +16,18 @@ class OpenAIMemory:
 
     def __add__(self, steps):
         if isinstance(steps, dict):
-            self.steps.append(steps)
+            if 'sources' in steps and steps['role'] == 'assistant':
+                steps['content'] = json.dumps({
+                    'answer': steps['content'],
+                    'sources': steps['sources']
+                })
+            self.steps.append({
+                'role': steps['role'],
+                'content': steps['content']
+            })
         elif isinstance(steps, list):
-            self.steps += steps
+            for step in steps:
+                self += step
         else:
             raise TypeError('steps only receive two types: dict or list')
         return self

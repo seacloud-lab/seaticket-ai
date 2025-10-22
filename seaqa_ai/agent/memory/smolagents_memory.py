@@ -1,3 +1,4 @@
+import json
 from smolagents.memory import MemoryStep, AgentMemory
 from smolagents.models import ChatMessage, MessageRole
 
@@ -23,9 +24,27 @@ class SmolAgentsMemoryStep(MemoryStep):
             result = [ChatMessage(role=MessageRole.ASSISTANT, content=[{
                 'date': self.record['created_at'],
                 'type': 'text',
-                'text': self.record['content']
+                'text': json.dumps({
+                    'answer': self.record['content'],
+                    'sources': self.record['sources']
+                })
             }])]
         return result
+
+    def dict(self):
+        """
+        To SmolAgents Output
+        """
+        return {
+            'context':{
+                'role': self.record['role'],
+                'content':  {
+                    'answer': self.record['content'],
+                    'sources': f"```json\n{json.dumps(self.record['sources'], indent=4, sort_keys=True, ensure_ascii=False)}\n```",
+                } if self.record['role'] == 'assistant' else self.record['content'],
+                'date': self.record['created_at']
+            }
+        }
 
 class SmolAgentsMemory(AgentMemory):
     """
