@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import json
+import ast
 from smolagents.models import MessageRole
 
 
@@ -128,13 +129,13 @@ def format_agent_memory(memory_steps):
 
             else:
                 # final answer
-                result: str = step['action_output'] if error else step['observations']
-                result = result.replace('\'', '"')
+                result = step['action_output'] if error else step['observations']
                 try:
-                    result = json.dumps(json.loads(result), indent=4, sort_keys=True, ensure_ascii=False)
+                    result = json.dumps(ast.literal_eval(result), indent=4, sort_keys=True, ensure_ascii=False)
                     result = f"```json\n{result}\n```\n"
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
+
                 results['final_answer'] = {
                     'result': result,
                     'token_usage': {

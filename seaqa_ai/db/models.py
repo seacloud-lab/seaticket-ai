@@ -1,4 +1,5 @@
 import json
+import ast
 
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text
 from seaqa_ai.db import Base
@@ -32,8 +33,8 @@ class ChatMessages(Base):
         except json.decoder.JSONDecodeError:
             content = self.content
         try:
-            sources = json.loads(self.sources.replace('\'', '"')) if self.sources else None
-        except json.decoder.JSONDecodeError:
+            sources = ast.literal_eval(self.sources)
+        except:
             sources = self.sources
         res = {
             'id': self.id,
