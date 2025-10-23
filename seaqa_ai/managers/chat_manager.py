@@ -30,7 +30,7 @@ class ChatManager:
             ]
         )
 
-    def generate_answer(self, resolve_type, message, project_uuid, connection_ids, context):
+    def get_ai_reply(self, resolve_type, message, project_uuid, connection_ids, context):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
             return self._gen_ans_agent(message, project_uuid, connection_ids, context)
         elif resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
