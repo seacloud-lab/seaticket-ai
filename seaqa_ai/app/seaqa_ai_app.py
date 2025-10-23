@@ -1,6 +1,6 @@
 from seaqa_ai.server.seaqa_ai_http_server import SeaQAAIHttpServer
 from seaqa_ai.data_logging.data_logging import DataLogging
-from seaqa_ai.chat.chat_manager import ChatManager
+from seaqa_ai.managers.chat_manager import ChatManager
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import SEAQA_INDEXER_SERVER_URL, JWT_PRIVATE_KEY
