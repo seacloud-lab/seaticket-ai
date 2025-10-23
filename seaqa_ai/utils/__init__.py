@@ -22,6 +22,12 @@ def localize_time(date):
         return date.astimezone(time_zone)
     return date
 
+def clean_json_markdown(raw_response):
+    if raw_response.strip().startswith('```'):
+        lines = raw_response.strip().splitlines()
+        if lines[0].startswith("```") and lines[-1] == "```":
+            return "\n".join(lines[1:-1])
+    return raw_response
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
