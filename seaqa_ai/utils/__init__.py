@@ -88,6 +88,47 @@ def format_agent_memory(memory_steps):
         if not results['task']['user_input'] and 'task' in step:
             results['task']['user_input'] = step['task']
         if not results['task']['system_prompts'] and 'model_input_messages' in step:
+            """
+            step['model_input_messages']: sources messages of inputing (including system_prompts, context and user_input):
+
+            ```json
+            [
+                // system prompts
+                {
+                    'role': 'system',
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': 'system_prompts'
+                        }
+                    ]
+                },
+
+                // context
+                {
+                    'role': 'user' // or 'assistant'
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': 'a history chat message'
+                        }
+                    ]
+                },
+
+                // user input
+                {
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': 'user input'
+                        }
+                    ]
+                }
+            ]
+            ```
+            """
+            
             for msg in step['model_input_messages']:
                 if msg.get('role') == MessageRole.SYSTEM:
                     results['task']['system_prompts'] = msg['content'][0]['text']
