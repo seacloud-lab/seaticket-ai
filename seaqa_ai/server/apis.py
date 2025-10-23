@@ -4,7 +4,7 @@ import json
 
 from flask import Flask, request
 from seaqa_ai import config
-from seaqa_ai.utils.constants import SeasearchType
+from seaqa_ai.utils.constants import SeasearchType, ASK_MODE_PROPERTIES_MAP
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
@@ -43,12 +43,14 @@ def generate_answer():
 
     query = data.get('query')
     username = data.get('username')
+    session_id = data.get('session_id')
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
-    resolve_type = data.get('resolve_type', 'ask')
+    resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
 
     context = {
         'username': username,
+        'session_id': session_id
     }
 
     if not query:
