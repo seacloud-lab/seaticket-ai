@@ -31,6 +31,16 @@ def format_agent_memory(memory_steps):
     - final_answer: final answer & with tokens usage
     """
 
+    actions_input_tokens = 0
+    actions_output_tokens = 0
+    actions_total_tokens = 0
+    actions_time_usage = 0
+
+    answer_input_tokens = 0
+    answer_output_tokens = 0
+    answer_total_tokens = 0
+    answer_time_usage = 0
+
     results = {
         'task': {
             'system_prompts': '',
@@ -46,6 +56,30 @@ def format_agent_memory(memory_steps):
                 'total_tokens': 0
             },
             'time_usage': 0
+        },
+        'static': {
+            'token_usage': {
+                'input_tokens': {
+                    'action_steps': 0,
+                    'answer_generation': 0,
+                    'total': 0
+                },
+                'output_tokens': {
+                    'action_steps': 0,
+                    'answer_generation': 0,
+                    'total': 0
+                },
+                'total_tokens': {
+                    'action_steps': 0,
+                    'answer_generation': 0,
+                    'total': 0
+                }
+            },
+            'time_usage': {
+                'action_steps': 0,
+                'answer_generation': 0,
+                'total': 0
+            }
         }
     }
 
@@ -54,10 +88,10 @@ def format_agent_memory(memory_steps):
         if not results['task']['user_input'] and 'task' in step:
             results['task']['user_input'] = step['task']
         if not results['task']['system_prompts'] and 'model_input_messages' in step:
-            results['task']['system_prompts'] = next(
-                (msg['content'][0]['text'] for msg in step['model_input_messages'] 
-                if msg.get('role') == MessageRole.SYSTEM)
-            )
+            for msg in step['model_input_messages']:
+                if msg.get('role') == MessageRole.SYSTEM:
+                    results['task']['system_prompts'] = msg['content'][0]['text']
+                    break
 
         # context    
         if 'context' in step:
@@ -111,6 +145,11 @@ def format_agent_memory(memory_steps):
                     for tool_call in tool_calls
                 ]
 
+                actions_input_tokens += step['token_usage']['input_tokens']
+                actions_output_tokens += step['token_usage']['output_tokens']
+                actions_total_tokens += step['token_usage']['total_tokens']
+                actions_time_usage += step['timing']['duration']
+
                 results['actions'].append({
                     'tool_calls': tks,
                     'token_usage': {
@@ -136,6 +175,11 @@ def format_agent_memory(memory_steps):
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
 
+                answer_input_tokens = step['token_usage']['input_tokens']
+                answer_output_tokens = step['token_usage']['output_tokens']
+                answer_total_tokens = step['token_usage']['total_tokens']
+                answer_time_usage = step['timing']['duration']
+
                 results['final_answer'] = {
                     'result': result,
                     'token_usage': {
@@ -147,6 +191,31 @@ def format_agent_memory(memory_steps):
                     'reach_max_steps': True if error else False
                 }
     
+    results['static'] = {
+        'token_usage': {
+            'input_tokens': {
+                'action_steps': actions_input_tokens,
+                'answer_generation': answer_input_tokens,
+                'total': actions_input_tokens + answer_input_tokens
+            },
+            'output_tokens': {
+                'action_steps': actions_output_tokens,
+                'answer_generation': answer_output_tokens,
+                'total': actions_output_tokens + answer_output_tokens
+            },
+            'total_tokens': {
+                'action_steps': actions_total_tokens,
+                'answer_generation': answer_total_tokens,
+                'total': actions_total_tokens + answer_total_tokens
+            }
+        },
+        'time_usage': {
+            'action_steps': actions_time_usage,
+            'answer_generation': answer_time_usage,
+            'total': actions_time_usage + answer_time_usage
+        }
+    }
+
     return results
 
 
