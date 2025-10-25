@@ -39,7 +39,7 @@ def parse_json(json_str):
             try:
                 json_str = ast.literal_eval(json_str)
             except Exception as e:
-                logger.exception(f'Failure to parse to json {e}')
+                logger.warning(f'Failure to parse to json {e}')
     return json_str
 
 def parse_response(response):
