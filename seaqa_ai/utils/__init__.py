@@ -5,6 +5,7 @@ import ast
 import pytz
 from datetime import datetime
 from smolagents.models import MessageRole
+from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE
 
 time_zone = pytz.timezone(TIME_ZONE)
@@ -22,6 +23,24 @@ def localize_time(date):
         return date.astimezone(time_zone)
     return date
 
+def clean_json_markdown(raw_response):
+    if raw_response.strip().startswith('```'):
+        lines = raw_response.strip().splitlines()
+        if lines[0].startswith("```") and lines[-1] == "```":
+            return "\n".join(lines[1:-1])
+    return raw_response
+
+def parse_json(json_str):
+    if isinstance(json_str, str) or isinstance(json_str, AgentText):
+        json_str = clean_json_markdown(json_str)
+        try:
+            json_str = json.loads(json_str)
+        except:
+            try:
+                json_str = ast.literal_eval(json_str)
+            except Exception as e:
+                logger.warning(f'Failure to parse to json {e}')
+    return json_str
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
@@ -226,7 +245,7 @@ def format_agent_memory(memory_steps):
                 # final answer
                 result = step['action_output'] if error else step['observations']
                 try:
-                    result = json.dumps(ast.literal_eval(result) if isinstance(result, str) else result, indent=4, ensure_ascii=False)
+                    result = json.dumps(parse_json(result), indent=4, ensure_ascii=False)
                     result = f"```json\n{result}\n```\n"
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
