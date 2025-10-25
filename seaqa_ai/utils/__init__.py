@@ -214,7 +214,6 @@ def format_agent_memory(memory_steps):
                     result = f"```json\n{result}\n```\n"
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
-                    logger.warning(type(result))
 
                 answer_input_tokens = step['token_usage']['input_tokens']
                 answer_output_tokens = step['token_usage']['output_tokens']
