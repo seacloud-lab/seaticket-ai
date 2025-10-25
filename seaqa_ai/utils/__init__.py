@@ -172,9 +172,8 @@ def format_agent_memory(memory_steps):
                     'assistant_response': []
                 })
 
-        if tool_calls := step.get('tool_calls'):
+        if (tool_calls := step.get('tool_calls')) or (error := step.get('error', {})):
             # action step
-            error = step.get('error') or {}
 
             if not step['is_final_answer'] and not error.get('type') == 'AgentMaxStepsError':
                 # common actions
@@ -211,10 +210,11 @@ def format_agent_memory(memory_steps):
                 # final answer
                 result = step['action_output'] if error else step['observations']
                 try:
-                    result = json.dumps(ast.literal_eval(result), indent=4, sort_keys=True, ensure_ascii=False)
+                    result = json.dumps(ast.literal_eval(result) if isinstance(result, str) else result, indent=4, ensure_ascii=False)
                     result = f"```json\n{result}\n```\n"
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
+                    logger.warning(type(result))
 
                 answer_input_tokens = step['token_usage']['input_tokens']
                 answer_output_tokens = step['token_usage']['output_tokens']

@@ -43,7 +43,7 @@ class ChatMessages(Base):
             'role': self.role,
             'content': content,
             'sources': sources,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': self.created_at.astimezone().isoformat(),
+            'updated_at': self.updated_at.astimezone().isoformat() if self.updated_at else None
         }
         return res
