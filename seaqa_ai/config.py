@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, basedir)
 
+TIME_ZONE = 'UTC'
+
 # Log
 LOG_FILE = None
 LOG_LEVEL = 'info'
@@ -57,6 +59,8 @@ try:
     from seaqa_ai_settings import *
 except ImportError as e:
     pass
+
+TIME_ZONE = os.getenv('TIME_ZONE') or TIME_ZONE
 
 JWT_PRIVATE_KEY = os.environ.get('JWT_PRIVATE_KEY', '')
 

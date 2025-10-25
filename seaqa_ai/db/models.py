@@ -1,8 +1,8 @@
 import json
 import ast
-
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text
 from seaqa_ai.db import Base
+from seaqa_ai.utils import localize_time
 
 
 class ChatMessages(Base):
@@ -43,7 +43,7 @@ class ChatMessages(Base):
             'role': self.role,
             'content': content,
             'sources': sources,
-            'created_at': self.created_at.astimezone().isoformat(),
-            'updated_at': self.updated_at.astimezone().isoformat() if self.updated_at else None
+            'created_at': localize_time(self.created_at).isoformat(),
+            'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None
         }
         return res

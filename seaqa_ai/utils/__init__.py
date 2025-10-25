@@ -2,10 +2,26 @@
 import logging
 import json
 import ast
+import pytz
+from datetime import datetime
 from smolagents.models import MessageRole
+from seaqa_ai.config import TIME_ZONE
 
-
+time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
+
+def localize_time(date):
+    """
+    Transfer non-time-zone date to time-zone date
+
+    date: datetime object
+    """
+    if isinstance(date, datetime):
+        if date.tzinfo is None:
+            date = pytz.utc.localize(date)
+        return date.astimezone(time_zone)
+    return date
+
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
