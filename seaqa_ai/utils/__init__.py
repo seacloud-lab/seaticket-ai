@@ -2,10 +2,26 @@
 import logging
 import json
 import ast
+import pytz
+from datetime import datetime
 from smolagents.models import MessageRole
+from seaqa_ai.config import TIME_ZONE
 
-
+time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
+
+def localize_time(date):
+    """
+    Transfer non-time-zone date to time-zone date
+
+    date: datetime object
+    """
+    if isinstance(date, datetime):
+        if date.tzinfo is None:
+            date = pytz.utc.localize(date)
+        return date.astimezone(time_zone)
+    return date
+
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
@@ -172,9 +188,8 @@ def format_agent_memory(memory_steps):
                     'assistant_response': []
                 })
 
-        if tool_calls := step.get('tool_calls'):
+        if (tool_calls := step.get('tool_calls')) or (error := step.get('error', {})):
             # action step
-            error = step.get('error') or {}
 
             if not step['is_final_answer'] and not error.get('type') == 'AgentMaxStepsError':
                 # common actions
@@ -211,7 +226,7 @@ def format_agent_memory(memory_steps):
                 # final answer
                 result = step['action_output'] if error else step['observations']
                 try:
-                    result = json.dumps(ast.literal_eval(result), indent=4, sort_keys=True, ensure_ascii=False)
+                    result = json.dumps(ast.literal_eval(result) if isinstance(result, str) else result, indent=4, ensure_ascii=False)
                     result = f"```json\n{result}\n```\n"
                 except Exception as e:
                     logger.warning(f'Json decode failure: {e}')
