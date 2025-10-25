@@ -40,7 +40,7 @@ class SmolAgentsMemoryStep(MemoryStep):
                 'role': self.record['role'],
                 'content':  {
                     'answer': self.record['content'],
-                    'sources': f"```json\n{json.dumps(self.record['sources'], indent=4, sort_keys=True, ensure_ascii=False)}\n```",
+                    'sources': f"```json\n{json.dumps(self.record['sources'], indent=4, ensure_ascii=False)}\n```",
                 } if self.record['role'] == 'assistant' else self.record['content'],
                 'date': self.record['created_at']
             }
