@@ -6,13 +6,12 @@ import ast
 
 from smolagents import ToolCallingAgent
 from smolagents.monitoring import LogLevel
-from smolagents.agent_types import AgentText
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import system_prompts, response_format
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
-from seaqa_ai.utils import format_agent_memory, clean_json_markdown
+from seaqa_ai.utils import format_agent_memory, parse_json
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 
@@ -63,24 +62,18 @@ class AgentManager:
                 if model_output:
                     msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
 
-            output = agent_output.output
-            if isinstance(output, AgentText):
-                try:
-                    output = ast.literal_eval(output)
-                except:
-                    try:
-                        output = clean_json_markdown(output)
-                        output = ast.literal_eval(output)
-                    except:
-                        output = {
-                            'answer': output,
-                            'sources': []
-                        }
+            output = parse_json(agent_output.output)
+            if not isinstance(output, dict):
+                output = {
+                    'answer': output,
+                    'sources': []
+                }
+
             sources = output.get('sources', [])
-            try:
-                sources = ast.literal_eval(sources) if isinstance(sources, str) else sources
-            except:
+            sources = parse_json(sources)
+            if not isinstance(sources, list):
                 sources = []
+
             return output.get('answer', ''), format_agent_memory(agent_output.messages), sources
 
         # ask mode
@@ -133,15 +126,12 @@ class AgentManager:
                     ).choices[0].message.content
             else:
                 content = response.content
+            
+            content = parse_json(content)
+            if not isinstance(content, dict):
+                content = {
+                    'answer': content,
+                    'sources': []
+                }
 
-            try:
-                content = ast.literal_eval(content)
-                return content['answer'], content['sources']
-            except:
-                try:
-                    content = clean_json_markdown(content)
-                    content = ast.literal_eval(content)
-                    return content['answer'], content['sources']
-                except Exception as e:
-                    logger.warning(f"Failure to parse json: {str(e)}")
-                    return content, []
+            return content.get('answer', ''), content.get('sources', [])

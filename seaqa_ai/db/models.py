@@ -1,5 +1,4 @@
 import json
-import ast
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text
 from seaqa_ai.db import Base
 from seaqa_ai.utils import localize_time
@@ -29,19 +28,16 @@ class ChatMessages(Base):
 
     def to_dict(self):
         try:
-            content = json.loads(self.content) if self.content else None
-        except json.decoder.JSONDecodeError:
-            content = self.content
-        try:
-            sources = ast.literal_eval(self.sources)
+            sources = json.loads(self.sources) if self.sources else []
         except:
             sources = self.sources
+
         res = {
             'id': self.id,
             'username': self.username,
             'session_id': self.session_id,
             'role': self.role,
-            'content': content,
+            'content': self.content,
             'sources': sources,
             'created_at': localize_time(self.created_at).isoformat(),
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None
