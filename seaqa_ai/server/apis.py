@@ -29,8 +29,8 @@ def check_auth_token(req):
     return True
 
 
-@flask_app.route('/generate-answer', methods=['POST'])
-def generate_answer():
+@flask_app.route('/get-ai-reply', methods=['POST'])
+def get_ai_reply():
     is_valid = check_auth_token(request)
     if not is_valid:
         return {'error_msg': 'Permission denied'}, 403
@@ -60,17 +60,17 @@ def generate_answer():
     if not username:
         return {'error_msg': 'username invalid.'}, 400
     
-    results = flask_app.app.chat_manager.generate_answer(resolve_type, query, project_uuid, connection_ids, context)
+    results = flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context)
 
     try:
         # agent mode
-        answer, agent_memory, sources = results
-        return {'answer': answer, 'agent_memory': agent_memory, 'sources': sources}, 200
+        ai_reply, agent_memory, sources = results
+        return {'ai_reply': ai_reply, 'agent_memory': agent_memory, 'sources': sources}, 200
     except:
         # ask mode
         try:
-            answer, sources = results
-            return {'answer': answer, 'agent_memory': [], 'sources': sources}, 200
+            ai_reply, sources = results
+            return {'ai_reply': ai_reply, 'agent_memory': [], 'sources': sources}, 200
 
         except:
             return {'error_msg': 'Internet server error.'}, 500
