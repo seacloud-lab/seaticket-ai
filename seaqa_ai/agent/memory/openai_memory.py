@@ -21,10 +21,7 @@ class OpenAIMemory:
                     'answer': steps['content'],
                     'sources': steps['sources']
                 })
-            self.steps.append({
-                'role': steps['role'],
-                'content': steps['content']
-            })
+            self.steps.append(steps)
         elif isinstance(steps, list):
             for step in steps:
                 self += step
