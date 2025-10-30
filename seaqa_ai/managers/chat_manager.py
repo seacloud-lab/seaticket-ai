@@ -108,35 +108,3 @@ class ChatManager:
         except Exception as e:
             logger.error(f"Error generating ticket: {str(e)}")
             return '', ''
-
-
-    def generate_title_from_content(self, title, body, context):
-        try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a GitHub issue analysis expert. Read the issue's title and body, then craft a "
-                        "single-sentence English summary describing the core problem. Keep it concise (no more "
-                        "than 100 characters) and return only that sentence without extra commentary or formatting."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"""Current title: {title}\nBody: {body}"""
-                }
-            ]
-
-            response = self.app.llm_api.completion(
-                messages=messages,
-                context=context or {},
-                temperature=0.1,
-                max_tokens=50
-            )
-
-            generated_title = response.choices[0].message.content.strip()
-            return generated_title
-
-        except Exception as e:
-            logger.error(f"Error generating title: {e}")
-            return ''

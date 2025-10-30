@@ -132,7 +132,7 @@ def generate_title():
         'username': username,
     }
     try:
-        title = flask_app.app.chat_manager.generate_title_from_content(title, body, context)
+        title = flask_app.app.assistant_manager.generate_title_from_content(title, body, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
