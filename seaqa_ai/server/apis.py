@@ -101,8 +101,72 @@ def convert_record_to_ticket():
         return {'error_msg': 'username invalid.'}, 400
 
     try:
-        title, description = flask_app.app.chat_manager.gen_ticket_from_record(record_detail, context)
+        title, description = flask_app.app.assistant_manager.gen_ticket_from_record(record_detail, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
     return {'title': title, 'description': description}, 200
+
+
+@flask_app.route('/generate-title', methods=['POST'])
+def generate_title():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400    
+    
+    username = data.get('username')
+    title = data.get('title')
+    body = data.get('body')
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not title:
+        return {'error_msg': 'title invalid.'}, 400 
+    if not body:
+        return {'error_msg': 'body invalid.'}, 400
+    context = {
+        'username': username,
+    }
+    try:
+        title = flask_app.app.assistant_manager.generate_title_from_content(title, body, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return {'title': title}, 200
+
+
+@flask_app.route('/generate-embeddings-2d', methods=['POST'])
+def generate_embeddings_2d():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    username = data.get('username')
+    titles = data.get('titles')
+
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not titles or not isinstance(titles, list):
+        return {'error_msg': 'titles invalid. Must be a list.'}, 400
+
+    context = {
+        'username': username,
+    }
+
+    try:
+        embeddings_2d = flask_app.app.assistant_manager.generate_embeddings_2d(titles, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internal server error.'}, 500
+
+    return {'embeddings_2d': embeddings_2d}, 200
