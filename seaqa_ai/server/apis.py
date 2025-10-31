@@ -101,7 +101,7 @@ def convert_record_to_ticket():
         return {'error_msg': 'username invalid.'}, 400
 
     try:
-        title, description = flask_app.app.chat_manager.gen_ticket_from_record(record_detail, context)
+        title, description = flask_app.app.assistant_manager.gen_ticket_from_record(record_detail, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
