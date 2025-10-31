@@ -1,6 +1,9 @@
 import json
 import logging
 
+import numpy as np
+from sklearn.manifold import TSNE
+
 from seaqa_ai.config import LLM_MODEL
 
 
@@ -90,3 +93,42 @@ class AssistantManager:
         except Exception as e:
             logger.error(f"Error generating title: {e}")
             return ''
+
+    def generate_embeddings_2d(self, titles, context, batch_size=500):
+        if not titles:
+            return []
+        try:
+            all_embeddings = []
+
+            for i in range(0, len(titles), batch_size):
+                batch = titles[i:i + batch_size]
+                result = self.app.llm_api.generate_embeddings(batch, context)
+                embeddings = [item['embedding'] for item in result]
+
+                all_embeddings.extend(embeddings)
+
+            # Check if we have enough valid embeddings
+            if len(all_embeddings) < 2:
+                logger.warning("Not enough valid embeddings to perform dimensionality reduction")
+                return []
+
+            # Convert to numpy array
+            embeddings_array = np.array(all_embeddings)
+
+            # Use t-SNE for dimensionality reduction to 2D
+            perplexity = min(30, len(embeddings_array) - 1)
+            tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity)
+            embeddings_2d = tsne.fit_transform(embeddings_array)
+
+            # Convert to list of [x, y] coordinates
+            result = []
+            for i in range(len(embeddings_2d)):
+                coords = [float(embeddings_2d[i][0]), float(embeddings_2d[i][1])]
+                result.append(coords)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error generating 2D embeddings: {str(e)}")
+            return []
+
