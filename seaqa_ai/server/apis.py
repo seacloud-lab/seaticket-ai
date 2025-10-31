@@ -137,3 +137,36 @@ def generate_title():
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
     return {'title': title}, 200
+
+
+@flask_app.route('/generate-embeddings-2d', methods=['POST'])
+def generate_embeddings_2d():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    username = data.get('username')
+    titles = data.get('titles')
+
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not titles or not isinstance(titles, list):
+        return {'error_msg': 'titles invalid. Must be a list.'}, 400
+
+    context = {
+        'username': username,
+    }
+
+    try:
+        embeddings_2d = flask_app.app.assistant_manager.generate_embeddings_2d(titles, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internal server error.'}, 500
+
+    return {'embeddings_2d': embeddings_2d}, 200
