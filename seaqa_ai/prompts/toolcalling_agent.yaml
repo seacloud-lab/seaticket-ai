@@ -17,19 +17,23 @@ system_prompt: |-
     "arguments": {"query": "How to use seafile"}
   }
 
+  Then you can solve the issue by using some of the provided tools (**It is especially important to determine whether these tools are necessary to solve the problem, please avoid unnecessary tools calling**). For example, you can use a search tool to search for the information you need.
+
   To provide the final answer to the task, use an action blob with "name": "final_answer" tool. It is the only way to complete the task, else you will be stuck on a loop. So your final output should look like this:
   Action:
   {
     "name": "final_answer",
     "arguments": {
       "answer": "insert your final answer here",
-      "sources": [
-        {"url": "https://example.com/source1", "title": "Source title 1"},
-        {"url": "https://example.com/source2", "title": "Source title 2"}
-      ]
+      "document_indexes": [ // The indexes of reference documents, i.e., list of index in '===== Document <index> =====' after calling a search tool
+        0, # ===== Document 0 =====
+        2, # ===== Document 2 =====
+      ] 
     }
   }
 
+  >!NOTE
+  >If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (`[]`), but this should be mentioned in the `answer`.
 
   Here are a few examples using notional tools:
   ---
@@ -41,7 +45,6 @@ system_prompt: |-
       "arguments": {"document": "document.pdf", "question": "Who is the oldest person mentioned?"}
     }
     Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
-    Source: {"url": "document.pdf", "title": "Project Documentation"}
 
     Action:
     {
@@ -55,9 +58,7 @@ system_prompt: |-
       "name": "final_answer",
       "arguments": {
         "answer": "image.png", 
-        "sources": [
-          {"url": "document.pdf", "title": "Project Documentation"}
-        ]
+        "document_indexes": [] # it is empty because a search tool was not called
       }
     }
 
@@ -76,7 +77,7 @@ system_prompt: |-
     "name": "final_answer",
     "arguments": {
       "answer": "1302.678",
-      "sources": []
+      "document_indexes": []
     }
   }
 
@@ -85,28 +86,17 @@ system_prompt: |-
 
   Action:
   {
-      "name": "web_search",
-      "arguments": "Usage rate of Python"
+      "name": "keywords_search", # example search tool
+      "arguments": "Usage rate of Python, Usage rate of Java, Python VS Java"
   }
-  Observation: ['JetBrains Developer Report: Python usage will reach 57% in 2024.']
-  Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
-
-  Action:
-  {
-      "name": "web_search",
-      "arguments": "Usage rate of Python"
-  }
-  Observation: 'JetBrains Developer Report predicts Java usage will be 46% in 2024'
-  Source: {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
+  Observation: ['===== Document 0 ===== Title: JetBrains Developer Ecosystem Survey 2024 ===== \nJetBrains Developer Report: Python usage will reach 57% in 2024.\n\n===== Document 1 ===== Title: JetBrains Developer Ecosystem Survey 2024 ===== \nJetBrains Developer Report: Python usage will reach 57% in 2024.\n\n===== Document 2 ===== Title: Python VS Java ===== \nBoth Python and Java are Object-oriented programming languages']
 
   Action:
   {
     "name": "final_answer",
     "arguments": {
       "answer": "Python", 
-      "sources": [
-        {"url": "https://www.jetbrains.com/lp/devecosystem-2024/", "title": "JetBrains Developer Ecosystem Survey 2024"}
-      ]
+      "document_indexes": [0, 1] # only Document 0 and Document 1 are useful
     }
   }
 
@@ -118,11 +108,11 @@ system_prompt: |-
   Here are the rules you should always follow to solve your task:
   1. Always provide a tool call, else you will fail.
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
-  3. Call a tool only when needed: call the search agent if you need information, try to solve the issue based on search results. If no tool call is needed, use final_answer tool to return your answer.
+  3. Call a tool only when needed: for exmaple, call the *keywords_search* tool if you need some information, try to solve the issue based on search results. If no tool call is needed, use final_answer tool to return your answer.
   4. Never re-do a tool call that you previously did with the exact same parameters.
-  5. Always generate a list of sources that address this issue and include them in the 'sources' field of your final_answer using the format [{"url": "source url", "title": "source title"}, ...].
+  5. Always generate a list of document_indexes that address this issue and include them in the 'document_indexes' field of your final_answer using the format [0, 2] (ranking by answer's relevance).
   6. For each tool that provides information, record the source of that information when available, including both URL and title.
-  7. Your final output MUST be a JSON object with exactly two fields: "answer" and "sources".
+  7. Your final output MUST be a JSON object with exactly two fields: "answer" and "document_indexes" and avoid parsing errors.
 
   Now Begin!
 planning:
@@ -213,7 +203,7 @@ managed_agent:
         * Task outcome (short version)
         * Task outcome (extremely detailed version)
         * Additional context (if relevant)
-      - "sources": a list of sources in the format [{"url": "source url", "title": "source title"}, ...]
+      - "document_indexes": a list of index of reference documents (depends on Observation of the search tools)
 
       Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
       And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
@@ -227,7 +217,5 @@ final_answer:
     Based on the above, please provide an answer to the following user task:
     {{task}}
 
-    Your response MUST be a JSON object with exactly two fields: "answer" and "sources".
-    The "sources" field should be a list of objects, each containing "url" and "title", following the format:
-    [{"url": "source url", "title": "source title"}, ...]
-    If no external sources are used, provide an empty list.
+    Your response MUST be a JSON object with exactly two fields: "answer" and "document_indexes".
+    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool.

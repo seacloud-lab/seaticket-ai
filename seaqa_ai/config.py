@@ -36,6 +36,9 @@ DISABLE_CONTEXT = False
 CONTEXT_WINDOW_LIMIT = 10
 CONTEXT_HISTORY_VALID_TIME = 168 # hour
 
+## Tools Shared vars (enabling this can improve efficiency)
+ENABLE_TOOLS_SHARED_VARS = True
+
 # Redis
 REDIS_HOST = 'redis'
 REDIS_PORT = 6379

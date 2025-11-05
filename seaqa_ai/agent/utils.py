@@ -1,0 +1,66 @@
+import logging
+import json
+from smolagents import ToolCall
+from seaqa_ai.db.models import ChatToolCalls
+
+logger = logging.getLogger(__name__)
+
+def tool_output(output):
+    if isinstance(output, dict):
+        return output.get('to_observation', output), output.get('to_tools_shared_vars'), output.get('to_db', output)
+    return output, None, output
+
+def save_tool_call(db_session_class, chat_uuid, tool_call, output):
+    """
+    Mainly used in SomlAgents.ToolCallingAgent
+    """
+    if isinstance(tool_call, ToolCall):
+        tool_call = tool_call.dict()
+    
+    with db_session_class() as db_session:
+        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==chat_uuid).first()
+        
+        tool_call_id = tool_call['id']
+        tool_call_info = {
+            'name': tool_call['function']['name'],
+            'arguments': tool_call['function']['arguments'],
+            'output': output
+        }
+
+        try:
+            if record:
+                new_tool_calls = record.to_dict()['tool_calls'] # list
+                if tool_call_id in new_tool_calls:
+                    new_tool_calls[tool_call_id]['substeps'].append(tool_call_info)
+                else:
+                    new_tool_calls[tool_call_id] = {
+                        'substeps': [tool_call_info]
+                    }
+                record.tool_calls = json.dumps(new_tool_calls)
+            else:
+                record = ChatToolCalls(chat_uuid, {
+                    tool_call_id: {
+                        'substeps': [tool_call_info]
+                    }
+                })
+                db_session.add(record)
+            
+            db_session.commit()
+        except Exception as e:
+            logger.warning(f'Failure to add tool call into db: {e}')
+
+def get_search_results_from_db(db_session_class, chat_uuid):
+    sources_results = []
+    try:
+        with db_session_class() as db_session:
+            record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==chat_uuid).first()
+
+            if record:
+                for tool_calls in record.to_dict()['tool_calls'].values():
+                    for tool_call in tool_calls['substeps']:
+                        if tool_call['name'] == 'keywords_search':
+                            sources_results += tool_call['output']
+    except Exception as e:
+        logger.warning(f'Failure to query tool calls history: {e}')
+    
+    return sources_results

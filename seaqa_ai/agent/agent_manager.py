@@ -2,36 +2,55 @@ import logging
 import yaml
 import importlib
 import json
-import ast
 
-from smolagents import ToolCallingAgent
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import system_prompts, response_format
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.agent.utils import tool_output, save_tool_call, get_search_results_from_db
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
+from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
+from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
 from seaqa_ai.utils import format_agent_memory, parse_json
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
-
 logger = logging.getLogger(__name__)
-                
 
 class AgentManager:
     def __init__(self, app):
         self.app = app
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
+        
+    def _extra_sources(self, chat_uuid, document_indexes):
+        sources = []
+        if config.ENABLE_TOOLS_SHARED_VARS:
+            # fetch all search results from global vars
+            sources_results = ToolSharedVars.get('sources_results', [])
+        else:
+            # fetch from db
+            sources_results = get_search_results_from_db(self.db_session_class, chat_uuid)
+
+        for doc_index in document_indexes:
+            if doc_index < len(sources_results):
+                sources.append(sources_results[doc_index])
+        return sources
 
     def execute(self, agent_name, message, **kwargs):
         context = kwargs.get('context', {})
         session_id = context.get('session_id')
+        chat_uuid = context.get('chat_uuid')
+
+        if config.ENABLE_TOOLS_SHARED_VARS:
+            ToolSharedVars.init()
 
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
             tool_executor = kwargs.get('tool_executor')
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
+                self.db_session_class,
+                chat_uuid,
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
@@ -66,15 +85,14 @@ class AgentManager:
             if not isinstance(output, dict):
                 output = {
                     'answer': output,
-                    'sources': []
+                    'document_indexes': []
                 }
 
-            sources = output.get('sources', [])
-            sources = parse_json(sources)
-            if not isinstance(sources, list):
-                sources = []
+            document_indexes = output.get('document_indexes', [])
+            if not isinstance(document_indexes, list):
+                document_indexes = []
 
-            return output.get('answer', ''), format_agent_memory(agent_output.messages), sources
+            return output.get('answer', ''), format_agent_memory(agent_output.messages), self._extra_sources(chat_uuid, document_indexes)
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -110,14 +128,19 @@ class AgentManager:
                     'tool_calls': response.tool_calls
                 }
 
-                memory += [
-                    {
+                for tool_call in response.tool_calls:
+                    to_observation, to_tools_shared_vars, to_db = tool_output(tool_executor.execute(tool_call))
+
+                    if config.ENABLE_TOOLS_SHARED_VARS and to_tools_shared_vars:
+                        ToolSharedVars.update(to_tools_shared_vars)
+                    
+                    save_tool_call(self.db_session_class, chat_uuid, tool_call, to_db)
+
+                    memory += {
                         'role': 'tool',
                         'tool_call_id': tool_call['id'],
-                        'content': json.dumps(tool_executor.execute(tool_call))
+                        'content': json.dumps(to_observation)
                     }
-                    for tool_call in response.tool_calls
-                ]
 
                 content = self.app.llm_api.completion(
                         messages=memory,
@@ -131,7 +154,10 @@ class AgentManager:
             if not isinstance(content, dict):
                 content = {
                     'answer': content,
-                    'sources': []
+                    'document_indexes': []
                 }
+            
+            if not isinstance(content['answer'], str):
+                content['answer'] = json.dumps(content['answer'])
 
-            return content.get('answer', ''), content.get('sources', [])
+            return content.get('answer', ''), self._extra_sources(chat_uuid, content.get('document_indexes', []))

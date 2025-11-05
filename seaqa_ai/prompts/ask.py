@@ -3,11 +3,14 @@ MAX_SOURCES_COUNT = 5
 response_format = """
 {
     "answer": 'insert your final answer here', // The final answer to the problem
-    "sources": [ // The sources (list) of final answer, each element is a json that contains information from various sources
-        {"url": "https://example.com/source1", "title": "Source title 1"},
-        {"url": "https://example.com/source2", "title": "Source title 2"}
-      ] 
+    "document_indexes": [ // The indexes of reference documents (**ranked by relevance**), i.e., list of index in '===== Document <index> =====' after calling a search tool
+      0, # ===== Document 0 =====
+      2, # ===== Document 2 =====
+    ] 
 }
+
+>!NOTE
+>If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (`[]`), but this should be mentioned in the `answer`.
 """
 
 system_prompts = f"""You are a professional technical assistant. Please answer the user's question based on the provided reference materials.

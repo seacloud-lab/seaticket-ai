@@ -1,14 +1,16 @@
 from smolagents import Tool
 
-_TOOL_KETWORDS_SEARCH_RESULT_FORMAT = """The result of this tool has the below format:
+_TOOL_KETWORDS_SEARCH_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
 Retrieved documents:
 
-===== Document 1 ===== Source: <URL of document 1> =====
-<Document 1's content>
+===== Document 0 ===== Title: <title of document 0> =====
+<Document 0's content>
+
+Retrieved documents:
 
 
-===== Document 2 ===== Source: <URL of document 2> =====
-<Document 2's content>
+===== Document 1 ===== Title: <title of document 1> =====
+<Document 0's content>
 """
 
 Tools = {
@@ -36,17 +38,22 @@ class FinalAnswerTool(Tool):
     description = "Provides a final answer to the given problem."
     inputs = {
         "answer": {
-            "type": "any", "description": "The final answer to the problem"
+            "type": "string", 
+            "description": "The final answer to the problem"
         },
-        "sources": {
-            "type": "any", "description": "The sources of final answer"
+        "document_indexes": {
+            "type": "array", 
+            "items": {
+                "type": "integer"
+            },
+            "description": "The document_indexes of final answer, should compose of indexes (int) of the search tool results."
         }
     }
     output_type = "any"
 
-    def forward(self, answer, sources):
+    def forward(self, answer, document_indexes):
         return {
             "answer": answer,
-            "sources": sources
+            "document_indexes": document_indexes
         }
 
