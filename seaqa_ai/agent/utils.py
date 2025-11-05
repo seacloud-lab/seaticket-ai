@@ -1,5 +1,6 @@
 import logging
 import json
+import uuid
 from smolagents import ToolCall
 from seaqa_ai.db.models import ChatToolCalls
 
@@ -18,7 +19,7 @@ def save_tool_call(db_session_class, chat_uuid, tool_call, output):
         tool_call = tool_call.dict()
     
     with db_session_class() as db_session:
-        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==chat_uuid).first()
+        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(chat_uuid)).first()
         
         tool_call_id = tool_call['id']
         tool_call_info = {
@@ -38,7 +39,7 @@ def save_tool_call(db_session_class, chat_uuid, tool_call, output):
                     }
                 record.tool_calls = json.dumps(new_tool_calls)
             else:
-                record = ChatToolCalls(chat_uuid, {
+                record = ChatToolCalls(uuid.UUID(chat_uuid), {
                     tool_call_id: {
                         'substeps': [tool_call_info]
                     }
@@ -53,7 +54,7 @@ def get_search_results_from_db(db_session_class, chat_uuid):
     sources_results = []
     try:
         with db_session_class() as db_session:
-            record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==chat_uuid).first()
+            record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(chat_uuid)).first()
 
             if record:
                 for tool_calls in record.to_dict()['tool_calls'].values():

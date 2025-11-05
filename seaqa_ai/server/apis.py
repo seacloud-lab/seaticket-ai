@@ -48,7 +48,7 @@ def get_ai_reply():
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
-    chat_uuid = uuid.UUID(data.get('chat_uuid'))
+    chat_uuid = data.get('chat_uuid')
 
     context = {
         'username': username,

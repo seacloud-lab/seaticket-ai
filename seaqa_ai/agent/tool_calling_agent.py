@@ -1,6 +1,7 @@
 import smolagents
 import logging
 import json
+import uuid
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.config import ENABLE_TOOLS_SHARED_VARS
 from seaqa_ai.agent.utils import tool_output, save_tool_call
@@ -98,7 +99,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         # save usages infomation to db
         if parallel_calls:
             with self.db_session_class() as db_session:
-                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==self.chat_uuid).first()
+                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(self.chat_uuid)).first()
                 if record:
                     new_tool_calls = record.to_dict()['tool_calls']
                     tool_call_id = list(parallel_calls.values())[0].id
@@ -108,8 +109,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
                                 'input_tokens': memory_step.token_usage.input_tokens,
                                 'output_tokens': memory_step.token_usage.output_tokens,
                                 'total_tokens': memory_step.token_usage.total_tokens,
-                            },
-                            'time_usage': memory_step.timing.duration
+                            }
                         }
                         if memory_step.error:
                             new_tool_calls[tool_call_id]['static']['error'] = {

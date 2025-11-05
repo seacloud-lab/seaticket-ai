@@ -1,5 +1,4 @@
 import logging
-import json
 from seaqa_ai.config import LLM_MODEL, ENABLE_TOOLS_SHARED_VARS
 from seaqa_ai.agent.tools import Tools
 from seaqa_ai.agent.utils import get_search_results_from_db
@@ -45,6 +44,8 @@ class ChatManager:
             del doc['content'] # discard content, only save metadata
             to_tools_shared_vars['sources_results'].append(doc)
             to_db.append(doc)
+
+        logger.info('successuess')
 
         # Format the retrieved documents for readability
         return {

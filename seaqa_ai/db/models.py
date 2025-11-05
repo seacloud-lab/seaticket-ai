@@ -66,7 +66,7 @@ class ChatToolCalls(Base):
 
         res = {
             'id': self.id,
-            'chat_uuid': self.chat_uuid,
+            'chat_uuid': str(self.chat_uuid),
             'tool_calls': tool_calls
         }
         return res

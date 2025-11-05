@@ -16,6 +16,7 @@ from seaqa_ai.utils import format_agent_memory, parse_json
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
+TMEPERATURE = 0.1 if 'GPT-5' not in config.LLM_MODEL else 1
 
 class AgentManager:
     def __init__(self, app):
@@ -97,7 +98,7 @@ class AgentManager:
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
             tool_executor=kwargs.get('tool_executor')
-            temperature=kwargs.get('temperature', 0.1)
+            temperature=kwargs.get('temperature', TMEPERATURE)
             if 'gpt-5' in config.LLM_MODEL:
                 temperature = 1
             context=kwargs.get('context')
