@@ -68,3 +68,14 @@ class LLMAPI:
             self._logger_usage(kwargs, completion_response, context)
         return success_callback
 
+    def generate_embeddings(self, texts, context):
+        if isinstance(texts, str):
+            texts = [texts]
+        response = litellm.embedding(
+            model='text-embedding-3-small',
+            input=texts,
+            api_key=self.api_key,
+            api_base=self.base_url,
+            timeout=self.timeout
+        )
+        return response.data
