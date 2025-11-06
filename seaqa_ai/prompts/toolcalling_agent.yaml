@@ -33,6 +33,7 @@ system_prompt: |-
   }
 
   >!NOTE
+  >If the `document_indexes` is not empty (e.g., `document_indexes = [0, 2, 3]`), you should use the Markdown standard quoting syntax corresponds to the location in the `answer` document where it is used. For example, `This is an exmaple sentence [Reference n]` where `[Reference n]` means the nth item in `document_indexes` (e.g., `[Reference 2]` -> `document_indexes[1]` -> `===== Document 2 =====` in this case).
   >If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (`[]`), but this should be mentioned in the `answer`.
 
   Here are a few examples using notional tools:
@@ -95,7 +96,7 @@ system_prompt: |-
   {
     "name": "final_answer",
     "arguments": {
-      "answer": "Python", 
+      "answer": "Some messages about python[Reference 1]. Some messages about Java[Reference 2]. Some other messages...", 
       "document_indexes": [0, 1] # only Document 0 and Document 1 are useful
     }
   }
@@ -218,4 +219,4 @@ final_answer:
     {{task}}
 
     Your response MUST be a JSON object with exactly two fields: "answer" and "document_indexes".
-    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool.
+    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool. On the other hand, if "document_indexes" is not empty (e.g., `document_indexes = [0, 2, 3]`), you should mention where the document used in "answer" with Markdown reference format like `Some sentence[Reference 2]` for `[Reference 2]` -> `document_indexes[1]` -> "===== Document 2 =====".

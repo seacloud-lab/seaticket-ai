@@ -3,14 +3,15 @@ MAX_SOURCES_COUNT = 5
 response_format = """
 {
     "answer": 'insert your final answer here', // The final answer to the problem
-    "document_indexes": [ // The indexes of reference documents (**ranked by relevance**), i.e., list of index in '===== Document <index> =====' after calling a search tool
+    "document_indexes": [ // The indexes of reference documents (**ranked by relevance**), i.e., list of index (must be int) in '===== Document <index> =====' after calling a search tool
       0, # ===== Document 0 =====
       2, # ===== Document 2 =====
     ] 
 }
 
 >!NOTE
->If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (`[]`), but this should be mentioned in the `answer`.
+>If the `document_indexes` is not empty (e.g., `document_indexes = [0, 2, 3]`), you should use the Markdown standard quoting syntax corresponds to the location in the `answer` document where it is used. For example, `This is an exmaple sentence [Reference n]` where `[Reference n]` means the nth item in `document_indexes` (e.g., `[Reference 2]` -> `document_indexes[1]` -> `===== Document 2 =====` in this case).
+>If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (i.e., `[]`), but this should be mentioned in the `answer`.
 """
 
 system_prompts = f"""You are a professional technical assistant. Please answer the user's question based on the provided reference materials.
