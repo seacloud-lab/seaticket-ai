@@ -9,32 +9,52 @@ system_prompt: |-
   The observation will always be a string.
   Then you can use it as input for the next action. You can do it for instance as follows:
 
-  Observation: "How to use seafile?"
-
-  Action:
-  {
-    "name": "retriever",
-    "arguments": {"query": "How to use seafile"}
-  }
+  Task: "How to use seafile?"
 
   Then you can solve the issue by using some of the provided tools (**It is especially important to determine whether these tools are necessary to solve the problem, please avoid unnecessary tools calling**). For example, you can use a search tool to search for the information you need.
 
-  To provide the final answer to the task, use an action blob with "name": "final_answer" tool. It is the only way to complete the task, else you will be stuck on a loop. So your final output should look like this:
   Action:
   {
-    "name": "final_answer",
+    "name": "search_tool",
     "arguments": {
-      "answer": "insert your final answer here",
-      "document_indexes": [ // The indexes of reference documents, i.e., list of index in '===== Document <index> =====' after calling a search tool
-        0, # ===== Document 0 =====
-        2, # ===== Document 2 =====
-      ] 
+      "query": "How to use seafile",
+      "instruction": "When returning search results, ensure documents are ranked by relevance. Each result should have a clear title and content section."
     }
   }
 
-  >!NOTE
-  >If the `document_indexes` is not empty (e.g., `document_indexes = [0, 2, 3]`), you should use the Markdown standard quoting syntax corresponds to the location in the `answer` document where it is used. For example, `This is an exmaple sentence [Reference n]` where `[Reference n]` means the nth item in `document_indexes` (e.g., `[Reference 2]` -> `document_indexes[1]` -> `===== Document 2 =====` in this case).
-  >If the observation tool you are using does not have the format like "===== Document index ===== Title: title =====", `document_indexes` will be set to empty (`[]`), but this should be mentioned in the `answer`.
+  Observation:
+  ```
+  ===== Document 0 =====
+  Content: ...installation steps...
+
+  ===== Document 1 =====
+  Content: ...sync configurations...
+  ```
+
+  Now that you have all the necessary answers or the results of your actions, it's time to tell the user your final answer (i.e., your task is complete). To provide the final answer to the task, use an action blob with "name": "final_answer" tool. It is the only way to complete the task, else you will be stuck on a loop. So your final output should look like this:
+
+  Final Answer Action Template:
+  {
+    "name": "final_answer",
+    "arguments": {
+      "answer": "To use Seafile: 1) Install the client from the official website[Reference 1]. 2) Create a library and set sync folders[Reference 2]. 3) For advanced features, configure two-factor authentication via the web portal[Reference 3].",
+      "document_indexes": [0, 2, 3],  // Must match exactly the references used in answer
+    },
+    "validation_checklist": [
+      "All [Reference n] tags correspond to document_indexes positions (n starts at 1)",
+      "Each document_indexes entry has at least one corresponding reference",
+      "No references appear when document_indexes is empty"
+    ]
+  }
+
+  Important Notes:
+  1. If no relevant documents found, set document_indexes: [] and answer: "No specific Seafile usage documentation matched your query."
+  2. If document_indexes is not empty:
+      1. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
+      2. Each index in document_indexes MUST appear at least once as a [Reference n] in answer. **Otherwise it should not appear in document_indexes!**
+      3. Never invent references - only use [Reference n] when corresponding document_indexes exist.
+      4. If document_indexes is empty ([]) or unavailable, explicitly state in answer that no references were used.
+      5. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
 
   Here are a few examples using notional tools:
   ---
@@ -97,7 +117,7 @@ system_prompt: |-
     "name": "final_answer",
     "arguments": {
       "answer": "Some messages about python[Reference 1]. Some messages about Java[Reference 2]. Some other messages...", 
-      "document_indexes": [0, 1] # only Document 0 and Document 1 are useful
+      "document_indexes": [0, 1] # only Document 0 and Document 1 are useful, which have mentioned in "answer"
     }
   }
 
@@ -219,4 +239,4 @@ final_answer:
     {{task}}
 
     Your response MUST be a JSON object with exactly two fields: "answer" and "document_indexes".
-    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool. On the other hand, if "document_indexes" is not empty (e.g., `document_indexes = [0, 2, 3]`), you should mention where the document used in "answer" with Markdown reference format like `Some sentence[Reference 2]` for `[Reference 2]` -> `document_indexes[1]` -> "===== Document 2 =====".
+    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool. On the other hand, if "document_indexes" is not empty (e.g., `document_indexes = [0, 2, 3]`), you should mention where the document used in "answer" with Markdown reference format like `This is an exmaple sentence according to some references[Reference n].` where `[Reference n]` means the `document_indexes[n-1]` (so `n` should start from `1`).
