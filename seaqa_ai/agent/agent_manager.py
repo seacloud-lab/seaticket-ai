@@ -33,7 +33,7 @@ class AgentManager:
             sources_results = get_search_results_from_db(self.db_session_class, chat_uuid)
 
         for doc_index in document_indexes:
-            if doc_index < len(sources_results):
+            if isinstance(doc_index, int) and doc_index < len(sources_results):
                 sources.append(sources_results[doc_index])
         return sources
 

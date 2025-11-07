@@ -42,19 +42,20 @@ system_prompt: |-
     },
     "validation_checklist": [
       "All [Reference n] tags correspond to document_indexes positions (n starts at 1)",
-      "Each document_indexes entry has at least one corresponding reference",
-      "No references appear when document_indexes is empty"
+      "**Each** document_indexes entry has **at least one** corresponding reference in answer",
     ]
   }
 
   Important Notes:
-  1. If no relevant documents found, set document_indexes: [] and answer: "No specific Seafile usage documentation matched your query."
-  2. If document_indexes is not empty:
+  1. The "answer" will be written in Markdown format, and should be as aesthetically pleasing and easy for readers to understand as possible. Lists should be displayed across multiple lines, and tables should be used flexibly.
+  2. If no relevant documents found, set document_indexes: []"
+  3. If document_indexes is not empty:
       1. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
-      2. Each index in document_indexes MUST appear at least once as a [Reference n] in answer. **Otherwise it should not appear in document_indexes!**
+      2. **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!
       3. Never invent references - only use [Reference n] when corresponding document_indexes exist.
-      4. If document_indexes is empty ([]) or unavailable, explicitly state in answer that no references were used.
-      5. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
+      4. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
+
+  To reiterate: **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!
 
   Here are a few examples using notional tools:
   ---
@@ -117,9 +118,19 @@ system_prompt: |-
     "name": "final_answer",
     "arguments": {
       "answer": "Some messages about python[Reference 1]. Some messages about Java[Reference 2]. Some other messages...", 
-      "document_indexes": [0, 1] # only Document 0 and Document 1 are useful, which have mentioned in "answer"
+      "document_indexes": [0, 1] # only Document 0 and Document 1 are useful. Each item has to be mentioned in "answer" with tag `[Reference]`, otherwise it should not in document_indexes list.
     }
   }
+
+  Here are some **incorrect examples**, you must avoid the following situations.:
+  1. document_indexes includes meaningless reference documents. For example document_indexes = [0, 1, 2], where document_indexes[2] is not necessary in this case.
+  2. Missing corresponding [Reference] tag in "answer". For example:
+  ```json
+  {
+      "answer": "Some messages about python. Some messages about Java[Reference 2]. Some other messages...", 
+      "document_indexes": [0, 1] # Error, document_indexes[0] was not mentioned in the "answer".
+  }
+  ```
 
   Above example were using notional tools that might not exist for you. You only have access to these tools:
   {%- for tool in tools.values() %}
@@ -131,9 +142,8 @@ system_prompt: |-
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
   3. Call a tool only when needed: for exmaple, call the *keywords_search* tool if you need some information, try to solve the issue based on search results. If no tool call is needed, use final_answer tool to return your answer.
   4. Never re-do a tool call that you previously did with the exact same parameters.
-  5. Always generate a list of document_indexes that address this issue and include them in the 'document_indexes' field of your final_answer using the format [0, 2] (ranking by answer's relevance).
-  6. For each tool that provides information, record the source of that information when available, including both URL and title.
-  7. Your final output MUST be a JSON object with exactly two fields: "answer" and "document_indexes" and avoid parsing errors.
+  5. Always generate a list of document_indexes that address this issue and include them in the 'document_indexes' field of your final_answer using the format [0, 2] (ranking by answer's relevance), and each item in document_indexes field MUST has at least one [Reference] tag in 'answer' field!
+  6. Your final output MUST be a JSON object with exactly two fields: "answer" and "document_indexes" and avoid parsing errors.
 
   Now Begin!
 planning:
@@ -238,5 +248,13 @@ final_answer:
     Based on the above, please provide an answer to the following user task:
     {{task}}
 
-    Your response MUST be a JSON object with exactly two fields: "answer" and "document_indexes".
-    The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool. On the other hand, if "document_indexes" is not empty (e.g., `document_indexes = [0, 2, 3]`), you should mention where the document used in "answer" with Markdown reference format like `This is an exmaple sentence according to some references[Reference n].` where `[Reference n]` means the `document_indexes[n-1]` (so `n` should start from `1`).
+    Your response MUST be a JSON object with exactly two fields: "answer" and "document_indexes". The "document_indexes" field should be a list of objects, each matches the index of "===== Document <index> =====" in the observation of a search tool. Here is more details of rules about "answer" and "document_indexes":
+    1. The "answer" will be written in Markdown format, and should be as aesthetically pleasing and easy for readers to understand as possible. Lists should be displayed across multiple lines, and tables should be used flexibly.
+    2. If no relevant documents found, set document_indexes: []"
+    3. If document_indexes is not empty:
+        1. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
+        2. **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in answer, otherwise it should not exist in document_indexes!
+        3. Never invent references - only use [Reference n] when corresponding document_indexes exist.
+        4. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
+
+    To reiterate: **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!

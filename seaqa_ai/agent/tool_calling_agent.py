@@ -2,11 +2,12 @@ import smolagents
 import logging
 import json
 import uuid
+import datetime
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.config import ENABLE_TOOLS_SHARED_VARS
 from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
-from seaqa_ai.utils import parse_json
+from seaqa_ai.utils import parse_json, localize_time
 
 logger = logging.getLogger(__name__)
 
@@ -112,10 +113,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
                             }
                         }
                         if memory_step.error:
-                            new_tool_calls[tool_call_id]['static']['error'] = {
+                            new_tool_calls[tool_call_id]['error'] = {
                                 'type': memory_step.error.type,
                                 'message': memory_step.error.message
                             }
+                        new_tool_calls[tool_call_id]['time'] = localize_time(datetime.datetime.now()).isoformat()
                         record.tool_calls = json.dumps(new_tool_calls)
                         db_session.commit()
 
