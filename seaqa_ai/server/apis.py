@@ -48,11 +48,15 @@ def get_ai_reply():
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
     message_id = data.get('message_id')
 
     context = {
         'username': username,
         'session_uuid': session_uuid,
+        'project_uuid': project_uuid,
+        'org_id': org_id,
         'message_id': message_id
     }
 
@@ -95,9 +99,13 @@ def convert_record_to_ticket():
 
     username = data.get('username')
     record_detail = data.get('record_detail')
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
 
     context = {
         'username': username,
+        'org_id': org_id,
+        'project_uuid': project_uuid
     }
 
     if not record_detail:
@@ -128,14 +136,24 @@ def generate_summary():
     include_vector = data.get('include_vector', False)
     username = data.get('username', '')
     content = data.get('content')
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
 
     if not connection_type:
         return {'error_msg': 'connection_type invalid.'}, 400
     if not content:
-        return {'error_msg': 'content invalid'}, 400
+        return {'error_msg': 'content invalid'}, 400 
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not org_id:
+        return {'error_msg': 'org_id invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
         'username': username,
+        'org_id': org_id,
+        'project_uuid': project_uuid
     }
     try:
         summary = flask_app.app.assistant_manager.generate_summary(connection_type, content, context)

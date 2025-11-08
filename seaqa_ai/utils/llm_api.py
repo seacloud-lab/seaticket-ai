@@ -35,18 +35,15 @@ class LLMAPI:
         if 'context' in kwargs:
             context = kwargs.pop('context')
 
-        success_callback = self.create_success_callback(
-            context
-        )
-        # litellm.success_callback = [success_callback]
-
-        return litellm.completion(
+        response = litellm.completion(
             model=self.model,
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=self.timeout,
             **kwargs
         )
+        self._logger_usage(kwargs, response, context)
+        return response
 
     def _logger_usage(self, kwargs, response, context):
         try:
@@ -59,15 +56,11 @@ class LLMAPI:
                         'total_tokens': response.usage.total_tokens
                     },
                     'username': context.get('username'),
+                    'org_id': context.get('org_id'),
+                    'project_uuid': context.get('project_uuid'),
                 }))
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")
-
-    def create_success_callback(self, context):
-        def success_callback(kwargs, completion_response, start_time, end_time):
-            self._logger_usage(kwargs, completion_response, context)
-        return success_callback
-
     def generate_embeddings(self, texts, context):
         if isinstance(texts, str):
             texts = [texts]
