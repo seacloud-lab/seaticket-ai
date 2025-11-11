@@ -48,12 +48,12 @@ def get_ai_reply():
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
-    chat_uuid = data.get('chat_uuid')
+    message_id = data.get('message_id')
 
     context = {
         'username': username,
         'session_id': session_id,
-        'chat_uuid': chat_uuid
+        'message_id': message_id
     }
 
     if not query:
@@ -62,8 +62,8 @@ def get_ai_reply():
         return {'error_msg': 'project_uuid invalid.'}, 400
     if not username:
         return {'error_msg': 'username invalid.'}, 400
-    if not chat_uuid:
-        return {'error_msg': 'chat_uuid invalid.'}, 400
+    if not message_id:
+        return {'error_msg': 'message_id invalid.'}, 400
     
     results = flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context)
 

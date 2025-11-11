@@ -11,7 +11,7 @@ from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import format_agent_memory, parse_json, extra_sources
+from seaqa_ai.utils import format_agent_memory, parse_json, extract_sources
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class AgentManager:
     def execute(self, agent_name, tool_executor, message, **kwargs):
         context = kwargs.get('context', {})
         session_id = context.get('session_id')
-        chat_uuid = context.get('chat_uuid')
+        message_id = context.get('message_id')
 
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -33,7 +33,8 @@ class AgentManager:
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 self.db_session_class,
-                chat_uuid,
+                session_id,
+                message_id,
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
@@ -75,7 +76,7 @@ class AgentManager:
             if not isinstance(document_indexes, list):
                 document_indexes = []
 
-            return output.get('answer', ''), format_agent_memory(agent_output.messages), extra_sources(tool_executor, document_indexes)
+            return output.get('answer', ''), format_agent_memory(agent_output.messages), extract_sources(tool_executor, document_indexes)
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -113,7 +114,7 @@ class AgentManager:
                 for tool_call in response.tool_calls:
                     to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                     
-                    save_tool_call(self.db_session_class, chat_uuid, tool_call, to_db)
+                    save_tool_call(self.db_session_class, session_id, message_id, tool_call, to_db)
 
                     memory += {
                         'role': 'tool',
@@ -139,4 +140,4 @@ class AgentManager:
             if not isinstance(content['answer'], str):
                 content['answer'] = json.dumps(content['answer'])
 
-            return content.get('answer', ''), extra_sources(tool_executor, content.get('document_indexes', []))
+            return content.get('answer', ''), extract_sources(tool_executor, content.get('document_indexes', []))

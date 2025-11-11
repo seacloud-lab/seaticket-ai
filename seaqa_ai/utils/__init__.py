@@ -51,7 +51,7 @@ def parse_response(response):
         except:
             pass
 
-def extra_sources(tool_executor, document_indexes):
+def extract_sources(tool_executor, document_indexes):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
     sources = []
     for index in document_indexes:

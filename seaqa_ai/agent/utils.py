@@ -1,6 +1,5 @@
 import logging
 import json
-import uuid
 from smolagents import ToolCall
 from seaqa_ai.db.models import ChatToolCalls
 
@@ -11,7 +10,7 @@ def tool_output(output):
         return output.get('to_observation', output), output.get('to_db', output)
     return output, output
 
-def save_tool_call(db_session_class, chat_uuid, tool_call, output):
+def save_tool_call(db_session_class, session_id, message_id, tool_call, output):
     """
     Mainly used in SomlAgents.ToolCallingAgent
     """
@@ -19,7 +18,7 @@ def save_tool_call(db_session_class, chat_uuid, tool_call, output):
         tool_call = tool_call.dict()
     
     with db_session_class() as db_session:
-        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(chat_uuid)).first()
+        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_id==session_id, ChatToolCalls.message_id==message_id).first()
         
         tool_call_id = tool_call['id']
         tool_call_info = {
@@ -39,7 +38,7 @@ def save_tool_call(db_session_class, chat_uuid, tool_call, output):
                     }
                 record.tool_calls = json.dumps(new_tool_calls)
             else:
-                record = ChatToolCalls(uuid.UUID(chat_uuid), {
+                record = ChatToolCalls(session_id, message_id, {
                     tool_call_id: {
                         'substeps': [tool_call_info]
                     }

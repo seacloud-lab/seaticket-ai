@@ -1,7 +1,6 @@
 import smolagents
 import logging
 import json
-import uuid
 import datetime
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.agent.utils import tool_output, save_tool_call
@@ -11,9 +10,10 @@ logger = logging.getLogger(__name__)
 
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
-    def __init__(self, db_session_class, chat_uuid, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
+    def __init__(self, db_session_class, session_id, message_id, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
         self.db_session_class = db_session_class
-        self.chat_uuid = chat_uuid
+        self.session_id = session_id
+        self.message_id = message_id
 
         super().__init__(tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)
 
@@ -42,7 +42,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
 
             to_observation, to_db = tool_output(tool_call_result)
 
-            save_tool_call(self.db_session_class, self.chat_uuid, tool_call, to_db)
+            save_tool_call(self.db_session_class, self.session_id, self.message_id, tool_call, to_db)
             observation = str(to_observation).strip()
 
         self.logger.log(
@@ -97,7 +97,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         # save usages infomation to db
         if parallel_calls:
             with self.db_session_class() as db_session:
-                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(self.chat_uuid)).first()
+                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_id==self.session_id, ChatToolCalls.message_id==self.message_id).first()
                 if record:
                     new_tool_calls = record.to_dict()['tool_calls']
                     tool_call_id = list(parallel_calls.values())[0].id
