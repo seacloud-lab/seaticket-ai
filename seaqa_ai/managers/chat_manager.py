@@ -1,7 +1,6 @@
 import logging
-from seaqa_ai.config import LLM_MODEL, ENABLE_TOOLS_SHARED_VARS
+from seaqa_ai.config import LLM_MODEL, USING_FLASK_BUILTIN_SHARED_VARS
 from seaqa_ai.agent.tools import Tools
-from seaqa_ai.agent.utils import get_search_results_from_db
 from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
@@ -24,7 +23,7 @@ class ChatManager:
         assert isinstance(query, str), "Your search query must be a string"
 
         # Retrieve relevant documents
-        sources_results = ToolSharedVars.get('sources_results', []) if ENABLE_TOOLS_SHARED_VARS else get_search_results_from_db(self.app.agent_manager.db_session_class, context['chat_uuid'])
+        sources_results = ToolSharedVars.get('sources_results', []) if USING_FLASK_BUILTIN_SHARED_VARS else self.app.redis_client.get(context['chat_uuid'], 'sources_results', [])
         
         to_observation = ''
         to_tools_shared_vars = {

@@ -35,18 +35,18 @@ Tools = {
 
 class FinalAnswerTool(Tool):
     name = "final_answer"
-    description = "Provides a final answer to the given problem."
+    description = "Provides a final answer to the given problem. `answer` MUST include [Reference n] markers where n starts at 1 and corresponds to `document_indexes` order. **Each** index in `document_indexes` MUST appear **at least once** as a [Reference n] in `answer`, otherwise it should not exist in `document_indexes`."
     inputs = {
         "answer": {
             "type": "string", 
-            "description": "The final answer to the problem"
+            "description": "The final answer to the problem. This argument will be written in Markdown format, and should be as aesthetically pleasing and easy for readers to understand as possible. Lists should be displayed across multiple lines, and tables should be used flexibly. **Each** element in argument `document_indexes` MUST appear **at least once** as a [Reference n] in this argument. Never invent references - only use [Reference n] when corresponding `document_indexes` exist."
         },
         "document_indexes": {
             "type": "array", 
             "items": {
                 "type": "integer"
             },
-            "description": "The document_indexes of final answer, should compose of indexes (int) of the search tool results."
+            "description": "The `document_indexes` of final answer, should compose of indexes (int) of the search tool results. If this argument is not empty (e.g., [0,2]), `answer` MUST include [Reference n] markers where n starts at 1 and corresponds to `document_indexes` order. **Each** index in `document_indexes` MUST appear **at least once** as a [Reference n] in `answer`, otherwise it should not exist in this argument."
         }
     }
     output_type = "any"

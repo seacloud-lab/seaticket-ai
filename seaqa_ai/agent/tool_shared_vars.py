@@ -1,6 +1,6 @@
 from flask import g
 
-class ToolSharedVars:
+class ToolSharedVars(object):
     @staticmethod
     def init():
         g.tools_shared = {}

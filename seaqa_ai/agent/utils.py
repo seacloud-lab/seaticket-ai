@@ -50,18 +50,3 @@ def save_tool_call(db_session_class, chat_uuid, tool_call, output):
         except Exception as e:
             logger.warning(f'Failure to add tool call into db: {e}')
 
-def get_search_results_from_db(db_session_class, chat_uuid):
-    sources_results = []
-    try:
-        with db_session_class() as db_session:
-            record = db_session.query(ChatToolCalls).filter(ChatToolCalls.chat_uuid==uuid.UUID(chat_uuid)).first()
-
-            if record:
-                for tool_calls in record.to_dict()['tool_calls'].values():
-                    for tool_call in tool_calls['substeps']:
-                        if tool_call['name'] == 'keywords_search':
-                            sources_results += tool_call['output']
-    except Exception as e:
-        logger.warning(f'Failure to query tool calls history: {e}')
-    
-    return sources_results

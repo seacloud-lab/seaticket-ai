@@ -7,7 +7,7 @@ from smolagents.monitoring import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import system_prompts, response_format
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.agent.utils import tool_output, save_tool_call, get_search_results_from_db
+from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
@@ -25,12 +25,11 @@ class AgentManager:
         
     def _extra_sources(self, chat_uuid, document_indexes):
         sources = []
-        if config.ENABLE_TOOLS_SHARED_VARS:
-            # fetch all search results from global vars
+        if config.USING_FLASK_BUILTIN_SHARED_VARS:
             sources_results = ToolSharedVars.get('sources_results', [])
         else:
-            # fetch from db
-            sources_results = get_search_results_from_db(self.db_session_class, chat_uuid)
+            sources_results = self.app.redis_client.get(chat_uuid, 'sources_results', [])
+            self.app.redis_client.delete_channel(chat_uuid)
 
         for doc_index in document_indexes:
             if isinstance(doc_index, int) and doc_index < len(sources_results):
@@ -42,7 +41,7 @@ class AgentManager:
         session_id = context.get('session_id')
         chat_uuid = context.get('chat_uuid')
 
-        if config.ENABLE_TOOLS_SHARED_VARS:
+        if config.USING_FLASK_BUILTIN_SHARED_VARS:
             ToolSharedVars.init()
 
         # agent mode
@@ -51,6 +50,7 @@ class AgentManager:
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 self.db_session_class,
+                self.app.redis_client,
                 chat_uuid,
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
@@ -132,8 +132,11 @@ class AgentManager:
                 for tool_call in response.tool_calls:
                     to_observation, to_tools_shared_vars, to_db = tool_output(tool_executor.execute(tool_call))
 
-                    if config.ENABLE_TOOLS_SHARED_VARS and to_tools_shared_vars:
-                        ToolSharedVars.update(to_tools_shared_vars)
+                    if to_tools_shared_vars:
+                        if config.USING_FLASK_BUILTIN_SHARED_VARS:
+                            ToolSharedVars.update(to_tools_shared_vars)
+                        else:
+                            self.app.redis_client.mapping_set(chat_uuid, to_tools_shared_vars)
                     
                     save_tool_call(self.db_session_class, chat_uuid, tool_call, to_db)
 

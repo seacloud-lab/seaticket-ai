@@ -4,7 +4,7 @@ import json
 import uuid
 import datetime
 from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.config import ENABLE_TOOLS_SHARED_VARS
+from seaqa_ai.config import USING_FLASK_BUILTIN_SHARED_VARS
 from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
 from seaqa_ai.utils import parse_json, localize_time
@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
-    def __init__(self, db_session_class, chat_uuid, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
+    def __init__(self, db_session_class, redis_client, chat_uuid, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
         self.db_session_class = db_session_class
+        self.redis_client = redis_client
         self.chat_uuid = chat_uuid
 
         super().__init__(tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)
@@ -43,8 +44,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
 
             to_observation, to_tools_shared_vars, to_db = tool_output(tool_call_result)
 
-            if ENABLE_TOOLS_SHARED_VARS and to_tools_shared_vars:
-                ToolSharedVars.update(to_tools_shared_vars)
+            if to_tools_shared_vars:
+                if USING_FLASK_BUILTIN_SHARED_VARS:
+                    ToolSharedVars.update(to_tools_shared_vars)
+                else:
+                    self.redis_client.mapping_set(self.chat_uuid, to_tools_shared_vars)
 
             save_tool_call(self.db_session_class, self.chat_uuid, tool_call, to_db)
             observation = str(to_observation).strip()

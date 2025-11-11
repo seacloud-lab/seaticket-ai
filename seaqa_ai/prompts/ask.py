@@ -15,7 +15,7 @@ response_format = """
 3. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
 4. **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in answer. Otherwise it should not exist in document_indexes!
 5. Never invent references - only use [Reference n] when corresponding document_indexes exist.
-6. After generating, verify: 1) JSON validity 2) Reference count matches document_indexes length 3) All references use correct 1-based indexing
+6. After generating, verify: 1) JSON validity 2) **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer" 3) All references use correct 1-based indexing
 """
 
 system_prompts = f"""You are a professional technical assistant. Please answer the user's question based on the provided reference materials.

@@ -50,10 +50,10 @@ system_prompt: |-
   1. The "answer" will be written in Markdown format, and should be as aesthetically pleasing and easy for readers to understand as possible. Lists should be displayed across multiple lines, and tables should be used flexibly.
   2. If no relevant documents found, set document_indexes: []"
   3. If document_indexes is not empty:
-      1. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
+      1. If "document_indexes" has entries (e.g., [0,2]), "answer" MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
       2. **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!
       3. Never invent references - only use [Reference n] when corresponding document_indexes exist.
-      4. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
+      4. After generating, verify: 1) **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer" 2) All references use correct 1-based indexing
 
   To reiterate: **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!
 
@@ -255,6 +255,6 @@ final_answer:
         1. If document_indexes has entries (e.g., [0,2]), answer MUST include [Reference n] markers where n starts at 1 and corresponds to document_indexes order.",
         2. **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in answer, otherwise it should not exist in document_indexes!
         3. Never invent references - only use [Reference n] when corresponding document_indexes exist.
-        4. After generating, verify: 1) Reference count matches document_indexes length 2) All references use correct 1-based indexing
+        4. After generating, verify: 1) **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer" 2) All references use correct 1-based indexing
 
     To reiterate: **Each** index in document_indexes MUST appear **at least once** as a [Reference n] in "answer", otherwise it should not exist in document_indexes!
