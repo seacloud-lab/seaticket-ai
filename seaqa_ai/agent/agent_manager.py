@@ -11,8 +11,7 @@ from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
-from seaqa_ai.utils import format_agent_memory, parse_json
+from seaqa_ai.utils import format_agent_memory, parse_json, extra_sources
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -22,40 +21,23 @@ class AgentManager:
     def __init__(self, app):
         self.app = app
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
-        
-    def _extra_sources(self, chat_uuid, document_indexes):
-        sources = []
-        if config.USING_FLASK_BUILTIN_SHARED_VARS:
-            sources_results = ToolSharedVars.get('sources_results', [])
-        else:
-            sources_results = self.app.redis_client.get(chat_uuid, 'sources_results', [])
-            self.app.redis_client.delete_channel(chat_uuid)
 
-        for doc_index in document_indexes:
-            if isinstance(doc_index, int) and doc_index < len(sources_results):
-                sources.append(sources_results[doc_index])
-        return sources
-
-    def execute(self, agent_name, message, **kwargs):
+    def execute(self, agent_name, tool_executor, message, **kwargs):
         context = kwargs.get('context', {})
         session_id = context.get('session_id')
         chat_uuid = context.get('chat_uuid')
 
-        if config.USING_FLASK_BUILTIN_SHARED_VARS:
-            ToolSharedVars.init()
-
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
-            tool_executor = kwargs.get('tool_executor')
+            
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 self.db_session_class,
-                self.app.redis_client,
                 chat_uuid,
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
                 ),
-                tools=tool_executor.tools if tool_executor else [],  # List of tools available to the agent
+                tools=tool_executor.tools,  # List of tools available to the agent
                 model=server_model,
                 max_steps=3,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
@@ -93,11 +75,10 @@ class AgentManager:
             if not isinstance(document_indexes, list):
                 document_indexes = []
 
-            return output.get('answer', ''), format_agent_memory(agent_output.messages), self._extra_sources(chat_uuid, document_indexes)
+            return output.get('answer', ''), format_agent_memory(agent_output.messages), extra_sources(tool_executor, document_indexes)
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
-            tool_executor=kwargs.get('tool_executor')
             temperature=kwargs.get('temperature', TMEPERATURE)
             if 'gpt-5' in config.LLM_MODEL:
                 temperature = 1
@@ -119,7 +100,7 @@ class AgentManager:
             response = self.app.llm_api.completion(
                 messages=memory,
                 context=context,
-                tools=tool_executor.get() if tool_executor else [],
+                tools=tool_executor.get(),
                 temperature=temperature
             ).choices[0].message
 
@@ -130,13 +111,7 @@ class AgentManager:
                 }
 
                 for tool_call in response.tool_calls:
-                    to_observation, to_tools_shared_vars, to_db = tool_output(tool_executor.execute(tool_call))
-
-                    if to_tools_shared_vars:
-                        if config.USING_FLASK_BUILTIN_SHARED_VARS:
-                            ToolSharedVars.update(to_tools_shared_vars)
-                        else:
-                            self.app.redis_client.mapping_set(chat_uuid, to_tools_shared_vars)
+                    to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                     
                     save_tool_call(self.db_session_class, chat_uuid, tool_call, to_db)
 
@@ -164,4 +139,4 @@ class AgentManager:
             if not isinstance(content['answer'], str):
                 content['answer'] = json.dumps(content['answer'])
 
-            return content.get('answer', ''), self._extra_sources(chat_uuid, content.get('document_indexes', []))
+            return content.get('answer', ''), extra_sources(tool_executor, content.get('document_indexes', []))

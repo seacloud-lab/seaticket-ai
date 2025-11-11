@@ -51,6 +51,15 @@ def parse_response(response):
         except:
             pass
 
+def extra_sources(tool_executor, document_indexes):
+    sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+    sources = []
+    for index in document_indexes:
+        if index < len(sources_results):
+            sources.append(sources_results[index])
+    return sources
+    
+
 def format_agent_memory(memory_steps):
     """
     # Format output of agent memory_steps

@@ -36,9 +36,6 @@ DISABLE_CONTEXT = False
 CONTEXT_WINDOW_LIMIT = 10
 CONTEXT_HISTORY_VALID_TIME = 168 # hour
 
-## Tools Shared vars (enabling this can improve efficiency when use external Redis)
-USING_FLASK_BUILTIN_SHARED_VARS = False
-
 # Redis
 REDIS_HOST = 'redis'
 REDIS_PORT = 6379

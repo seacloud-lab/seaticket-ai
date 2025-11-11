@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 def tool_output(output):
     if isinstance(output, dict):
-        return output.get('to_observation', output), output.get('to_tools_shared_vars'), output.get('to_db', output)
-    return output, None, output
+        return output.get('to_observation', output), output.get('to_db', output)
+    return output, output
 
 def save_tool_call(db_session_class, chat_uuid, tool_call, output):
     """

@@ -1,7 +1,6 @@
 import logging
-from seaqa_ai.config import LLM_MODEL, USING_FLASK_BUILTIN_SHARED_VARS
+from seaqa_ai.config import LLM_MODEL
 from seaqa_ai.agent.tools import Tools
-from seaqa_ai.agent.tool_shared_vars import ToolSharedVars
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.prompts.ask import MAX_SOURCES_COUNT
@@ -18,12 +17,12 @@ class ChatManager:
         # reserved interface
         return doc_content[:100]
 
-    def _search(self, query, project_uuid, connection_ids, context):
+    def _search(self, query, project_uuid, connection_ids, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
         # Retrieve relevant documents
-        sources_results = ToolSharedVars.get('sources_results', []) if USING_FLASK_BUILTIN_SHARED_VARS else self.app.redis_client.get(context['chat_uuid'], 'sources_results', [])
+        sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
         
         to_observation = ''
         to_tools_shared_vars = {
@@ -44,12 +43,11 @@ class ChatManager:
             to_tools_shared_vars['sources_results'].append(doc)
             to_db.append(doc)
 
-        logger.info('successuess')
+        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
 
         # Format the retrieved documents for readability
         return {
             'to_observation': to_observation,
-            'to_tools_shared_vars': to_tools_shared_vars,
             'to_db': to_db
         }
 
@@ -66,10 +64,10 @@ class ChatManager:
         Generate an answer based on the question and references.
         """
         tool_executor = FunctionCallingToolExecutor()
-        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids, context=context)
+        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
 
         try:
-            return self.app.agent_manager.execute(ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, message, tool_executor=tool_executor, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
+            return self.app.agent_manager.execute(ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, tool_executor, message, context=context, temperature=0.1 if 'gpt-5' not in LLM_MODEL else 1)
 
         except Exception as e:
             logger.exception(f"Error generating answer: {str(e)}")
@@ -77,10 +75,10 @@ class ChatManager:
 
     def _gen_ans_agent(self, message, project_uuid, connection_ids, context):
         tool_executor = SmolAgentsToolExecutor()
-        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids, context=context)
+        tool_executor.register(self._search, Tools['keywords_search'], project_uuid=project_uuid, connection_ids=connection_ids)
         if 'gpt-5' not in LLM_MODEL:
             server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context) 
         else:
             server_model = LiteLLMModel(client=self.app.llm_api, model_id=LLM_MODEL, context=context, temperatute=1)
 
-        return self.app.agent_manager.execute(AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, message, tool_executor=tool_executor, server_model=server_model, context=context)
+        return self.app.agent_manager.execute(AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, tool_executor, message, server_model=server_model, context=context)
