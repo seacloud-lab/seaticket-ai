@@ -44,7 +44,7 @@ def get_ai_reply():
 
     query = data.get('query')
     username = data.get('username')
-    session_id = data.get('session_id')
+    session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
@@ -52,7 +52,7 @@ def get_ai_reply():
 
     context = {
         'username': username,
-        'session_id': session_id,
+        'session_uuid': session_uuid,
         'message_id': message_id
     }
 

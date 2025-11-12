@@ -10,7 +10,7 @@ def tool_output(output):
         return output.get('to_observation', output), output.get('to_db', output)
     return output, output
 
-def save_tool_call(db_session_class, session_id, message_id, tool_call, output):
+def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output):
     """
     Mainly used in SomlAgents.ToolCallingAgent
     """
@@ -18,7 +18,7 @@ def save_tool_call(db_session_class, session_id, message_id, tool_call, output):
         tool_call = tool_call.dict()
     
     with db_session_class() as db_session:
-        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_id==session_id, ChatToolCalls.message_id==message_id).first()
+        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
         
         tool_call_id = tool_call['id']
         tool_call_info = {
@@ -38,7 +38,7 @@ def save_tool_call(db_session_class, session_id, message_id, tool_call, output):
                     }
                 record.tool_calls = json.dumps(new_tool_calls)
             else:
-                record = ChatToolCalls(session_id, message_id, {
+                record = ChatToolCalls(session_uuid, message_id, {
                     tool_call_id: {
                         'substeps': [tool_call_info]
                     }
