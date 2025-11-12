@@ -24,7 +24,7 @@ class AgentManager:
 
     def execute(self, agent_name, tool_executor, message, **kwargs):
         context = kwargs.get('context', {})
-        session_id = context.get('session_id')
+        session_uuid = context.get('session_uuid')
         message_id = context.get('message_id')
 
         # agent mode
@@ -33,7 +33,7 @@ class AgentManager:
             server_model = kwargs.get('server_model')
             agent = ToolCallingAgent(
                 self.db_session_class,
-                session_id,
+                session_uuid,
                 message_id,
                 prompt_templates=yaml.safe_load(
                     importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
@@ -45,9 +45,9 @@ class AgentManager:
                 return_full_result=True,
             )
 
-            if session_id and not config.DISABLE_CONTEXT:
+            if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    agent.memory = build_memory_from_db(AGENT_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, agent.prompt_templates["system_prompt"], session_id, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    agent.memory = build_memory_from_db(AGENT_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, agent.prompt_templates["system_prompt"], session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
 
@@ -84,9 +84,9 @@ class AgentManager:
             if 'gpt-5' in config.LLM_MODEL:
                 temperature = 1
             context=kwargs.get('context')
-            if session_id and not config.DISABLE_CONTEXT:
+            if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompts, session_id, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
                     memory = OpenAIMemory(system_prompts)
@@ -114,7 +114,7 @@ class AgentManager:
                 for tool_call in response.tool_calls:
                     to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                     
-                    save_tool_call(self.db_session_class, session_id, message_id, tool_call, to_db)
+                    save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db)
 
                     memory += {
                         'role': 'tool',

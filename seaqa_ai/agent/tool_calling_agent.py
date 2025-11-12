@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
-    def __init__(self, db_session_class, session_id, message_id, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
+    def __init__(self, db_session_class, session_uuid, message_id, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
         self.db_session_class = db_session_class
-        self.session_id = session_id
+        self.session_uuid = session_uuid
         self.message_id = message_id
 
         super().__init__(tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)
@@ -42,7 +42,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
 
             to_observation, to_db = tool_output(tool_call_result)
 
-            save_tool_call(self.db_session_class, self.session_id, self.message_id, tool_call, to_db)
+            save_tool_call(self.db_session_class, self.session_uuid, self.message_id, tool_call, to_db)
             observation = str(to_observation).strip()
 
         self.logger.log(
@@ -81,7 +81,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
             parallel_calls[tool_call.id] = tool_call
 
         # Helper function to process a single tool call
-        
+
         # Process tool calls in parallel
         outputs = {}
         for tool_call in parallel_calls.values():
@@ -93,11 +93,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"
-        
+
         # save usages infomation to db
         if parallel_calls:
             with self.db_session_class() as db_session:
-                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_id==self.session_id, ChatToolCalls.message_id==self.message_id).first()
+                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==self.session_uuid, ChatToolCalls.message_id==self.message_id).first()
                 if record:
                     new_tool_calls = record.to_dict()['tool_calls']
                     tool_call_id = list(parallel_calls.values())[0].id
