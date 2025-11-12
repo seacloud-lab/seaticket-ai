@@ -106,7 +106,9 @@ class AgentManager:
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
             temperature=kwargs.get('temperature', TMEPERATURE)
-            if 'gpt-5' in config.LLM_MODEL:
+            model=kwargs.get('model')
+            model_to_use = model if model else config.LLM_MODEL
+            if 'gpt-5' in model_to_use:
                 temperature = 1
             context=kwargs.get('context')
             if session_uuid and not config.DISABLE_CONTEXT:
@@ -133,7 +135,8 @@ class AgentManager:
                 messages=memory,
                 context=context,
                 tools=tool_executor.get(),
-                temperature=temperature
+                temperature=temperature,
+                model=model_to_use
             ).choices[0].message
 
             if response.tool_calls:
@@ -189,6 +192,7 @@ class AgentManager:
                         messages=memory,
                         context=context,
                         temperature=temperature,
+                        model=model_to_use
                     ).choices[0].message.content
             else:
                 content = response.content

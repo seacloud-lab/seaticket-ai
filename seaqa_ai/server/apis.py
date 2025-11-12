@@ -50,7 +50,7 @@ def get_ai_reply():
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
     message_id = data.get('message_id')
-
+    model = data.get('model')
     context = {
         'username': username,
         'session_uuid': session_uuid,
@@ -69,7 +69,7 @@ def get_ai_reply():
         return {'error_msg': 'message_id invalid.'}, 400
 
     try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context), 200
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, model), 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
