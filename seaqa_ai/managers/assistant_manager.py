@@ -1,7 +1,7 @@
 import json
 import logging
 
-from seaqa_ai.config import LLM_MODEL
+from seaqa_ai.agent.agent_manager import TMEPERATURE
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class AssistantManager:
             response = self.app.llm_api.completion(
                 messages=messages,
                 context=context,
-                temperature=0.1,
+                temperature=TMEPERATURE,
             )
             resp_json = json.loads(response.choices[0].message.content)
             ai_title = resp_json.get('title', '')
@@ -80,7 +80,7 @@ class AssistantManager:
             response = self.app.llm_api.completion(
                 messages=messages,
                 context=context or {},
-                temperature=0.1 if 'GPT-5' not in LLM_MODEL else 1,
+                temperature=TMEPERATURE,
                 max_tokens=100
             )
 
