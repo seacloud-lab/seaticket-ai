@@ -5,7 +5,7 @@ from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERT
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 
-def build_memory_from_db(memory_type, db_session_class, system_prompt, session_id, window_limit, valid_time):
+def build_memory_from_db(memory_type, db_session_class, system_prompt, session_uuid, window_limit, valid_time):
     if memory_type == ASK_MODE_PROPERTIES_MAP.MEMORY.value:
         Memory = OpenAIMemory
     elif memory_type == AGENT_MODE_PROPERTIES_MAP.MEMORY.value:
@@ -14,7 +14,7 @@ def build_memory_from_db(memory_type, db_session_class, system_prompt, session_i
         raise ValueError(f'Unknown memory_type: {memory_type}')
 
     memory = Memory(system_prompt)
-    if not session_id:
+    if not session_uuid:
         return memory
 
     # context config check
@@ -24,7 +24,7 @@ def build_memory_from_db(memory_type, db_session_class, system_prompt, session_i
     # query records for newest
     with db_session_class() as db_session:
         query_args = [
-            ChatMessages.session_id == session_id
+            ChatMessages.session_uuid == session_uuid
         ]
         if valid_time > 0:
             query_args.append(
