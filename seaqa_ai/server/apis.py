@@ -64,7 +64,7 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
-    
+
     results = flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context)
 
     try:
@@ -139,10 +139,11 @@ def generate_summary():
     }
     try:
         summary = flask_app.app.assistant_manager.generate_summary(connection_type, content, context)
-        result = {"summary": summary}
+        result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
             embeddings = flask_app.app.llm_api.generate_embeddings(summary, context)
-            result["embeddings"] = embeddings
+            if embeddings:
+                result["embeddings"] = embeddings[0].get('embedding')
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
