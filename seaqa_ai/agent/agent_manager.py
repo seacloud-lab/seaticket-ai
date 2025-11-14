@@ -2,16 +2,17 @@ import logging
 import yaml
 import importlib
 import json
-
+import datetime
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import system_prompts, response_format
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import format_agent_memory, parse_json, extract_sources
+from seaqa_ai.utils import format_agent_memory, parse_json, extract_sources, object_to_json_str, localize_time
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,26 @@ class AgentManager:
             if not isinstance(document_indexes, list):
                 document_indexes = []
 
+            for message in agent_output.messages:
+                if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
+                    with self.db_session_class() as db_session:
+                        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==self.session_uuid, ChatToolCalls.message_id==self.message_id).first()
+                        new_tool_calls = {
+                            tool_calls_id: tool_calls
+                            for tool_calls_id, tool_calls in record.to_dict()['tool_calls'].items() if 'is_final_answer' not in tool_calls
+                        }
+                        new_tool_calls['max_steps_final_answer_call'] = {
+                            'is_final_answer': True,
+                            'reach_max_steps': False,
+                            'result': object_to_json_str(message.get('action_output')),
+                            'static': {
+                                'token_usage': message.get('token_usage', {})
+                            },
+                            'time': localize_time(datetime.datetime.now()).isoformat()
+                        }
+                        record.tool_calls = json.dumps(new_tool_calls)
+                        db_session.commit()
+
             return output.get('answer', ''), format_agent_memory(agent_output.messages), extract_sources(tool_executor, document_indexes)
 
         # ask mode
@@ -111,16 +132,25 @@ class AgentManager:
                     'tool_calls': response.tool_calls
                 }
 
-                for tool_call in response.tool_calls:
-                    to_observation, to_db = tool_output(tool_executor.execute(tool_call))
-                    
-                    save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db)
+                exception = None
 
-                    memory += {
-                        'role': 'tool',
-                        'tool_call_id': tool_call['id'],
-                        'content': json.dumps(to_observation)
-                    }
+                for tool_call in response.tool_calls:
+                    try:
+                        to_observation, to_db = tool_output(tool_executor.execute(tool_call))
+                        
+                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db)
+
+                        memory += {
+                            'role': 'tool',
+                            'tool_call_id': tool_call['id'],
+                            'content': json.dumps(to_observation)
+                        }
+                    except Exception as e:
+                        exception = e
+                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e)
+                
+                if exception:
+                    raise exception
 
                 content = self.app.llm_api.completion(
                         messages=memory,

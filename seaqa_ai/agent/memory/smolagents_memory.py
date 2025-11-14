@@ -1,6 +1,7 @@
 import json
 from smolagents.memory import MemoryStep, AgentMemory
 from smolagents.models import ChatMessage, MessageRole
+from seaqa_ai.utils import object_to_json_str
 
 class SmolAgentsMemoryStep(MemoryStep):
     """
@@ -40,7 +41,7 @@ class SmolAgentsMemoryStep(MemoryStep):
                 'role': self.record['role'],
                 'content':  {
                     'answer': self.record['content'],
-                    'sources': f"```json\n{json.dumps(self.record['sources'], indent=4, ensure_ascii=False)}\n```",
+                    'sources': object_to_json_str(self.record['sources']),
                 } if self.record['role'] == 'assistant' else self.record['content'],
                 'date': self.record['created_at']
             }

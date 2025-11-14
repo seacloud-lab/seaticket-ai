@@ -1,10 +1,9 @@
 import smolagents
 import logging
 import json
-import datetime
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.agent.utils import tool_output, save_tool_call
-from seaqa_ai.utils import parse_json, localize_time
+from seaqa_ai.utils import parse_json, object_to_json_str
 
 logger = logging.getLogger(__name__)
 
@@ -109,12 +108,19 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
                                 'total_tokens': memory_step.token_usage.total_tokens,
                             }
                         }
+
+                        if new_tool_calls[tool_call_id]['substeps'][0]['name'] == 'final_answer':
+                            new_tool_calls[tool_call_id]['is_final_answer'] = True
+                            new_tool_calls[tool_call_id]['reach_max_steps'] = False
+                            new_tool_calls[tool_call_id]['result'] = object_to_json_str(memory_step.observations)
+                            del new_tool_calls[tool_call_id]['substeps']
+
                         if memory_step.error:
                             new_tool_calls[tool_call_id]['error'] = {
-                                'type': memory_step.error.type,
-                                'message': memory_step.error.message
+                                'type': memory_step.error.__class__.__name__,
+                                'message': str(memory_step.error.message)
                             }
-                        new_tool_calls[tool_call_id]['time'] = localize_time(datetime.datetime.now()).isoformat()
+
                         record.tool_calls = json.dumps(new_tool_calls)
                         db_session.commit()
 
