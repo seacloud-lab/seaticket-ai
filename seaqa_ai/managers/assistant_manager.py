@@ -59,10 +59,10 @@ class AssistantManager:
             logger.error(f"Error generating ticket: {str(e)}")
             return '', ''
 
-
-    def generate_title_from_content(self, title, body, context):
+    def generate_summary(self, connection_type, content, context):
         try:
-            messages = [
+            if connection_type == 'github_issue':
+                messages = [
                 {
                     "role": "system",
                     "content": (
@@ -73,9 +73,37 @@ class AssistantManager:
                 },
                 {
                     "role": "user",
-                    "content": f"""Current title: {title}\nBody: {body}"""
+                    "content": f"""{content}"""
                 }
             ]
+            elif connection_type == 'site' or connection_type == 'seafile':
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a document summarization expert. Read the document, then craft a single-sentence English summary describing the core content."
+                            "The summary should capture the main points and themes of the document clearly and effectively."
+                            "Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting."
+                        )
+                    },
+                    {"role": "user", "content": 'Summarize the following content' + content}
+                ]
+
+            elif connection_type == 'discourse_forum':
+                messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a Discourse forum post analysis expert. Read the post's title and body, then craft a "
+                        "single-sentence English summary describing the core topic or request. Keep it concise (no more "
+                        "than 100 characters) and return only that sentence without extra commentary or formatting."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"""{content}"""
+                }
+            ] 
 
             response = self.app.llm_api.completion(
                 messages=messages,
@@ -83,10 +111,7 @@ class AssistantManager:
                 temperature=TMEPERATURE,
                 max_tokens=100
             )
-
-            generated_title = response.choices[0].message.content.strip()
-            return generated_title
-
+            return response.choices[0].message.content.strip()
         except Exception as e:
-            logger.error(f"Error generating title: {e}")
+            logger.error(f"Error generating summary: {e}")
             return ''

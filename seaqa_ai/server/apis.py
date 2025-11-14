@@ -64,7 +64,7 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
-    
+
     results = flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context)
 
     try:
@@ -113,32 +113,38 @@ def convert_record_to_ticket():
     return {'title': title, 'description': description}, 200
 
 
-@flask_app.route('/generate-title', methods=['POST'])
-def generate_title():
+@flask_app.route('/generate-summary', methods=['POST'])
+def generate_summary():
     is_valid = check_auth_token(request)
     if not is_valid:
-        return {'error_msg': 'Permission denied'}, 403
+        return {'error_msg': 'Permission denied.'}, 403
+
     try:
         data = json.loads(request.data)
     except Exception as e:
-        logger.exception(e)
-        return {'error_msg': 'Bad request.'}, 400    
-    
-    username = data.get('username')
-    title = data.get('title')
-    body = data.get('body')
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
-    if not title:
-        return {'error_msg': 'title invalid.'}, 400 
-    if not body:
-        return {'error_msg': 'body invalid.'}, 400
+        return {'error_msg': 'Bad request.'}, 400
+
+    connection_type = data.get('connection_type')
+    include_vector = data.get('include_vector', False)
+    username = data.get('username', '')
+    content = data.get('content')
+
+    if not connection_type:
+        return {'error_msg': 'connection_type invalid.'}, 400
+    if not content:
+        return {'error_msg': 'content invalid'}, 400
+
     context = {
         'username': username,
     }
     try:
-        title = flask_app.app.assistant_manager.generate_title_from_content(title, body, context)
+        summary = flask_app.app.assistant_manager.generate_summary(connection_type, content, context)
+        result = {"summary": summary, 'embeddings': []}
+        if include_vector and summary:
+            embeddings = flask_app.app.llm_api.generate_embeddings(summary, context)
+            if embeddings:
+                result["embeddings"] = embeddings[0].get('embedding')
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-    return {'title': title}, 200
+    return result, 200
