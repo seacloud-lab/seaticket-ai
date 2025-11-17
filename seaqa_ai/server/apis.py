@@ -143,7 +143,7 @@ def generate_summary():
         if include_vector and summary:
             embeddings = flask_app.app.llm_api.generate_embeddings(summary, context)
             if embeddings:
-                result["embeddings"] = embeddings[0].get('embedding')
+                result["embedding"] = embeddings[0].get('embedding')
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
