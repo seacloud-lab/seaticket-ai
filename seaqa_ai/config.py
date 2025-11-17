@@ -80,7 +80,7 @@ MYSQL_HOST = os.getenv('SEAQA_MYSQL_DB_HOST') or MYSQL_HOST
 MYSQL_USER = os.getenv('SEAQA_MYSQL_DB_USER') or MYSQL_USER
 MYSQL_PASSWORD = os.getenv('SEAQA_MYSQL_DB_PASSWORD') or MYSQL_PASSWORD
 MYSQL_PORT = int(os.getenv('SEAQA_MYSQL_DB_PORT')) if os.getenv('SEAQA_MYSQL_DB_PORT') else MYSQL_PORT
-MYSQL_DB = os.getenv('SEAQA_MYSQL_DB_SEA_QA_NAME') or MYSQL_DB
+MYSQL_DB = os.getenv('SEAQA_MYSQL_SEAQA_DB_NAME') or MYSQL_DB
 
 SQLALCHEMY_DATABASE_URI = "mysql+pymysql://%s:%s@%s:%s/%s?charset=utf8" % \
                           (MYSQL_USER, quote_plus(MYSQL_PASSWORD), MYSQL_HOST, MYSQL_PORT, MYSQL_DB)
