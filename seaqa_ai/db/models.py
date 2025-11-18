@@ -8,7 +8,7 @@ class ChatMessages(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    session_uuid = Column(String(length=36), nullable=False, index=True)
+    session_uuid = Column(String(length=36), nullable=False)
     message_id = Column(String(length=4), nullable=False)
     username = Column(String(length=255), nullable=False)
     role = Column(Enum('user', 'assistant'), nullable=False)
@@ -19,7 +19,7 @@ class ChatMessages(Base):
     is_agent_mode = Column(Boolean, nullable=False)
 
     __table_args__ = (
-        Index('idx_session_uuid_message_id', 'session_uuid', 'message_id'),
+        Index('idx_session_uuid_message_id', 'session_uuid', 'created_at'),
     )
 
     def __init__(self, username, session_uuid, message_id, role, content, sources, created_at, is_agent_mode, updated_at=None):
@@ -58,7 +58,7 @@ class ChatToolCalls(Base):
     __tablename__ = 'chat_tool_calls'
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    session_uuid = Column(String(length=36), nullable=False, index=True)
+    session_uuid = Column(String(length=36), nullable=False)
     message_id = Column(String(length=4), nullable=False)
     tool_calls = Column(Text, nullable=False)
 
