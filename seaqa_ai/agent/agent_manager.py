@@ -2,6 +2,7 @@ import logging
 import yaml
 import importlib
 import json
+import uuid
 import datetime
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
@@ -80,14 +81,14 @@ class AgentManager:
             for message in agent_output.messages:
                 if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
                     with self.db_session_class() as db_session:
-                        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==self.session_uuid, ChatToolCalls.message_id==self.message_id).first()
+                        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
                         new_tool_calls = {
                             tool_calls_id: tool_calls
                             for tool_calls_id, tool_calls in record.to_dict()['tool_calls'].items() if 'is_final_answer' not in tool_calls
                         }
-                        new_tool_calls['max_steps_final_answer_call'] = {
+                        new_tool_calls['tool_calls_final_answer'] = {
                             'is_final_answer': True,
-                            'reach_max_steps': False,
+                            'reach_max_steps': True,
                             'result': object_to_json_str(message.get('action_output')),
                             'static': {
                                 'token_usage': message.get('token_usage', {})
@@ -134,11 +135,12 @@ class AgentManager:
 
                 exception = None
 
+                fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
                 for tool_call in response.tool_calls:
                     try:
                         to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                         
-                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db)
+                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
 
                         memory += {
                             'role': 'tool',
@@ -147,7 +149,7 @@ class AgentManager:
                         }
                     except Exception as e:
                         exception = e
-                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e)
+                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e, fix_tool_calls_id=fix_tool_calls_id)
                 
                 if exception:
                     raise exception

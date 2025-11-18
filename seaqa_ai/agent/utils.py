@@ -12,14 +12,14 @@ def tool_output(output):
         return output.get('to_observation', output), output.get('to_db', output)
     return output, output
 
-def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output=None, error=None):
+def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output=None, error=None, fix_tool_calls_id=None):
     if isinstance(tool_call, ToolCall):
         tool_call = tool_call.dict()
     
     with db_session_class() as db_session:
         record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
         
-        tool_call_id = tool_call['id']
+        tool_call_id = tool_call['id'] if not fix_tool_calls_id else fix_tool_calls_id
         arguments = tool_call['function']['arguments']
         if isinstance(arguments, str):
             arguments = parse_json(arguments)
