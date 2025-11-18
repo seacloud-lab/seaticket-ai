@@ -7,7 +7,7 @@ from seaqa_ai.agent.agent_manager import TMEPERATURE
 logger = logging.getLogger(__name__)
 
 
-class AssistantManager:
+class AIUtils:
     def __init__(self, app):
         self.app = app
 

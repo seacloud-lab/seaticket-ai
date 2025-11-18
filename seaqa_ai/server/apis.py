@@ -114,7 +114,7 @@ def convert_record_to_ticket():
         return {'error_msg': 'username invalid.'}, 400
 
     try:
-        title, description = flask_app.app.assistant_manager.gen_ticket_from_record(record_detail, context)
+        title, description = flask_app.app.ai_utils.gen_ticket_from_record(record_detail, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
@@ -156,7 +156,7 @@ def generate_summary():
         'project_uuid': project_uuid
     }
     try:
-        summary = flask_app.app.assistant_manager.generate_summary(connection_type, content, context)
+        summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
             embeddings = flask_app.app.llm_api.generate_embeddings(summary, context)
