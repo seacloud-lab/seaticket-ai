@@ -58,7 +58,14 @@ def extract_sources(tool_executor, document_indexes):
         if index < len(sources_results):
             sources.append(sources_results[index])
     return sources
-    
+
+def object_to_json_str(obj):
+    result = obj
+    if isinstance(obj, str) or isinstance(obj, AgentText):
+        result = parse_json(obj)
+    if not isinstance(result, str) and not isinstance(result, AgentText):
+        result = '```json\n' + json.dumps(result, indent=4, ensure_ascii=False) + '\n```'
+    return result
 
 def format_agent_memory(memory_steps):
     """
@@ -253,11 +260,7 @@ def format_agent_memory(memory_steps):
             else:
                 # final answer
                 result = step['action_output'] if error else step['observations']
-                try:
-                    result = json.dumps(parse_json(result), indent=4, ensure_ascii=False)
-                    result = f"```json\n{result}\n```\n"
-                except Exception as e:
-                    logger.warning(f'Json decode failure: {e}')
+                result = object_to_json_str(result)
 
                 answer_input_tokens = step['token_usage']['input_tokens']
                 answer_output_tokens = step['token_usage']['output_tokens']
