@@ -69,20 +69,11 @@ def get_ai_reply():
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
 
-    results = flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context)
-
     try:
-        # agent mode
-        ai_reply, agent_memory, sources = results
-        return {'ai_reply': ai_reply, 'agent_memory': agent_memory, 'sources': sources}, 200
-    except:
-        # ask mode
-        try:
-            ai_reply, sources = results
-            return {'ai_reply': ai_reply, 'agent_memory': [], 'sources': sources}, 200
-
-        except:
-            return {'error_msg': 'Internet server error.'}, 500
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context), 200
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
 
 
 @flask_app.route('/convert-record-to-ticket', methods=['POST'])

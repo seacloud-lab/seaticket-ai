@@ -67,7 +67,7 @@ def object_to_json_str(obj):
         result = '```json\n' + json.dumps(result, indent=4, ensure_ascii=False) + '\n```'
     return result
 
-def format_agent_memory(memory_steps):
+def smolagent_steps_to_thought_process(memory_steps):
     """
     # Format output of agent memory_steps
 
@@ -94,7 +94,7 @@ def format_agent_memory(memory_steps):
 
     results = {
         'task': {
-            'system_prompts': '',
+            'system_prompt': '',
             'user_input': ''
         },
         'context': [],
@@ -138,9 +138,9 @@ def format_agent_memory(memory_steps):
         # task
         if not results['task']['user_input'] and 'task' in step:
             results['task']['user_input'] = step['task']
-        if not results['task']['system_prompts'] and 'model_input_messages' in step:
+        if not results['task']['system_prompt'] and 'model_input_messages' in step:
             """
-            step['model_input_messages']: sources messages of inputing (including system_prompts, context and user_input):
+            step['model_input_messages']: sources messages of inputing (including system_prompt, context and user_input):
 
             ```json
             [
@@ -150,7 +150,7 @@ def format_agent_memory(memory_steps):
                     'content': [
                         {
                             'type': 'text',
-                            'text': 'system_prompts'
+                            'text': 'system_prompt'
                         }
                     ]
                 },
@@ -182,7 +182,7 @@ def format_agent_memory(memory_steps):
             
             for msg in step['model_input_messages']:
                 if msg.get('role') == MessageRole.SYSTEM:
-                    results['task']['system_prompts'] = msg['content'][0]['text']
+                    results['task']['system_prompt'] = msg['content'][0]['text']
                     break
 
         # context    
@@ -304,7 +304,6 @@ def format_agent_memory(memory_steps):
     }
 
     return results
-
 
 class LLMChatCompletionException(Exception):
     pass
