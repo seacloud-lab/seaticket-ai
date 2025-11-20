@@ -6,14 +6,14 @@ import uuid
 import datetime
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
-from seaqa_ai.prompts.ask import system_prompts, response_format
+from seaqa_ai.prompts.ask import system_prompt, response_format
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import format_agent_memory, parse_json, extract_sources, object_to_json_str, localize_time
+from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,11 @@ class AgentManager:
                         record.tool_calls = json.dumps(new_tool_calls)
                         db_session.commit()
 
-            return output.get('answer', ''), format_agent_memory(agent_output.messages), extract_sources(tool_executor, document_indexes)
+            return {
+                'answer': output.get('answer', ''),
+                'thought_process': smolagent_steps_to_thought_process(agent_output.messages),
+                'sources': extract_sources(tool_executor, document_indexes)
+            }
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -108,17 +112,23 @@ class AgentManager:
             context=kwargs.get('context')
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(system_prompts)
+                    memory = OpenAIMemory(system_prompt)
             else:
-                memory = OpenAIMemory(system_prompts)
+                memory = OpenAIMemory(system_prompt)
+
+            thought_process = memory.context_thought_process
+
+            user_input_with_format = message + f'\n\nPlease **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**) for your response: {response_format}'
 
             memory += {
                 'role': 'user', 
-                'content': message + f'\n\nPlease **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**) for your response: {response_format}'
+                'content': user_input_with_format
             }
+
+            thought_process['task']['user_input'] = user_input_with_format
 
             response = self.app.llm_api.completion(
                 messages=memory,
@@ -133,14 +143,22 @@ class AgentManager:
                     'tool_calls': response.tool_calls
                 }
 
-                exception = None
-
+                thought_process['tool_calls'] = []
                 fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
                 for tool_call in response.tool_calls:
+                    arguments = tool_call['function']['arguments']
+                    if isinstance(arguments, str):
+                        arguments = parse_json(arguments)
+                    new_tool_call_to_thought_process = {
+                        'name': tool_call['function']['name'],
+                        'arguments': arguments
+                    }
                     try:
                         to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                         
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
+                        
+                        new_tool_call_to_thought_process['output'] = object_to_json_str(to_observation)
 
                         memory += {
                             'role': 'tool',
@@ -148,11 +166,19 @@ class AgentManager:
                             'content': json.dumps(to_observation)
                         }
                     except Exception as e:
-                        exception = e
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e, fix_tool_calls_id=fix_tool_calls_id)
-                
-                if exception:
-                    raise exception
+                        error_type = type(e).__name__
+                        error_message = repr(e)
+                        new_tool_call_to_thought_process['error'] = {
+                            'type': error_type,
+                            'message': error_message
+                        }
+                        memory += {
+                            'role': 'tool',
+                            'tool_call_id': tool_call['id'],
+                            'content': f'{error_type}: {error_message}'
+                        }
+                    thought_process['tool_calls'].append(new_tool_call_to_thought_process)
 
                 content = self.app.llm_api.completion(
                         messages=memory,
@@ -161,6 +187,11 @@ class AgentManager:
                     ).choices[0].message.content
             else:
                 content = response.content
+
+            memory += {
+                'role': 'assistant',
+                'content': content
+            }
             
             content = parse_json(content)
             if not isinstance(content, dict):
@@ -168,8 +199,31 @@ class AgentManager:
                     'answer': content,
                     'document_indexes': []
                 }
+
+            # result to thought process
+            thought_process['result'] = object_to_json_str(content)
+            
+            with self.db_session_class() as db_session:
+                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
+                if record:
+                    new_tool_calls = record.to_dict()['tool_calls']
+                    new_tool_calls['result'] = object_to_json_str(content)
+                    record.tool_calls = json.dumps(new_tool_calls)
+                else:
+                    record = ChatToolCalls(session_uuid, message_id, {
+                        'result': object_to_json_str(content)
+                    })
+                    db_session.add(record)
+                db_session.commit()
             
             if not isinstance(content['answer'], str):
                 content['answer'] = json.dumps(content['answer'])
 
-            return content.get('answer', ''), extract_sources(tool_executor, content.get('document_indexes', []))
+            return {
+                'answer': content.get('answer', ''),
+                'thought_process': thought_process,
+                'sources': extract_sources(tool_executor, content.get('document_indexes', []))
+            }
+
+        else:
+            raise AssertionError(f"agent_name only receive values `{AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value}` and `{ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value}`")
