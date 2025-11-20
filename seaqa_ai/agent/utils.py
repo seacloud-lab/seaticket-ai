@@ -49,7 +49,7 @@ def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output
 
                     new_tool_calls[tool_call_id]['error'] = {
                         'type': error_type + type(error).__name__,
-                        'message': error_message + str(error)
+                        'message': error_message + repr(error)
                     }
                 record.tool_calls = json.dumps(new_tool_calls)
             else:
@@ -60,7 +60,7 @@ def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output
                 if error:
                     new_tool_calls['error'] = {
                         'type': type(error).__name__,
-                        'message': str(error)
+                        'message': repr(error)
                     }
                 record = ChatToolCalls(session_uuid, message_id, {
                     tool_call_id: new_tool_calls
