@@ -111,6 +111,45 @@ def convert_record_to_ticket():
         return {'error_msg': 'Internet server error.'}, 500
     return {'title': title, 'description': description}, 200
 
+@flask_app.route('/generate-embedding', methods=['POST'])
+def generate_embedding():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied.'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        return {'error_msg': 'Bad request.'}, 400
+
+    username = data.get('username', '')
+    content = data.get('content')
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
+
+    if not content:
+        return {'error_msg': 'content invalid'}, 400 
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not org_id:
+        return {'error_msg': 'org_id invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    context = {
+        'username': username,
+        'org_id': org_id,
+        'project_uuid': project_uuid
+    }
+
+    try:
+        embeddings = flask_app.app.llm_api.generate_embeddings(content, context)
+        if embeddings and len(embeddings) > 0:
+            return {'embedding': embeddings[0].get('embedding')}, 200
+        return {'error_msg': 'No embedding generated.'}, 400
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
 
 @flask_app.route('/generate-summary', methods=['POST'])
 def generate_summary():
