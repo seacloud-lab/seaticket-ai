@@ -3,6 +3,7 @@ import logging
 import json
 import ast
 import pytz
+import json_repair
 from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
@@ -32,9 +33,8 @@ def clean_json_markdown(raw_response):
 
 def parse_json(json_str):
     if isinstance(json_str, str) or isinstance(json_str, AgentText):
-        json_str = clean_json_markdown(json_str)
         try:
-            json_str = json.loads(json_str)
+            json_str = json_repair.loads(json_str)
         except:
             try:
                 json_str = ast.literal_eval(json_str)
