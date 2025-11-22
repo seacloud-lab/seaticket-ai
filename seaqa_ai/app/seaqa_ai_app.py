@@ -15,7 +15,7 @@ class SeaQAAIApp(object):
 
         self.chat_manager = ChatManager(self)
         self.ai_utils = AIUtils(self)
-        self.seaqa_indexer_api = SeaQAIndexerAPI(config.SEAQA_INDEXER_SERVER_URL, config.JWT_PRIVATE_KEY)
+        self.seaqa_indexer_api = SeaQAIndexerAPI(config.SEAQA_INDEXER_INNER_SERVER_URL, config.JWT_PRIVATE_KEY)
 
         self.agent_manager = AgentManager(self)
 
