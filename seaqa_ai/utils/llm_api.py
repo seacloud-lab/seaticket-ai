@@ -61,6 +61,7 @@ class LLMAPI:
                 }))
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")
+
     def generate_embeddings(self, texts, context):
         if isinstance(texts, str):
             texts = [texts]
