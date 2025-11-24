@@ -1,5 +1,5 @@
-import json
 import logging
+import json_repair
 
 from seaqa_ai.agent.agent_manager import TMEPERATURE
 
@@ -50,7 +50,7 @@ class AIUtils:
                 context=context,
                 temperature=TMEPERATURE,
             )
-            resp_json = json.loads(response.choices[0].message.content)
+            resp_json = json_repair.loads(response.choices[0].message.content)
             ai_title = resp_json.get('title', '')
             ai_description = resp_json.get('description', '')
             return ai_title, ai_description
