@@ -85,6 +85,7 @@ LLM_TYPE = configs.get('SEAQA_AI_LLM_TYPE', '')
 LLM_URL = configs.get('SEAQA_AI_LLM_URL', 'proxy')
 LLM_KEY = configs.get('SEAQA_AI_LLM_KEY', '')
 LLM_MODEL = configs.get('SEAQA_AI_LLM_MODEL', 'gpt-4o-mini')
+CUSTOM_LLM_MODELS = configs.get('CUSTOM_LLM_MODELS', [])
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)
