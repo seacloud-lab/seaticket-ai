@@ -144,9 +144,9 @@ class tool_{tool_name}(Tool):
     def forward(self{parms_str}) -> str:
         return self.tool_func({all_parms_str})
 """
-        
-        exec(register_string)
-        tool_class = eval(f'tool_{tool_name}')
+        namespace = {}
+        exec(register_string, globals(), namespace)
+        tool_class = namespace[f"tool_{tool_name}"]
         tool_class.name = tool_name
         tool_class.description = tool_description
         tool_class.tool_func = func
