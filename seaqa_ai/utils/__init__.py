@@ -311,5 +311,35 @@ def smolagent_steps_to_thought_process(memory_steps):
 
     return results
 
+
+def chunk_text(text, max_tokens=500, overlap_tokens=120):
+    if not text:
+        return []
+    
+    import tiktoken
+    try:
+        encoding = tiktoken.encoding_for_model("text-embedding-3-small")
+    except Exception:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    
+    tokens = encoding.encode(text)
+    n = len(tokens)
+    stride = max_tokens - overlap_tokens
+    
+    if stride <= 0:
+        raise ValueError("overlap_tokens must be less than max_tokens to avoid infinite loop.")
+    
+    chunks = []
+    start = 0
+    while start < n:
+        end = min(start + max_tokens, n)
+        chunk_tokens = tokens[start:end]
+        chunks.append(encoding.decode(chunk_tokens))
+        if end == n:
+            break
+        start += stride
+    
+    return chunks
+
 class LLMChatCompletionException(Exception):
     pass
