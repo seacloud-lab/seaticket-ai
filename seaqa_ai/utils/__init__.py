@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import json
-import ast
 import pytz
 import json_repair
 from datetime import datetime
@@ -32,14 +31,16 @@ def clean_json_markdown(raw_response):
     return raw_response
 
 def parse_json(json_str):
+    """
+    Parse a JSON string OR AgentText into a JSON object with error correction
+    """
     if isinstance(json_str, str) or isinstance(json_str, AgentText):
         try:
-            json_str = json_repair.loads(json_str)
-        except:
-            try:
-                json_str = ast.literal_eval(json_str)
-            except Exception as e:
-                logger.warning(f'Failure to parse to json {e}')
+            json_obj = json_repair.loads(json_str)
+        except Exception as e:
+            logger.warning(f'Failure to parse to json {e}')
+            return json_str
+        return json_obj
     return json_str
 
 def parse_response(response):
@@ -63,9 +64,14 @@ def object_to_json_str(obj):
     result = obj
     if isinstance(obj, str) or isinstance(obj, AgentText):
         result = parse_json(obj)
-    if not isinstance(result, str) and not isinstance(result, AgentText):
-        result = '```json\n' + json.dumps(result, indent=4, ensure_ascii=False) + '\n```'
+    result = convert_to_json_code_block(result)
     return result
+
+def convert_to_json_code_block(obj):
+    if not isinstance(obj, str) and not isinstance(obj, AgentText):
+        result = '```json\n' + json.dumps(obj, indent=4, ensure_ascii=False) + '\n```'
+        return result
+    return obj
 
 def smolagent_steps_to_thought_process(memory_steps):
     """
