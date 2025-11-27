@@ -6,7 +6,7 @@ import uuid
 import datetime
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
-from seaqa_ai.prompts.ask import system_prompt, response_format
+from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ChatToolCalls
 from seaqa_ai.agent.utils import tool_output, save_tool_call
@@ -14,7 +14,7 @@ from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
 from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time, \
-    convert_to_json_code_block
+    convert_to_json_code_block, fix_reference_marks
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -72,12 +72,10 @@ class AgentManager:
             if not isinstance(output, dict):
                 output = {
                     'answer': output,
-                    'document_indexes': []
+                    'reference_ids': []
                 }
 
-            document_indexes = output.get('document_indexes', [])
-            if not isinstance(document_indexes, list):
-                document_indexes = []
+            output = fix_reference_marks(output)
 
             for message in agent_output.messages:
                 if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
@@ -102,7 +100,7 @@ class AgentManager:
             return {
                 'answer': output.get('answer', ''),
                 'thought_process': smolagent_steps_to_thought_process(agent_output.messages),
-                'sources': extract_sources(tool_executor, document_indexes)
+                'sources': extract_sources(tool_executor, output['reference_ids'])
             }
 
         # ask mode
@@ -113,16 +111,16 @@ class AgentManager:
             context=kwargs.get('context')
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, ASK_SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(system_prompt)
+                    memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
             else:
-                memory = OpenAIMemory(system_prompt)
+                memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
 
             thought_process = memory.context_thought_process
 
-            user_input_with_format = message + f'\n\nPlease **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**) for your response: {response_format}'
+            user_input_with_format = message #+ f'\n\nPlease **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**) for your response: {response_format}'
 
             memory += {
                 'role': 'user', 
@@ -204,8 +202,11 @@ class AgentManager:
             if not isinstance(content, dict):
                 content = {
                     'answer': content,
-                    'document_indexes': []
+                    'reference_ids': []
                 }
+
+            # filter invalid references
+            content = fix_reference_marks(content)
 
             # result to thought process
             thought_process['result'] = object_to_json_str(content)
@@ -229,7 +230,7 @@ class AgentManager:
             return {
                 'answer': content.get('answer', ''),
                 'thought_process': thought_process,
-                'sources': extract_sources(tool_executor, content.get('document_indexes', []))
+                'sources': extract_sources(tool_executor, content.get('reference_ids', []))
             }
 
         else:

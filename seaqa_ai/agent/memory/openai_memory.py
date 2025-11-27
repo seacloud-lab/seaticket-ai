@@ -36,7 +36,7 @@ class OpenAIMemory:
                             'date': step['created_at'],
                             'content': {
                                 'answer': step['content'],
-                                'sources': object_to_json_str(step['sources'])
+                                'references': object_to_json_str(step['sources'])
                             }
                         }]
                     })
@@ -45,7 +45,7 @@ class OpenAIMemory:
                         'date': step['created_at'],
                         'content': {
                             'answer': step['content'],
-                            'sources': object_to_json_str(step['sources'])
+                            'references': object_to_json_str(step['sources'])
                         }
                     })
             else:
@@ -75,7 +75,7 @@ class OpenAIMemory:
                     'role': step['role'],
                     'content': json.dumps({
                         'answer': step['content'],
-                        'sources': step['sources']
+                        'references': step['sources']
                     }) if step['role'] == 'assistant' else step['content']
                 }
             messages.append(new_message)
