@@ -13,7 +13,8 @@ from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time
+from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time, \
+    convert_to_json_code_block
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 
 logger = logging.getLogger(__name__)
@@ -157,8 +158,14 @@ class AgentManager:
                         to_observation, to_db = tool_output(tool_executor.execute(tool_call))
                         
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
-                        
-                        new_tool_call_to_thought_process['output'] = object_to_json_str(to_observation)
+
+                        try:
+                            json_object = json.loads(to_observation)
+                        except:
+                            json_object = to_observation
+
+                        json_code_block = convert_to_json_code_block(json_object)
+                        new_tool_call_to_thought_process['output'] = json_code_block
 
                         memory += {
                             'role': 'tool',
