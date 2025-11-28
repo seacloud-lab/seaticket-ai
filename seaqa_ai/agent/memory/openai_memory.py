@@ -1,5 +1,5 @@
 import json
-from seaqa_ai.utils import object_to_json_str
+from seaqa_ai.utils import object_to_json_str, combine_extra_content_to_message
 
 class OpenAIMemory:
     """
@@ -51,7 +51,7 @@ class OpenAIMemory:
             else:
                 results['context'].append({
                     'date': step['created_at'],
-                    'user_input': step['content'],
+                    'user_input': combine_extra_content_to_message(step['extra_content'], step['content']),
                     'assistant_response': []
                 })
         return results
@@ -67,16 +67,14 @@ class OpenAIMemory:
         return self
 
     def __iter__(self):
-        messages = []
         for step in self.steps:
-            new_message = step
+            new_step = step
             if 'id' in step: # db record
-                new_message = {
+                new_step = {
                     'role': step['role'],
                     'content': json.dumps({
                         'answer': step['content'],
                         'references': step['sources']
-                    }) if step['role'] == 'assistant' else step['content']
+                    }) if step['role'] == 'assistant' else combine_extra_content_to_message(step['extra_content'], step['content'])
                 }
-            messages.append(new_message)
-        return messages.__iter__()
+            yield new_step
