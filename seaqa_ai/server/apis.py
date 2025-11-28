@@ -48,12 +48,8 @@ def get_ai_reply():
     connection_ids = data.get('connection_ids')
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
-    project_uuid = data.get('project_uuid')
     message_id = data.get('message_id')
     llm_model = data.get('llm_model')
-    llm_type = data.get('llm_type')
-    llm_url = data.get('llm_url')
-    llm_key = data.get('llm_key')
     context = {
         'username': username,
         'session_uuid': session_uuid,
@@ -70,11 +66,14 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
-    if llm_model and llm_model not in [m['model'] for m in config.CUSTOM_LLM_MODELS]:
-        return {'error_msg': 'Model not found.'}, 404
+    if llm_model:
+        try:
+            config.get_model_config_by_id(llm_model)
+        except ValueError as e:
+            return {'error_msg': str(e)}, 404
 
     try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, llm_model, llm_type, llm_url, llm_key), 200
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, llm_model), 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500

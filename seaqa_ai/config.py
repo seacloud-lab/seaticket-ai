@@ -81,11 +81,70 @@ MYSQL_DB = configs.get('SEAQA_MYSQL_SEAQA_DB_NAME', 'sea_qa')
 MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 
 # LLM
-LLM_TYPE = configs.get('SEAQA_AI_LLM_TYPE', '')
-LLM_URL = configs.get('SEAQA_AI_LLM_URL', 'proxy')
-LLM_KEY = configs.get('SEAQA_AI_LLM_KEY', '')
-LLM_MODEL = configs.get('SEAQA_AI_LLM_MODEL', 'gpt-4o-mini')
-CUSTOM_LLM_MODELS = configs.get('CUSTOM_LLM_MODELS', [])
+LLM_MODELS = configs.get('LLM_MODELS', [])
+# OpenAI
+def get_default_model_config():
+    if not LLM_MODELS:
+        raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
+
+    for model_config in LLM_MODELS:
+        if not isinstance(model_config, dict):
+            continue
+        if model_config.get('type') == 'proxy':
+            required_fields = ('model', 'url')
+        else:
+            required_fields = ('model', 'key')
+        if not all(field in model_config for field in required_fields):
+            continue
+
+        if model_config.get('default', False):
+            return {
+                'model': model_config.get('model'),
+                'type': model_config.get('type', 'openai'),
+                'url': model_config.get('url'),
+                'key': model_config.get('key')
+            }
+
+    for model_config in LLM_MODELS:
+        if not isinstance(model_config, dict):
+            continue
+        if model_config.get('type') == 'proxy':
+            required_fields = ('model', 'url')
+        else:
+            required_fields = ('model', 'key')
+        if not all(field in model_config for field in required_fields):
+            continue
+
+        return {
+            'model': model_config.get('model'),
+            'type': model_config.get('type', 'openai'),
+            'url': model_config.get('url'),
+            'key': model_config.get('key')
+        }
+
+    raise ValueError("No valid model configuration in LLM_MODELS.")
+
+def get_model_config_by_id(model_id):
+    for model_config in LLM_MODELS:
+        if not isinstance(model_config, dict):
+            continue
+        if model_config.get('model') != model_id:
+            continue
+
+        if model_config.get('type') == 'proxy':
+            required_fields = ('model', 'url')
+        else:
+            required_fields = ('model', 'key')
+        if not all(field in model_config for field in required_fields):
+            raise ValueError(f"Model '{model_id}' missing required config fields")
+
+        return {
+            'model': model_config.get('model'),
+            'type': model_config.get('type', 'openai'),
+            'url': model_config.get('url'),
+            'key': model_config.get('key')
+        }
+    raise ValueError(f"Model '{model_id}' not found. ")
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)

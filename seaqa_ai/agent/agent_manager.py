@@ -19,7 +19,9 @@ from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERT
 from seaqa_ai.utils.llm_api import LLMAPI
 
 logger = logging.getLogger(__name__)
-TMEPERATURE = 0.1 if 'GPT-5' not in config.LLM_MODEL else 1
+
+_default_model_config = config.get_default_model_config()
+TMEPERATURE = 0.1 if 'GPT-5' not in _default_model_config['model'].upper() else 1
 
 class AgentManager:
     def __init__(self, app):
@@ -111,7 +113,12 @@ class AgentManager:
             llm_type=kwargs.get('llm_type')
             llm_url=kwargs.get('llm_url')
             llm_key=kwargs.get('llm_key')
-            model_to_use = model if model else config.LLM_MODEL
+
+            if model:
+                model_to_use = model
+            else:
+                model_to_use = _default_model_config['model']
+
             if 'gpt-5' in model_to_use:
                 temperature = 1
             context=kwargs.get('context')
