@@ -27,7 +27,7 @@ class SmolAgentsMemoryStep(MemoryStep):
                 'type': 'text',
                 'text': json.dumps({
                     'answer': self.record['content'],
-                    'sources': self.record['sources']
+                    'references': self.record['sources']
                 })
             }])]
         return result
@@ -41,7 +41,7 @@ class SmolAgentsMemoryStep(MemoryStep):
                 'role': self.record['role'],
                 'content':  {
                     'answer': self.record['content'],
-                    'sources': object_to_json_str(self.record['sources']),
+                    'references': object_to_json_str(self.record['sources']),
                 } if self.record['role'] == 'assistant' else self.record['content'],
                 'date': self.record['created_at']
             }

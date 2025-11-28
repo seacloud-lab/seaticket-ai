@@ -1,16 +1,12 @@
 from smolagents import Tool
 
-_TOOL_KETWORDS_SEARCH_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
-Retrieved documents:
-
-===== Document 0 ===== Title: <title of document 0> =====
-<Document 0's content>
-
-Retrieved documents:
+_SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
+===== Reference 0 ===== Title: <title of Reference 0> =====
+<Reference 0's content>
 
 
-===== Document 1 ===== Title: <title of document 1> =====
-<Document 0's content>
+===== Reference 1 ===== Title: <title of Reference 1> =====
+<Reference 1's content>
 """
 
 Tools = {
@@ -18,7 +14,7 @@ Tools = {
         'type': 'function',
         'function': {
             'name': 'keywords_search',
-            'description': f'This is a search tool for technical documents. You can use a query containing the keywords (separated by \',\') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end. {_TOOL_KETWORDS_SEARCH_RESULT_FORMAT}. **Note: Not every keyword can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'description': f'This is a search tool for technical documents. You can use a query containing the keywords (separated by \',\') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every keyword can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
             'parameters':{
                 'type': 'object',
                 'properties': {
@@ -35,25 +31,94 @@ Tools = {
 
 class FinalAnswerTool(Tool):
     name = "final_answer"
-    description = "Provides a final answer to the given problem. `answer` MUST include [Reference n] markers where n starts at 1 and corresponds to `document_indexes` order. **Each** index in `document_indexes` MUST appear **at least once** as a [Reference n] in `answer`, otherwise it should not exist in `document_indexes`."
+    description = """Provides a final answer to the given problem. This tool requires two mandatory parameters: `answer` and `reference_ids`. In addition to the parameter descriptions, the following conditions must also be met:
+- If you have ever used a tool and the tool's result has "===== Reference <id> =====" (where `<id>` is an integer) and you found this result helpful for your answer, you MUST add the `<id>` to the `reference_ids` list (ensuring no duplicates).
+- If you have not used any tools, the tool result does not have "===== Reference <id> =====", or the tool result is not helpful for the answer, then the `reference_ids` MUST be an empty list.
+"""
     inputs = {
         "answer": {
             "type": "string", 
-            "description": "The final answer to the problem. This argument will be written in Markdown format, and should be as aesthetically pleasing and easy for readers to understand as possible. Lists should be displayed across multiple lines, and tables should be used flexibly. **Each** element in argument `document_indexes` MUST appear **at least once** as a [Reference n] in this argument. Never invent references - only use [Reference n] when corresponding `document_indexes` exist."
+            "description": """A string containing your main response. 
+- It must be formatted using Markdown, elegantly and logically organized with elements like paragraphs, lists, tables, or code blocks to enhance readability. 
+- For each 1-based index in `reference_ids` (i.e., `range(1, 1 + len(reference_ids))`), MUST add at least one corresponding Markdown label `[Reference n]`, where `n` is a 1-based index (e.g., the first reference uses `[Reference 1]`, the second uses `[Reference 2]`, and so on).
+- The labels must appear sequentially, meaning the i-th ID in the `reference_ids` list corresponds to the `[Reference i+1]` label.
+- Please ensure that `answer` contains at least one reference label for each of the indexes in the `reference_ids` list (i.e., `[Reference 1]` to `[Reference len(reference_ids)]`). There must be no extra or missing labels.
+"""
         },
-        "document_indexes": {
+        "reference_ids": {
             "type": "array", 
             "items": {
                 "type": "integer"
             },
-            "description": "The `document_indexes` of final answer, should compose of indexes (int) of the search tool results. If this argument is not empty (e.g., [0,2]), `answer` MUST include [Reference n] markers where n starts at 1 and corresponds to `document_indexes` order. **Each** index in `document_indexes` MUST appear **at least once** as a [Reference n] in `answer`, otherwise it should not exist in this argument."
+            "description": "A list of integers containing reference IDs extracted from tool results (must not contain duplicates). If no references are used, this must be an empty list. For each 1-based index in `reference_ids` (i.e., `range(1, 1 + len(reference_ids))`), MUST add at least one corresponding Markdown label `[Reference n]` in argument `answer`, where `n` is a 1-based index (e.g., the first reference uses `[Reference 1]`, the second uses `[Reference 2]`, and so on, i.e., `[Reference n]` means `reference_ids[n-1]`)"
         }
     }
     output_type = "any"
 
-    def forward(self, answer, document_indexes):
+    def forward(self, answer, reference_ids):
         return {
-            "answer": answer,
-            "document_indexes": document_indexes
+            'answer': answer,
+            'reference_ids': reference_ids
+        }
+    
+class BasicTools(object):
+    def __init__(self, app):
+        self.app = app
+        self._initialize_tool_name_func_map()
+        assert isinstance(self.tool_name_func_map, dict), "Property tool_name_func_map must be a dict after initializing"
+
+    def _initial_tool_name_func_map(self):
+        raise NotImplementedError()
+    
+    def register(self, tool_executor, tool_name, **constant_kwargs):
+        if tool_name in self.tool_name_func_map:
+            tool_executor.register(self.tool_name_func_map[tool_name], tool_name, **constant_kwargs)
+    
+    def registers(self, tool_executor, **constant_kwargs):
+        for tool_name, tool_func in self.tool_name_func_map.items():
+            tool_executor.register(tool_func, Tools[tool_name], **constant_kwargs)
+
+class SearchTools(BasicTools):
+    MAX_SOURCES_COUNT = 5
+    def _initialize_tool_name_func_map(self):
+        self.tool_name_func_map = {
+            'keywords_search': self.keywords_search
         }
 
+    def _get_search_result_preview(self, doc_content):
+        # reserved interface
+        return doc_content[:100]
+
+    def keywords_search(self, query, project_uuid, connection_ids, tool_executor):
+        """Execute the retrieval based on the provided query."""
+        assert isinstance(query, str), "Your search query must be a string"
+
+        # Get current task search history
+        sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+        
+        to_observation = ''
+        to_tools_shared_vars = {
+            'sources_results': sources_results
+        }
+        to_db = []
+
+        for doc in self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
+            if len(sources_results) >= self.MAX_SOURCES_COUNT:
+                break
+
+            doc.update({
+                'title': doc['title'] if doc.get('title') else doc.get('filename')
+            })
+            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            doc['content_preview'] = self._get_search_result_preview(doc['content'])
+            del doc['content'] # discard content, only save metadata
+            to_tools_shared_vars['sources_results'].append(doc)
+            to_db.append(doc)
+
+        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
+
+        # Format the retrieved documents for readability
+        return {
+            'to_observation': to_observation,
+            'to_db': to_db
+        }

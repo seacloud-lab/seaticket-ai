@@ -2,6 +2,7 @@
 import logging
 import json
 import pytz
+import re
 import json_repair
 from datetime import datetime
 from smolagents.models import MessageRole
@@ -52,10 +53,10 @@ def parse_response(response):
         except:
             pass
 
-def extract_sources(tool_executor, document_indexes):
+def extract_sources(tool_executor, reference_ids):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
     sources = []
-    for index in document_indexes:
+    for index in reference_ids:
         if index < len(sources_results):
             sources.append(sources_results[index])
     return sources
@@ -199,7 +200,7 @@ def smolagent_steps_to_thought_process(memory_steps):
                     'date': 'date when user sent the message', #str
                     'user_input': 'user_input', # str
                     'assistant_response': [
-                        'response_1', # -> {'answer', 'sources'}
+                        'response_1', # -> {'answer', 'references'}
                         'response_2',
                         # ...
                     ]
@@ -340,6 +341,29 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
         start += stride
     
     return chunks
+def fix_reference_marks(content):
+    """
+    content: Dict{answer, reference_ids}
+    """
+
+    answer = content.get('answer', '')
+    reference_ids = content.get('reference_ids', [])
+
+    # step 1, check each term in reference_ids is valid
+    pattern = r'[.,!?;:\"()[\]\']'
+    for i in range(len(reference_ids)):
+        if f'[Reference {i + 1}]' not in answer:
+            answer += f'[Reference {i + 1}]'
+    
+    # step 2, remove redundent [Reference n]
+    pattern = re.compile(r'\[Reference (\d+)\]')
+    replacer = lambda match: match.group(0) if int(match.group(1)) in range(1, 1 + len(reference_ids)) else ''
+    cleaned_redundent_references = pattern.sub(replacer, answer)
+    #cleaned_redundent_references = re.sub(r'\s+', ' ', cleaned_redundent_references).strip()
+    return {
+        'answer': cleaned_redundent_references,
+        'reference_ids': reference_ids
+    }
 
 class LLMChatCompletionException(Exception):
     pass
