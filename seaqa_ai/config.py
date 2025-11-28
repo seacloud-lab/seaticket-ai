@@ -82,7 +82,7 @@ MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 
 # LLM
 LLM_MODELS = configs.get('LLM_MODELS', [])
-# OpenAI
+
 def get_default_model_config():
     if not LLM_MODELS:
         raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
