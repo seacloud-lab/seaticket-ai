@@ -114,4 +114,4 @@ class AIUtils:
             return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
-            return ''
+            raise
