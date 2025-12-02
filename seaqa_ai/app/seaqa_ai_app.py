@@ -11,7 +11,14 @@ class SeaQAAIApp(object):
     def __init__(self, config):
         self.data_logger = DataLogging(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
 
-        self.llm_api = LLMAPI(self.data_logger, config.LLM_TYPE, config.LLM_URL, config.LLM_KEY, config.LLM_MODEL)
+        default_model_config = config.get_default_model_config()
+        self.llm_api = LLMAPI(
+            self.data_logger,
+            default_model_config['type'],
+            default_model_config['url'],
+            default_model_config['key'],
+            default_model_config['model']
+        )
 
         self.chat_manager = ChatManager(self)
         self.ai_utils = AIUtils(self)

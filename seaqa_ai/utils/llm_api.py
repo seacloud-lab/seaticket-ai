@@ -22,8 +22,8 @@ class LLMAPI:
         self.timeout = timeout
 
     def completion(self, **kwargs):
-        if 'model' in kwargs:
-            kwargs.pop('model')
+        custom_model = kwargs.pop('model', None)
+        model_to_use = custom_model if custom_model else self.model
 
         if 'base_url' in kwargs:
             kwargs.pop('base_url')
@@ -36,7 +36,7 @@ class LLMAPI:
             context = kwargs.pop('context')
 
         response = litellm.completion(
-            model=self.model,
+            model=model_to_use,
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=self.timeout,
