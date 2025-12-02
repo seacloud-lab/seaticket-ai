@@ -4,7 +4,7 @@ import json
 from flask import Flask, request
 from seaqa_ai import config
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP
-from seaqa_ai.utils import chunk_text, combine_extra_content_to_message
+from seaqa_ai.utils import chunk_text, combine_extra_contents_to_message
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -41,7 +41,7 @@ def get_ai_reply():
         return {'error_msg': 'Bad request.'}, 400
 
     query = data.get('query')
-    extra_content = data.get('extra_content', {})
+    extra_contents = data.get('extra_contents', [])
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
@@ -66,8 +66,8 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
-    if not isinstance(extra_content, dict):
-        return {'error_msg': 'extra_content invalid.'}, 400
+    if not isinstance(extra_contents, list):
+        return {'error_msg': 'extra_contents invalid.'}, 400
 
     if llm_model:
         try:
@@ -75,7 +75,8 @@ def get_ai_reply():
         except ValueError as e:
             return {'error_msg': str(e)}, 404
     
-    query = combine_extra_content_to_message(extra_content, query)
+    
+    query = combine_extra_contents_to_message(extra_contents, query)
 
     try:
         return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, llm_model), 200

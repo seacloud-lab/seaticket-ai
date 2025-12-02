@@ -13,7 +13,7 @@ class ChatMessages(Base):
     username = Column(String(length=255), nullable=False)
     role = Column(Enum('user', 'assistant'), nullable=False)
     content = Column(Text, nullable=True)
-    extra_content = Column(Text, nullable=True)
+    extra_contents = Column(Text, nullable=True)
     sources = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
@@ -23,13 +23,13 @@ class ChatMessages(Base):
         Index('idx_session_uuid_message_id', 'session_uuid', 'created_at'),
     )
 
-    def __init__(self, username, session_uuid, message_id, role, content, extra_content, sources, created_at, is_agent_mode, updated_at=None):
+    def __init__(self, username, session_uuid, message_id, role, content, extra_contents, sources, created_at, is_agent_mode, updated_at=None):
         self.username = username
         self.session_uuid = session_uuid
         self.message_id = message_id
         self.role = role
         self.content = content
-        self.extra_content = extra_content
+        self.extra_contents = extra_contents
         self.sources = sources
         self.created_at = created_at
         self.updated_at = updated_at
@@ -46,12 +46,12 @@ class ChatMessages(Base):
             sources = []
         
         try:
-            extra_content = json.loads(self.extra_content)
+            extra_contents = json.loads(self.extra_contents)
         except:
-            extra_content = self.extra_content
+            extra_contents = self.extra_contents
 
-        if not isinstance(extra_content, dict):
-            extra_content = {}
+        if not isinstance(extra_contents, list):
+            extra_contents = []
 
         res = {
             'id': self.id,
@@ -60,7 +60,7 @@ class ChatMessages(Base):
             'message_id': self.message_id,
             'role': self.role,
             'content': self.content,
-            'extra_content': extra_content,
+            'extra_contents': extra_contents,
             'sources': sources,
             'created_at': localize_time(self.created_at).isoformat(),
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
