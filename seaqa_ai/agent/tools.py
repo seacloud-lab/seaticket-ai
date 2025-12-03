@@ -85,10 +85,6 @@ class SearchTools(BasicTools):
             'keywords_search': self.keywords_search
         }
 
-    def _get_search_result_preview(self, doc_content):
-        # reserved interface
-        return doc_content[:100]
-
     def keywords_search(self, query, project_uuid, connection_ids, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
@@ -110,7 +106,6 @@ class SearchTools(BasicTools):
                 'title': doc['title'] if doc.get('title') else doc.get('filename')
             })
             to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
-            doc['content_preview'] = self._get_search_result_preview(doc['content'])
             del doc['content'] # discard content, only save metadata
             to_tools_shared_vars['sources_results'].append(doc)
             to_db.append(doc)
