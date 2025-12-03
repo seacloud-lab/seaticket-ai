@@ -76,10 +76,9 @@ def convert_to_json_code_block(obj):
     return obj
 
 def combine_extra_contents_to_message(extra_contents, message):
-    new_message = EXTRA_CONTENTS_PROMPT if extra_contents else ''
-    for extra_content in extra_contents:
-        new_message +=  convert_to_json_code_block(extra_content.get('data')) +f'\n\n'
-    return new_message + message
+    if extra_contents:
+        return EXTRA_CONTENTS_PROMPT + convert_to_json_code_block(extra_contents) + f'\n\n' + message
+    return message
     
 
 def smolagent_steps_to_thought_process(memory_steps):
