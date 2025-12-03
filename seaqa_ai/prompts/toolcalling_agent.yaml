@@ -88,7 +88,7 @@ system_prompt: |-
       "name": "final_answer",
       "arguments": {
         "answer": "image.png", 
-        "reference_ids": [] # it is empty because not search tool was not called
+        "reference_ids": [] # It is empty because no search tool was called.
       }
     }
 
