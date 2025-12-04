@@ -242,3 +242,47 @@ def generate_summary():
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
     return result, 200
+
+
+@flask_app.route('/rank-related-issues', methods=['POST'])
+def rank_issues_by_relevance():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied.'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        return {'error_msg': 'Bad request.'}, 400
+
+    query_record = data.get('query_record')
+    candidate_records = data.get('candidate_records')
+    username = data.get('username', '')
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
+
+    if not query_record:
+        return {'error_msg': 'query_record invalid.'}, 400
+    if not candidate_records:
+        return {'error_msg': 'candidate_records invalid.'}, 400
+    if not isinstance(candidate_records, list):
+        return {'error_msg': 'candidate_records must be a list.'}, 400
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not org_id:
+        return {'error_msg': 'org_id invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    context = {
+        'username': username,
+        'org_id': org_id,
+        'project_uuid': project_uuid
+    }
+
+    try:
+        ranked_ids = flask_app.app.ai_utils.rank_issues_by_relevance(query_record, candidate_records, context)
+        return {'ranked_ids': ranked_ids}, 200
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500

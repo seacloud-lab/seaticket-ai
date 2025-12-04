@@ -130,3 +130,81 @@ class AIUtils:
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
             raise
+
+    def rank_issues_by_relevance(self, query_record, candidate_records, context):
+        try:
+            if not candidate_records:
+                return []
+
+            candidates_text = ""
+            candidate_keys = []
+            for candidate in candidate_records:
+                composite_key = f"{candidate['_id']}:{candidate.get('connection_id', 'unknown')}"
+                candidate_keys.append(composite_key)
+                candidates_text += f""" \n Record Key: {composite_key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+
+            total_candidates = len(candidate_records)
+            prompt = (f"""
+                You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to rank the candidates by their relevance to the query record.
+
+                Query Record:
+                Title: {query_record.get('title', 'N/A')}
+                Summary: {query_record.get('ai_summary', 'N/A')}
+
+                Total Number of Candidate Records: {total_candidates}
+
+                Candidate Records:
+                {candidates_text}
+
+                **CRITICAL Instructions:**
+                1. You MUST rank ALL {total_candidates} candidate records provided above.
+                2. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
+                3. Consider both the title and summary when determining relevance.
+                4. Return a JSON array with EXACTLY {total_candidates} record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
+                5. Do NOT skip any records - every Record Key shown above must appear in your output.
+                6. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
+                7. Double-check that your output contains all {total_candidates} keys before returning.
+
+                **Example Output Format (if there were 5 records):**
+                ["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1", "record_id_2:conn_3", "record_id_4:conn_1"]
+            """)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an expert relevance ranking system. Your task is to analyze records and rank them by relevance. You MUST return ALL candidate records in your ranking without omitting any. Always return a valid JSON array of composite keys (record_id:connection_id) without any additional text or explanation."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+
+            response = self.app.llm_api.completion(
+                messages=messages,
+                context=context,
+                temperature=0.1,
+            )
+
+            result = response.choices[0].message.content.strip()
+            reranked_keys = json_repair.loads(result)
+
+            candidate_key_set = {f"{c['_id']}:{c.get('connection_id', 'unknown')}" for c in candidate_records}
+
+            validated_keys = []
+            seen_keys = set()
+            for key in reranked_keys:
+                if key in candidate_key_set and key not in seen_keys:
+                    validated_keys.append(key)
+                    seen_keys.add(key)
+
+            missing_keys = [f"{c['_id']}:{c['connection_id']}"
+                           for c in candidate_records
+                           if f"{c['_id']}:{c['connection_id']}" not in seen_keys]
+            validated_keys.extend(missing_keys)
+
+            return validated_keys
+
+        except Exception as e:
+            logger.error(f"Error ranking related records: {e}")
+            raise
