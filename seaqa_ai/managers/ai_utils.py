@@ -179,10 +179,9 @@ class AIUtils:
             validated_keys = []
             seen_keys = set()
             for key in reranked_keys:
-                if key in candidate_key_set:
-                    if key not in seen_keys:
-                        validated_keys.append(key)
-                        seen_keys.add(key)
+                if key in candidate_key_set and key not in seen_keys:
+                    validated_keys.append(key)
+                    seen_keys.add(key)
 
             missing_keys = [f"{c['_id']}:{c['connection_id']}"
                            for c in candidate_records
