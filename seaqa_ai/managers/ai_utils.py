@@ -103,7 +103,22 @@ class AIUtils:
                     "role": "user",
                     "content": f"""{content}"""
                 }
-            ] 
+            ]
+            elif connection_type == 'email':
+                messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a email analysis expert. Read the email's title and body, then craft a "
+                        "single-sentence English summary describing the core topic or request. Keep it concise (no more "
+                        "than 100 characters) and return only that sentence without extra commentary or formatting."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"""{content}"""
+                }
+            ]
 
             response = self.app.llm_api.completion(
                 messages=messages,
