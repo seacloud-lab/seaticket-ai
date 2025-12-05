@@ -71,7 +71,8 @@ class ChatManager:
                 data_logger=self.app.data_logger,
                 llm_type=model_config['type'],
                 base_url=model_config['url'],
-                api_key=model_config['key']
+                api_key=model_config['key'],
+                model=model_to_use
             )
 
         if 'gpt-5' not in model_to_use:
