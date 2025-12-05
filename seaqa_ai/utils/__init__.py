@@ -8,6 +8,7 @@ from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE
+from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT
 
 time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ def extract_sources(tool_executor, reference_ids):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
     sources = []
     for index in reference_ids:
-        if index < len(sources_results):
+        if isinstance(index, int) and index < len(sources_results):
             sources.append(sources_results[index])
     return sources
 
@@ -73,6 +74,12 @@ def convert_to_json_code_block(obj):
         result = '```json\n' + json.dumps(obj, indent=4, ensure_ascii=False) + '\n```'
         return result
     return obj
+
+def combine_extra_contents_to_message(extra_contents, message):
+    if extra_contents:
+        return EXTRA_CONTENTS_PROMPT + convert_to_json_code_block(extra_contents) + f'\n\n' + message
+    return message
+    
 
 def smolagent_steps_to_thought_process(memory_steps):
     """
