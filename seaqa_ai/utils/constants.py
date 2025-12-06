@@ -1,6 +1,7 @@
 from enum import Enum
 
 MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
+EXTRA_CONTENTS_PROMPT = 'Here are some tickets or issues in Json format with title, content and comments. \n\n'
 
 class SeasearchType(Enum):
     SITE = 'site'
