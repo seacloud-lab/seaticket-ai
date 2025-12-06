@@ -144,14 +144,13 @@ class AgentManager:
             
             llm_api_to_use = self.app.llm_api
             if model:
-                llm_api_to_use = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key)
+                llm_api_to_use = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model_to_use)
 
             response = llm_api_to_use.completion(
                 messages=memory,
                 context=context,
                 tools=tool_executor.get(),
                 temperature=temperature,
-                model=model_to_use
             ).choices[0].message
 
             if response.tool_calls:
