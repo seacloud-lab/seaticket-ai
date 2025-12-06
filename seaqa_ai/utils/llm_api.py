@@ -72,4 +72,5 @@ class LLMAPI:
             api_base=self.base_url,
             timeout=self.timeout
         )
+        self._logger_usage(None, response, context)
         return response.data

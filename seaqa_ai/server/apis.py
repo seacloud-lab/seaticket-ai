@@ -133,21 +133,17 @@ def generate_chunks_embedding():
 
     username = data.get('username', '')
     content = data.get('content')
-    org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
     if not username:
         return {'error_msg': 'username invalid.'}, 400
-    if not org_id:
-        return {'error_msg': 'org_id invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
         'username': username,
-        'org_id': org_id,
         'project_uuid': project_uuid
     }
     try:
@@ -175,21 +171,17 @@ def generate_embedding():
 
     username = data.get('username', '')
     content = data.get('content')
-    org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
     if not username:
         return {'error_msg': 'username invalid.'}, 400
-    if not org_id:
-        return {'error_msg': 'org_id invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
         'username': username,
-        'org_id': org_id,
         'project_uuid': project_uuid
     }
 
@@ -217,7 +209,6 @@ def generate_summary():
     include_vector = data.get('include_vector', False)
     username = data.get('username', '')
     content = data.get('content')
-    org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
 
     if not connection_type:
@@ -226,14 +217,11 @@ def generate_summary():
         return {'error_msg': 'content invalid'}, 400 
     if not username:
         return {'error_msg': 'username invalid.'}, 400
-    if not org_id:
-        return {'error_msg': 'org_id invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
         'username': username,
-        'org_id': org_id,
         'project_uuid': project_uuid
     }
     try:
