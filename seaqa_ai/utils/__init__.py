@@ -367,17 +367,31 @@ def fix_reference_marks(content):
 
     # step 2, check each term in reference_ids is valid
     pattern = r'[.,!?;:\"()[\]\']'
+    last_mark = answer[-1]
+    answer = answer[:-1]
     for i in range(len(reference_ids)):
         if f'[Reference {i + 1}]' not in answer:
             answer += f'[Reference {i + 1}]'
+    answer += last_mark
     
     # step 3, remove redundent [Reference n]
     pattern = re.compile(r'\[Reference (\d+)\]')
     replacer = lambda match: match.group(0) if int(match.group(1)) in range(1, 1 + len(reference_ids)) else ''
-    cleaned_redundent_references = pattern.sub(replacer, answer)
-    #cleaned_redundent_references = re.sub(r'\s+', ' ', cleaned_redundent_references).strip()
+    answer = pattern.sub(replacer, answer)
+
+    # step 4, remove invalid reference mark
+    pattern = r'\[Reference\s+([^\]]+)\]'
+    def replace_match(match):
+        ref_content = match.group(1).strip()
+        if ref_content.isdigit() and not ref_content.startswith('0'):
+            return match.group(0)
+        else:
+            return ''
+    
+    answer = re.sub(pattern, replace_match, answer)
+
     return {
-        'answer': cleaned_redundent_references,
+        'answer': answer,
         'reference_ids': reference_ids
     }
 
