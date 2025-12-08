@@ -215,13 +215,21 @@ class AgentManager:
                 'role': 'assistant',
                 'content': content
             }
-            
+
             content = parse_json(content)
             if not isinstance(content, dict):
                 content = {
                     'answer': content,
                     'reference_ids': []
                 }
+
+            if 'answer' not in content:
+                content = {
+                    'answer': 'Error: bad response. Please select another model or try again using Agent mode.',
+                    'reference_ids': []
+                }
+            elif not isinstance(content['answer'], str):
+                content['answer'] = json.dumps(content['answer'])
 
             # filter invalid references
             content = fix_reference_marks(content)
