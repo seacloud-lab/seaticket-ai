@@ -38,7 +38,7 @@ def parse_json(json_str):
     """
     if isinstance(json_str, str) or isinstance(json_str, AgentText):
         try:
-            json_obj = json_repair.loads(json_str)
+            json_obj = json_repair.loads(json_str, strict=True)
         except Exception as e:
             logger.warning(f'Failure to parse to json {e}')
             return json_str
@@ -347,6 +347,7 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
         start += stride
     
     return chunks
+
 def fix_reference_marks(content):
     """
     content: Dict{answer, reference_ids}
@@ -354,14 +355,23 @@ def fix_reference_marks(content):
 
     answer = content.get('answer', '')
     reference_ids = content.get('reference_ids', [])
+    # step 1, detach each term from combined reference marks (e.g., [Reference 1, Reference 2] to [Reference 1][Reference 2])
+    pattern = r'\[Reference\s*([^\]]+)\]'
+    def replace_match(match):
+        content = match.group(1).strip()
+        references = [ref.strip() for ref in content.split(',')]
+        references = [ref for ref in references if ref]
+        return ''.join(f'[Reference {ref}]' for ref in references)
 
-    # step 1, check each term in reference_ids is valid
+    answer = re.sub(pattern, replace_match, answer)
+
+    # step 2, check each term in reference_ids is valid
     pattern = r'[.,!?;:\"()[\]\']'
     for i in range(len(reference_ids)):
         if f'[Reference {i + 1}]' not in answer:
             answer += f'[Reference {i + 1}]'
     
-    # step 2, remove redundent [Reference n]
+    # step 3, remove redundent [Reference n]
     pattern = re.compile(r'\[Reference (\d+)\]')
     replacer = lambda match: match.group(0) if int(match.group(1)) in range(1, 1 + len(reference_ids)) else ''
     cleaned_redundent_references = pattern.sub(replacer, answer)
