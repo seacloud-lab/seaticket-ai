@@ -49,7 +49,7 @@ class LLMAPI:
         try:
             if hasattr(response, 'usage') and response.usage:
                 self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                    'model': response.model,
+                    'model': self.model,
                     'usage': {
                         'prompt_tokens': response.usage.prompt_tokens,
                         'completion_tokens': response.usage.completion_tokens,
