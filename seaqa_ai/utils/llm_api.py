@@ -17,6 +17,7 @@ class LLMAPI:
             if not api_key:
                 api_key = 'not-keys-needed'
         self.model = f'{llm_type}/{model}' if llm_type else model
+        self.model_id = model
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
@@ -49,7 +50,7 @@ class LLMAPI:
         try:
             if hasattr(response, 'usage') and response.usage:
                 self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                    'model': self.model,
+                    'model': self.model_id,
                     'usage': {
                         'prompt_tokens': response.usage.prompt_tokens,
                         'completion_tokens': response.usage.completion_tokens,
