@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 class AIUtils:
     def __init__(self, app):
-        self.app = app
-        self.llm_api = LLMAPI(self.app.data_logger,
+        self.llm_api = LLMAPI(app.data_logger,
             AI_UTILS_LLM_MODEL['type'],
             AI_UTILS_LLM_MODEL['url'],
             AI_UTILS_LLM_MODEL['key'],

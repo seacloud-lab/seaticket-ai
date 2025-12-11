@@ -137,8 +137,16 @@ def get_model_config_by_id(model_id):
     raise ValueError(f"Model '{model_id}' not found. ")
 
 AI_UTILS_LLM_MODEL = configs.get('AI_UTILS_LLM_MODEL', {})
-if not check_model_validation(AI_UTILS_LLM_MODEL):
+if check_model_validation(AI_UTILS_LLM_MODEL):
+    AI_UTILS_LLM_MODEL = get_useful_llm_configs_from_model_config(AI_UTILS_LLM_MODEL)
+else:
     AI_UTILS_LLM_MODEL = get_default_model_config()
+
+EMBEDDING_MODEL = configs.get('EMBEDDING_MODEL', {})
+if check_model_validation(EMBEDDING_MODEL):
+    EMBEDDING_MODEL = get_useful_llm_configs_from_model_config(EMBEDDING_MODEL)
+else:
+    raise ValueError('EMBEDDING_MODEL is not set or invalid')
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)
