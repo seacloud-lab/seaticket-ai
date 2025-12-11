@@ -10,17 +10,34 @@ _SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (r
 """
 
 Tools = {
-    'keywords_search': {
+    'documents_search': {
         'type': 'function',
         'function': {
-            'name': 'keywords_search',
-            'description': f'This is a search tool for technical documents. You can use a query containing the keywords (separated by \',\') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every keyword can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'name': 'documents_search',
+            'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
             'parameters':{
                 'type': 'object',
                 'properties': {
                     'query': {
                         'type': 'string',
-                        'description': 'The query containing the keywords (separated by \',\') related to the issue.'
+                        'description': 'The query is a short sentence related to the documents.'
+                    }
+                },
+                'required': ['query']
+            }
+        }
+    }, 
+    'issues_search': {
+        'type': 'function',
+        'function': {
+            'name': 'issues_search',
+            'description': f'This is a search tool for relative issues. You can use a query (a short sentence) to find relative issues and a past solution to this problem. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'query': {
+                        'type': 'string',
+                        'description': 'The query is a short sentence related to the issues'
                     }
                 },
                 'required': ['query']
@@ -79,22 +96,25 @@ class BasicTools(object):
             tool_executor.register(tool_func, Tools[tool_name], **constant_kwargs)
 
 class SearchTools(BasicTools):
-    MAX_SOURCES_COUNT = 5
+    MAX_SOURCES_COUNT = 10
+    SINGLE_TOOL_MAX_SOURCES_COUNT = 5
     def _initialize_tool_name_func_map(self):
         self.tool_name_func_map = {
-            'keywords_search': self.keywords_search
+            'documents_search': self.documents_search,
+            'issues_search': self.issues_search
         }
 
     def _get_search_result_preview(self, doc_content):
         # reserved interface
         return doc_content[:100]
 
-    def keywords_search(self, query, project_uuid, connection_ids, tool_executor):
+    def documents_search(self, query, project_uuid, connection_ids, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+        new_sources_result = []
         
         to_observation = ''
         to_tools_shared_vars = {
@@ -102,19 +122,56 @@ class SearchTools(BasicTools):
         }
         to_db = []
 
-        for doc in self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
-            if len(sources_results) >= self.MAX_SOURCES_COUNT:
+        for doc in self.app.seaqa_indexer_api.noramal_search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
+            if len(sources_results) + len(new_sources_result) >= self.MAX_SOURCES_COUNT or len(new_sources_result) > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
                 break
 
             doc.update({
                 'title': doc['title'] if doc.get('title') else doc.get('filename')
             })
-            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            to_observation += f"===== Reference {len(sources_results) + len(new_sources_result)} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
             doc['content_preview'] = self._get_search_result_preview(doc['content'])
             del doc['content'] # discard content, only save metadata
-            to_tools_shared_vars['sources_results'].append(doc)
+            new_sources_result.append(doc)
             to_db.append(doc)
 
+        to_tools_shared_vars['sources_results'] = sources_results + new_sources_result
+        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
+
+        # Format the retrieved documents for readability
+        return {
+            'to_observation': to_observation,
+            'to_db': to_db
+        }
+
+    def issues_search(self, query, project_uuid, connection_ids, tool_executor):
+        """Execute the retrieval based on the provided query."""
+        assert isinstance(query, str), "Your search query must be a string"
+
+        # Get current task search history
+        sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+        new_sources_result = []
+        
+        to_observation = ''
+        to_tools_shared_vars = {
+            'sources_results': sources_results
+        }
+        to_db = []
+
+        for doc in self.app.seaqa_indexer_api.related_records_search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
+            if len(sources_results) + len(new_sources_result) >= self.MAX_SOURCES_COUNT or len(new_sources_result) > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
+                break
+
+            doc.update({
+                'title': doc['title'] if doc.get('title') else doc.get('filename')
+            })
+            to_observation += f"===== Reference {len(sources_results) + len(new_sources_result)} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            doc['content_preview'] = self._get_search_result_preview(doc['content'])
+            del doc['content'] # discard content, only save metadata
+            new_sources_result.append(doc)
+            to_db.append(doc)
+
+        to_tools_shared_vars['sources_results'] = sources_results + new_sources_result
         tool_executor.tool_shared_vars.update(to_tools_shared_vars)
 
         # Format the retrieved documents for readability
