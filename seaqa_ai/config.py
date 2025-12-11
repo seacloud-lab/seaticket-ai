@@ -113,8 +113,8 @@ def get_default_model_config():
         if not check_model_validation(model_config):
             continue
 
-        if model_config.get('default', False):
-            return 
+        if model_config.get('default') == True:
+            return get_useful_llm_configs_from_model_config(model_config)
         elif not first_model:
             first_model = get_useful_llm_configs_from_model_config(model_config)
 
@@ -122,6 +122,19 @@ def get_default_model_config():
         return first_model
 
     raise ValueError("No valid model configuration in LLM_MODELS.")
+
+def get_light_weight_model_config():
+    if not LLM_MODELS:
+        raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
+
+    for model_config in LLM_MODELS:
+        if not check_model_validation(model_config):
+            continue
+
+        if model_config.get('lightweight_task_llm_model') == True:
+            return get_useful_llm_configs_from_model_config(model_config)
+
+    return get_default_model_config()
 
 def get_model_config_by_id(model_id):
     for model_config in LLM_MODELS:
@@ -135,12 +148,6 @@ def get_model_config_by_id(model_id):
 
         return get_useful_llm_configs_from_model_config(model_config)
     raise ValueError(f"Model '{model_id}' not found. ")
-
-AI_UTILS_LLM_MODEL = configs.get('AI_UTILS_LLM_MODEL', {})
-if check_model_validation(AI_UTILS_LLM_MODEL):
-    AI_UTILS_LLM_MODEL = get_useful_llm_configs_from_model_config(AI_UTILS_LLM_MODEL)
-else:
-    AI_UTILS_LLM_MODEL = get_default_model_config()
 
 EMBEDDING_MODEL = configs.get('EMBEDDING_MODEL', {})
 if check_model_validation(EMBEDDING_MODEL):

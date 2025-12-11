@@ -2,7 +2,7 @@ import logging
 import json_repair
 
 from seaqa_ai.utils.llm_api import LLMAPI
-from seaqa_ai.config import AI_UTILS_LLM_MODEL
+from seaqa_ai.config import get_light_weight_model_config
 
 
 logger = logging.getLogger(__name__)
@@ -10,13 +10,14 @@ logger = logging.getLogger(__name__)
 
 class AIUtils:
     def __init__(self, app):
+        light_weight_model_config = get_light_weight_model_config()
         self.llm_api = LLMAPI(app.data_logger,
-            AI_UTILS_LLM_MODEL['type'],
-            AI_UTILS_LLM_MODEL['url'],
-            AI_UTILS_LLM_MODEL['key'],
-            AI_UTILS_LLM_MODEL['model']
+            light_weight_model_config['type'],
+            light_weight_model_config['url'],
+            light_weight_model_config['key'],
+            light_weight_model_config['model']
         )
-        self.temperature = 0.1 if 'gpt-5' not in AI_UTILS_LLM_MODEL['model'] else 1
+        self.temperature = 0.1 if 'gpt-5' not in light_weight_model_config['model'] else 1
 
 
     def gen_ticket_from_record(self, record_detail, context):
