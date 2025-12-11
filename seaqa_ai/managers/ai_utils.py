@@ -1,7 +1,8 @@
 import logging
 import json_repair
 
-from seaqa_ai.agent.agent_manager import TMEPERATURE
+from seaqa_ai.utils.llm_api import LLMAPI
+from seaqa_ai.config import get_light_weight_model_config
 
 
 logger = logging.getLogger(__name__)
@@ -9,7 +10,14 @@ logger = logging.getLogger(__name__)
 
 class AIUtils:
     def __init__(self, app):
-        self.app = app
+        light_weight_model_config = get_light_weight_model_config()
+        self.llm_api = LLMAPI(app.data_logger,
+            light_weight_model_config['type'],
+            light_weight_model_config['url'],
+            light_weight_model_config['key'],
+            light_weight_model_config['model']
+        )
+        self.temperature = 0.1 if 'gpt-5' not in light_weight_model_config['model'] else 1
 
 
     def gen_ticket_from_record(self, record_detail, context):
@@ -45,10 +53,11 @@ class AIUtils:
                 }
             ]
 
-            response = self.app.llm_api.completion(
+            
+            response = self.llm_api.completion(
                 messages=messages,
                 context=context,
-                temperature=TMEPERATURE,
+                temperature=self.temperature,
             )
             resp_json = json_repair.loads(response.choices[0].message.content)
             ai_title = resp_json.get('title', '')
@@ -120,10 +129,10 @@ class AIUtils:
                 }
             ]
 
-            response = self.app.llm_api.completion(
+            response = self.llm_api.completion(
                 messages=messages,
                 context=context or {},
-                temperature=TMEPERATURE,
+                temperature=self.temperature,
                 max_tokens=100
             )
             return response.choices[0].message.content.strip()
@@ -184,10 +193,10 @@ class AIUtils:
                 }
             ]
 
-            response = self.app.llm_api.completion(
+            response = self.llm_api.completion(
                 messages=messages,
                 context=context,
-                temperature=0.1,
+                temperature=self.temperature,
             )
 
             result = response.choices[0].message.content.strip()

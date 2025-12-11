@@ -2,6 +2,7 @@ import json
 import logging
 import litellm
 from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME
+from seaqa_ai.config import EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +67,20 @@ class LLMAPI:
     def generate_embeddings(self, texts, context):
         if isinstance(texts, str):
             texts = [texts]
+        if EMBEDDING_MODEL['type'] == 'other':
+            custom_llm_provider = 'openai'
+        elif EMBEDDING_MODEL['type'] == 'proxy':
+            custom_llm_provider = 'openai'
+            if not EMBEDDING_MODEL['key']:
+                EMBEDDING_MODEL['key'] = 'not-keys-needed'
+        else:
+            custom_llm_provider = EMBEDDING_MODEL['type']
         response = litellm.embedding(
-            model='text-embedding-3-small',
+            model=EMBEDDING_MODEL['model'],
             input=texts,
-            api_key=self.api_key,
-            api_base=self.base_url,
+            api_base=EMBEDDING_MODEL['url'],
+            api_key=EMBEDDING_MODEL['key'],
+            custom_llm_provider=custom_llm_provider,
             timeout=self.timeout
         )
         self._logger_usage(None, response, context)
