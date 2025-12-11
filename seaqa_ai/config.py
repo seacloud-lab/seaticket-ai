@@ -83,44 +83,43 @@ MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 # LLM
 LLM_MODELS = configs.get('LLM_MODELS', [])
 
+def check_model_validation(model_config):
+    if not isinstance(model_config, dict):
+        return False
+    if model_config.get('type') == 'proxy':
+        required_fields = ('model', 'url')
+    else:
+        required_fields = ('model', 'key')
+    if not all(field in model_config for field in required_fields):
+        return False
+    
+    return True
+
+def get_useful_llm_configs_from_model_config(model_config):
+    return {
+        'model': model_config.get('model'),
+        'type': model_config.get('type', 'openai'),
+        'url': model_config.get('url'),
+        'key': model_config.get('key')
+    }
+    
+
 def get_default_model_config():
     if not LLM_MODELS:
         raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
 
+    first_model = None
     for model_config in LLM_MODELS:
-        if not isinstance(model_config, dict):
-            continue
-        if model_config.get('type') == 'proxy':
-            required_fields = ('model', 'url')
-        else:
-            required_fields = ('model', 'key')
-        if not all(field in model_config for field in required_fields):
+        if not check_model_validation(model_config):
             continue
 
         if model_config.get('default', False):
-            return {
-                'model': model_config.get('model'),
-                'type': model_config.get('type', 'openai'),
-                'url': model_config.get('url'),
-                'key': model_config.get('key')
-            }
+            return 
+        elif not first_model:
+            first_model = get_useful_llm_configs_from_model_config(model_config)
 
-    for model_config in LLM_MODELS:
-        if not isinstance(model_config, dict):
-            continue
-        if model_config.get('type') == 'proxy':
-            required_fields = ('model', 'url')
-        else:
-            required_fields = ('model', 'key')
-        if not all(field in model_config for field in required_fields):
-            continue
-
-        return {
-            'model': model_config.get('model'),
-            'type': model_config.get('type', 'openai'),
-            'url': model_config.get('url'),
-            'key': model_config.get('key')
-        }
+    if first_model:
+        return first_model
 
     raise ValueError("No valid model configuration in LLM_MODELS.")
 
@@ -131,20 +130,15 @@ def get_model_config_by_id(model_id):
         if model_config.get('model') != model_id:
             continue
 
-        if model_config.get('type') == 'proxy':
-            required_fields = ('model', 'url')
-        else:
-            required_fields = ('model', 'key')
-        if not all(field in model_config for field in required_fields):
+        if not check_model_validation(model_config):
             raise ValueError(f"Model '{model_id}' missing required config fields")
 
-        return {
-            'model': model_config.get('model'),
-            'type': model_config.get('type', 'openai'),
-            'url': model_config.get('url'),
-            'key': model_config.get('key')
-        }
+        return get_useful_llm_configs_from_model_config(model_config)
     raise ValueError(f"Model '{model_id}' not found. ")
+
+AI_UTILS_LLM_MODEL = configs.get('AI_UTILS_LLM_MODEL', {})
+if not check_model_validation(AI_UTILS_LLM_MODEL):
+    AI_UTILS_LLM_MODEL = get_default_model_config()
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)

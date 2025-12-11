@@ -20,9 +20,6 @@ from seaqa_ai.utils.llm_api import LLMAPI
 
 logger = logging.getLogger(__name__)
 
-_default_model_config = config.get_default_model_config()
-TMEPERATURE = 0.1 if 'GPT-5' not in _default_model_config['model'].upper() else 1
-
 class AgentManager:
     def __init__(self, app):
         self.app = app
@@ -108,18 +105,13 @@ class AgentManager:
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
-            temperature=kwargs.get('temperature', TMEPERATURE)
             model=kwargs.get('model')
             llm_type=kwargs.get('llm_type')
             llm_url=kwargs.get('llm_url')
             llm_key=kwargs.get('llm_key')
+            temperature=kwargs.get('temperature', 0.1)
 
-            if model:
-                model_to_use = model
-            else:
-                model_to_use = _default_model_config['model']
-
-            if 'gpt-5' in model_to_use:
+            if 'gpt-5' in model:
                 temperature = 1
             context=kwargs.get('context')
             if session_uuid and not config.DISABLE_CONTEXT:
@@ -142,11 +134,9 @@ class AgentManager:
 
             thought_process['task']['user_input'] = user_input_with_format
             
-            llm_api_to_use = self.app.llm_api
-            if model:
-                llm_api_to_use = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model_to_use)
+            llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
 
-            response = llm_api_to_use.completion(
+            response = llm_api.completion(
                 messages=memory,
                 context=context,
                 tools=tool_executor.get(),
@@ -202,11 +192,11 @@ class AgentManager:
                         }
                     thought_process['tool_calls'].append(new_tool_call_to_thought_process)
 
-                content = llm_api_to_use.completion(
+                content = llm_api.completion(
                         messages=memory,
                         context=context,
                         temperature=temperature,
-                        model=model_to_use
+                        model=model
                     ).choices[0].message.content
             else:
                 content = response.content
