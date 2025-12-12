@@ -47,11 +47,11 @@ class LLMAPI:
         self._logger_usage(kwargs, response, context)
         return response
 
-    def _logger_usage(self, kwargs, response, context):
+    def _logger_usage(self, kwargs, response, context, model=None):
         try:
             if hasattr(response, 'usage') and response.usage:
                 self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                    'model': self.model_id,
+                    'model': self.model_id if not model else model,
                     'usage': {
                         'prompt_tokens': response.usage.prompt_tokens,
                         'completion_tokens': response.usage.completion_tokens,
@@ -83,5 +83,5 @@ class LLMAPI:
             custom_llm_provider=custom_llm_provider,
             timeout=self.timeout
         )
-        self._logger_usage(None, response, context)
+        self._logger_usage(None, response, context, EMBEDDING_MODEL['model'])
         return response.data

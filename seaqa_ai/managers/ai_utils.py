@@ -202,7 +202,7 @@ class AIUtils:
             result = response.choices[0].message.content.strip()
             reranked_keys = json_repair.loads(result)
 
-            candidate_key_set = {f"{c['_id']}:{c.get('connection_id', 'unknown')}" for c in candidate_records}
+            candidate_key_set = set(candidate_keys)
 
             validated_keys = []
             seen_keys = set()
@@ -224,12 +224,18 @@ class AIUtils:
             candidates_text = ""
             candidate_keys = []
             for candidate in candidate_records:
-                composite_key = f"{candidate['_id']}:{candidate.get('connection_id', 'unknown')}"
-                candidate_keys.append(composite_key)
-                candidates_text += f""" \n Record Key: {composite_key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+                if '_id' in candidate:
+                    key = candidate['_id']
+                elif 'pk' in candidate:
+                    key = candidate['pk']
+                else:
+                    continue
+                key = f"{key}:{candidate.get('connection_id', 'unknown')}"
+                candidate_keys.append(key)
+                candidates_text += f""" \n Record Key: {key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
 
             prompt = (f"""
-                You are an expert in analyzing the relevance between records. Given a query and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
+                You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
 
                 Query: {query}
 
@@ -276,7 +282,7 @@ class AIUtils:
             result = response.choices[0].message.content.strip()
             reranked_keys = json_repair.loads(result)
 
-            candidate_key_set = {f"{c['_id']}:{c.get('connection_id', 'unknown')}" for c in candidate_records}
+            candidate_key_set = set(candidate_keys)
 
             validated_keys = []
             seen_keys = set()

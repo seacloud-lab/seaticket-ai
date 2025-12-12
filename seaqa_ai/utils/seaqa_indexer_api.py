@@ -39,15 +39,15 @@ class SeaQAIndexerAPI:
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
-        results = resp_json.get('results')
+        results = resp_json.get('results', [])
         return results
     
-    def related_records_search(self, query, project_uuid, connection_ids=None, count=20):
+    def related_records_search(self, query_vector, project_uuid, connection_ids=None, count=20):
         """
         related_records_search: Performs vector analysis on the "AI_SUMMARY" field of a record to find matching related records. It's typically used to find related Issues (github_issue, discourse_forum, email).
         """
         params = {
-            'query': query,
+            'query_vector': query_vector,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
             'count': count
@@ -60,5 +60,5 @@ class SeaQAIndexerAPI:
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
-        results = resp_json.get('results')
+        results = resp_json.get('results', [])
         return results

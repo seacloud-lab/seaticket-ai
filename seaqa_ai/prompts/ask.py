@@ -37,7 +37,7 @@ EXAMPLE = """
 4. Examples:
     - With a tool and the tool's result has "===== Reference <id> =====":
         User ask: What's Seafile?
-        Tool call: Tool `documents_search` with arguments `query="seafile"`
+        Tool call: Tool `documents_search` with arguments `query="introduction of seafile"`
         Tool's result: 
         ```text
         ===== Reference 0 ===== Title: Seafile introduction =====

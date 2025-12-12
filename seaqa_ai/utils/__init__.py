@@ -403,3 +403,11 @@ def fix_reference_marks(content):
 
 class LLMChatCompletionException(Exception):
     pass
+
+
+def gen_seadb_table_name(connection_type, connection_id):
+    if connection_type == 'github_issue':
+        return f'{connection_type}_{connection_id}', f'{connection_type}_comments_{connection_id}'
+    elif connection_type == 'discourse_forum':
+        return f'{connection_type}_{connection_id}', f'{connection_type}_replies_{connection_id}'
+    return f'{connection_type}_{connection_id}', ''
