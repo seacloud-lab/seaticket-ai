@@ -110,46 +110,22 @@ class SearchTools(BasicTools):
             'issues_search': self.issues_search
         }
 
-    def _get_search_result_preview(self, doc_content):
-        # reserved interface
-        return doc_content[:100]
-
     def documents_search(self, query, context, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
 
-        if not context['document_connection_ids'] or len(sources_results) > self.MAX_SOURCES_COUNT:
+        if not context['document_connection_ids'] or len(sources_results) >= self.MAX_SOURCES_COUNT:
             return {
                 'to_observation': '',
                 'to_db': []
             }
-        
-        to_observation = ''
-        to_tools_shared_vars = {
-            'sources_results': sources_results
-        }
-        to_db = []
-        connection_ids = ','.join([
-            str(connection_id)
-            for connection_id in context['document_connection_ids']
-        ])
-        project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.noramal_search(query, project_uuid, connection_ids)
-        ranked_record_id_connection_pairs = self.app.ai_utils.rank_search_results_by_relevance(query, records, context)
+        to_db, to_observation = self.app.ai_utils.documents_search(query, context['document_connection_ids'], context, len(sources_results) - self.MAX_SOURCES_COUNT, len(sources_results), True)
 
-        for doc in [record for record in records if f"{record['_id']}:{record['connection_id']}" in ranked_record_id_connection_pairs]:
-            doc.update({
-                'title': doc['title'] if doc.get('title') else doc.get('filename')
-            })
-            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
-            doc['content_preview'] = self._get_search_result_preview(doc['content'])
-            del doc['content'] # discard content, only save metadata
-            to_tools_shared_vars['sources_results'].append(doc)
-            to_db.append(doc)
-
-        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
+        tool_executor.tool_shared_vars.update({
+            'sources_results': sources_results + to_db
+        })
 
         # Format the retrieved documents for readability
         return {
@@ -169,121 +145,11 @@ class SearchTools(BasicTools):
                 'to_observation': '',
                 'to_db': []
             }
-        
-        to_observation = ''
-        to_tools_shared_vars = {
-            'sources_results': sources_results
-        }
-        to_db = []
 
-        project_uuid = context['project_uuid']
-        connection_id_type_map = {}
-        connection_id_config_map = {}
-        for connection in context['issue_connections']:
-            connection_id_type_map[connection['id']] = connection['type']
-            connection_id_config_map[connection['id']] = connection['config']
-        connection_ids = list(connection_id_type_map.keys())
-
-        query_vector = self.app.ai_utils.llm_api.generate_embeddings(query, context)[0]['embedding']
-        summary_records = self.app.seaqa_indexer_api.related_records_search(query_vector, project_uuid, connection_ids)
-        record_id_score_map = {
-            record['pk']: record['score']
-            for record in summary_records
-        }
-        ranked_record_id_connection_pairs = self.app.ai_utils.rank_search_results_by_relevance(query, summary_records, context)[:self.MAX_SOURCES_COUNT - len(sources_results)]
-        
-        project_uuid = str(uuid.UUID(project_uuid))
-        
-        for ranked_record_id_connection_pair in ranked_record_id_connection_pairs:
-            if len((after_unpack := ranked_record_id_connection_pair.split(':'))) != 2:
-                continue
-            record_id, connection_id = after_unpack
-            record_id = int(record_id)
-            connection_id = int(connection_id)
-            if connection_id not in connection_id_type_map:
-                continue
-            elif connection_id_type_map[connection_id] == 'discourse_forum':
-                connection_table_name, comments_table_name = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
-                record, comments = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id')
-                whole_data = {
-                    'type': 'discourse_forum',
-                    '_id': record_id,
-                    'topic_id': record['topic_id'],
-                    'connection_id': connection_id,
-                    'url': connection_id_config_map[connection_id].get('url'),
-                    'score': record_id_score_map[record_id],
-                    'title': record['title'],
-                    'slug': record['slug'],
-                    'created_time': record['created_time'],
-                    'modified_time': record['modified_time'],
-                    'comments': [
-                        {
-                            'author': comment['author'],
-                            'post_number': comment['post_number'],
-                            'content': comment['content']
-                        }
-                        for comment in comments
-                    ]
-                }
-                to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
-                whole_data['content_preview'] = record['ai_summary']
-                del whole_data['comments']
-            elif connection_id_type_map[connection_id] == 'github_issue':
-                connection_table_name, comments_table_name = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
-                record, comments = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', has_deleted_field=True)
-
-                # url
-                server_url = connection_id_config_map[connection_id].get('repository')
-                url_parsed = urlparse(server_url)
-                base_url = url_parsed.scheme + "://" + url_parsed.netloc
-                parts = url_parsed.path.strip("/").split("/")
-                repo_owner, repo_name = parts[0], parts[1]
-                url = f'{base_url}/{repo_owner}/{repo_name}/issues/' + str(record['issue_number'])
-
-                whole_data = {
-                    'type': 'github_issue',
-                    '_id': record_id,
-                    'connection_id': connection_id,
-                    'content': record['content'],
-                    'url': url,
-                    'score': record_id_score_map[record_id],
-                    'title': record['title'],
-                    'repo_owner': record['repo_owner'],
-                    'repo_name': record['repo_name'],
-                    'issue_number': record['issue_number'],
-                    'state': record['state'],
-                    'comments': [
-                        {
-                            'author': comment['author'],
-                            'content': comment['content']
-                        }
-                        for comment in comments
-                    ]
-                }
-                to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
-                whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
-                del whole_data['comments']
-                del whole_data['content']
-            elif connection_id_type_map[connection_id] == 'email':
-                connection_table_name, _ = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
-                record, _ = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name)
-                whole_data = {
-                    'type': 'email',
-                    '_id': record_id,
-                    'connection_id': connection_id,
-                    'content': record['content'],
-                    'score': record_id_score_map[record_id],
-                    'title': record['title'],
-                }
-                to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
-                whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
-                del whole_data['content']
-            else:
-                continue
-            to_tools_shared_vars['sources_results'].append(whole_data)
-            to_db.append(whole_data)
-
-        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
+        to_db, to_observation = self.app.ai_utils.issues_search(query, context['issue_connections'], context, len(sources_results) - self.MAX_SOURCES_COUNT, len(sources_results), True)
+        tool_executor.tool_shared_vars.update({
+            'sources_results': sources_results + to_db
+        })
 
         # Format the retrieved documents for readability
         return {

@@ -1,6 +1,8 @@
 import logging
 import json_repair
-
+import uuid
+from urllib.parse import urlparse
+from seaqa_ai.utils import gen_seadb_table_name, convert_to_json_code_block
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
 
@@ -296,3 +298,147 @@ class AIUtils:
             logger.error(f"Error ranking related records: {e}")
             raise
 
+    def documents_search(self, query, connection_ids, context, limit=100, current_ref_num=0, preview=False):
+        if limit <= 0:
+            return [], ''
+        if isinstance(connection_ids, list):
+            connection_ids = ','.join([
+                str(connection_id)
+                for connection_id in connection_ids
+            ])
+        project_uuid = context['project_uuid']
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids)
+        ranked_record_id_connection_pairs = self.rank_search_results_by_relevance(query, records, context)[:limit]
+        search_results = []
+        references_docs = ''
+        for doc in [record for record in records if f"{record['_id']}:{record['connection_id']}" in ranked_record_id_connection_pairs]:
+            current_ref_num += 1
+            doc.update({
+                'title': doc['title'] if doc.get('title') else doc.get('filename')
+            })
+            references_docs += f"===== Reference {current_ref_num} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            if preview:
+                doc['content_preview'] = doc['content'][:100]
+                del doc['content']
+            search_results.append(doc)
+        return search_results, references_docs
+    
+    def issues_search(self, query, connections, context, limit=100, current_ref_num=0, preview=False):
+        if limit <= 0:
+            return [], ''
+        project_uuid = context['project_uuid']
+        connection_id_type_map = {}
+        connection_id_config_map = {}
+        for connection in connections:
+            connection_id_type_map[connection['id']] = connection['type']
+            connection_id_config_map[connection['id']] = connection['config']
+        connection_ids = list(connection_id_type_map.keys())
+
+        query_vector = self.app.ai_utils.llm_api.generate_embeddings(query, context)[0]['embedding']
+        summary_records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids)
+        record_id_score_map = {
+            record['pk']: record['score']
+            for record in summary_records
+        }
+        ranked_record_id_connection_pairs = self.app.ai_utils.rank_search_results_by_relevance(query, summary_records, context)[:limit]
+        
+        project_uuid = str(uuid.UUID(project_uuid))
+        search_results = []
+        references_docs = ''
+        
+        for ranked_record_id_connection_pair in ranked_record_id_connection_pairs:
+            if len((after_unpack := ranked_record_id_connection_pair.split(':'))) != 2:
+                continue
+            record_id, connection_id = after_unpack
+            record_id = int(record_id)
+            connection_id = int(connection_id)
+            if connection_id not in connection_id_type_map:
+                continue
+            elif connection_id_type_map[connection_id] == 'discourse_forum':
+                current_ref_num += 1
+                connection_table_name, comments_table_name = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
+                record, comments = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id')
+                whole_data = {
+                    'type': 'discourse_forum',
+                    '_id': record_id,
+                    'topic_id': record['topic_id'],
+                    'connection_id': connection_id,
+                    'url': connection_id_config_map[connection_id].get('url'),
+                    'score': record_id_score_map[record_id],
+                    'title': record['title'],
+                    'slug': record['slug'],
+                    'created_time': record['created_time'],
+                    'modified_time': record['modified_time'],
+                    'comments': [
+                        {
+                            'author': comment['author'],
+                            'post_number': comment['post_number'],
+                            'content': comment['content']
+                        }
+                        for comment in comments
+                    ]
+                }
+                references_docs += f"===== Reference {current_ref_num} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
+                if preview:
+                    whole_data['content_preview'] = record['ai_summary']
+                    del whole_data['comments']
+                search_results.append(whole_data)
+            elif connection_id_type_map[connection_id] == 'github_issue':
+                current_ref_num += 1
+                connection_table_name, comments_table_name = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
+                record, comments = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', has_deleted_field=True)
+
+                # url
+                server_url = connection_id_config_map[connection_id].get('repository')
+                url_parsed = urlparse(server_url)
+                base_url = url_parsed.scheme + "://" + url_parsed.netloc
+                parts = url_parsed.path.strip("/").split("/")
+                repo_owner, repo_name = parts[0], parts[1]
+                url = f'{base_url}/{repo_owner}/{repo_name}/issues/' + str(record['issue_number'])
+
+                whole_data = {
+                    'type': 'github_issue',
+                    '_id': record_id,
+                    'connection_id': connection_id,
+                    'content': record['content'],
+                    'url': url,
+                    'score': record_id_score_map[record_id],
+                    'title': record['title'],
+                    'repo_owner': record['repo_owner'],
+                    'repo_name': record['repo_name'],
+                    'issue_number': record['issue_number'],
+                    'state': record['state'],
+                    'comments': [
+                        {
+                            'author': comment['author'],
+                            'content': comment['content']
+                        }
+                        for comment in comments
+                    ]
+                }
+                references_docs += f"===== Reference {current_ref_num} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
+                if preview:
+                    whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
+                    del whole_data['comments']
+                    del whole_data['content']
+                search_results.append(whole_data)
+            elif connection_id_type_map[connection_id] == 'email':
+                current_ref_num += 1
+                connection_table_name, _ = gen_seadb_table_name(connection_id_type_map[connection_id], connection_id)
+                record, _ = self.app.seadb_api.get_record_and_comments(project_uuid, record_id, connection_table_name)
+                whole_data = {
+                    'type': 'email',
+                    '_id': record_id,
+                    'connection_id': connection_id,
+                    'content': record['content'],
+                    'score': record_id_score_map[record_id],
+                    'title': record['title'],
+                }
+                references_docs += f"===== Reference {current_ref_num} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
+                if preview:
+                    whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
+                    del whole_data['content']
+                search_results.append(whole_data)
+            else:
+                continue
+        return search_results, references_docs
