@@ -178,6 +178,7 @@ class AgentManager:
                             'content': json.dumps(to_observation)
                         }
                     except Exception as e:
+                        logger.exception(f'Execute tool call failure: {e}')
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e, fix_tool_calls_id=fix_tool_calls_id)
                         error_type = type(e).__name__
                         error_message = repr(e)

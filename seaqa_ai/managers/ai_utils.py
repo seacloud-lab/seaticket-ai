@@ -215,3 +215,78 @@ class AIUtils:
         except Exception as e:
             logger.error(f"Error ranking related records: {e}")
             raise
+
+    def rank_search_results_by_relevance(self, query, candidate_records, context):
+        try:
+            if not candidate_records:
+                return []
+
+            candidates_text = ""
+            candidate_keys = []
+            for candidate in candidate_records:
+                composite_key = f"{candidate['_id']}:{candidate.get('connection_id', 'unknown')}"
+                candidate_keys.append(composite_key)
+                candidates_text += f""" \n Record Key: {composite_key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+
+            prompt = (f"""
+                You are an expert in analyzing the relevance between records. Given a query and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
+
+                Query: {query}
+
+                Candidate Records:
+                {candidates_text}
+
+                **CRITICAL Instructions:**
+                1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
+                2. Consider both the title and summary when determining relevance.
+                3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
+                   - Addresses similar topics, issues, or problems
+                   - Has related technical content or features
+                   - Shares common themes or concepts
+                   - Could provide useful context or related information
+                4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
+                5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
+                6. If no records are relevant, return an empty array: []
+                7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
+
+                **Example Output Format:**
+                ["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
+
+                Or if no records are relevant:
+                []
+            """)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an expert relevance ranking system. Your task is to analyze records and identify only those that are truly relevant to the query. Return a valid JSON array of composite keys (record_id:connection_id) for relevant records only, ordered by relevance. Return an empty array if no records are relevant."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+
+            response = self.llm_api.completion(
+                messages=messages,
+                context=context,
+                temperature=0.1,
+            )
+
+            result = response.choices[0].message.content.strip()
+            reranked_keys = json_repair.loads(result)
+
+            candidate_key_set = {f"{c['_id']}:{c.get('connection_id', 'unknown')}" for c in candidate_records}
+
+            validated_keys = []
+            seen_keys = set()
+            for key in reranked_keys:
+                if key in candidate_key_set and key not in seen_keys:
+                    validated_keys.append(key)
+                    seen_keys.add(key)
+            return validated_keys
+
+        except Exception as e:
+            logger.error(f"Error ranking related records: {e}")
+            raise
+

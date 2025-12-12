@@ -45,7 +45,8 @@ def get_ai_reply():
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
-    connection_ids = data.get('connection_ids')
+    document_connection_ids = data.get('document_connection_ids', [])
+    issue_connection_ids = data.get('issue_connection_ids', [])
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
     message_id = data.get('message_id')
@@ -54,6 +55,8 @@ def get_ai_reply():
         'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
+        'document_connection_ids': document_connection_ids,
+        'issue_connection_ids': issue_connection_ids,
         'org_id': org_id,
         'message_id': message_id
     }
@@ -78,7 +81,7 @@ def get_ai_reply():
     query = combine_extra_contents_to_message(extra_contents, query)
 
     try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, llm_model), 200
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, context, llm_model), 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500

@@ -1,4 +1,7 @@
+import logging
 from smolagents import Tool
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
 ===== Reference 0 ===== Title: <title of Reference 0> =====
@@ -108,34 +111,42 @@ class SearchTools(BasicTools):
         # reserved interface
         return doc_content[:100]
 
-    def documents_search(self, query, project_uuid, connection_ids, tool_executor):
+    def documents_search(self, query, context, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
-        new_sources_result = []
+
+        if len(sources_results) > self.MAX_SOURCES_COUNT:
+            return {
+                'to_observation': '',
+                'to_db': []
+            }
         
         to_observation = ''
         to_tools_shared_vars = {
             'sources_results': sources_results
         }
         to_db = []
+        connection_ids = ','.join([
+            str(connection_id)
+            for connection_id in context['document_connection_ids']
+        ])
+        project_uuid = context['project_uuid']
+        records = self.app.seaqa_indexer_api.noramal_search(query, project_uuid, connection_ids)
+        ranked_records = self.app.ai_utils.rank_issues_by_relevance(query, records, context)
 
-        for doc in self.app.seaqa_indexer_api.noramal_search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
-            if len(sources_results) + len(new_sources_result) >= self.MAX_SOURCES_COUNT or len(new_sources_result) > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
-                break
-
+        for doc in ranked_records:
             doc.update({
                 'title': doc['title'] if doc.get('title') else doc.get('filename')
             })
-            to_observation += f"===== Reference {len(sources_results) + len(new_sources_result)} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
             doc['content_preview'] = self._get_search_result_preview(doc['content'])
             del doc['content'] # discard content, only save metadata
-            new_sources_result.append(doc)
+            to_tools_shared_vars['sources_results'].append(doc)
             to_db.append(doc)
 
-        to_tools_shared_vars['sources_results'] = sources_results + new_sources_result
         tool_executor.tool_shared_vars.update(to_tools_shared_vars)
 
         # Format the retrieved documents for readability
@@ -144,13 +155,18 @@ class SearchTools(BasicTools):
             'to_db': to_db
         }
 
-    def issues_search(self, query, project_uuid, connection_ids, tool_executor):
+    def issues_search(self, query, context, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
-        new_sources_result = []
+
+        if len(sources_results) > self.MAX_SOURCES_COUNT:
+            return {
+                'to_observation': '',
+                'to_db': []
+            }
         
         to_observation = ''
         to_tools_shared_vars = {
@@ -158,20 +174,26 @@ class SearchTools(BasicTools):
         }
         to_db = []
 
-        for doc in self.app.seaqa_indexer_api.related_records_search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
-            if len(sources_results) + len(new_sources_result) >= self.MAX_SOURCES_COUNT or len(new_sources_result) > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
-                break
+        connection_ids = ','.join([
+            str(connection_id)
+            for connection_id in context['issue_connection_ids']
+        ])
+        project_uuid = context['project_uuid']
 
+        records = self.app.seaqa_indexer_api.related_records_search(query, project_uuid, connection_ids)
+        ranked_records = self.app.ai_utils.rank_issues_by_relevance(query, records, context)[:self.MAX_SOURCES_COUNT - len(sources_results)]
+
+        for doc in ranked_records:
             doc.update({
                 'title': doc['title'] if doc.get('title') else doc.get('filename')
             })
-            to_observation += f"===== Reference {len(sources_results) + len(new_sources_result)} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
+            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
             doc['content_preview'] = self._get_search_result_preview(doc['content'])
             del doc['content'] # discard content, only save metadata
-            new_sources_result.append(doc)
+            to_tools_shared_vars['sources_results'].append(doc)
             to_db.append(doc)
 
-        to_tools_shared_vars['sources_results'] = sources_results + new_sources_result
+        to_tools_shared_vars['sources_results'] = sources_results
         tool_executor.tool_shared_vars.update(to_tools_shared_vars)
 
         # Format the retrieved documents for readability
