@@ -3,7 +3,7 @@ import logging
 import json
 import pytz
 import re
-import json_repair
+import ast
 from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
@@ -26,6 +26,8 @@ def localize_time(date):
     return date
 
 def clean_json_markdown(raw_response):
+    if not isinstance(raw_response, str) or not isinstance(raw_response, AgentText):
+        return raw_response
     if raw_response.strip().startswith('```'):
         lines = raw_response.strip().splitlines()
         if lines[0].startswith("```") and lines[-1] == "```":
@@ -38,10 +40,13 @@ def parse_json(json_str):
     """
     if isinstance(json_str, str) or isinstance(json_str, AgentText):
         try:
-            json_obj = json_repair.loads(json_str, strict=True)
-        except Exception as e:
-            logger.warning(f'Failure to parse to json {e}')
-            return json_str
+            json_obj = json.loads(json_str)
+        except:
+            try:
+                json_obj = ast.literal_eval(json_str)
+            except Exception as e:
+                logger.warning(f'Failure to parse to json {e}')
+                return json_str
         return json_obj
     return json_str
 

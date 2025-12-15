@@ -121,16 +121,22 @@ class SearchTools(BasicTools):
                 'to_observation': '',
                 'to_db': []
             }
-        to_db, to_observation = self.app.ai_utils.documents_search(query, context['document_connection_ids'], context, len(sources_results) - self.MAX_SOURCES_COUNT, len(sources_results), True)
+        
+        limit = self.MAX_SOURCES_COUNT - len(sources_results)
+        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
+            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
+
+
+        current_search_results, search_results_full_docs = self.app.ai_utils.documents_search(query, context['document_connection_ids'], context, limit, len(sources_results), True)
 
         tool_executor.tool_shared_vars.update({
-            'sources_results': sources_results + to_db
+            'sources_results': sources_results + current_search_results
         })
 
         # Format the retrieved documents for readability
         return {
-            'to_observation': to_observation,
-            'to_db': to_db
+            'to_observation': search_results_full_docs,
+            'to_db': current_search_results
         }
 
     def issues_search(self, query, context, tool_executor):
@@ -145,14 +151,18 @@ class SearchTools(BasicTools):
                 'to_observation': '',
                 'to_db': []
             }
+        
+        limit = self.MAX_SOURCES_COUNT - len(sources_results)
+        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
+            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        to_db, to_observation = self.app.ai_utils.issues_search(query, context['issue_connections'], context, len(sources_results) - self.MAX_SOURCES_COUNT, len(sources_results), True)
+        current_search_results, search_results_full_docs = self.app.ai_utils.issues_search(query, context['issue_connections'], context, limit, len(sources_results), True)
         tool_executor.tool_shared_vars.update({
-            'sources_results': sources_results + to_db
+            'sources_results': sources_results + current_search_results
         })
 
         # Format the retrieved documents for readability
         return {
-            'to_observation': to_observation,
-            'to_db': to_db
+            'to_observation': search_results_full_docs,
+            'to_db': current_search_results
         }

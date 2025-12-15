@@ -1,4 +1,5 @@
 RESPONSE_FORMAT_RULES = """
+Your response must be in strict JSON format (ensure that no parsing failure errors occur) and contain only the following two keys: `answer` and `reference_ids`. The specific rules are as follows:
 1. JSON Structure:
     - `answer`: A string containing your main answer. It must be formatted using Markdown, elegantly and logically organized with elements like paragraphs, lists, tables, or code blocks to enhance readability.
     - `reference_ids`: A list of integers containing reference IDs extracted from tool results (must not contain duplicates). If no references are used, this must be an empty list.
@@ -101,7 +102,6 @@ You must determine, based on the user's problem or task and your own experience,
 
 - For unexpected bugs encountered during software use, or problems where solutions are unlikely to be found in the official documentation: consider using the tool likes `issues_search` to find if there have been other users asking similar questions and their corresponding solutions.
 
-Your response must be in strict JSON format and contain only the following two keys: `answer` and `reference_ids`. The specific rules are as follows:
 {RESPONSE_FORMAT_RULES}
 {VALIDATION}
 {EXAMPLE}

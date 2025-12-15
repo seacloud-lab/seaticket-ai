@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class AIUtils:
     def __init__(self, app):
+        self.app = app
         light_weight_model_config = get_light_weight_model_config()
         self.llm_api = LLMAPI(app.data_logger,
             light_weight_model_config['type'],
@@ -146,13 +147,21 @@ class AIUtils:
         try:
             if not candidate_records:
                 return []
+            if isinstance(query_record, str):
+                query_record = {'ai_summary': query_record}
 
             candidates_text = ""
             candidate_keys = []
             for candidate in candidate_records:
-                composite_key = f"{candidate['_id']}:{candidate.get('connection_id', 'unknown')}"
-                candidate_keys.append(composite_key)
-                candidates_text += f""" \n Record Key: {composite_key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+                if '_id' in candidate:
+                    key = candidate['_id']
+                elif 'pk' in candidate:
+                    key = candidate['pk']
+                else:
+                    continue
+                key = f"{key}:{candidate.get('connection_id', 'unknown')}"
+                candidate_keys.append(key)
+                candidates_text += f""" \n Record Key: {key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
 
             prompt = (f"""
                 You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
@@ -218,86 +227,6 @@ class AIUtils:
             logger.error(f"Error ranking related records: {e}")
             raise
 
-    def rank_search_results_by_relevance(self, query, candidate_records, context):
-        try:
-            if not candidate_records:
-                return []
-
-            candidates_text = ""
-            candidate_keys = []
-            for candidate in candidate_records:
-                if '_id' in candidate:
-                    key = candidate['_id']
-                elif 'pk' in candidate:
-                    key = candidate['pk']
-                else:
-                    continue
-                key = f"{key}:{candidate.get('connection_id', 'unknown')}"
-                candidate_keys.append(key)
-                candidates_text += f""" \n Record Key: {key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
-
-            prompt = (f"""
-                You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
-
-                Query: {query}
-
-                Candidate Records:
-                {candidates_text}
-
-                **CRITICAL Instructions:**
-                1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-                2. Consider both the title and summary when determining relevance.
-                3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-                   - Addresses similar topics, issues, or problems
-                   - Has related technical content or features
-                   - Shares common themes or concepts
-                   - Could provide useful context or related information
-                4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
-                5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
-                6. If no records are relevant, return an empty array: []
-                7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
-
-                **Example Output Format:**
-                ["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
-
-                Or if no records are relevant:
-                []
-            """)
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": "You are an expert relevance ranking system. Your task is to analyze records and identify only those that are truly relevant to the query. Return a valid JSON array of composite keys (record_id:connection_id) for relevant records only, ordered by relevance. Return an empty array if no records are relevant."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-
-            response = self.llm_api.completion(
-                messages=messages,
-                context=context,
-                temperature=0.1,
-            )
-
-            result = response.choices[0].message.content.strip()
-            reranked_keys = json_repair.loads(result)
-
-            candidate_key_set = set(candidate_keys)
-
-            validated_keys = []
-            seen_keys = set()
-            for key in reranked_keys:
-                if key in candidate_key_set and key not in seen_keys:
-                    validated_keys.append(key)
-                    seen_keys.add(key)
-            return validated_keys
-
-        except Exception as e:
-            logger.error(f"Error ranking related records: {e}")
-            raise
-
     def documents_search(self, query, connection_ids, context, limit=100, current_ref_num=0, preview=False):
         if limit <= 0:
             return [], ''
@@ -308,7 +237,7 @@ class AIUtils:
             ])
         project_uuid = context['project_uuid']
         records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids)
-        ranked_record_id_connection_pairs = self.rank_search_results_by_relevance(query, records, context)[:limit]
+        ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, records, context)[:limit]
         search_results = []
         references_docs = ''
         for doc in [record for record in records if f"{record['_id']}:{record['connection_id']}" in ranked_record_id_connection_pairs]:
@@ -340,7 +269,7 @@ class AIUtils:
             record['pk']: record['score']
             for record in summary_records
         }
-        ranked_record_id_connection_pairs = self.app.ai_utils.rank_search_results_by_relevance(query, summary_records, context)[:limit]
+        ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, summary_records, context)[:limit]
         
         project_uuid = str(uuid.UUID(project_uuid))
         search_results = []
@@ -418,7 +347,7 @@ class AIUtils:
                 }
                 references_docs += f"===== Reference {current_ref_num} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
                 if preview:
-                    whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
+                    whole_data['content_preview'] = whole_data['content'][:100]
                     del whole_data['comments']
                     del whole_data['content']
                 search_results.append(whole_data)
@@ -436,7 +365,7 @@ class AIUtils:
                 }
                 references_docs += f"===== Reference {current_ref_num} ===== Title: {whole_data['title']} =====\n{convert_to_json_code_block(whole_data)}\n\n"
                 if preview:
-                    whole_data['content_preview'] = self._get_search_result_preview(whole_data['content'])
+                    whole_data['content_preview'] = whole_data['content'][:100]
                     del whole_data['content']
                 search_results.append(whole_data)
             else:
