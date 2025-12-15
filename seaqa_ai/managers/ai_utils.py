@@ -240,7 +240,7 @@ class AIUtils:
         ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, records, context)[:limit]
         search_results = []
         references_docs = ''
-        for doc in [record for record in records if f"{record['_id']}:{record['connection_id']}" in ranked_record_id_connection_pairs]:
+        for doc in [record for record in records if f"{record['_id']}:{record.get('connection_id', 'unknown')}" in ranked_record_id_connection_pairs]:
             current_ref_num += 1
             doc.update({
                 'title': doc['title'] if doc.get('title') else doc.get('filename')
