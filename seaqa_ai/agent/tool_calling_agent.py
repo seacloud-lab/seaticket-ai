@@ -24,8 +24,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
             smolagents.Panel(smolagents.Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
             level=smolagents.LogLevel.INFO,
         )
-
-        tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+        try:
+            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+        except Exception as e:
+            logger.exception(f'Execute tool call failure: {e}')
+            raise
         tool_call_result_type = type(tool_call_result)
         if tool_call_result_type in [smolagents.AgentImage, smolagents.AgentAudio]:
             if tool_call_result_type == smolagents.AgentImage:

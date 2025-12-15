@@ -1,4 +1,10 @@
+import logging
+import uuid
+from urllib.parse import urlparse
 from smolagents import Tool
+from seaqa_ai.utils import gen_seadb_table_name, convert_to_json_code_block
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
 ===== Reference 0 ===== Title: <title of Reference 0> =====
@@ -10,17 +16,34 @@ _SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (r
 """
 
 Tools = {
-    'keywords_search': {
+    'documents_search': {
         'type': 'function',
         'function': {
-            'name': 'keywords_search',
-            'description': f'This is a search tool for technical documents. You can use a query containing the keywords (separated by \',\') related to the issue to find documents related to the issue. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every keyword can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'name': 'documents_search',
+            'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
             'parameters':{
                 'type': 'object',
                 'properties': {
                     'query': {
                         'type': 'string',
-                        'description': 'The query containing the keywords (separated by \',\') related to the issue.'
+                        'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
+                    }
+                },
+                'required': ['query']
+            }
+        }
+    }, 
+    'issues_search': {
+        'type': 'function',
+        'function': {
+            'name': 'issues_search',
+            'description': f'This is a search tool for relative issues. You can use a query (a short sentence) to find relative issues and a past solution to this problem. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'query': {
+                        'type': 'string',
+                        'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
                     }
                 },
                 'required': ['query']
@@ -79,46 +102,67 @@ class BasicTools(object):
             tool_executor.register(tool_func, Tools[tool_name], **constant_kwargs)
 
 class SearchTools(BasicTools):
-    MAX_SOURCES_COUNT = 5
+    MAX_SOURCES_COUNT = 10
+    SINGLE_TOOL_MAX_SOURCES_COUNT = 5
     def _initialize_tool_name_func_map(self):
         self.tool_name_func_map = {
-            'keywords_search': self.keywords_search
+            'documents_search': self.documents_search,
+            'issues_search': self.issues_search
         }
 
-    def _get_search_result_preview(self, doc_content):
-        # reserved interface
-        return doc_content[:100]
+    def documents_search(self, query, context, tool_executor):
+        """Execute the retrieval based on the provided query."""
+        assert isinstance(query, str), "Your search query must be a string"
+        # Get current task search history
+        sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
 
-    def keywords_search(self, query, project_uuid, connection_ids, tool_executor):
+        if not context['document_connection_ids'] or len(sources_results) >= self.MAX_SOURCES_COUNT:
+            return {
+                'to_observation': '',
+                'to_db': []
+            }
+        
+        limit = self.MAX_SOURCES_COUNT - len(sources_results)
+        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
+            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
+
+
+        current_search_results, search_results_full_docs = self.app.ai_utils.documents_search(query, context['document_connection_ids'], context, limit, len(sources_results), True)
+
+        tool_executor.tool_shared_vars.update({
+            'sources_results': sources_results + current_search_results
+        })
+
+        # Format the retrieved documents for readability
+        return {
+            'to_observation': search_results_full_docs,
+            'to_db': current_search_results
+        }
+
+    def issues_search(self, query, context, tool_executor):
         """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+
+        if not context['issue_connections'] or len(sources_results) > self.MAX_SOURCES_COUNT:
+            return {
+                'to_observation': '',
+                'to_db': []
+            }
         
-        to_observation = ''
-        to_tools_shared_vars = {
-            'sources_results': sources_results
-        }
-        to_db = []
+        limit = self.MAX_SOURCES_COUNT - len(sources_results)
+        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
+            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        for doc in self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids)[:self.MAX_SOURCES_COUNT]:
-            if len(sources_results) >= self.MAX_SOURCES_COUNT:
-                break
-
-            doc.update({
-                'title': doc['title'] if doc.get('title') else doc.get('filename')
-            })
-            to_observation += f"===== Reference {len(to_tools_shared_vars['sources_results'])} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
-            doc['content_preview'] = self._get_search_result_preview(doc['content'])
-            del doc['content'] # discard content, only save metadata
-            to_tools_shared_vars['sources_results'].append(doc)
-            to_db.append(doc)
-
-        tool_executor.tool_shared_vars.update(to_tools_shared_vars)
+        current_search_results, search_results_full_docs = self.app.ai_utils.issues_search(query, context['issue_connections'], context, limit, len(sources_results), True)
+        tool_executor.tool_shared_vars.update({
+            'sources_results': sources_results + current_search_results
+        })
 
         # Format the retrieved documents for readability
         return {
-            'to_observation': to_observation,
-            'to_db': to_db
+            'to_observation': search_results_full_docs,
+            'to_db': current_search_results
         }

@@ -16,3 +16,14 @@ class AGENT_MODE_PROPERTIES_MAP(Enum):
     RESOLVE_TYPE = 'agent'
     EXECUTE_AGENT = 'reasoning_agent'
     MEMORY = 'smolagents'
+
+class ConnectionType(Enum):
+    EMAIL = 'email'
+    GITHUB_ISSUE = 'github_issue'
+    DISCOURSE_FORUM = 'discourse_forum'
+    SITE = 'site'
+    SEAFILE = 'seafile'
+
+    @classmethod
+    def is_valid(cls, value):
+        return value in {item.value for item in cls}

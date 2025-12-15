@@ -16,9 +16,12 @@ system_prompt: |-
   1. Always provide a tool call, else you will fail.
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
   3. Do not call tools unrelated to the question. 
-  4. If you've used some tools, performed some operations, or obtained some observations, but these observations aren't satisfactory to your observations, you can try using new tools or new arguments until you get the desired answer (DO NOT repeatedly call the same search tool with the same arguments. In other words, if you are not satisfied with the current observations from a search tool and need to re-execute the search, please switch a new search tool or change your current search keywords).
-  5. Once you have received sufficient answers, use `final_answer` as the last tool called in your response. (That is, at least use the `final_answer` tool in your reply.)
-  6. If the user's task does not require additional tools to perform the operation or assist in answering, please use the `final_answer` tool to answer directly.
+  4. If the user's task does not require additional tools to perform the operation or assist in answering, please use the `final_answer` tool to answer directly.
+  5. If you believe a user's question requires reference materials to resolve, you should:
+      1. In your **first step**, search official documentation (using the tool like `documents_search`) to see if it addresses the user's concerns. If the answer obtained so far, combined with your experience, can solve the user's problem, then call the `final_answer` tool and return the result.
+      2. If the results obtained from official documentation (such as the `observation` tool of `documents_search`) do not adequately solve the user's problem, **then** search for similar cases and past solutions (e.g., using a tool like `issues_search`) **on the second step (i.e., `issues_search` cannot be called firstly)**.
+      - Note that these tools for obtaining reference materials may not always provide the results you want, in such cases, you can rewrite your answer based on your own experience.
+  6. Once you have received sufficient answers or know how to answer the user's question, use `final_answer` as the last tool called in your response. (That is, at least use the `final_answer` tool in your reply.)
 
   Here are some examples for your reference:
 
@@ -32,7 +35,7 @@ system_prompt: |-
   {
     "name": "search_tool",
     "arguments": {
-      "query": "seafile"
+      "query": "introduction of seafile"
     }
   }
 

@@ -14,7 +14,7 @@ from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
 from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time, \
-    convert_to_json_code_block, fix_reference_marks
+    convert_to_json_code_block, fix_reference_marks, clean_json_markdown
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -68,7 +68,7 @@ class AgentManager:
                 if model_output:
                     msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
 
-            output = parse_json(agent_output.output)
+            output = parse_json(clean_json_markdown(agent_output.output))
             if not isinstance(output, dict):
                 output = {
                     'answer': output,
@@ -161,7 +161,7 @@ class AgentManager:
                     }
                     try:
                         to_observation, to_db = tool_output(tool_executor.execute(tool_call))
-                        
+
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
 
                         try:
@@ -178,6 +178,7 @@ class AgentManager:
                             'content': json.dumps(to_observation)
                         }
                     except Exception as e:
+                        logger.exception(f'Execute tool call failure: {e}')
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e, fix_tool_calls_id=fix_tool_calls_id)
                         error_type = type(e).__name__
                         error_message = repr(e)
@@ -206,7 +207,7 @@ class AgentManager:
                 'content': content
             }
 
-            content = parse_json(content)
+            content = parse_json(clean_json_markdown(content))
             if not isinstance(content, dict):
                 content = {
                     'answer': content,

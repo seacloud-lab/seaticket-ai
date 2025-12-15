@@ -169,6 +169,9 @@ REDIS_PASSWORD = configs.get('REDIS_PASSWORD', '')
 SEAQA_INDEXER_INNER_SERVER_URL = configs.get('SEAQA_INDEXER_INNER_SERVER_URL', '')
 JWT_PRIVATE_KEY = configs.get('JWT_PRIVATE_KEY', '')
 
+# SeaDB
+SEADB_INNER_SERVER_URL = configs.get('SEADB_INNER_SERVER_URL', '')
+
 SQLALCHEMY_DATABASE_URI = "mysql+pymysql://%s:%s@%s:%s/%s?charset=utf8" % \
                           (MYSQL_USER, quote_plus(MYSQL_PASSWORD), MYSQL_HOST, MYSQL_PORT, MYSQL_DB)
 

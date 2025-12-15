@@ -13,20 +13,20 @@ class ChatManager:
         self.app = app
         self.search_tools = SearchTools(app)
 
-    def get_ai_reply(self, resolve_type, message, project_uuid, connection_ids, context, model):
+    def get_ai_reply(self, resolve_type, message, context, model):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-            return self._gen_ans_agent(message, project_uuid, connection_ids, context, model)
+            return self._gen_ans_agent(message, context, model)
         elif resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-            return self._gen_ans_ask(message, project_uuid, connection_ids, context, model)
+            return self._gen_ans_ask(message, context, model)
         else:
             return f"Invalid resolve type"
 
-    def _gen_ans_ask(self, message, project_uuid, connection_ids, context, model):
+    def _gen_ans_ask(self, message, context, model):
         """
         Generate an answer based on the question and references.
         """
         tool_executor = FunctionCallingToolExecutor()
-        self.search_tools.registers(tool_executor, project_uuid=project_uuid, connection_ids=connection_ids)
+        self.search_tools.registers(tool_executor, context=context)
 
         model_config = get_model_config_by_id(model)
         temperature = 1 if 'gpt-5' in model_config['model'] else 0.1
@@ -48,9 +48,9 @@ class ChatManager:
             logger.exception(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
 
-    def _gen_ans_agent(self, message, project_uuid, connection_ids, context, model=None):
+    def _gen_ans_agent(self, message, context, model=None):
         tool_executor = SmolAgentsToolExecutor()
-        self.search_tools.registers(tool_executor, project_uuid=project_uuid, connection_ids=connection_ids)
+        self.search_tools.registers(tool_executor, context=context)
 
         model_config = get_model_config_by_id(model)
 

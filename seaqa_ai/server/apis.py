@@ -45,7 +45,8 @@ def get_ai_reply():
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
-    connection_ids = data.get('connection_ids')
+    document_connection_ids = data.get('document_connection_ids', [])
+    issue_connections = data.get('issue_connections', [])
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
     message_id = data.get('message_id')
@@ -54,6 +55,8 @@ def get_ai_reply():
         'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
+        'document_connection_ids': document_connection_ids,
+        'issue_connections': issue_connections,
         'org_id': org_id,
         'message_id': message_id
     }
@@ -78,7 +81,7 @@ def get_ai_reply():
     query = combine_extra_contents_to_message(extra_contents, query)
 
     try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, project_uuid, connection_ids, context, llm_model), 200
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, context, llm_model), 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
@@ -149,7 +152,7 @@ def generate_chunks_embedding():
     try:
 
         chunks = chunk_text(content)
-        embeddings = flask_app.app.llm_api.generate_embeddings(chunks, context)
+        embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(chunks, context)
         if embeddings and len(embeddings) > 0:
             return {'chunks': chunks, 'embeddings': embeddings}, 200
         return {'error_msg': 'No embedding generated.'}, 400
@@ -186,7 +189,7 @@ def generate_embedding():
     }
 
     try:
-        embeddings = flask_app.app.llm_api.generate_embeddings(content, context)
+        embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(content, context)
         if embeddings and len(embeddings) > 0:
             return {'embedding': embeddings[0].get('embedding')}, 200
         return {'error_msg': 'No embedding generated.'}, 400
@@ -228,7 +231,7 @@ def generate_summary():
         summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
-            embeddings = flask_app.app.llm_api.generate_embeddings(summary, context)
+            embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(summary, context)
             if embeddings:
                 result["embedding"] = embeddings[0].get('embedding')
     except Exception as e:
