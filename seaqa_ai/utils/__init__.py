@@ -26,7 +26,7 @@ def localize_time(date):
     return date
 
 def clean_json_markdown(raw_response):
-    if not isinstance(raw_response, str) or not isinstance(raw_response, AgentText):
+    if not isinstance(raw_response, str) and not isinstance(raw_response, AgentText):
         return raw_response
     if raw_response.strip().startswith('```'):
         lines = raw_response.strip().splitlines()
