@@ -379,11 +379,13 @@ def fix_reference_marks(content):
     # step 2, check each term in reference_ids is valid
     pattern = r'[.,!?;:\"()[\]\']'
     last_mark = answer[-1]
-    answer = answer[:-1]
+    if last_mark in ('.', '。'):
+        answer = answer[:-1]
     for i in range(len(reference_ids)):
         if f'[Reference {i + 1}]' not in answer:
             answer += f'[Reference {i + 1}]'
-    answer += last_mark
+    if last_mark in ('.', '。'):
+        answer += last_mark
     
     # step 3, remove redundent [Reference n]
     pattern = re.compile(r'\[Reference (\d+)\]')
