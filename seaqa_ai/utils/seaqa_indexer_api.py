@@ -29,6 +29,7 @@ class SeaQAIndexerAPI:
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
             'extra_sources': ['knowledge_base'],
+            'search_type': 'semantic_search',
             'count': count
         }
         payload = {'exp': int(time.time()) + 300, }
