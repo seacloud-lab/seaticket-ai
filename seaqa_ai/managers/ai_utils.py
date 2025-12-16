@@ -236,7 +236,7 @@ class AIUtils:
                 for connection_id in connection_ids
             ])
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids)
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
         ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, records, context)[:limit]
         search_results = []
         references_docs = ''
