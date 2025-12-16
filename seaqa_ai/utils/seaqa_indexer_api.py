@@ -20,7 +20,7 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def keywords_search(self, query, project_uuid, connection_ids=None, count=20):
+    def keywords_search(self, query, project_uuid, connection_ids=None, username='', count=20):
         """
         keywords_search: Uses full-text indexing for searching (searching for the title and content of records). Generally used for searching documents (site & seafile).
         """
@@ -30,6 +30,7 @@ class SeaQAIndexerAPI:
             'connection_ids': connection_ids,
             'extra_sources': ['knowledge_base'],
             'search_type': 'semantic_search',
+            'username': username,
             'count': count
         }
         payload = {'exp': int(time.time()) + 300, }
