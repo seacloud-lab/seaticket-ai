@@ -48,15 +48,45 @@ class SeaDBAPI:
         response = requests.post(url, json=post_data, headers=headers, timeout=self.timeout)
         return parse_response(response)
     
-    def get_record_and_comments(self, base_id, record_id, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False):
-        record = self.query_rows(base_id, f'SELECT * FROM {connection_table_name} WHERE _pk = {record_id}')
-        if not record['results']:
-            return None, None
-        record = record['results'][0]
-        if not comments_table_name:
-            return record, None
-        if not has_deleted_field:
-            comments = self.query_rows(base_id, f'SELECT * FROM {comments_table_name} WHERE {topic_id_field_name} = {record.get(topic_id_field_name)}')
-        else:
-            comments = self.query_rows(base_id, f'SELECT * FROM {comments_table_name} WHERE {topic_id_field_name} = {record.get(topic_id_field_name)} and deleted = 0')
-        return record, comments['results']
+    def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False, record_fields_str='*', comments_field_str='*'):
+        """
+        return {
+            'record_id': {
+                'record': record,
+                'comments': comments # if available
+            }
+        }
+        """
+        if record_fields_str != '*':
+            if '_pk' not in record_fields_str:
+                record_fields_str = '_pk, ' + record_fields_str
+            if comments_table_name:
+                if topic_id_field_name not in record_fields_str:
+                    record_fields_str = topic_id_field_name + ', ' + record_fields_str
+                if comments_field_str != '*' and topic_id_field_name not in comments_field_str:
+                    comments_field_str = topic_id_field_name + ', ' + comments_field_str
+
+        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN {tuple(record_ids)}')['results']
+        record_id_comments_map = {}
+        if comments_table_name:
+            topic_id_record_id_map = {
+                record.get(topic_id_field_name): record['_pk']
+                for record in records
+            }
+            if not has_deleted_field:
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {topic_id_field_name} IN {tuple(topic_id_record_id_map.keys())}')['results']
+            else:
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {topic_id_field_name} IN {tuple(topic_id_record_id_map.keys())} AND deleted = 0')['results']
+            for comment in comments:
+                record_id = topic_id_record_id_map[comment.get(topic_id_field_name)]
+                if record_id not in record_id_comments_map:
+                    record_id_comments_map[record_id] = []
+                record_id_comments_map[record_id].append(comment)
+
+        results = {}
+        for record in records:
+            results[record['_pk']] = {'record': record}
+            if record['_pk'] in record_id_comments_map:
+                results[record['_pk']]['comments'] = record_id_comments_map[record['_pk']]
+        
+        return results

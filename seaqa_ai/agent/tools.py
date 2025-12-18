@@ -1,8 +1,5 @@
 import logging
-import uuid
-from urllib.parse import urlparse
 from smolagents import Tool
-from seaqa_ai.utils import gen_seadb_table_name, convert_to_json_code_block
 
 logger = logging.getLogger(__name__)
 
@@ -116,18 +113,18 @@ class SearchTools(BasicTools):
         # Get current task search history
         sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
 
-        if not context['document_connection_ids'] or len(sources_results) >= self.MAX_SOURCES_COUNT:
+        if not context['document_connections'] or len(sources_results) >= self.MAX_SOURCES_COUNT:
             return {
                 'to_observation': '',
                 'to_db': []
             }
-        
+
         limit = self.MAX_SOURCES_COUNT - len(sources_results)
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
 
-        current_search_results, search_results_full_docs = self.app.ai_utils.documents_search(query, context['document_connection_ids'], context, limit, len(sources_results), True)
+        current_search_results, search_results_full_docs = self.app.ai_utils.documents_search(query, context['document_connections'], context, limit, len(sources_results))
 
         tool_executor.tool_shared_vars.update({
             'sources_results': sources_results + current_search_results
@@ -156,7 +153,7 @@ class SearchTools(BasicTools):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results, search_results_full_docs = self.app.ai_utils.issues_search(query, context['issue_connections'], context, limit, len(sources_results), True)
+        current_search_results, search_results_full_docs = self.app.ai_utils.issues_search(query, context['issue_connections'], context, limit, len(sources_results))
         tool_executor.tool_shared_vars.update({
             'sources_results': sources_results + current_search_results
         })
