@@ -305,11 +305,14 @@ class AIUtils:
         
         connection_id_type_map, connection_ids = get_connections_info(connections)
 
-        ## semantic search data
+        # keywords search data
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
-        logger.debug(f'Found {len(records)} records from vector_search with query {query}')
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
         search_results = search_records_to_map(records)
+
+        # semantic search data
+        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
+        search_results = search_records_to_map(records, search_results)
 
         # reset value of vector_retrieval_type, e.g., site connection
         project_uuid = str(uuid.UUID(project_uuid))
