@@ -71,9 +71,9 @@ class AIUtils:
             logger.error(f"Error generating ticket: {str(e)}")
             return '', ''
 
-    def generate_summary(self, connection_type, content, context):
+    def generate_summary(self, type, content, context):
         try:
-            if connection_type == 'github_issue':
+            if type == 'github_issue':
                 messages = [
                 {
                     "role": "system",
@@ -88,7 +88,7 @@ class AIUtils:
                     "content": f"""{content}"""
                 }
             ]
-            elif connection_type == 'site' or connection_type == 'seafile':
+            elif type == 'site' or type == 'seafile' or type == 'knowledge_base':
                 messages = [
                     {
                         "role": "system",
@@ -101,7 +101,7 @@ class AIUtils:
                     {"role": "user", "content": 'Summarize the following content' + content}
                 ]
 
-            elif connection_type == 'discourse_forum':
+            elif type == 'discourse_forum':
                 messages = [
                 {
                     "role": "system",
@@ -116,7 +116,7 @@ class AIUtils:
                     "content": f"""{content}"""
                 }
             ]
-            elif connection_type == 'email':
+            elif type == 'email':
                 messages = [
                 {
                     "role": "system",
