@@ -572,7 +572,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                         'post_number': comment['post_number'],
                         'content': comment['content']
                     }
-                    for comment in seadb_record_id_record_comments_map[record_id]['comments']
+                    for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
                 ]
                 search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
@@ -586,7 +586,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                         'author': comment['author'],
                         'content': comment['content']
                     }
-                    for comment in seadb_record_id_record_comments_map[record_id]['comments']
+                    for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
                 ]
                 search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
