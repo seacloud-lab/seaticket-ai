@@ -48,7 +48,7 @@ class SeaDBAPI:
         response = requests.post(url, json=post_data, headers=headers, timeout=self.timeout)
         return parse_response(response)
     
-    def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False, record_fields_str='*', comments_field_str='*'):
+    def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False, record_fields_str='*', comments_field_str='*', comments_topic_id_field_name=None):
         """
         return {
             'record_id': {
@@ -63,8 +63,11 @@ class SeaDBAPI:
             if comments_table_name:
                 if topic_id_field_name not in record_fields_str:
                     record_fields_str = topic_id_field_name + ', ' + record_fields_str
-                if comments_field_str != '*' and topic_id_field_name not in comments_field_str:
-                    comments_field_str = topic_id_field_name + ', ' + comments_field_str
+        if comments_table_name:
+            if not comments_topic_id_field_name:
+                comments_topic_id_field_name = topic_id_field_name
+            if comments_field_str != '*' and comments_topic_id_field_name not in comments_field_str:
+                comments_field_str = comments_topic_id_field_name + ', ' + comments_field_str
 
         condition_str = ", ".join([
             str(record_id) if not isinstance(record_id, str) else f'"{record_id}"'
@@ -82,11 +85,11 @@ class SeaDBAPI:
                 for topic_id in topic_id_record_id_map
             ])
             if not has_deleted_field:
-                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {topic_id_field_name} IN ({condition_str})')['results']
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str})')['results']
             else:
-                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {topic_id_field_name} IN ({condition_str}) AND deleted = 0')['results']
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND deleted = 0')['results']
             for comment in comments:
-                record_id = topic_id_record_id_map[comment.get(topic_id_field_name)]
+                record_id = topic_id_record_id_map[comment.get(comments_topic_id_field_name)]
                 if record_id not in record_id_comments_map:
                     record_id_comments_map[record_id] = []
                 record_id_comments_map[record_id].append(comment)
