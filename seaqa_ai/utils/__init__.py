@@ -444,6 +444,8 @@ def gen_seadb_table_name(connection_type, connection_id):
         return f'{connection_type}_{connection_id}', f'{connection_type}_comments_{connection_id}'
     elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
         return f'{connection_type}_{connection_id}', f'{connection_type}_replies_{connection_id}'
+    elif connection_type == ConnectionType.EMAIL.value:
+        return f'{connection_type}_{connection_id}', f'{connection_type}_thread_{connection_id}'
     return f'{connection_type}_{connection_id}', ''
 
 def search_records_to_map(search_records, search_results):
@@ -500,19 +502,27 @@ def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_m
 
     for connection_id, record_id_record_map in deepcopy(search_results).items():
         connection_type = connection_id_type_map[connection_id]
-        connection_table_name, _ = gen_seadb_table_name(connection_type, connection_id)
-        seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='ai_summary')
+        connection_table_name, comments_table_name = gen_seadb_table_name(connection_type, connection_id)
+        if connection_type == ConnectionType.EMAIL.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name, topic_id_field_name='thread_id', comments_topic_id_field_name='_pk', record_fields_str='_pk', comments_field_str='ai_summary')
+        else:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='ai_summary')
         failure_to_get_ai_summary_record_ids = []
         for record_id in record_id_record_map:
             if record_id in seadb_record_id_record_comments_map:
-                search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
-            else:
-                failure_to_get_ai_summary_record_ids.append(record_id)
-                # remove records without ai_summary
-                del search_results[connection_id][record_id]
-                if not search_results[connection_id]:
-                    # empty connection records
-                    del search_results[connection_id]
+                if connection_type == ConnectionType.EMAIL.value:
+                    if len(seadb_record_id_record_comments_map[record_id]['comments']) > 0:
+                        search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['comments'][0]['ai_summary']
+                        continue
+                else:
+                    search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
+                    continue
+            failure_to_get_ai_summary_record_ids.append(record_id)
+            # remove records without ai_summary
+            del search_results[connection_id][record_id]
+            if not search_results[connection_id]:
+                # empty connection records
+                del search_results[connection_id]
         if failure_to_get_ai_summary_record_ids:
             logger.warning(f'Unable to retrieve ai_summary: connection_id: {connection_id}, record_ids: {failure_to_get_ai_summary_record_ids}')
 
