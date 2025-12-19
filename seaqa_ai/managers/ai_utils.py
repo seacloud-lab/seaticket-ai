@@ -218,6 +218,14 @@ class AIUtils:
             validated_keys = []
             seen_keys = set()
             for key in reranked_keys:
+                # sometime ai response a dict not a str
+                if isinstance(key, dict):
+                    record_id = key.get('record_id')
+                    connection_id = key.get('connection_id')
+                    if record_id and connection_id:
+                        key = f'{record_id}:{connection_id}'
+                    else:
+                        continue
                 if key in candidate_key_set and key not in seen_keys:
                     validated_keys.append(key)
                     seen_keys.add(key)
