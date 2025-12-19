@@ -4,11 +4,16 @@ import json
 import pytz
 import re
 import ast
+import string
+import hashlib
+import urllib.parse
+from copy import deepcopy
 from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
-from seaqa_ai.config import TIME_ZONE
-from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT
+from seaqa_ai.config import TIME_ZONE, S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
+from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT, ConnectionType
+from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
@@ -58,6 +63,26 @@ def parse_response(response):
             return response.json()
         except:
             pass
+
+def url_to_filename(url):
+    """
+    Convert URL to valid filename
+    """
+    # Remove protocol prefix
+    url = re.sub(r'^https?://', '', url)
+
+    # Replace invalid characters
+    filename = urllib.parse.quote_plus(url)
+    # filename = unquote(urllib.parse.quote_plus(url))
+
+    # Ensure filename doesn't exceed maximum length limit (255 characters)
+    if len(filename) > 240:
+        # Keep beginning and end, use hash value in the middle
+        hash_part = hashlib.md5(url.encode('utf-8')).hexdigest()[:16]
+        filename = filename[:110] + '_' + hash_part + '_' + filename[-110:]
+
+    # Add .json extension
+    return filename + '.json'
 
 def extract_sources(tool_executor, reference_ids):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
@@ -377,15 +402,16 @@ def fix_reference_marks(content):
     answer = re.sub(pattern, replace_match, answer)
 
     # step 2, check each term in reference_ids is valid
-    pattern = r'[.,!?;:\"()[\]\']'
-    last_mark = answer[-1]
-    if last_mark in ('.', '。'):
+    last_char = answer[-1]
+    pattern = f"[{re.escape(string.punctuation)}]"
+    last_char_is_punctuation = bool(re.match(pattern, last_char))
+    if last_char_is_punctuation:
         answer = answer[:-1]
     for i in range(len(reference_ids)):
         if f'[Reference {i + 1}]' not in answer:
             answer += f'[Reference {i + 1}]'
-    if last_mark in ('.', '。'):
-        answer += last_mark
+    if last_char_is_punctuation:
+        answer += last_char
     
     # step 3, remove redundent [Reference n]
     pattern = re.compile(r'\[Reference (\d+)\]')
@@ -411,10 +437,154 @@ def fix_reference_marks(content):
 class LLMChatCompletionException(Exception):
     pass
 
-
 def gen_seadb_table_name(connection_type, connection_id):
-    if connection_type == 'github_issue':
+    if connection_type == ConnectionType.KNOWLEDGE_BASE.value:
+        return ConnectionType.KNOWLEDGE_BASE.value
+    elif connection_type == ConnectionType.GITHUB_ISSUE.value:
         return f'{connection_type}_{connection_id}', f'{connection_type}_comments_{connection_id}'
-    elif connection_type == 'discourse_forum':
+    elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
         return f'{connection_type}_{connection_id}', f'{connection_type}_replies_{connection_id}'
     return f'{connection_type}_{connection_id}', ''
+
+def search_records_to_map(search_records, search_results):
+    """
+    func:  Deduplication and format search_records to a map:
+    {
+        'connection_id': {
+            'record_id': record # 'record_id', i.e., _pk in seadb, _id in seaqa-indexer
+        }
+    }
+    i.e., search_results on other funcs
+    """
+    connection_id_record_id_record_map = search_results
+    candidate_key = ''
+    for record in search_records:
+        try:
+            connection_id = int(record.get('connection_id', 'unknown'))
+        except:
+            connection_id = record.get('connection_id', 'unknown')
+        if not candidate_key:
+            if '_id' in record:
+                candidate_key = '_id'
+            elif '_pk' in record:
+                candidate_key = '_pk'
+            elif 'pk' in record:
+                candidate_key = 'pk'
+            else:
+                break
+        try:
+            record_id = int(record[candidate_key])
+        except:
+            record_id = record[candidate_key]
+        if connection_id not in connection_id_record_id_record_map:
+            connection_id_record_id_record_map[connection_id] = {}
+        connection_id_record_id_record_map[connection_id][record_id] = record
+    return connection_id_record_id_record_map
+
+def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_map):
+    """
+    func: set ai_summary field
+
+    Args: 
+    search_results: a map of {
+        'connection_id': {
+            'record_id': record # 'record_id', i.e., _pk in seadb, _id in seaqa-indexer
+        }
+    }
+    connection_id_type_map: a map of {
+        'connection_id': 'connection_type'
+    }
+
+    search_results also present as return
+    """
+
+    for connection_id, record_id_record_map in deepcopy(search_results).items():
+        connection_type = connection_id_type_map[connection_id]
+        connection_table_name, _ = gen_seadb_table_name(connection_type, connection_id)
+        seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='ai_summary')
+        failure_to_get_ai_summary_record_ids = []
+        for record_id in record_id_record_map:
+            if record_id in seadb_record_id_record_comments_map:
+                search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
+            else:
+                failure_to_get_ai_summary_record_ids.append(record_id)
+                # remove records without ai_summary
+                del search_results[connection_id][record_id]
+                if not search_results[connection_id]:
+                    # empty connection records
+                    del search_results[connection_id]
+        if failure_to_get_ai_summary_record_ids:
+            logger.warning(f'Unable to retrieve ai_summary: connection_id: {connection_id}, record_ids: {failure_to_get_ai_summary_record_ids}')
+
+    return search_results
+
+def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
+    """
+    func type: output formatter
+
+    Args: 
+    search_results: a map of {
+        'connection_id': {
+            'record_id': record # 'record_id', i.e., _pk in seadb, _id in seaqa-indexer
+        }
+    }
+    connection_id_type_map: a map of {
+        'connection_id': 'connection_type'
+    }
+
+    search_results also present as return
+    """
+    for connection_id, record_id_record_map in deepcopy(search_results).items():
+        connection_type = connection_id_type_map[connection_id]
+        connection_table_name, comments_table_name = gen_seadb_table_name(connection_type, connection_id)
+        if connection_type == ConnectionType.SITE.value:
+            with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as s3_storage:
+                project_uuid_to_s3 = project_uuid.replace('-', '')
+                for record_id, record in record_id_record_map.items():
+                    search_results[connection_id][record_id]['content'] = s3_storage.read_json(
+                        site_id=connection_id,
+                        project_uuid=project_uuid_to_s3,
+                        filename=url_to_filename(record['url'])
+                    )['content']
+                    search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
+                
+        elif connection_type == ConnectionType.SEAFILE.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
+            for record_id, record in record_id_record_map.items():
+                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
+                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+        elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id', record_fields_str='_pk', comments_field_str='author, post_number, content')
+            for record_id, record in record_id_record_map.items():
+                search_results[connection_id][record_id]['comments'] = [
+                    {
+                        'author': comment['author'],
+                        'post_number': comment['post_number'],
+                        'content': comment['content']
+                    }
+                    for comment in seadb_record_id_record_comments_map[record_id]['comments']
+                ]
+                search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
+                del search_results[connection_id][record_id]['comments']
+                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
+        elif connection_type == ConnectionType.GITHUB_ISSUE.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', has_deleted_field=True, record_fields_str='content', comments_field_str='author, content')
+            for record_id, record in record_id_record_map.items():
+                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+                search_results[connection_id][record_id]['comments'] = [
+                    {
+                        'author': comment['author'],
+                        'content': comment['content']
+                    }
+                    for comment in seadb_record_id_record_comments_map[record_id]['comments']
+                ]
+                search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
+                del search_results[connection_id][record_id]['comments']
+                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
+        elif connection_type == ConnectionType.EMAIL.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
+            for record_id, record in record_id_record_map.items():
+                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
+                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+
+    return search_results

@@ -172,6 +172,12 @@ JWT_PRIVATE_KEY = configs.get('JWT_PRIVATE_KEY', '')
 # SeaDB
 SEADB_INNER_SERVER_URL = configs.get('SEADB_INNER_SERVER_URL', '')
 
+# S3
+S3_HOST = configs.get('S3_HOST')
+S3_WEB_CRAWL_BUCKET = configs.get('S3_WEB_CRAWL_BUCKET')
+S3_KEY_ID = configs.get('S3_KEY_ID')
+S3_SECRET_KEY = configs.get('S3_SECRET_KEY')
+
 SQLALCHEMY_DATABASE_URI = "mysql+pymysql://%s:%s@%s:%s/%s?charset=utf8" % \
                           (MYSQL_USER, quote_plus(MYSQL_PASSWORD), MYSQL_HOST, MYSQL_PORT, MYSQL_DB)
 

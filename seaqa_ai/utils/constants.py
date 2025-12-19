@@ -1,11 +1,8 @@
 from enum import Enum
+from seaqa_ai.config import S3_WEB_CRAWL_BUCKET
 
 MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
 EXTRA_CONTENTS_PROMPT = 'Here are some tickets or issues in Json format with title, content and comments. \n\n'
-
-class SeasearchType(Enum):
-    SITE = 'site'
-    SEAFILE = 'seafile'
 
 class ASK_MODE_PROPERTIES_MAP(Enum):
     RESOLVE_TYPE = 'ask'
@@ -23,6 +20,7 @@ class ConnectionType(Enum):
     DISCOURSE_FORUM = 'discourse_forum'
     SITE = 'site'
     SEAFILE = 'seafile'
+    KNOWLEDGE_BASE = 'knowledge_base'
 
     @classmethod
     def is_valid(cls, value):

@@ -45,7 +45,7 @@ def get_ai_reply():
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
-    document_connection_ids = data.get('document_connection_ids', [])
+    document_connections = data.get('document_connections', [])
     issue_connections = data.get('issue_connections', [])
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
@@ -55,7 +55,7 @@ def get_ai_reply():
         'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
-        'document_connection_ids': document_connection_ids,
+        'document_connections': document_connections,
         'issue_connections': issue_connections,
         'org_id': org_id,
         'message_id': message_id

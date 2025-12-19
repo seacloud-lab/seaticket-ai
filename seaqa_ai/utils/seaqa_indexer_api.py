@@ -20,7 +20,7 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def keywords_search(self, query, project_uuid, connection_ids=None, username='', count=20):
+    def keywords_search(self, query, project_uuid, connection_ids=None, username='', count=50):
         """
         keywords_search: Uses full-text indexing for searching (searching for the title and content of records). Generally used for searching documents (site & seafile).
         """
@@ -28,39 +28,45 @@ class SeaQAIndexerAPI:
             'query': query,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
-            'extra_sources': ['knowledge_base'],
-            'search_type': 'semantic_search',
             'username': username,
-            'count': count
+            'count': count,
         }
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
         url = urljoin(self.server_url, '/search')
+        time_begin = time.time()
         resp = requests.post(url, json=params, headers=headers)
+        time_end = time.time()
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
         results = resp_json.get('results', [])
+        logger.debug (f'Found {len(results)} records with query {query}, time usage: {time_end - time_begin}')
         return results
     
-    def vector_search(self, query_vector, project_uuid, connection_ids=None, count=20):
+    def vector_search(self, query, project_uuid, connection_ids=None, username='', count=50):
         """
         vector_search: Performs vector analysis on the "AI_SUMMARY" field of a record to find matching related records. It's typically used to find related Issues (github_issue, discourse_forum, email).
         """
         params = {
-            'query_vector': query_vector,
+            'query': query,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
-            'count': count
+            'search_type': 'semantic_search',
+            'username': username,
+            'count': count,
         }
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
-        url = urljoin(self.server_url, '/summary_vector_search')
+        url = urljoin(self.server_url, '/search')
+        time_begin = time.time()
         resp = requests.post(url, json=params, headers=headers)
+        time_end = time.time()
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
         results = resp_json.get('results', [])
+        logger.debug (f'Found {len(results)} records with query {query}, time usage: {time_end - time_begin}')
         return results
