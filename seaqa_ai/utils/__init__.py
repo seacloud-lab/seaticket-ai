@@ -498,14 +498,19 @@ def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_m
     search_results also present as return
     """
 
-    for connection_id, record_ids in deepcopy(search_results).items():
-        if not record_ids:
-            continue
+    for connection_id, record_id_record_map in deepcopy(search_results).items():
         connection_type = connection_id_type_map[connection_id]
         connection_table_name, _ = gen_seadb_table_name(connection_type, connection_id)
-        seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_ids, connection_table_name, record_fields_str='ai_summary')
-        for record_id, record_comments_map in seadb_record_id_record_comments_map.items():
-            search_results[connection_id][record_id]['ai_summary'] = record_comments_map['record']['ai_summary']
+        seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='ai_summary')
+        for record_id in record_id_record_map:
+            if record_id in seadb_record_id_record_comments_map:
+                search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
+            else:
+                # remove records without ai_summary
+                del search_results[connection_id][record_id]
+                if not search_results[connection_id]:
+                    # empty connection records
+                    del search_results[connection_id]
 
     return search_results
 
