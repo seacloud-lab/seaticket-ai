@@ -12,7 +12,7 @@ from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT, ConnectionType, SUPPORT_VECTOR_RETRIEVAL_TYPES
+from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT, ConnectionType
 from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
@@ -437,20 +437,6 @@ def fix_reference_marks(content):
 class LLMChatCompletionException(Exception):
     pass
 
-def get_connections_info(connections):
-    """
-    returns connection_id_type_map, connection_ids
-    """
-    connection_ids = ''
-    connection_id_type_map = {}
-    for connection in connections:
-        connection_ids += str(connection['id']) + ','
-        connection_id_type_map[connection['id']] = connection['type']
-    if connection_ids:
-        connection_ids = connection_ids[:-1]
-    connection_id_type_map['unknown'] = ConnectionType.KNOWLEDGE_BASE.value
-    return connection_id_type_map, connection_ids
-
 def gen_seadb_table_name(connection_type, connection_id):
     if connection_type == ConnectionType.KNOWLEDGE_BASE.value:
         return ConnectionType.KNOWLEDGE_BASE.value
@@ -460,7 +446,7 @@ def gen_seadb_table_name(connection_type, connection_id):
         return f'{connection_type}_{connection_id}', f'{connection_type}_replies_{connection_id}'
     return f'{connection_type}_{connection_id}', ''
 
-def search_records_to_map(search_records, search_results={}):
+def search_records_to_map(search_records, search_results):
     """
     func:  Deduplication and format search_records to a map:
     {
@@ -512,33 +498,18 @@ def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_m
     search_results also present as return
     """
 
-    # Step 1: find the records missing ai_summary
-    vr_connection_id_record_ids_map = {}
-    for connection_id, record_id_record_map in deepcopy(search_results).items():
-        if connection_id_type_map[connection_id] in SUPPORT_VECTOR_RETRIEVAL_TYPES:
-            vr_connection_id_record_ids_map[connection_id] = [
-                record_id
-                for record_id, record in record_id_record_map.items() if 'ai_summary' not in record or not record['ai_summary']
-            ]
-        else:
-            for record_id, record in record_id_record_map.items():
-                # in semantic search, record['content'] -> ai_summary, but ai_summary field needs in ranking_relevance
-                search_results[connection_id][record_id]['ai_summary'] = record['content']
-    
-    # Step 2: update ai_summary
-    for connection_id, record_ids in vr_connection_id_record_ids_map.items():
+    for connection_id, record_ids in deepcopy(search_results).items():
         if not record_ids:
             continue
         connection_type = connection_id_type_map[connection_id]
         connection_table_name, _ = gen_seadb_table_name(connection_type, connection_id)
-        if connection_type == ConnectionType.SITE.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_ids, connection_table_name, record_fields_str='ai_summary')
-            for record_id, record_comments_map in seadb_record_id_record_comments_map.items():
-                search_results[connection_id][record_id]['ai_summary'] = record_comments_map['record']['ai_summary']
+        seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_ids, connection_table_name, record_fields_str='ai_summary')
+        for record_id, record_comments_map in seadb_record_id_record_comments_map.items():
+            search_results[connection_id][record_id]['ai_summary'] = record_comments_map['record']['ai_summary']
 
     return search_results
 
-def get_source_results_from_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
+def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
     """
     func type: output formatter
 

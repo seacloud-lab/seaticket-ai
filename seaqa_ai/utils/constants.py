@@ -25,7 +25,3 @@ class ConnectionType(Enum):
     @classmethod
     def is_valid(cls, value):
         return value in {item.value for item in cls}
-    
-SUPPORT_VECTOR_RETRIEVAL_TYPES = {
-    ConnectionType.SITE.value
-}

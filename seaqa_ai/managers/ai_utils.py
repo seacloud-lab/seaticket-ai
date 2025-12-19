@@ -1,7 +1,8 @@
 import logging
 import json_repair
 import uuid
-from seaqa_ai.utils import get_source_results_from_search_results, set_ai_summary, search_records_to_map, get_connections_info
+from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map
+from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
 
@@ -264,7 +265,7 @@ class AIUtils:
                 search_result_after_ranked[connection_id][record_id] = search_result[connection_id][record_id]
         
         # get source results for records after ranked
-        search_result_after_ranked = get_source_results_from_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
+        search_result_after_ranked = retrieve_content_of_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
 
         # to final result
         search_results = []
@@ -277,17 +278,24 @@ class AIUtils:
             search_results.append(doc)
 
         return search_results, references_docs
-        
-
-    def documents_search(self, query, connections, context, limit=100, current_ref_num=0):
+    
+    def search(self, query, connections, context, limit=100, current_ref_num=0):
         if limit <= 0:
             return [], ''
-        connection_id_type_map, connection_ids = get_connections_info(connections)
+
+        connection_ids = ''
+        connection_id_type_map = {}
+        for connection in connections:
+            connection_ids += str(connection['id']) + ','
+            connection_id_type_map[connection['id']] = connection['type']
+        if connection_ids:
+            connection_ids = connection_ids[:-1]
+        connection_id_type_map['unknown'] = ConnectionType.KNOWLEDGE_BASE.value
 
         # keywords search data
         project_uuid = context['project_uuid']
         records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
-        search_results = search_records_to_map(records)
+        search_results = search_records_to_map(records, {})
 
         # semantic search data
         records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
@@ -298,25 +306,3 @@ class AIUtils:
         search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
 
         return self._rank_search_result_and_format_search_output(query, search_results, context, limit, project_uuid, connection_id_type_map, current_ref_num)
-
-    def issues_search(self, query, connections, context, limit=100, current_ref_num=0):
-        if limit <= 0:
-            return [], ''
-        
-        connection_id_type_map, connection_ids = get_connections_info(connections)
-
-        # keywords search data
-        project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
-        search_results = search_records_to_map(records)
-
-        # semantic search data
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
-        search_results = search_records_to_map(records, search_results)
-
-        # reset value of vector_retrieval_type, e.g., site connection
-        project_uuid = str(uuid.UUID(project_uuid))
-        search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
-        
-        # rank relevance
-        return self._rank_search_result_and_format_search_output(query, search_results, context, limit, str(uuid.UUID(project_uuid)), connection_id_type_map, current_ref_num)
