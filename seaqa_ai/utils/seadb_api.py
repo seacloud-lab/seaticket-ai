@@ -87,7 +87,7 @@ class SeaDBAPI:
             if not has_deleted_field:
                 comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str})')['results']
             else:
-                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND deleted = 0')['results']
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND deleted = false AND deleted IS NULL')['results']
             for comment in comments:
                 record_id = topic_id_record_id_map[comment.get(comments_topic_id_field_name)]
                 if record_id not in record_id_comments_map:
