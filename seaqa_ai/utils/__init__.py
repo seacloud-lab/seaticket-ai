@@ -366,6 +366,14 @@ def fix_reference_marks(content):
             'reference_ids': []
         }
 
+    # skip processing if answer contains <seaqa-markdown> tag, but remove [Reference n] marks
+    if '</seaqa-markdown>' in answer:
+        answer = re.sub(r'\[Reference\s*\d+\]', '', answer)
+        return {
+            'answer': answer,
+            'reference_ids': reference_ids
+        }
+
     # step 1, detach each term from combined reference marks (e.g., [Reference 1, Reference 2] to [Reference 1][Reference 2])
     pattern = r'\[Reference\s*([^\]]+)\]'
     def replace_match(match):
