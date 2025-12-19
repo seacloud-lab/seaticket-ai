@@ -511,8 +511,10 @@ def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_m
         for record_id in record_id_record_map:
             if record_id in seadb_record_id_record_comments_map:
                 if connection_type == ConnectionType.EMAIL.value:
-                    if len(seadb_record_id_record_comments_map[record_id]['comments']) > 0:
-                        search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['comments'][0]['ai_summary']
+                    thread = seadb_record_id_record_comments_map[record_id].get('comments', [])
+                    if len(thread) > 0:
+                        thread = thread[0]
+                        search_results[connection_id][record_id]['ai_summary'] = thread['ai_summary']
                         continue
                 else:
                     search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
