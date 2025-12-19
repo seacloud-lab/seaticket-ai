@@ -66,13 +66,21 @@ class SeaDBAPI:
                 if comments_field_str != '*' and topic_id_field_name not in comments_field_str:
                     comments_field_str = topic_id_field_name + ', ' + comments_field_str
 
-        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN {tuple(record_ids)}')['results']
+        condition_str = ", ".join([
+            str(record_id) if not isinstance(record_id, str) else f'"{record_id}"'
+            for record_id in record_ids
+        ])
+        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN ({condition_str})')['results']
         record_id_comments_map = {}
         if comments_table_name:
             topic_id_record_id_map = {
                 record.get(topic_id_field_name): record['_pk']
                 for record in records
             }
+            condition_str = ", ".join([
+                str(topic_id) if not isinstance(topic_id, str) else f'"{topic_id}"'
+                for topic_id in topic_id_record_id_map
+            ])
             if not has_deleted_field:
                 comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {topic_id_field_name} IN {tuple(topic_id_record_id_map.keys())}')['results']
             else:
