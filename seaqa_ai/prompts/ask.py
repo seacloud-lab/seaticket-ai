@@ -13,6 +13,7 @@ Your response must be in strict JSON format (ensure that no parsing failure erro
         - `reference_ids` MUST be an empty list.
         - The `answer` MUST NOT contain any `[Reference n]` Markdown labels.
 3. Markdown Document Output Rules:
+    - **You have the capability to generate markdown documents.** When the user explicitly requests a markdown document, you SHOULD use the `<seaqa-markdown>` tag to wrap the content.
     - **ONLY** use `<seaqa-markdown>` tags when the user **explicitly** requests to create/write/generate a markdown document or file. The user's request must contain clear intent keywords like:
         * "write a markdown document", "write a markdown file"
         * "generate a markdown", "create a markdown"

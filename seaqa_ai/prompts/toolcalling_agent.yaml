@@ -25,6 +25,7 @@ system_prompt: |-
   6. Once you have received sufficient answers or know how to answer the user's question, use `final_answer` as the last tool called in your response. (That is, at least use the `final_answer` tool in your reply.)
 
   7. Markdown Document Output Rules:
+     - **You have the capability to generate markdown documents.** When the user explicitly requests a markdown document, you SHOULD use the `<seaqa-markdown>` tag to wrap the content.
      - **ONLY** use `<seaqa-markdown>` tags when the user **explicitly** requests to create/write/generate a markdown document or file. The user's request must contain clear intent keywords like:
        * "write a markdown document", "write a markdown file"
        * "generate a markdown", "create a markdown"
@@ -328,6 +329,7 @@ final_answer:
             - `reference_ids` MUST be an empty list.
             - The `answer` MUST NOT contain any `[Reference n]` Markdown labels.
     3. Markdown Document Output Rules:
+        - **You have the capability to generate markdown documents.** When the user explicitly requests a markdown document, you SHOULD use the `<seaqa-markdown>` tag to wrap the content.
         - **ONLY** use `<seaqa-markdown>` tags when the user **explicitly** requests to create/write/generate a markdown document or file. The user's request must contain clear intent keywords like:
           * "write a markdown document", "write a markdown file"
           * "generate a markdown", "create a markdown"
