@@ -235,7 +235,7 @@ class AIUtils:
             logger.error(f"Error ranking related records: {e}")
             raise
 
-    def _rank_search_result_and_format_search_output(self, query, search_result, context, limit, project_uuid, connection_id_type_map, current_ref_num):
+    def _rank_search_results(self, query, search_result, context, limit, project_uuid, connection_id_type_map):
         """
         search_results: a map of {
             'connection_id': {
@@ -275,19 +275,9 @@ class AIUtils:
         # get source results for records after ranked
         search_result_after_ranked = retrieve_content_of_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        # to final result
-        search_results = []
-        references_docs = ''
-        for rank_pair in rank_pairs:
-            current_ref_num += 1
-            doc = search_result_after_ranked[rank_pair['connection_id']][rank_pair['record_id']]
-            references_docs += f"===== Reference {current_ref_num} ===== Title: {doc.get('title', '')} =====\n{doc.get('content', '')}\n\n"
-            del doc['content']
-            search_results.append(doc)
-
-        return search_results, references_docs
+        return search_result_after_ranked
     
-    def search(self, query, connections, context, limit=100, current_ref_num=0):
+    def search(self, query, connections, context, limit=100):
         if limit <= 0:
             return [], ''
 
@@ -313,4 +303,12 @@ class AIUtils:
         project_uuid = str(uuid.UUID(project_uuid))
         search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        return self._rank_search_result_and_format_search_output(query, search_results, context, limit, project_uuid, connection_id_type_map, current_ref_num)
+        search_results = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map)
+
+        # reformat to list
+        sources_results = []
+        for record_id_record_map in search_results.values():
+            for record in record_id_record_map.values():
+                sources_results.append(record)
+        
+        return sources_results

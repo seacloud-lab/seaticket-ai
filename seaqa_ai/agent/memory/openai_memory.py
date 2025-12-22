@@ -1,5 +1,5 @@
 import json
-from seaqa_ai.utils import object_to_json_str, combine_extra_contents_to_message
+from seaqa_ai.utils import object_to_json_str, combine_extra_contents_to_message, retrieve_origin_reference_format
 
 class OpenAIMemory:
     """
@@ -72,9 +72,6 @@ class OpenAIMemory:
             if 'id' in step: # db record
                 new_step = {
                     'role': step['role'],
-                    'content': json.dumps({
-                        'answer': step['content'],
-                        'references': step['sources']
-                    }) if step['role'] == 'assistant' else combine_extra_contents_to_message(step['extra_contents'], step['content'])
+                    'content': retrieve_origin_reference_format(step['content'], step['sources']) if step['role'] == 'assistant' else combine_extra_contents_to_message(step['extra_contents'], step['content'])
                 }
             yield new_step

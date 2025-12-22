@@ -1,7 +1,6 @@
 import json
 import inspect
 import smolagents
-from seaqa_ai.agent.tools import FinalAnswerTool
 
 _tool_type_python_type_map = {
     "string": "str",
@@ -88,7 +87,7 @@ class FunctionCallingToolExecutor(BasicToolExecutor):
         return self.tools[name]['func'](**params)
 
 class SmolAgentsToolExecutor(BasicToolExecutor):
-    tools = [FinalAnswerTool()]
+    tools = [smolagents.FinalAnswerTool()]
 
     def _register(self, func, tool_name, tool_description, tool_parms_properties, need_tool_executor, **constant_kwargs):
         parms_str = ''
@@ -220,7 +219,7 @@ class tool_{tool_name}(Tool):
         return self._register(func, tool_name, tool_description, tool_parms_properties, need_tool_executor, **constant_kwargs_after_filter)
 
     def clean(self):
-        self.tools = [FinalAnswerTool()]
+        self.tools = [smolagents.FinalAnswerTool()]
 
     def register(self, func, tool_info, **constant_kwargs):
         self.tools.append(self._register_tool(func, tool_info, **constant_kwargs))
