@@ -4,6 +4,7 @@ import importlib
 import json
 import uuid
 import datetime
+import copy
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT

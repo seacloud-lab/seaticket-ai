@@ -369,10 +369,22 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
     
     return chunks
 
+def retrieve_origin_reference_format(content, sources):
+    """
+    Restore the original reference format to avoid context errors.
+    """
+    if sources:
+        content += '\n\n\nThe following information is for context only (not exist in your original answer and is for reference only)!!! Do not output this as part of the formatting in subsequent turns:\n'
+        for i, source in enumerate(sources):
+            content = content.replace(f'[Reference {i + 1}]', f'<reference_{i}>')
+            content += f'<reference_{i}>: [{source.get("title", source.get("url"))}]({source.get("url", "#")})\n'
+
+    return content
+
 def get_answer_and_sources(tool_executor, content):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
 
-    # remove redundent <Reference_n>
+    # remove redundent <reference_n> and [Reference n] (format error)
     pattern = re.compile(r'\<reference_(\d+)\>')
     replacer = lambda match: match.group(0) if int(match.group(1)) in range(len(sources_results)) else ''
     content = pattern.sub(replacer, content)

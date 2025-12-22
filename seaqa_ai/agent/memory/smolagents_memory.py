@@ -1,7 +1,6 @@
-import json
 from smolagents.memory import MemoryStep, AgentMemory
 from smolagents.models import ChatMessage, MessageRole
-from seaqa_ai.utils import object_to_json_str, combine_extra_contents_to_message
+from seaqa_ai.utils import object_to_json_str, combine_extra_contents_to_message, retrieve_origin_reference_format
 
 class SmolAgentsMemoryStep(MemoryStep):
     """
@@ -25,10 +24,7 @@ class SmolAgentsMemoryStep(MemoryStep):
             result = [ChatMessage(role=MessageRole.ASSISTANT, content=[{
                 'date': self.record['created_at'],
                 'type': 'text',
-                'text': json.dumps({
-                    'answer': self.record['content'],
-                    'references': self.record['sources']
-                })
+                'text': retrieve_origin_reference_format(self.record['content'], self.record['sources'])
             }])]
         return result
 
