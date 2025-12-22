@@ -4,7 +4,6 @@ import json
 import pytz
 import re
 import ast
-import string
 import hashlib
 import urllib.parse
 from copy import deepcopy
@@ -50,7 +49,7 @@ def parse_json(json_str):
             try:
                 json_obj = ast.literal_eval(json_str)
             except Exception as e:
-                logger.warning(f'Failure to parse to json {e}')
+                
                 return json_str
         return json_obj
     return json_str
@@ -83,14 +82,6 @@ def url_to_filename(url):
 
     # Add .json extension
     return filename + '.json'
-
-def extract_sources(tool_executor, reference_ids):
-    sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
-    sources = []
-    for index in reference_ids:
-        if isinstance(index, int) and index < len(sources_results):
-            sources.append(sources_results[index])
-    return sources
 
 def object_to_json_str(obj):
     result = obj
@@ -292,7 +283,7 @@ def smolagent_steps_to_thought_process(memory_steps):
                         'total_tokens': step['token_usage']['total_tokens'],
                     },
                     'time_usage': step['timing']['duration'],
-                    'result': step['action_output'] if error else step['observations']
+                    'result': object_to_json_str(step['action_output'] if error else step['observations'])
                 })
                 if error:
                     results['actions'][-1]['error'] = {
@@ -303,7 +294,7 @@ def smolagent_steps_to_thought_process(memory_steps):
             else:
                 # final answer
                 result = step['action_output'] if error else step['observations']
-                result = object_to_json_str(result)
+                result = result
 
                 answer_input_tokens = step['token_usage']['input_tokens']
                 answer_output_tokens = step['token_usage']['output_tokens']
@@ -378,61 +369,35 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
     
     return chunks
 
-def fix_reference_marks(content):
-    """
-    content: Dict{answer, reference_ids}
-    """
+def get_answer_and_sources(tool_executor, content):
+    sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
 
-    answer = content.get('answer', '')
-    reference_ids = content.get('reference_ids', [])
-    if not answer:
-        return {
-            'answer': 'Operations completed',
-            'reference_ids': []
-        }
+    # remove redundent <Reference_n>
+    pattern = re.compile(r'\<reference_(\d+)\>')
+    replacer = lambda match: match.group(0) if int(match.group(1)) in range(len(sources_results)) else ''
+    content = pattern.sub(replacer, content)
 
-    # step 1, detach each term from combined reference marks (e.g., [Reference 1, Reference 2] to [Reference 1][Reference 2])
-    pattern = r'\[Reference\s*([^\]]+)\]'
-    def replace_match(match):
-        content = match.group(1).strip()
-        references = [ref.strip() for ref in content.split(',')]
-        references = [ref for ref in references if ref]
-        return ''.join(f'[Reference {ref}]' for ref in references)
-
-    answer = re.sub(pattern, replace_match, answer)
-
-    # step 2, check each term in reference_ids is valid
-    last_char = answer[-1]
-    pattern = f"[{re.escape(string.punctuation)}]"
-    last_char_is_punctuation = bool(re.match(pattern, last_char))
-    if last_char_is_punctuation:
-        answer = answer[:-1]
-    for i in range(len(reference_ids)):
-        if f'[Reference {i + 1}]' not in answer:
-            answer += f'[Reference {i + 1}]'
-    if last_char_is_punctuation:
-        answer += last_char
+    # convert <reference_n> -> [Reference i]
+    ## first_position_map -> {first_position: <reference>}
+    first_position_map = {}
+    for i in range(len(sources_results)):
+        position = content.find(f'<reference_{i}>')
+        if position != -1:
+            first_position_map[position] = f'<reference_{i}>'
     
-    # step 3, remove redundent [Reference n]
-    pattern = re.compile(r'\[Reference (\d+)\]')
-    replacer = lambda match: match.group(0) if int(match.group(1)) in range(1, 1 + len(reference_ids)) else ''
-    answer = pattern.sub(replacer, answer)
-
-    # step 4, remove invalid reference mark
-    pattern = r'\[Reference\s+([^\]]+)\]'
-    def replace_match(match):
-        ref_content = match.group(1).strip()
-        if ref_content.isdigit() and not ref_content.startswith('0'):
-            return match.group(0)
-        else:
-            return ''
-    
-    answer = re.sub(pattern, replace_match, answer)
-
-    return {
-        'answer': answer,
-        'reference_ids': reference_ids
+    ## replaces_map -> {<reference_n>: [Reference i]}
+    replaces_map = {
+        first_position_map[position]: f'[Reference {i + 1}]'
+        for i, position in enumerate(sorted(first_position_map))
     }
+
+    sources = []
+    for origin, target in replaces_map.items():
+        content = content.replace(origin, target)
+        sources_index = int(origin.split('_')[1][:-1])
+        sources.append(sources_results[sources_index])
+
+    return content, sources
 
 class LLMChatCompletionException(Exception):
     pass
@@ -576,7 +541,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                     }
                     for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
                 ]
-                search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
+                search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
                 search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
         elif connection_type == ConnectionType.GITHUB_ISSUE.value:
@@ -590,7 +555,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                     }
                     for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
                 ]
-                search_results[connection_id][record_id]['content'] = convert_to_json_code_block(search_results[connection_id][record_id])
+                search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
                 search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
         elif connection_type == ConnectionType.EMAIL.value:

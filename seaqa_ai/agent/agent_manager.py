@@ -13,8 +13,8 @@ from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, extract_sources, object_to_json_str, localize_time, \
-    convert_to_json_code_block, fix_reference_marks, clean_json_markdown
+from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, object_to_json_str, localize_time, \
+    convert_to_json_code_block, get_answer_and_sources
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -68,14 +68,7 @@ class AgentManager:
                 if model_output:
                     msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
 
-            output = parse_json(clean_json_markdown(agent_output.output))
-            if not isinstance(output, dict):
-                output = {
-                    'answer': output,
-                    'reference_ids': []
-                }
-
-            output = fix_reference_marks(output)
+            answer, sources = get_answer_and_sources(tool_executor, agent_output.output)
 
             for message in agent_output.messages:
                 if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
@@ -98,9 +91,9 @@ class AgentManager:
                         db_session.commit()
 
             return {
-                'answer': output.get('answer', ''),
+                'answer': answer,
                 'thought_process': smolagent_steps_to_thought_process(agent_output.messages),
-                'sources': extract_sources(tool_executor, output['reference_ids'])
+                'sources':sources
             }
 
         # ask mode
@@ -199,55 +192,33 @@ class AgentManager:
                         temperature=temperature,
                         model=model
                     ).choices[0].message.content
+
             else:
                 content = response.content
 
-            memory += {
-                'role': 'assistant',
-                'content': content
-            }
-
-            content = parse_json(clean_json_markdown(content))
-            if not isinstance(content, dict):
-                content = {
-                    'answer': content,
-                    'reference_ids': []
-                }
-
-            if 'answer' not in content:
-                content = {
-                    'answer': 'Error: bad response. Please select another model or try again using Agent mode.',
-                    'reference_ids': []
-                }
-            elif not isinstance(content['answer'], str):
-                content['answer'] = json.dumps(content['answer'])
-
             # filter invalid references
-            content = fix_reference_marks(content)
+            answer, sources = get_answer_and_sources(tool_executor, content)
 
             # result to thought process
-            thought_process['result'] = object_to_json_str(content)
+            thought_process['result'] = content
             
             with self.db_session_class() as db_session:
                 record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
                 if record:
                     new_tool_calls = record.to_dict()['tool_calls']
-                    new_tool_calls['result'] = object_to_json_str(content)
+                    new_tool_calls['result'] = content
                     record.tool_calls = json.dumps(new_tool_calls)
                 else:
                     record = ChatToolCalls(session_uuid, message_id, {
-                        'result': object_to_json_str(content)
+                        'result': content
                     })
                     db_session.add(record)
                 db_session.commit()
-            
-            if not isinstance(content['answer'], str):
-                content['answer'] = json.dumps(content['answer'])
 
             return {
-                'answer': content.get('answer', ''),
+                'answer': answer,
                 'thought_process': thought_process,
-                'sources': extract_sources(tool_executor, content.get('reference_ids', []))
+                'sources': sources
             }
 
         else:
