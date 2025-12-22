@@ -4,7 +4,6 @@ import importlib
 import json
 import uuid
 import datetime
-import copy
 from smolagents.monitoring import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT
@@ -44,7 +43,7 @@ class AgentManager:
                 ),
                 tools=tool_executor.tools,  # List of tools available to the agent
                 model=server_model,
-                max_steps=3,  # Limit the number of reasoning steps
+                max_steps=5,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
