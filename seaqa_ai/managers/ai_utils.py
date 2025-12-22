@@ -131,6 +131,23 @@ class AIUtils:
                     "content": f"""{content}"""
                 }
             ]
+            elif type == 'ticket':
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a ticket analysis expert. A ticket​ is a recorded unit of work​ that is created to track a request, "
+                            "an issue, a task, or an incident​ from its initiation to completion. Read the ticket's title and body, then craft a "
+                            "single-sentence English summary describing the core topic or request. Keep it concise (no more "
+                            "than 100 characters) and return only that sentence without extra commentary or formatting."  
+                        )                      
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"""{content}"""
+                    }
+                ]
+            
 
             response = self.llm_api.completion(
                 messages=messages,
