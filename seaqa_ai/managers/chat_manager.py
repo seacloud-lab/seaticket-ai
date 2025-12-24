@@ -1,6 +1,7 @@
 import logging
 from seaqa_ai.config import get_model_config_by_id
-from seaqa_ai.agent.tools import SearchTools
+from seaqa_ai.agent.tools.content_generators import ContentGenerators
+from seaqa_ai.agent.tools.search_tools import SearchTools
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from smolagents.models import LiteLLMModel
@@ -12,6 +13,7 @@ class ChatManager:
     def __init__(self, app):
         self.app = app
         self.search_tools = SearchTools(app)
+        self.content_generators = ContentGenerators(app)
 
     def get_ai_reply(self, resolve_type, message, attachments, context, model):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
@@ -27,6 +29,7 @@ class ChatManager:
         """
         tool_executor = FunctionCallingToolExecutor()
         self.search_tools.registers(tool_executor, context=context)
+        self.content_generators.registers(tool_executor)
 
         model_config = get_model_config_by_id(model)
         temperature = 1 if 'gpt-5' in model_config['model'] else 0.1
@@ -52,6 +55,7 @@ class ChatManager:
     def _gen_ans_agent(self, message, attachments, context, model=None):
         tool_executor = SmolAgentsToolExecutor()
         self.search_tools.registers(tool_executor, context=context)
+        self.content_generators.registers(tool_executor)
 
         model_config = get_model_config_by_id(model)
 

@@ -118,13 +118,13 @@ class SmolAgentsToolExecutor(BasicToolExecutor):
 
             default_value = json.loads(parm_info["default"])
             if isinstance(default_value, str):
-                default_value = '"' + default_value + '"'
+                default_value = '"""' + default_value + '"""'
 
             parms_str += f', {parm_name}: {parm_type}={default_value}'
             call_parms_str += f', {parm_name}={parm_name}'
 
         for kw_name, kw_value in constant_kwargs.items():
-            constant_kwargs_str += f', {kw_name}={kw_value if not isinstance(kw_value, str) else "\"" + kw_value + "\""}'
+            constant_kwargs_str += f', {kw_name}={kw_value if not isinstance(kw_value, str) else "\"\"\"" + kw_value + "\"\"\""}'
 
         tool_executor_str = ''
         if need_tool_executor:
