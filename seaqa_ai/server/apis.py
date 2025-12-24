@@ -208,14 +208,14 @@ def generate_summary():
     except Exception as e:
         return {'error_msg': 'Bad request.'}, 400
 
-    connection_type = data.get('connection_type')
+    type = data.get('type')
     include_vector = data.get('include_vector', False)
     username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
 
-    if not connection_type:
-        return {'error_msg': 'connection_type invalid.'}, 400
+    if not type:
+        return {'error_msg': 'type invalid.'}, 400
     if not content:
         return {'error_msg': 'content invalid'}, 400 
     if not username:
@@ -228,7 +228,7 @@ def generate_summary():
         'project_uuid': project_uuid
     }
     try:
-        summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context)
+        summary = flask_app.app.ai_utils.generate_summary(type, content, context)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
             embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(summary, context)
