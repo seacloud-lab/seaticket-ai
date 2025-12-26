@@ -327,4 +327,4 @@ final_answer:
     Based on the above, please provide an answer to the following user task:
     {{task}}
 
-    Unless otherwise stated, if you used search tools and believe they provided valuable information for answering user questions, please insert the value of the "label" field from the search tool's search results into the appropriate place in your final answer (usually in the format "<reference_xxx>", such as "<reference_0>", "<reference_1>")
+    Unless otherwise stated, if you used search tools and believe they provided valuable information for answering user questions, please insert the value of the "label" field from the search tool's search results into the appropriate place in your final answer (usually in the format "<reference_xxx>", such as "<reference_0>", "<reference_1>"). On the other hand, if you use content generator tools, do not attempt to make any changes to their output (includes HTML tags and their content) in your final answer.
