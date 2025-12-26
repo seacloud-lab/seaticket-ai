@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import json
 from urllib.parse import quote_plus
 import yaml
 
@@ -56,7 +57,14 @@ class _ConfigParser(object):
     
     @_check_type
     def get(self, key, default=None):
-        return os.getenv(key) if key in os.environ else self.yaml_configs.get(key, default)
+        if key in os.environ:
+            value = os.getenv(key)
+            try:
+                value = json.loads(value)
+            except:
+                pass
+            return value
+        return self.yaml_configs.get(key, default)
 
 
 CONF_DIR = os.getenv('CONF_PATH', '/opt/seaqa/conf/')
