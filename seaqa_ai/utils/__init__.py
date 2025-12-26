@@ -421,7 +421,8 @@ def retrieve_origin_reference_format(content, sources):
 
     return content
 
-def clean_markdown_references(content, sources_len):
+def clean_markdown_references(content, sources):
+    sources_len = len(sources)
     md_blocks = content.split('<seaqa-markdown')
     result = md_blocks[0]
     for md_block in md_blocks[1:]:
@@ -429,7 +430,11 @@ def clean_markdown_references(content, sources_len):
         for i in range(sources_len):
             md_content = md_content.replace(f'[Reference {i + 1}]', '')
         result += '<seaqa-markdown' + md_content + '</seaqa-markdown>' + end_fix
-    return result
+    
+    for i in reversed(range(sources_len)):
+        if f'[Reference {i + 1}]' not in result:
+            del sources[i]
+    return result, sources
 
 def get_answer_and_sources(tool_executor, content):
     sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
@@ -459,7 +464,7 @@ def get_answer_and_sources(tool_executor, content):
         sources_index = int(origin.split('_')[1][:-1])
         sources.append(sources_results[sources_index])
     
-    content = clean_markdown_references(content, len(sources))
+    content, sources = clean_markdown_references(content, sources)
 
     return content, sources
 
