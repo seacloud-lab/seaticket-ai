@@ -557,7 +557,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                 del search_results[connection_id][record_id]['comments']
                 search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
         elif connection_type == ConnectionType.GITHUB_ISSUE.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', has_deleted_field=True, record_fields_str='content', comments_field_str='author, content')
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', record_fields_str='content', comments_field_str='author, content')
             for record_id, record in record_id_record_map.items():
                 search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
                 search_results[connection_id][record_id]['comments'] = [
