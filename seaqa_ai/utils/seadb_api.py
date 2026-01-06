@@ -73,7 +73,7 @@ class SeaDBAPI:
             str(record_id) if not isinstance(record_id, str) else f'"{record_id}"'
             for record_id in record_ids
         ])
-        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN ({condition_str})')['results']
+        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN ({condition_str}) AND (`deleted` = False OR `deleted` IS NULL)')['results']
         record_id_comments_map = {}
         if comments_table_name:
             topic_id_record_id_map = {
