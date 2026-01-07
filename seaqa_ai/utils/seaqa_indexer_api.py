@@ -20,7 +20,7 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def keywords_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=50):
+    def keywords_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25):
         """
         keywords_search: Uses full-text indexing for searching (searching for the title and content of records). Generally used for searching documents (site & seafile).
         """
@@ -46,7 +46,7 @@ class SeaQAIndexerAPI:
         logger.debug (f'Found {len(results)} records with query {query}, time usage: {time_end - time_begin}')
         return results
     
-    def vector_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=50):
+    def vector_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25):
         """
         vector_search: Performs vector analysis on the "AI_SUMMARY" field of a record to find matching related records. It's typically used to find related Issues (github_issue, discourse_forum, email).
         """
