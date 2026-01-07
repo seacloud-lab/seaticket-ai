@@ -11,7 +11,7 @@ from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils.constants import EXTRA_CONTENTS_PROMPT, ConnectionType
+from seaqa_ai.utils.constants import ConnectionType, NonConnectionType, ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
@@ -96,12 +96,45 @@ def convert_to_json_code_block(obj):
         return result
     return obj
 
-def combine_extra_contents_to_message(extra_contents, message):
-    if extra_contents:
-        return EXTRA_CONTENTS_PROMPT + convert_to_json_code_block(extra_contents) + f'\n\n' + message
-    return message
+def combine_attachments_to_message(attachments, message):
+    document_attachments = []
+    issues_attachments = []
 
-def smolagent_steps_to_thought_process(memory_steps):
+    for attachment in attachments:
+        if attachment['type'] in ATTACHMENTS_TYPE.DOCUMENTS.value:
+            document_attachments.append(attachment)
+        elif attachment['type'] in ATTACHMENTS_TYPE.ISSUES.value:
+            issues_attachments.append(attachment)
+    
+    final_message = ''
+    if document_attachments:
+        final_message += ATTACHMENTS_PROMPTS.DOCUMENTS.value + convert_to_json_code_block(document_attachments) + '\n\n'
+
+    if issues_attachments:
+        final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments) + '\n\n'
+
+    return final_message + message
+
+def format_thought_process_user_input(attachments, message):
+    document_attachments = []
+    issues_attachments = []
+
+    for attachment in attachments:
+        if attachment['type'] in ATTACHMENTS_TYPE.DOCUMENTS.value:
+            document_attachments.append(attachment)
+        elif attachment['type'] in ATTACHMENTS_TYPE.ISSUES.value:
+            issues_attachments.append(attachment)
+    
+    final_message = ''
+    if document_attachments:
+        final_message += ATTACHMENTS_PROMPTS.DOCUMENTS.value + convert_to_json_code_block(document_attachments)
+
+    if issues_attachments:
+        final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments)
+
+    return final_message + message
+
+def smolagent_steps_to_thought_process(memory_steps, message, attachments):
     """
     # Format output of agent memory_steps
 
@@ -129,7 +162,11 @@ def smolagent_steps_to_thought_process(memory_steps):
     results = {
         'task': {
             'system_prompt': '',
-            'user_input': ''
+            'user_input': {
+                'message': '',
+                'attachments': []
+            },
+            'user_row_message': ''
         },
         'context': [],
         'actions': [],
@@ -168,10 +205,13 @@ def smolagent_steps_to_thought_process(memory_steps):
         }
     }
 
+    results['task']['user_input']['message'] = message
+    results['task']['user_input']['attachments'] = attachments
+
     for step in memory_steps:
         # task
-        if not results['task']['user_input'] and 'task' in step:
-            results['task']['user_input'] = step['task']
+        if not results['task']['user_row_message'] and 'task' in step:
+            results['task']['user_row_message'] = step['task']
         if not results['task']['system_prompt'] and 'model_input_messages' in step:
             """
             step['model_input_messages']: sources messages of inputing (including system_prompt, context and user_input):
@@ -415,15 +455,21 @@ class LLMChatCompletionException(Exception):
     pass
 
 def gen_seadb_table_name(connection_type, connection_id):
-    if connection_type == ConnectionType.KNOWLEDGE_BASE.value:
-        return ConnectionType.KNOWLEDGE_BASE.value
-    elif connection_type == ConnectionType.GITHUB_ISSUE.value:
-        return f'{connection_type}_{connection_id}', f'{connection_type}_comments_{connection_id}'
+    connection_table_name = f'{connection_type}_{connection_id}'
+    comments_table_name = ''
+
+    if connection_type == NonConnectionType.KNOWLEDGE_BASE.value:
+        return NonConnectionType.KNOWLEDGE_BASE.value
+    elif connection_type == NonConnectionType.TICKET.value:
+        return NonConnectionType.TICKET.value
+    
+    if connection_type == ConnectionType.GITHUB_ISSUE.value:
+        comments_table_name = f'{connection_type}_comments_{connection_id}'
     elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
-        return f'{connection_type}_{connection_id}', f'{connection_type}_replies_{connection_id}'
+        comments_table_name = f'{connection_type}_replies_{connection_id}'
     elif connection_type == ConnectionType.EMAIL.value:
-        return f'{connection_type}_{connection_id}', f'{connection_type}_thread_{connection_id}'
-    return f'{connection_type}_{connection_id}', ''
+        comments_table_name = f'{connection_type}_thread_{connection_id}'
+    return connection_table_name, comments_table_name
 
 def search_records_to_map(search_records, search_results):
     """

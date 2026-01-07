@@ -13,15 +13,15 @@ class ChatManager:
         self.app = app
         self.search_tools = SearchTools(app)
 
-    def get_ai_reply(self, resolve_type, message, context, model):
+    def get_ai_reply(self, resolve_type, message, attachments, context, model):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-            return self._gen_ans_agent(message, context, model)
+            return self._gen_ans_agent(message, attachments, context, model)
         elif resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-            return self._gen_ans_ask(message, context, model)
+            return self._gen_ans_ask(message, attachments, context, model)
         else:
             return f"Invalid resolve type"
 
-    def _gen_ans_ask(self, message, context, model):
+    def _gen_ans_ask(self, message, attachments, context, model):
         """
         Generate an answer based on the question and references.
         """
@@ -36,6 +36,7 @@ class ChatManager:
                 ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value,
                 tool_executor,
                 message,
+                attachments,
                 context=context,
                 temperature=temperature,
                 model=model_config['model'],
@@ -48,7 +49,7 @@ class ChatManager:
             logger.exception(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
 
-    def _gen_ans_agent(self, message, context, model=None):
+    def _gen_ans_agent(self, message, attachments, context, model=None):
         tool_executor = SmolAgentsToolExecutor()
         self.search_tools.registers(tool_executor, context=context)
 
@@ -67,4 +68,4 @@ class ChatManager:
         else:
             server_model = LiteLLMModel(client=llm_api, model_id=model_config['model'], context=context, temperature=1)
 
-        return self.app.agent_manager.execute(AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, tool_executor, message, server_model=server_model, context=context)
+        return self.app.agent_manager.execute(AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value, tool_executor, message, attachments, server_model=server_model, context=context)

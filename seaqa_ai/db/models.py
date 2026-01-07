@@ -13,7 +13,7 @@ class ChatMessages(Base):
     username = Column(String(length=255), nullable=False)
     role = Column(Enum('user', 'assistant'), nullable=False)
     content = Column(Text, nullable=True)
-    extra_contents = Column(Text, nullable=True)
+    attachments = Column(Text, nullable=True)
     sources = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
@@ -34,12 +34,12 @@ class ChatMessages(Base):
             sources = []
         
         try:
-            extra_contents = json.loads(self.extra_contents)
+            attachments = json.loads(self.attachments)
         except:
-            extra_contents = self.extra_contents
+            attachments = self.attachments
 
-        if not isinstance(extra_contents, list):
-            extra_contents = []
+        if not isinstance(attachments, list):
+            attachments = []
 
         res = {
             'id': self.id,
@@ -48,7 +48,7 @@ class ChatMessages(Base):
             'message_id': self.message_id,
             'role': self.role,
             'content': self.content,
-            'extra_contents': extra_contents,
+            'attachments': attachments,
             'sources': sources,
             'created_at': localize_time(self.created_at).isoformat(),
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,

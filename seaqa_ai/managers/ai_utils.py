@@ -2,7 +2,7 @@ import logging
 import json_repair
 import uuid
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map
-from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils.constants import NonConnectionType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
 
@@ -305,7 +305,8 @@ class AIUtils:
             connection_id_type_map[connection['id']] = connection['type']
         if connection_ids:
             connection_ids = connection_ids[:-1]
-        connection_id_type_map['unknown'] = ConnectionType.KNOWLEDGE_BASE.value
+        connection_id_type_map[NonConnectionType.KNOWLEDGE_BASE.value] = NonConnectionType.KNOWLEDGE_BASE.value
+        connection_id_type_map[NonConnectionType.TICKET.value] = NonConnectionType.TICKET.value
 
         # keywords search data
         project_uuid = context['project_uuid']
