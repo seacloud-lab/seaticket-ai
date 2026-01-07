@@ -12,8 +12,8 @@ from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils.constants import ConnectionType, NonConnectionType, \
-    ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE, SOURCES_TYPE
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
+    ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
@@ -496,10 +496,10 @@ def gen_seadb_table_name(connection_type, connection_id):
     connection_table_name = f'{connection_type}_{connection_id}'
     comments_table_name = ''
 
-    if connection_type == NonConnectionType.KNOWLEDGE_BASE.value:
-        return NonConnectionType.KNOWLEDGE_BASE.value
-    elif connection_type == NonConnectionType.TICKET.value:
-        return NonConnectionType.TICKET.value
+    if connection_type == ExtraSourceType.KNOWLEDGE_BASE.value:
+        return ExtraSourceType.KNOWLEDGE_BASE.value
+    elif connection_type == ExtraSourceType.TICKET.value:
+        return ExtraSourceType.TICKET.value
     
     if connection_type == ConnectionType.GITHUB_ISSUE.value:
         comments_table_name = f'{connection_type}_comments_{connection_id}'
@@ -529,6 +529,10 @@ def search_records_to_map(search_records, search_results, is_vector_search=False
             connection_id = int(record.get('connection_id', 'unknown'))
         except:
             connection_id = record.get('connection_id', 'unknown')
+        if record['type'] == ExtraSourceType.KNOWLEDGE_BASE.value:
+            connection_id = ExtraSourceType.KNOWLEDGE_BASE.value
+        elif record['type'] == ExtraSourceType.TICKET.value:
+            connection_id = ExtraSourceType.TICKET.value
         if not candidate_key:
             if '_id' in record:
                 candidate_key = '_id'

@@ -36,8 +36,8 @@ class ConnectionType(Enum):
             item.value
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value
         ]
-    
-class NonConnectionType(Enum):
+
+class ExtraSourceType(Enum):
     KNOWLEDGE_BASE = 'knowledge_base'
     TICKET = 'ticket'
 
@@ -57,12 +57,12 @@ class NonConnectionType(Enum):
 
 class SOURCES_TYPE(Enum):
     DOCUMENTS = (
-        NonConnectionType.KNOWLEDGE_BASE.value,
+        ExtraSourceType.KNOWLEDGE_BASE.value,
         ConnectionType.SITE.value,
         ConnectionType.SEAFILE.value
     )
     ISSUES = (
-        NonConnectionType.TICKET.value,
+        ExtraSourceType.TICKET.value,
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.EMAIL.value

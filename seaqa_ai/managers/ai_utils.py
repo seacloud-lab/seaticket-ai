@@ -3,7 +3,7 @@ import json_repair
 import uuid
 from copy import copy
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import NonConnectionType
+from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
 
@@ -346,7 +346,7 @@ Candidate Records:
 
         return search_result_after_ranked
     
-    def search(self, query, connections, context, limit=100):
+    def search(self, query, connections, extra_sources, context, limit=100):
         if limit <= 0:
             return [], ''
 
@@ -357,16 +357,16 @@ Candidate Records:
             connection_id_type_map[connection['id']] = connection['type']
         if connection_ids:
             connection_ids = connection_ids[:-1]
-        connection_id_type_map[NonConnectionType.KNOWLEDGE_BASE.value] = NonConnectionType.KNOWLEDGE_BASE.value
-        connection_id_type_map[NonConnectionType.TICKET.value] = NonConnectionType.TICKET.value
+        connection_id_type_map[ExtraSourceType.KNOWLEDGE_BASE.value] = ExtraSourceType.KNOWLEDGE_BASE.value
+        connection_id_type_map[ExtraSourceType.TICKET.value] = ExtraSourceType.TICKET.value
 
         # keywords search data
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources, context['username'])
         search_results = search_records_to_map(records, {})
 
         # semantic search data
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
+        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, extra_sources, context['username'])
         search_results = search_records_to_map(records, search_results, is_vector_search=True)
 
         # reset value of vector_retrieval_type, e.g., site connection
