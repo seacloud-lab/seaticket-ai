@@ -4,7 +4,7 @@ import json
 from flask import Flask, request
 from seaqa_ai import config
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP
-from seaqa_ai.utils import chunk_text, combine_extra_contents_to_message
+from seaqa_ai.utils import chunk_text
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -40,8 +40,8 @@ def get_ai_reply():
         logger.exception(e)
         return {'error_msg': 'Bad request.'}, 400
 
-    query = data.get('query')
-    extra_contents = data.get('extra_contents', [])
+    message = data.get('query')
+    attachments = data.get('attachments', [])
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
@@ -61,7 +61,7 @@ def get_ai_reply():
         'message_id': message_id
     }
 
-    if not query:
+    if not message:
         return {'error_msg': 'question invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
@@ -69,19 +69,17 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not message_id:
         return {'error_msg': 'message_id invalid.'}, 400
-    if not isinstance(extra_contents, list):
-        return {'error_msg': 'extra_contents invalid.'}, 400
+    if not isinstance(attachments, list):
+        return {'error_msg': 'attachments invalid.'}, 400
 
     if llm_model:
         try:
             config.get_model_config_by_id(llm_model)
         except ValueError as e:
             return {'error_msg': str(e)}, 404
-        
-    query = combine_extra_contents_to_message(extra_contents, query)
 
     try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, query, context, llm_model), 200
+        return flask_app.app.chat_manager.get_ai_reply(resolve_type, message, attachments, context, llm_model), 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500

@@ -73,7 +73,7 @@ class SeaDBAPI:
             str(record_id) if not isinstance(record_id, str) else f'"{record_id}"'
             for record_id in record_ids
         ])
-        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN ({condition_str})')['results']
+        records = self.query_rows(base_id, f'SELECT {record_fields_str} FROM {connection_table_name} WHERE _pk IN ({condition_str}) AND (`deleted` = False OR `deleted` IS NULL)')['results']
         record_id_comments_map = {}
         if comments_table_name:
             topic_id_record_id_map = {
@@ -87,7 +87,7 @@ class SeaDBAPI:
             if not has_deleted_field:
                 comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str})')['results']
             else:
-                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND (deleted = false OR deleted IS NULL)')['results']
+                comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND (`deleted` = False OR `deleted` IS NULL)')['results']
             for comment in comments:
                 record_id = topic_id_record_id_map[comment.get(comments_topic_id_field_name)]
                 if record_id not in record_id_comments_map:

@@ -14,7 +14,7 @@ from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
 from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, object_to_json_str, localize_time, \
-    convert_to_json_code_block, get_answer_and_sources
+    convert_to_json_code_block, get_answer_and_sources, combine_attachments_to_message
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -25,7 +25,7 @@ class AgentManager:
         self.app = app
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
 
-    def execute(self, agent_name, tool_executor, message, **kwargs):
+    def execute(self, agent_name, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
         message_id = context.get('message_id')
@@ -54,7 +54,7 @@ class AgentManager:
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
 
-            agent_output = agent.run(message, reset=config.DISABLE_CONTEXT)
+            agent_output = agent.run(combine_attachments_to_message(attachments, message), reset=config.DISABLE_CONTEXT)
             for msg in agent_output.messages:
                 model_input_messages = msg.get('model_input_messages')
                 if model_input_messages:
@@ -92,7 +92,7 @@ class AgentManager:
 
             return {
                 'answer': answer,
-                'thought_process': smolagent_steps_to_thought_process(agent_output.messages),
+                'thought_process': smolagent_steps_to_thought_process(agent_output.messages, message, attachments),
                 'sources':sources
             }
 
@@ -117,16 +117,19 @@ class AgentManager:
                 memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
 
             thought_process = memory.context_thought_process
-
-            user_input_with_format = message #+ f'\n\nPlease **ensure** that a json string that can be parsed is returned in the following format (to **ensure that no parsing failure errors occur**) for your response: {response_format}'
+            user_row_message = combine_attachments_to_message(attachments, message)
 
             memory += {
                 'role': 'user', 
-                'content': user_input_with_format
+                'content': user_row_message
             }
 
-            thought_process['task']['user_input'] = user_input_with_format
-            
+            thought_process['task']['user_input'] = {
+                'message': message,
+                'attachments': attachments
+            }
+            thought_process['task']['user_row_message'] = user_row_message
+
             llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
 
             response = llm_api.completion(
