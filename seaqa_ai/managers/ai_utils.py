@@ -178,7 +178,15 @@ class AIUtils:
                     continue
                 key = f"{key}:{candidate.get('connection_id', 'unknown')}"
                 candidate_keys.append(key)
-                candidates_text += f""" \n Record Key: {key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+                candidates_text += f'Record Key: {key}\n'
+                if title := candidate.get('title'):
+                    candidates_text += f"\tTitle: {title}\n"
+                if summary := candidate.get('ai_summary'):
+                    candidates_text += f"\tSummary: {summary}\n"
+                if snippet := candidate.get('snippet'):
+                    candidates_text += f"\tSnippet: {snippet}\n"
+
+            logger.info(candidates_text)
 
             prompt = (f"""
                 You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.

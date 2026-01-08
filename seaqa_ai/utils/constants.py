@@ -31,7 +31,7 @@ class ATTACHMENTS_PROMPTS(Enum):
     DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
     ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
 
-class ATTACHMENTS_TYPE(Enum):
+class SOURCES_TYPE(Enum):
     DOCUMENTS = (
         NonConnectionType.KNOWLEDGE_BASE.value,
         ConnectionType.SITE.value,
@@ -43,3 +43,8 @@ class ATTACHMENTS_TYPE(Enum):
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.EMAIL.value
     )
+
+class ATTACHMENTS_TYPE(Enum):
+    DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
+    ISSUES = SOURCES_TYPE.ISSUES.value
+    OTHERS = ()

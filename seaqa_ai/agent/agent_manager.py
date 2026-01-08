@@ -117,18 +117,18 @@ class AgentManager:
                 memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
 
             thought_process = memory.context_thought_process
-            user_row_message = combine_attachments_to_message(attachments, message)
+            user_raw_message = combine_attachments_to_message(attachments, message)
 
             memory += {
                 'role': 'user', 
-                'content': user_row_message
+                'content': user_raw_message
             }
 
             thought_process['task']['user_input'] = {
                 'message': message,
                 'attachments': attachments
             }
-            thought_process['task']['user_row_message'] = user_row_message
+            thought_process['task']['user_raw_message'] = user_raw_message
 
             llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
 
