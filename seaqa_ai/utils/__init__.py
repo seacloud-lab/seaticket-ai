@@ -499,7 +499,7 @@ def gen_seadb_table_name(connection_type, connection_id):
         comments_table_name = f'{connection_type}_thread_{connection_id}'
     return connection_table_name, comments_table_name
 
-def search_records_to_map(search_records, search_results):
+def search_records_to_map(search_records, search_results, is_vector_search=False):
     """
     func:  Deduplication and format search_records to a map:
     {
@@ -531,9 +531,9 @@ def search_records_to_map(search_records, search_results):
             record_id = record[candidate_key]
         if connection_id not in connection_id_record_id_record_map:
             connection_id_record_id_record_map[connection_id] = {}
-        if record.get('source_type') == 'chunk': # snippet
+        if is_vector_search and record.get('source_type') == 'chunk': # snippet
             record['snippet'] = record['content']
-        elif record['type'] in SOURCES_TYPE.DOCUMENTS.value:
+        elif not is_vector_search and record['type'] in SOURCES_TYPE.DOCUMENTS.value:
             record['keyword_search_content'] = record['content']
         connection_id_record_id_record_map[connection_id][record_id] = record
     return connection_id_record_id_record_map

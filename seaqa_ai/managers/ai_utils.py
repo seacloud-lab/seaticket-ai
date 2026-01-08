@@ -1,7 +1,7 @@
 import logging
 import json_repair
 import uuid
-from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map
+from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block
 from seaqa_ai.utils.constants import NonConnectionType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
@@ -164,10 +164,11 @@ class AIUtils:
         try:
             if not candidate_records:
                 return []
-            if isinstance(query_record, str):
-                query_record = {'ai_summary': query_record}
+            if isinstance(query_record, dict):
+                query_record = f"""Title: {query_record.get('title', 'N/A')}
+Summary: {query_record.get('ai_summary', 'N/A')}"""
 
-            candidates_text = ""
+            candidates_text = []
             candidate_keys = []
             for candidate in candidate_records:
                 if '_id' in candidate:
@@ -178,20 +179,22 @@ class AIUtils:
                     continue
                 key = f"{key}:{candidate.get('connection_id', 'unknown')}"
                 candidate_keys.append(key)
-                candidates_text += f'Record Key: {key}\n'
+                new_candidate = {'record_key': key}
                 if title := candidate.get('title'):
-                    candidates_text += f"\tTitle: {title}\n"
+                    new_candidate['title'] = title
                 if summary := candidate.get('ai_summary'):
-                    candidates_text += f"\tSummary: {summary}\n"
+                    new_candidate['summary'] = summary
                 if snippet := candidate.get('snippet'):
-                    candidates_text += f"\tSnippet: {snippet}\n"
+                    new_candidate['snippet'] = snippet
+                candidates_text.append(new_candidate)
+            
+            candidates_text = convert_to_json_code_block(candidates_text)
 
             prompt = (f"""
                 You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
 
                 Query Record:
-                Title: {query_record.get('title', 'N/A')}
-                Summary: {query_record.get('ai_summary', 'N/A')}
+                {query_record}
 
                 Candidate Records:
                 {candidates_text}
@@ -321,7 +324,7 @@ class AIUtils:
 
         # semantic search data
         records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
-        search_results = search_records_to_map(records, search_results)
+        search_results = search_records_to_map(records, search_results, is_vector_search=True)
 
         # reset value of vector_retrieval_type, e.g., site connection
         project_uuid = str(uuid.UUID(project_uuid))
