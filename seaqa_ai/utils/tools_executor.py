@@ -23,7 +23,7 @@ class InvalidToolException(Exception):
 
 class BasicToolExecutor(object):
     def __init__(self):
-        self.tool_shared_vars = {}
+        self.cache = {}
         self.clean()
 
     def register(self, func, tool_info, **constant_kwargs):

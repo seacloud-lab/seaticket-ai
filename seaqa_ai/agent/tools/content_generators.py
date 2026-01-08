@@ -1,28 +1,27 @@
 import logging
-from seaqa_ai.agent.tools import BasicTools
+from seaqa_ai.agent.tools import BasicTool
 
 logger = logging.getLogger(__name__)
 
-class ContentGenerators(BasicTools):
-    tools = {
-        'generate_markdown': {
-            'type': 'function',
-            'function': {
-                'name': 'generate_markdown',
-                'description': "This tool processes requests to generate Markdown files or documents. The output is returned as content wrapped within `<seaqa-markdown>` HTML tags.",
-                'parameters':{
-                    'type': 'object',
-                    'properties': {
-                        'file_name': {
-                            'type': 'string',
-                            'description': """This parameter represents the filename of the generated Markdown file (or document), which must follow these rules:
+class generate_markdown(BasicTool):
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'generate_markdown',
+            'description': "This tool processes requests to generate Markdown files or documents. The output is returned as content wrapped within `<seaqa-markdown>` HTML tags.",
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'file_name': {
+                        'type': 'string',
+                        'description': """This parameter represents the filename of the generated Markdown file (or document), which must follow these rules:
 - Must end with .md
 - Use lowercase letters, numbers, hyphens, or underscores
 - Should reflect the document content"""
-                        },
-                        'content': {
-                            'type': 'string',
-                            'description': """This parameter represents the content of the generated Markdown file (or document). This parameter of should follow the Markdown's standard format.
+                    },
+                    'content': {
+                        'type': 'string',
+                        'description': """This parameter represents the content of the generated Markdown file (or document). This parameter of should follow the Markdown's standard format.
 
 Here is an example:
 # Seafile Docker overview
@@ -32,20 +31,14 @@ Seafile docker based installation consist of the following components (docker im
 - Redis: Cache server.
 - Caddy: Caddy server enables user to access the Seafile service (i.e., Seafile server and Sdoc server) externally and handles `SSL` configuration.
     """
-                        }
-                    },
-                    'required': ['file_name', 'content']
-                }
+                    }
+                },
+                'required': ['file_name', 'content']
             }
         }
     }
 
-    def _initialize_tool_name_func_map(self):
-        self.tool_name_func_map = {
-            'generate_markdown': self.generate_markdown
-        }
-    
-    def generate_markdown(self, file_name, content):
+    def execute(self, file_name, content):
         """
         generate the md files with <seaqa-markdown> HTML tag
         """
@@ -53,4 +46,4 @@ Seafile docker based installation consist of the following components (docker im
         return f"""<seaqa-markdown file_name="{file_name}">
 {content}
 </seaqa-markdown>
-"""
+""" 

@@ -1,5 +1,5 @@
 import logging
-from seaqa_ai.agent.tools import BasicTools
+from seaqa_ai.agent.tools import BasicTool
 
 logger = logging.getLogger(__name__)
 
@@ -12,56 +12,14 @@ _SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (r
 <Reference 1's content>
 """
 
-class SearchTools(BasicTools):
-    tools = {
-        'documents_search': {
-            'type': 'function',
-            'function': {
-                'name': 'documents_search',
-                'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
-                'parameters':{
-                    'type': 'object',
-                    'properties': {
-                        'query': {
-                            'type': 'string',
-                            'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
-                        }
-                    },
-                    'required': ['query']
-                }
-            }
-        }, 
-        'issues_search': {
-            'type': 'function',
-            'function': {
-                'name': 'issues_search',
-                'description': f'This is a search tool for relative issues. You can use a query (a short sentence) to find relative issues and a past solution to this problem. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
-                'parameters':{
-                    'type': 'object',
-                    'properties': {
-                        'query': {
-                            'type': 'string',
-                            'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
-                        }
-                    },
-                    'required': ['query']
-                }
-            }
-        }
-    }
+class BasicSearchTool(BasicTool):
     MAX_SOURCES_COUNT = 10
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
 
-    def _initialize_tool_name_func_map(self):
-        self.tool_name_func_map = {
-            'documents_search': self.documents_search,
-            'issues_search': self.issues_search
-        }
-    
     def _search(self, query, connections, context, tool_executor):
         assert isinstance(query, str), "Your search query must be a string"
         # Get current task search history
-        sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+        sources_results = tool_executor.cache.get('sources_results', [])
         existed_search_records_num = len(sources_results)
 
         if not connections or existed_search_records_num >= self.MAX_SOURCES_COUNT:
@@ -88,7 +46,7 @@ class SearchTools(BasicTools):
             to_observation.append(doc)
             del search_result['content']
 
-        tool_executor.tool_shared_vars.update({
+        tool_executor.cache.update({
             'sources_results': sources_results + current_search_results
         })
 
@@ -98,10 +56,46 @@ class SearchTools(BasicTools):
             'to_db': current_search_results
         }
 
+class documents_search(BasicSearchTool):
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'documents_search',
+            'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'query': {
+                        'type': 'string',
+                        'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
+                    }
+                },
+                'required': ['query']
+            }
+        }
+    }
 
-    def documents_search(self, query, context, tool_executor):
+    def execute(self, query, context, tool_executor):
         return self._search(query, context['document_connections'], context, tool_executor)
-       
+    
+class issues_search(BasicSearchTool):
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'issues_search',
+            'description': f'This is a search tool for relative issues. You can use a query (a short sentence) to find relative issues and a past solution to this problem. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'parameters':{
+                'type': 'object',
+                'properties': {
+                    'query': {
+                        'type': 'string',
+                        'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
+                    }
+                },
+                'required': ['query']
+            }
+        }
+    }
 
-    def issues_search(self, query, context, tool_executor):
+    def execute(self, query, context, tool_executor):
         return self._search(query, context['issue_connections'], context, tool_executor)

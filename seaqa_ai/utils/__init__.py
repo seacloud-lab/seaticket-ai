@@ -446,7 +446,7 @@ def clean_markdown_references(content, sources):
     return result, sources
 
 def get_answer_and_sources(tool_executor, content):
-    sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+    sources_results = tool_executor.cache.get('sources_results', [])
 
     # remove redundent <reference_n> and [Reference n] (format error)
     pattern = re.compile(r'\<reference_(\d+)\>')
