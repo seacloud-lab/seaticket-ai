@@ -186,8 +186,6 @@ class AIUtils:
                 if snippet := candidate.get('snippet'):
                     candidates_text += f"\tSnippet: {snippet}\n"
 
-            logger.info(candidates_text)
-
             prompt = (f"""
                 You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
 
