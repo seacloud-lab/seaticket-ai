@@ -146,16 +146,16 @@ system_prompt: |-
           }
 
       >!NOTE: If you need to mark multiple references in one place, simply combine the corresponding label from the search result, such as "<reference_0><reference_2>"
-  2. Content generation tools (e.g., "markdown_generator"). These types of tools are generally used to generate specific content (for example, you can try calling the "markdown_generator" tool when a user expects certain content to be recorded in a Markdown file or document):
+  2. Content generation tools (e.g., "generate_markdown"). These types of tools are generally used to generate specific content (for example, you can try calling the "generate_markdown" tool when a user expects certain content to be recorded in a Markdown file or document):
       Unless otherwise specified, such tools will return a closed HTML tag block, for example:
 
       ```html
-      <!-- tool markdown_generator -->
+      <!-- tool generate_markdown -->
       <seaqa-markdown file_name='file_name.md'>
       Document content
       </seaqa-markdown>
 
-      <!-- tool image_generator -->
+      <!-- tool generate_image -->
       <img url='xxx.png' />
       ```
 
@@ -164,7 +164,7 @@ system_prompt: |-
       - Example task 3: Please record the your above answer into a Markdown document
           Action:
           {
-            "name": "markdown_generator",
+            "name": "generate_markdown",
             "arguments": {
                 "file_name": "seafile-introduction.md"
                 "content": "# Introduction of Seafile\n[Seafile](https://manual.seafile.com) is an open source cloud storage system for file sync, share and document collaboration. It supports a variety of extensions, among which SeaDoc is one of the most commonly used."
@@ -177,7 +177,7 @@ system_prompt: |-
           </seaqa-markdown>
 
           >[!NOTE]
-          >When using content generation tools, if you need to mark references, please use the corresponding reference format (e.g., tool "markdown_generator" requires a Markdown-compliant reference such as [display_name](url), like [Seafile](https://manual.seafile.com) in above example).
+          >When using content generation tools, if you need to mark references, please use the corresponding reference format (e.g., tool "generate_markdown" requires a Markdown-compliant reference such as [display_name](url), like [Seafile](https://manual.seafile.com) in above example).
           
           Now that you have completed the user's request, please return it as the result. Be careful not to make any changes to the HTML tags in the observation or the content within those tags
 

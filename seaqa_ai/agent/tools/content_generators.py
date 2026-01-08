@@ -5,11 +5,11 @@ logger = logging.getLogger(__name__)
 
 class ContentGenerators(BasicTools):
     tools = {
-        'markdown_generator': {
+        'generate_markdown': {
             'type': 'function',
             'function': {
-                'name': 'markdown_generator',
-                'description': "This tool will be used to generate Markdown files (or documents) by processing requests for Markdown files (or documents) generation. The final result of this tool is a series of enclosed HTML tags (`<seaqa-markdown>`).",
+                'name': 'generate_markdown',
+                'description': "This tool processes requests to generate Markdown files or documents. The output is returned as content wrapped within `<seaqa-markdown>` HTML tags.",
                 'parameters':{
                     'type': 'object',
                     'properties': {
@@ -42,10 +42,10 @@ Seafile docker based installation consist of the following components (docker im
 
     def _initialize_tool_name_func_map(self):
         self.tool_name_func_map = {
-            'markdown_generator': self.markdown_generator
+            'generate_markdown': self.generate_markdown
         }
     
-    def markdown_generator(self, file_name, content):
+    def generate_markdown(self, file_name, content):
         """
         generate the md files with <seaqa-markdown> HTML tag
         """

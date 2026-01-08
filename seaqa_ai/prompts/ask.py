@@ -55,22 +55,22 @@ SEARCH_TOOLS_DES = """
     - Your response: the maximum value in your provided is 28
 """
 CONTENT_GENERATOR_TOOLS_DES = """
-2. Content generation tools (e.g., "markdown_generator"). These types of tools are generally used to generate specific content (for example, you can try calling the "markdown_generator" tool when a user expects certain content to be recorded in a Markdown file or document).
+2. Content generation tools (e.g., "generate_markdown"). These types of tools are generally used to generate specific content (for example, you can try calling the "generate_markdown" tool when a user expects certain content to be recorded in a Markdown file or document).
     Unless otherwise specified, such tools will return a closed HTML tag block, for example:
     ```html
-    <!-- tool markdown_generator -->
+    <!-- tool generate_markdown -->
     <seaqa-markdown file_name='file_name.md'>
     Document content
     </seaqa-markdown>
 
-    <!-- tool image_generator -->
+    <!-- tool generate_image -->
     <img url='xxx.png' />
     ```
 
     Unless otherwise specified, if you use these tools, do not attempt to make any changes to their output (includes HTML tags and their content.) in your results. This is an example:
 
     User task: Please record the your above answer into a Markdown document
-    - Tool call: Tool `markdown_generator`
+    - Tool call: Tool `generate_markdown`
     - Tool's result:
         ```html
         <seaqa-markdown file_name='file_name.md'>
@@ -89,7 +89,7 @@ EXCEPTION = """
 User task: What's seafile? Please record the results in a Markdown file
 - Reasoning: at this point you will need to use two tools in different steps:
     1. documents_search
-    2. markdown_generator
+    2. generate_markdown
 - Your response, at this point, you only need to return a string containing the following (please translate to the user's language) without calling any of the tools (i.e., search tools and content generation tools cannot be used simultaneously):
     Your are trying to call tools {', '.join('***' + tk['function']['name'] + '***' for tk in response.tool_calls)} together.
     The Ask mode does **not support** simultaneous invocation of content generation tools and other tools. Please switch to ***Agent mode*** (better multi-step support features, i.e., ReACT features) and resend your task.
