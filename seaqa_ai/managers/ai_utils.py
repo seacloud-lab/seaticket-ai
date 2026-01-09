@@ -184,8 +184,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     new_candidate['title'] = title
                 if summary := candidate.get('ai_summary'):
                     new_candidate['summary'] = summary
-                if snippet := candidate.get('snippet'):
-                    new_candidate['snippet'] = snippet
+                if snippets := candidate.get('snippets'):
+                    new_candidate['snippets'] = snippets
                 candidates_text.append(new_candidate)
             
             candidates_text = convert_to_json_code_block(candidates_text)

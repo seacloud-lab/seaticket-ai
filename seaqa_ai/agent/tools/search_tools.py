@@ -44,9 +44,9 @@ class BasicSearchTool(BasicTool):
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
-            if 'snippet' in search_result:
-                doc['snippet'] = search_result['snippet']
-                del search_result['snippet']
+            if 'snippets' in search_result:
+                doc['snippets'] = search_result['snippets']
+                del search_result['snippets']
             to_observation.append(doc)
             del search_result['content']
 
