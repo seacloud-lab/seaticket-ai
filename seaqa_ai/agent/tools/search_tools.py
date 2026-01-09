@@ -33,7 +33,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
+        current_search_results, rerank_token_usage = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
 
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
@@ -58,7 +58,8 @@ class BasicSearchTool(BasicTool):
         # Format the retrieved documents for readability
         return {
             'to_observation': to_observation,
-            'to_db': current_search_results
+            'to_db': current_search_results,
+            'extra_token_usage': rerank_token_usage
         }
 
 class DocumentsSearch(BasicSearchTool):

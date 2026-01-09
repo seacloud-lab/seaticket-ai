@@ -281,6 +281,12 @@ Candidate Records:
                 response_format=gen_completion_format(response_schema)
             )
 
+            token_usage = {
+                'input_tokens': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+
             response = response.choices[0].message.content
 
             try:
@@ -300,9 +306,10 @@ Candidate Records:
                 except:
                     record_id = result.get('record_id')
                 # sometime ai response a dict not a str
-                if {'connection_id': connection_id, 'record_id': record_id} in candidate_keys:
+                if {'connection_id': connection_id, 'record_id': record_id} in candidate_keys and \
+                    f'{record_id}:{connection_id}' not in validated_keys:
                     validated_keys.append(f'{record_id}:{connection_id}')
-            return validated_keys
+            return validated_keys, token_usage
 
         except Exception as e:
             logger.error(f"Error ranking related records: {e}")
@@ -321,7 +328,7 @@ Candidate Records:
         for record_id_record_map in search_result.values():
             for record in record_id_record_map.values():
                 new_records.append(record)
-        ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, new_records, context)[:limit]
+        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)[:limit]
         search_result_after_ranked = {}
         rank_pairs = []
         for pair in ranked_record_id_connection_pairs:
@@ -348,7 +355,7 @@ Candidate Records:
         # get source results for records after ranked
         search_result_after_ranked = retrieve_content_of_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        return search_result_after_ranked
+        return search_result_after_ranked, rerank_token_usage
     
     def search(self, query, connections, extra_sources, context, limit=100):
         if limit <= 0:
@@ -377,7 +384,7 @@ Candidate Records:
         project_uuid = str(uuid.UUID(project_uuid))
         search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        search_results = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map)
+        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map)
 
         # reformat to list
         sources_results = []
@@ -385,4 +392,4 @@ Candidate Records:
             for record in record_id_record_map.values():
                 sources_results.append(record)
         
-        return sources_results
+        return sources_results, rerank_token_usage

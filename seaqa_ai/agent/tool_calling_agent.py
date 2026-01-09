@@ -1,4 +1,5 @@
 import smolagents
+from  dataclasses import dataclass
 import logging
 import json
 import uuid
@@ -7,6 +8,10 @@ from seaqa_ai.agent.utils import tool_output, save_tool_call
 from seaqa_ai.utils import parse_json, object_to_json_str
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class ToolOutput(smolagents.ToolOutput):
+    extra_token_usage: dict
 
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
@@ -43,7 +48,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
             if isinstance(tool_call_result, smolagents.AgentText):
                 tool_call_result = parse_json(tool_call_result)
 
-            to_observation, to_db = tool_output(tool_call_result)
+            to_observation, to_db, extra_token_usage = tool_output(tool_call_result)
 
             save_tool_call(self.db_session_class, self.session_uuid, self.message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
             observation = str(to_observation).strip()
@@ -54,12 +59,13 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         )
         is_final_answer = tool_name == "final_answer"
 
-        return smolagents.ToolOutput(
+        return ToolOutput(
             id=tool_call.id,
             output=to_observation,
             is_final_answer=is_final_answer,
             observation=observation,
             tool_call=tool_call,
+            extra_token_usage=extra_token_usage
         )
 
     def process_tool_calls(
@@ -97,6 +103,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"
+            input_tokens = tool_output.extra_token_usage.get('input_tokens', 0)
+            output_tokens = tool_output.extra_token_usage.get('output_tokens', 0)
+            memory_step.token_usage.input_tokens += input_tokens
+            memory_step.token_usage.output_tokens += output_tokens
+            memory_step.token_usage.total_tokens += tool_output.extra_token_usage.get('total_tokens') or (input_tokens + output_tokens)
 
         # save usages infomation to db
         if parallel_calls:

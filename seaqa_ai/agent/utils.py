@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 def tool_output(output):
     if isinstance(output, dict):
-        return output.get('to_observation', output), output.get('to_db', output)
-    return output, output
+        return output.get('to_observation', output), output.get('to_db', output), output.get('extra_token_usage', {}),
+    return output, output, {}
 
 def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output=None, error=None, fix_tool_calls_id=None):
     if isinstance(tool_call, ToolCall):

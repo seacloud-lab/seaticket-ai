@@ -157,7 +157,7 @@ class AgentManager:
                         'arguments': arguments
                     }
                     try:
-                        to_observation, to_db = tool_output(tool_executor.execute(tool_call))
+                        to_observation, to_db, _ = tool_output(tool_executor.execute(tool_call))
 
                         save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
 

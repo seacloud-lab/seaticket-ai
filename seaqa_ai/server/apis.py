@@ -275,7 +275,7 @@ def rank_issues_by_relevance():
     }
 
     try:
-        ranked_ids = flask_app.app.ai_utils.rank_issues_by_relevance(query_record, candidate_records, context)
+        ranked_ids = flask_app.app.ai_utils.rank_issues_by_relevance(query_record, candidate_records, context)[0]
         return {'ranked_ids': ranked_ids}, 200
     except Exception as e:
         logger.exception(e)
