@@ -3,7 +3,7 @@ from seaqa_ai.agent.tools import BasicTool
 
 logger = logging.getLogger(__name__)
 
-class generate_markdown(BasicTool):
+class GenerateMarkdown(BasicTool):
     tool = {
         'type': 'function',
         'function': {

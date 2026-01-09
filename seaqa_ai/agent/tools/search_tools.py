@@ -1,5 +1,6 @@
 import logging
 from seaqa_ai.agent.tools import BasicTool
+from seaqa_ai.utils.constants import ExtraSourceType
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +17,13 @@ class BasicSearchTool(BasicTool):
     MAX_SOURCES_COUNT = 10
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
 
-    def _search(self, query, connections, context, tool_executor):
+    def _search(self, query, connections, extra_sources, context, tool_executor):
         assert isinstance(query, str), "Your search query must be a string"
         # Get current task search history
         sources_results = tool_executor.cache.get('sources_results', [])
         existed_search_records_num = len(sources_results)
 
-        if not connections or existed_search_records_num >= self.MAX_SOURCES_COUNT:
+        if not connections and not extra_sources or existed_search_records_num >= self.MAX_SOURCES_COUNT:
             return {
                 'to_observation': '',
                 'to_db': []
@@ -32,7 +33,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results = self.app.ai_utils.search(query, connections, context, limit)
+        current_search_results = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
 
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
@@ -60,7 +61,7 @@ class BasicSearchTool(BasicTool):
             'to_db': current_search_results
         }
 
-class documents_search(BasicSearchTool):
+class DocumentsSearch(BasicSearchTool):
     tool = {
         'type': 'function',
         'function': {
@@ -80,9 +81,9 @@ class documents_search(BasicSearchTool):
     }
 
     def execute(self, query, context, tool_executor):
-        return self._search(query, context['document_connections'], context, tool_executor)
+        return self._search(query, context['document_connections'], ExtraSourceType.get_document_extra_source_types(), context, tool_executor)
     
-class issues_search(BasicSearchTool):
+class IssuesSearch(BasicSearchTool):
     tool = {
         'type': 'function',
         'function': {
@@ -102,4 +103,4 @@ class issues_search(BasicSearchTool):
     }
 
     def execute(self, query, context, tool_executor):
-        return self._search(query, context['issue_connections'], context, tool_executor)
+        return self._search(query, context['issue_connections'], ExtraSourceType.get_issue_extra_source_types(), context, tool_executor)

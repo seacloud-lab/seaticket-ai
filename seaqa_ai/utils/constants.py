@@ -42,14 +42,14 @@ class ExtraSourceType(Enum):
     TICKET = 'ticket'
 
     @classmethod
-    def get_document_connection_types(cls):
+    def get_document_extra_source_types(cls):
         return [
             item.value
             for item in cls if item.value in SOURCES_TYPE.DOCUMENTS.value
         ]
     
     @classmethod
-    def get_issue_connection_types(cls):
+    def get_issue_extra_source_types(cls):
         return [
             item.value
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value

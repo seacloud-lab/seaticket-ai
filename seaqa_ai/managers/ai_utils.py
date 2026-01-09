@@ -193,10 +193,14 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     record_id = candidate['pk']
                 else:
                     continue
-                try:
-                    connection_id = int(candidate.get('connection_id'))
-                except:
+                if candidate.get('type') in ExtraSourceType:
+                    connection_id = candidate.get('type')
+                else:
                     connection_id = candidate.get('connection_id', 'unknown')
+                try:
+                    connection_id = int(connection_id)
+                except:
+                    pass
                 new_candidate = {
                     'connection_id': connection_id,
                     'record_id': record_id
@@ -222,9 +226,9 @@ Candidate Records:
 
 **CRITICAL Instructions:**
 1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-2. Consider both the title and summary when determining relevance.
+2. Consider both the title and other fields when determining relevance. Meanwhile, the title field of the candidate record has a higher relevance weight.
 3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-    - Addresses similar topics, issues, or problems
+    - Addresses similar title, topics, issues, or problems
     - Has related technical content or features
     - Shares common themes or concepts
     - Could provide useful context or related information
