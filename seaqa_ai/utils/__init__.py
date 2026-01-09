@@ -421,8 +421,32 @@ def retrieve_origin_reference_format(content, sources):
 
     return content
 
+def clean_markdown_references(content, sources):
+    sources_len = len(sources)
+    md_blocks = content.split('<seaqa-markdown')
+    result = md_blocks[0]
+    for md_block in md_blocks[1:]:
+        md_block_contents = md_block.split('</seaqa-markdown>')
+        if len(md_block_contents) == 1:
+            md_content = md_block
+            end_fix = ''
+        else:
+            md_content = md_block_contents[0]
+            end_fix = '</seaqa-markdown>'.join(md_block_contents[1:])
+        for i in range(sources_len):
+            md_content = md_content.replace(f'[Reference {i + 1}]', '')
+        result += '<seaqa-markdown' + md_content + '</seaqa-markdown>' + end_fix
+    
+    for i in reversed(range(sources_len)):
+        if f'[Reference {i + 1}]' not in result:
+            for j in range(i + 1, len(sources)):
+                content = content.replace(f'[Reference {j + 1}]', f'[Reference {j}]')
+            del sources[i]
+
+    return result, sources
+
 def get_answer_and_sources(tool_executor, content):
-    sources_results = tool_executor.tool_shared_vars.get('sources_results', [])
+    sources_results = tool_executor.cache.get('sources_results', [])
 
     # remove redundent <reference_n> and [Reference n] (format error)
     pattern = re.compile(r'\<reference_(\d+)\>')
@@ -448,6 +472,8 @@ def get_answer_and_sources(tool_executor, content):
         content = content.replace(origin, target)
         sources_index = int(origin.split('_')[1][:-1])
         sources.append(sources_results[sources_index])
+    
+    content, sources = clean_markdown_references(content, sources)
 
     return content, sources
 

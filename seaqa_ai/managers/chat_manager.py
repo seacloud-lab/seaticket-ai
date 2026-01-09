@@ -1,6 +1,7 @@
 import logging
 from seaqa_ai.config import get_model_config_by_id
-from seaqa_ai.agent.tools import SearchTools
+from seaqa_ai.agent.tools.content_generators import generate_markdown
+from seaqa_ai.agent.tools.search_tools import documents_search, issues_search
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from smolagents.models import LiteLLMModel
@@ -11,7 +12,13 @@ logger = logging.getLogger(__name__)
 class ChatManager:
     def __init__(self, app):
         self.app = app
-        self.search_tools = SearchTools(app)
+        self.search_tools = (
+            documents_search(app),
+            issues_search(app),
+        )
+        self.content_generators = (
+            generate_markdown(app),
+        )
 
     def get_ai_reply(self, resolve_type, message, attachments, context, model):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
@@ -20,13 +27,19 @@ class ChatManager:
             return self._gen_ans_ask(message, attachments, context, model)
         else:
             return f"Invalid resolve type"
+    
+    def _register_tools(self, tool_executor, context):
+        for tool in self.search_tools:
+            tool.register(tool_executor, context=context)
+        for tool in self.content_generators:
+            tool.register(tool_executor)
 
     def _gen_ans_ask(self, message, attachments, context, model):
         """
         Generate an answer based on the question and references.
         """
         tool_executor = FunctionCallingToolExecutor()
-        self.search_tools.registers(tool_executor, context=context)
+        self._register_tools(tool_executor, context=context)
 
         model_config = get_model_config_by_id(model)
         temperature = 1 if 'gpt-5' in model_config['model'] else 0.1
@@ -51,7 +64,7 @@ class ChatManager:
 
     def _gen_ans_agent(self, message, attachments, context, model=None):
         tool_executor = SmolAgentsToolExecutor()
-        self.search_tools.registers(tool_executor, context=context)
+        self._register_tools(tool_executor, context=context)
 
         model_config = get_model_config_by_id(model)
 

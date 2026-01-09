@@ -147,6 +147,7 @@ class AgentManager:
 
                 thought_process['tool_calls'] = []
                 fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
+
                 for tool_call in response.tool_calls:
                     arguments = tool_call['function']['arguments']
                     if isinstance(arguments, str):
