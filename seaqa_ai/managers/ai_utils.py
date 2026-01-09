@@ -229,8 +229,6 @@ Or if no records are relevant:
                 }
             ]
 
-            logger.info(prompt)
-
             response = self.llm_api.completion(
                 messages=messages,
                 context=context,
