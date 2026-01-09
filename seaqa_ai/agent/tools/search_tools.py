@@ -4,13 +4,22 @@ from seaqa_ai.utils.constants import ExtraSourceType
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
-===== Reference 0 ===== Title: <title of Reference 0> =====
-<Reference 0's content>
-
-
-===== Reference 1 ===== Title: <title of Reference 1> =====
-<Reference 1's content>
+_SEARCH_TOOLS_RESULT_FORMAT = """
+[
+    {
+        "label": "<reference_0>",
+        "title": "Title",
+        "content": "Search result's content",
+        
+        // ... Other useful information, e.g., url ...
+    }, {
+        "label": "<reference_1>",
+        "title": "Title",
+        "content": "Search result's content",
+        
+        // ... Other useful information, e.g., url ...
+    }
+]
 """
 
 class BasicSearchTool(BasicTool):

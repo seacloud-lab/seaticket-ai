@@ -168,6 +168,9 @@ DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)
 CONTEXT_WINDOW_LIMIT = configs.get('CONTEXT_WINDOW_LIMIT', 10)
 CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 
+## Max steps
+MAX_STEPS = configs.get('MAX_STEPS', 5)
+
 # Redis
 REDIS_HOST = configs.get('REDIS_HOST', 'redis')
 REDIS_PORT = configs.get('REDIS_PORT', 6379)

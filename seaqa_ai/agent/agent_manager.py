@@ -4,7 +4,7 @@ import importlib
 import json
 import uuid
 import datetime
-from smolagents.monitoring import LogLevel
+from smolagents import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT
 from seaqa_ai.db import init_db_session_class
@@ -34,16 +34,18 @@ class AgentManager:
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
             
             server_model = kwargs.get('server_model')
+            prompt_templates = yaml.safe_load(
+                importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
+            )
+            prompt_templates['system_prompt'] = prompt_templates['system_prompt'].replace("{{MAX_STEPS}}", str(config.MAX_STEPS))
             agent = ToolCallingAgent(
                 self.db_session_class,
                 session_uuid,
                 message_id,
-                prompt_templates=yaml.safe_load(
-                    importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
-                ),
+                prompt_templates=prompt_templates,
                 tools=tool_executor.tools,  # List of tools available to the agent
                 model=server_model,
-                max_steps=5,  # Limit the number of reasoning steps
+                max_steps=config.MAX_STEPS,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
