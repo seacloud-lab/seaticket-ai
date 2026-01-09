@@ -1,7 +1,7 @@
 import logging
 import json_repair
 import uuid
-from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map
+from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block
 from seaqa_ai.utils.constants import NonConnectionType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
@@ -164,10 +164,11 @@ class AIUtils:
         try:
             if not candidate_records:
                 return []
-            if isinstance(query_record, str):
-                query_record = {'ai_summary': query_record}
+            if isinstance(query_record, dict):
+                query_record = f"""Title: {query_record.get('title', 'N/A')}
+Summary: {query_record.get('ai_summary', 'N/A')}"""
 
-            candidates_text = ""
+            candidates_text = []
             candidate_keys = []
             for candidate in candidate_records:
                 if '_id' in candidate:
@@ -178,37 +179,44 @@ class AIUtils:
                     continue
                 key = f"{key}:{candidate.get('connection_id', 'unknown')}"
                 candidate_keys.append(key)
-                candidates_text += f""" \n Record Key: {key} \n Title: {candidate.get('title', 'N/A')} \n Summary: {candidate.get('ai_summary', 'N/A')} \n"""
+                new_candidate = {'record_key': key}
+                if title := candidate.get('title'):
+                    new_candidate['title'] = title
+                if summary := candidate.get('ai_summary'):
+                    new_candidate['summary'] = summary
+                if snippets := candidate.get('snippets'):
+                    new_candidate['snippets'] = snippets
+                candidates_text.append(new_candidate)
+            
+            candidates_text = convert_to_json_code_block(candidates_text)
 
-            prompt = (f"""
-                You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
+            prompt = (f"""You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
 
-                Query Record:
-                Title: {query_record.get('title', 'N/A')}
-                Summary: {query_record.get('ai_summary', 'N/A')}
+Query Record:
+{query_record}
 
-                Candidate Records:
-                {candidates_text}
+Candidate Records:
+{candidates_text}
 
-                **CRITICAL Instructions:**
-                1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-                2. Consider both the title and summary when determining relevance.
-                3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-                   - Addresses similar topics, issues, or problems
-                   - Has related technical content or features
-                   - Shares common themes or concepts
-                   - Could provide useful context or related information
-                4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
-                5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
-                6. If no records are relevant, return an empty array: []
-                7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
+**CRITICAL Instructions:**
+1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
+2. Consider both the title and summary when determining relevance.
+3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
+    - Addresses similar topics, issues, or problems
+    - Has related technical content or features
+    - Shares common themes or concepts
+    - Could provide useful context or related information
+4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
+5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
+6. If no records are relevant, return an empty array: []
+7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
 
-                **Example Output Format:**
-                ["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
+**Example Output Format:**
+["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
 
-                Or if no records are relevant:
-                []
-            """)
+Or if no records are relevant:
+[]
+""")
 
             messages = [
                 {
@@ -315,7 +323,7 @@ class AIUtils:
 
         # semantic search data
         records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
-        search_results = search_records_to_map(records, search_results)
+        search_results = search_records_to_map(records, search_results, is_vector_search=True)
 
         # reset value of vector_retrieval_type, e.g., site connection
         project_uuid = str(uuid.UUID(project_uuid))

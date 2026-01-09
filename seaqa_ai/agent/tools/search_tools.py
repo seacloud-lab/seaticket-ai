@@ -38,11 +38,15 @@ class BasicSearchTool(BasicTool):
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
             doc = {
                 'label': f'<reference_{i}>',
+                'type': search_result['type'],
                 'title': search_result['title'],
                 'content': search_result['content'],
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
+            if 'snippets' in search_result:
+                doc['snippets'] = search_result['snippets']
+                del search_result['snippets']
             to_observation.append(doc)
             del search_result['content']
 

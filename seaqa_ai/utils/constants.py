@@ -23,15 +23,39 @@ class ConnectionType(Enum):
     def is_valid(cls, value):
         return value in {item.value for item in cls}
     
+    @classmethod
+    def get_document_connection_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.DOCUMENTS.value
+        ]
+    
+    @classmethod
+    def get_issue_connection_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.ISSUES.value
+        ]
+    
 class NonConnectionType(Enum):
     KNOWLEDGE_BASE = 'knowledge_base'
     TICKET = 'ticket'
 
-class ATTACHMENTS_PROMPTS(Enum):
-    DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
-    ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
+    @classmethod
+    def get_document_connection_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.DOCUMENTS.value
+        ]
+    
+    @classmethod
+    def get_issue_connection_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.ISSUES.value
+        ]
 
-class ATTACHMENTS_TYPE(Enum):
+class SOURCES_TYPE(Enum):
     DOCUMENTS = (
         NonConnectionType.KNOWLEDGE_BASE.value,
         ConnectionType.SITE.value,
@@ -43,3 +67,12 @@ class ATTACHMENTS_TYPE(Enum):
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.EMAIL.value
     )
+
+class ATTACHMENTS_PROMPTS(Enum):
+    DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
+    ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
+
+class ATTACHMENTS_TYPE(Enum):
+    DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
+    ISSUES = SOURCES_TYPE.ISSUES.value
+    OTHERS = ()

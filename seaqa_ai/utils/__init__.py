@@ -10,8 +10,10 @@ from copy import deepcopy
 from datetime import datetime
 from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
-from seaqa_ai.config import TIME_ZONE, S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils.constants import ConnectionType, NonConnectionType, ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
+from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
+    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
+from seaqa_ai.utils.constants import ConnectionType, NonConnectionType, \
+    ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE, SOURCES_TYPE
 from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
@@ -166,7 +168,7 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
                 'message': '',
                 'attachments': []
             },
-            'user_row_message': ''
+            'user_raw_message': ''
         },
         'context': [],
         'actions': [],
@@ -210,8 +212,8 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
 
     for step in memory_steps:
         # task
-        if not results['task']['user_row_message'] and 'task' in step:
-            results['task']['user_row_message'] = step['task']
+        if not results['task']['user_raw_message'] and 'task' in step:
+            results['task']['user_raw_message'] = step['task']
         if not results['task']['system_prompt'] and 'model_input_messages' in step:
             """
             step['model_input_messages']: sources messages of inputing (including system_prompt, context and user_input):
@@ -497,13 +499,16 @@ def gen_seadb_table_name(connection_type, connection_id):
         comments_table_name = f'{connection_type}_thread_{connection_id}'
     return connection_table_name, comments_table_name
 
-def search_records_to_map(search_records, search_results):
+def search_records_to_map(search_records, search_results, is_vector_search=False):
     """
     func:  Deduplication and format search_records to a map:
     {
         'connection_id': {
             'record_id': record # 'record_id', i.e., _pk in seadb, _id in seaqa-indexer
         }
+    }
+    connection_id_type_map: a map of {
+        'connection_id': 'connection_type'
     }
     i.e., search_results on other funcs
     """
@@ -527,8 +532,18 @@ def search_records_to_map(search_records, search_results):
             record_id = int(record[candidate_key])
         except:
             record_id = record[candidate_key]
+        if record['type'] in NonConnectionType:
+            connection_id = record['type']
         if connection_id not in connection_id_record_id_record_map:
             connection_id_record_id_record_map[connection_id] = {}
+        if is_vector_search and record.get('source_type') == 'chunk': # snippet
+            try:
+                record['snippets'] = connection_id_record_id_record_map[connection_id][record_id]['snippets']
+            except:
+                record['snippets'] = []
+            record['snippets'].append(record['content'])
+        elif not is_vector_search and record['type'] in SOURCES_TYPE.DOCUMENTS.value:
+            record['keyword_search_content'] = record['content']
         connection_id_record_id_record_map[connection_id][record_id] = record
     return connection_id_record_id_record_map
 
@@ -595,7 +610,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
 
     search_results also present as return
     """
-    for connection_id, record_id_record_map in deepcopy(search_results).items():
+    for connection_id, record_id_record_map in search_results.items():
         connection_type = connection_id_type_map[connection_id]
         connection_table_name, comments_table_name = gen_seadb_table_name(connection_type, connection_id)
         if connection_type == ConnectionType.SITE.value:
@@ -607,12 +622,10 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                         project_uuid=project_uuid_to_s3,
                         filename=url_to_filename(record['url'])
                     )['content']
-                    search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
-                
+
         elif connection_type == ConnectionType.SEAFILE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
             for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
                 search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
         elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id', record_fields_str='_pk', comments_field_str='author, post_number, content')
@@ -627,7 +640,6 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                 ]
                 search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
-                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
         elif connection_type == ConnectionType.GITHUB_ISSUE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', record_fields_str='content', comments_field_str='author, content')
             for record_id, record in record_id_record_map.items():
@@ -641,11 +653,17 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                 ]
                 search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
                 del search_results[connection_id][record_id]['comments']
-                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
         elif connection_type == ConnectionType.EMAIL.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
             for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content_preview'] = record['ai_summary']
                 search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+    
+    for connection_id, record_id_record_map in search_results.items():
+        for record_id, record in record_id_record_map.items():
+            if record['type'] in SOURCES_TYPE.DOCUMENTS.value:
+                if 'keyword_search_content' in record:
+                    search_results[connection_id][record_id]['content'] = record['keyword_search_content']
+                    del search_results[connection_id][record_id]['keyword_search_content']
+                search_results[connection_id][record_id]['content'] = search_results[connection_id][record_id]['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
     return search_results
