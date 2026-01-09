@@ -190,34 +190,33 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             
             candidates_text = convert_to_json_code_block(candidates_text)
 
-            prompt = (f"""
-                You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
+            prompt = (f"""You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
 
-                Query Record:
-                {query_record}
+Query Record:
+{query_record}
 
-                Candidate Records:
-                {candidates_text}
+Candidate Records:
+{candidates_text}
 
-                **CRITICAL Instructions:**
-                1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-                2. Consider both the title and summary when determining relevance.
-                3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-                   - Addresses similar topics, issues, or problems
-                   - Has related technical content or features
-                   - Shares common themes or concepts
-                   - Could provide useful context or related information
-                4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
-                5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
-                6. If no records are relevant, return an empty array: []
-                7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
+**CRITICAL Instructions:**
+1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
+2. Consider both the title and summary when determining relevance.
+3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
+    - Addresses similar topics, issues, or problems
+    - Has related technical content or features
+    - Shares common themes or concepts
+    - Could provide useful context or related information
+4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
+5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
+6. If no records are relevant, return an empty array: []
+7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
 
-                **Example Output Format:**
-                ["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
+**Example Output Format:**
+["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
 
-                Or if no records are relevant:
-                []
-            """)
+Or if no records are relevant:
+[]
+""")
 
             messages = [
                 {
