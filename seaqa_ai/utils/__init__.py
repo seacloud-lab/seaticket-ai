@@ -537,7 +537,9 @@ def search_records_to_map(search_records, search_results, is_vector_search=False
         if connection_id not in connection_id_record_id_record_map:
             connection_id_record_id_record_map[connection_id] = {}
         if is_vector_search and record.get('source_type') == 'chunk': # snippet
-            if 'snippets' not in record:
+            try:
+                record['snippets'] = connection_id_record_id_record_map[connection_id][record_id]['snippets']
+            except:
                 record['snippets'] = []
             record['snippets'].append(record['content'])
         elif not is_vector_search and record['type'] in SOURCES_TYPE.DOCUMENTS.value:
