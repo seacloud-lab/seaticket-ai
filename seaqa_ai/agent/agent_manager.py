@@ -9,7 +9,7 @@ from seaqa_ai import config
 from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.agent.utils import tool_output, save_tool_call
+from seaqa_ai.agent.utils import format_tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
@@ -159,14 +159,17 @@ class AgentManager:
                         'arguments': arguments
                     }
                     try:
-                        to_observation, to_db, _ = tool_output(tool_executor.execute(tool_call))
+                        tool_output = format_tool_output(tool_executor.execute(tool_call))
 
-                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
+                        result_to_db = tool_output.get('to_db')
+                        result_to_observation = tool_output.get('to_observation')
+
+                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, result_to_db, fix_tool_calls_id=fix_tool_calls_id)
 
                         try:
-                            json_object = json.loads(to_observation)
+                            json_object = json.loads(result_to_observation)
                         except:
-                            json_object = to_observation
+                            json_object = result_to_observation
 
                         json_code_block = convert_to_json_code_block(json_object)
                         new_tool_call_to_thought_process['output'] = json_code_block
@@ -174,7 +177,7 @@ class AgentManager:
                         memory += {
                             'role': 'tool',
                             'tool_call_id': tool_call['id'],
-                            'content': json.dumps(to_observation)
+                            'content': json.dumps(result_to_observation)
                         }
                     except Exception as e:
                         logger.exception(f'Execute tool call failure: {e}')

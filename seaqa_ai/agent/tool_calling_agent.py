@@ -4,7 +4,7 @@ import logging
 import json
 import uuid
 from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.agent.utils import tool_output, save_tool_call
+from seaqa_ai.agent.utils import format_tool_output, save_tool_call
 from seaqa_ai.utils import parse_json, object_to_json_str
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,11 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
             if isinstance(tool_call_result, smolagents.AgentText):
                 tool_call_result = parse_json(tool_call_result)
 
-            to_observation, to_db, extra_token_usage = tool_output(tool_call_result)
+            tool_output = format_tool_output(tool_call_result)
+
+            to_db = tool_output.get('to_db')
+            to_observation = tool_output.get('to_observation')
+            extra_token_usage = tool_output.get('extra_token_usage', {})
 
             save_tool_call(self.db_session_class, self.session_uuid, self.message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
             observation = str(to_observation).strip()
