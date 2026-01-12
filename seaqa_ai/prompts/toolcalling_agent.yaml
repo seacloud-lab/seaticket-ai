@@ -328,6 +328,6 @@ final_answer:
     Based on the above, please provide an answer to the following user task:
     {{task}}
 
-    Unless otherwise stated, if you used search tools (e.g., "documents_search") and believe they provided valuable information for answering user questions, please insert the value of the "label" field from the search tool's search results into the appropriate place in your final answer (usually in the format "<reference_xxx>", such as "<reference_0>", "<reference_1>"). On the other hand, if you use content generator tools, do not attempt to make any changes to their output (includes HTML tags and their content) in your final answer.
+    Unless otherwise stated, if you used search tools (e.g., "documents_search") and believe they provided valuable information for answering user questions, please insert the value of the "label" field from the search tool's search results into the appropriate place in your final answer (usually in the format "<reference_xxx>", such as "<reference_0>", "<reference_1>").
 
-    Unless otherwise specified, if you use content generation tools (e.g., "generate_markdown"), do not attempt to make any changes to their output (includes HTML tags and their content.) in your results
+    On the other hand, if you use content generation tools (e.g., "generate_markdown"), do not attempt to make any changes to their output (includes HTML tags and their content.) in your results.
