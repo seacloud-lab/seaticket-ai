@@ -12,7 +12,7 @@ class LLMAPI:
         self.data_logger = data_logger
         self.timeout = timeout
         if llm_type == 'other':
-            llm_type = 'openai'
+            llm_type = 'hosted_vllm'
         elif llm_type == 'proxy':
             llm_type = None
             if not api_key:
