@@ -94,7 +94,7 @@ LLM_MODELS = configs.get('LLM_MODELS', [])
 def check_model_validation(model_config):
     if not isinstance(model_config, dict):
         return False
-    if model_config.get('type') == 'proxy':
+    if model_config.get('type') in ('proxy', 'other', 'hosted_vllm'):
         required_fields = ('model', 'url')
     else:
         required_fields = ('model', 'key')
