@@ -85,6 +85,16 @@ def url_to_filename(url):
     # Add .json extension
     return filename + '.json'
 
+def gen_completion_format(schema, name='result_parser'):
+    return {
+        'type': 'json_schema',
+        'json_schema': {
+            'name': name,
+            'strict': True,
+            'schema': schema
+        }
+    }
+
 def object_to_json_str(obj):
     result = obj
     if isinstance(obj, str) or isinstance(obj, AgentText):

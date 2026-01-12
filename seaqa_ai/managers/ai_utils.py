@@ -1,7 +1,8 @@
 import logging
 import json_repair
 import uuid
-from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block
+from copy import copy
+from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
 from seaqa_ai.utils.constants import NonConnectionType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
@@ -36,19 +37,12 @@ class AIUtils:
             1. Generate a new, clear, and concise title for the ticket.
             2. Create a detailed description that summarizes the key points from the body content.
             3. The output language must be consistent with the input language.
-            4. Return the result in JSON format with "title" and "description" keys.
-
-            **Example Output:**
-            {{
-                "title": "New Ticket Title",
-                "description": "A detailed summary of the ticket body."
-            }}
             """
 
             messages = [
                 {
                     "role": "system",
-                    "content": "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information, ensuring the output is in JSON format and matches the input language."
+                    "content": "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information."
                 },
                 {
                     "role": "user",
@@ -56,15 +50,37 @@ class AIUtils:
                 }
             ]
 
-            
+            response_schema = {
+                'type': 'object',
+                'properties': {
+                    'title': {
+                        'type': 'string',
+                        'description': 'New Ticket Title'
+                    },
+                    'description': {
+                        'type': 'string',
+                        'description': 'A detailed summary of the ticket body'
+                    }
+                },
+                'additionalProperties': False,
+                'required': ['title', 'description']
+            }
+
             response = self.llm_api.completion(
                 messages=messages,
                 context=context,
                 temperature=self.temperature,
-            )
-            resp_json = json_repair.loads(response.choices[0].message.content)
-            ai_title = resp_json.get('title', '')
-            ai_description = resp_json.get('description', '')
+                response_format=gen_completion_format(response_schema)
+            ).choices[0].message.content
+
+            try:
+                result = json_repair.loads(response, strict=True)
+            except Exception as e:
+                logger.exception(f'Failure to parse ticket result: {e}')
+                return '', ''
+
+            ai_title = result.get('title', '')
+            ai_description = result.get('description', '')
             return ai_title, ai_description
 
         except Exception as e:
@@ -136,8 +152,8 @@ class AIUtils:
                     {
                         "role": "system",
                         "content": (
-                            "You are a ticket analysis expert. A ticket​ is a recorded unit of work​ that is created to track a request, "
-                            "an issue, a task, or an incident​ from its initiation to completion. Read the ticket's title and body, then craft a "
+                            "You are a ticket analysis expert. A ticket: is a recorded unit of work that is created to track a request, "
+                            "an issue, a task, or an incident: from its initiation to completion. Read the ticket's title and body, then craft a "
                             "single-sentence English summary describing the core topic or request. Keep it concise (no more "
                             "than 100 characters) and return only that sentence without extra commentary or formatting."  
                         )                      
@@ -172,14 +188,20 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             candidate_keys = []
             for candidate in candidate_records:
                 if '_id' in candidate:
-                    key = candidate['_id']
+                    record_id = candidate['_id']
                 elif 'pk' in candidate:
-                    key = candidate['pk']
+                    record_id = candidate['pk']
                 else:
                     continue
-                key = f"{key}:{candidate.get('connection_id', 'unknown')}"
-                candidate_keys.append(key)
-                new_candidate = {'record_key': key}
+                try:
+                    connection_id = int(candidate.get('connection_id'))
+                except:
+                    connection_id = candidate.get('connection_id', 'unknown')
+                new_candidate = {
+                    'connection_id': connection_id,
+                    'record_id': record_id
+                }
+                candidate_keys.append(copy(new_candidate))
                 if title := candidate.get('title'):
                     new_candidate['title'] = title
                 if summary := candidate.get('ai_summary'):
@@ -207,21 +229,12 @@ Candidate Records:
     - Shares common themes or concepts
     - Could provide useful context or related information
 4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
-5. Return a JSON array containing ONLY the relevant record keys (in format "record_id:connection_id") ordered from most relevant to least relevant.
-6. If no records are relevant, return an empty array: []
-7. Do NOT add any explanation, commentary, or additional text - return ONLY the JSON array.
-
-**Example Output Format:**
-["record_id_3:conn_1", "record_id_1:conn_2", "record_id_5:conn_1"]
-
-Or if no records are relevant:
-[]
 """)
 
             messages = [
                 {
                     "role": "system",
-                    "content": "You are an expert relevance ranking system. Your task is to analyze records and identify only those that are truly relevant to the query. Return a valid JSON array of composite keys (record_id:connection_id) for relevant records only, ordered by relevance. Return an empty array if no records are relevant."
+                    "content": "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
                 },
                 {
                     "role": "user",
@@ -229,31 +242,62 @@ Or if no records are relevant:
                 }
             ]
 
+            response_schema = {
+                'type': 'object',
+                'properties': {
+                    'results': {
+                        'type': 'array',
+                        'description': 'The relevant record keys ordered from most relevant to least relevant. If no records are relevant, set it to an empty array: []',
+                        'items': {
+                            'type': 'object',
+                            'description': 'The key of a record',
+                            'properties': {
+                                'connection_id': {
+                                    'type': 'string',
+                                    'description': 'the connection_id field of the candidate record'
+                                },
+                                'record_id': {
+                                    'type': 'string',
+                                    'description': 'the record_id field of the candidate record'
+                                },
+                            },
+                            'required': ['connection_id', 'record_id'],
+                            'additionalProperties': False
+                        }
+                    }
+                },
+                'additionalProperties': False,
+                'required': ['results']
+            }
+
             response = self.llm_api.completion(
                 messages=messages,
                 context=context,
                 temperature=self.temperature,
+                response_format=gen_completion_format(response_schema)
             )
 
-            result = response.choices[0].message.content.strip()
-            reranked_keys = json_repair.loads(result)
+            response = response.choices[0].message.content
 
-            candidate_key_set = set(candidate_keys)
+            try:
+                results = json_repair.loads(response, strict=True).get('results', [])
+            except Exception as e:
+                logger.exception(f'Failure to rerank relevance: {e}')
+                return []
 
             validated_keys = []
-            seen_keys = set()
-            for key in reranked_keys:
+            for result in results:
+                try:
+                    connection_id = int(result.get('connection_id'))
+                except:
+                    connection_id = result.get('connection_id', 'unknown')
+                try:
+                    record_id = int(result.get('record_id'))
+                except:
+                    record_id = result.get('record_id')
                 # sometime ai response a dict not a str
-                if isinstance(key, dict):
-                    record_id = key.get('record_id')
-                    connection_id = key.get('connection_id')
-                    if record_id and connection_id:
-                        key = f'{record_id}:{connection_id}'
-                    else:
-                        continue
-                if key in candidate_key_set and key not in seen_keys:
-                    validated_keys.append(key)
-                    seen_keys.add(key)
+                if {'connection_id': connection_id, 'record_id': record_id} in candidate_keys:
+                    validated_keys.append(f'{record_id}:{connection_id}')
             return validated_keys
 
         except Exception as e:
