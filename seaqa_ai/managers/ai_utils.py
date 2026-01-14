@@ -3,7 +3,7 @@ import json_repair
 import uuid
 from copy import copy
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import NonConnectionType
+from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.utils.llm_api import LLMAPI
 from seaqa_ai.config import get_light_weight_model_config
 
@@ -193,10 +193,14 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     record_id = candidate['pk']
                 else:
                     continue
-                try:
-                    connection_id = int(candidate.get('connection_id'))
-                except:
+                if candidate.get('type') in ExtraSourceType:
+                    connection_id = candidate.get('type')
+                else:
                     connection_id = candidate.get('connection_id', 'unknown')
+                try:
+                    connection_id = int(connection_id)
+                except:
+                    pass
                 new_candidate = {
                     'connection_id': connection_id,
                     'record_id': record_id
@@ -222,9 +226,9 @@ Candidate Records:
 
 **CRITICAL Instructions:**
 1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-2. Consider both the title and summary when determining relevance.
+2. Consider both the title and other fields when determining relevance. Meanwhile, the title field of the candidate record has a higher relevance weight.
 3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-    - Addresses similar topics, issues, or problems
+    - Addresses similar title, topics, issues, or problems
     - Has related technical content or features
     - Shares common themes or concepts
     - Could provide useful context or related information
@@ -346,7 +350,7 @@ Candidate Records:
 
         return search_result_after_ranked
     
-    def search(self, query, connections, context, limit=100):
+    def search(self, query, connections, extra_sources, context, limit=100):
         if limit <= 0:
             return [], ''
 
@@ -357,16 +361,16 @@ Candidate Records:
             connection_id_type_map[connection['id']] = connection['type']
         if connection_ids:
             connection_ids = connection_ids[:-1]
-        connection_id_type_map[NonConnectionType.KNOWLEDGE_BASE.value] = NonConnectionType.KNOWLEDGE_BASE.value
-        connection_id_type_map[NonConnectionType.TICKET.value] = NonConnectionType.TICKET.value
+        connection_id_type_map[ExtraSourceType.KNOWLEDGE_BASE.value] = ExtraSourceType.KNOWLEDGE_BASE.value
+        connection_id_type_map[ExtraSourceType.TICKET.value] = ExtraSourceType.TICKET.value
 
         # keywords search data
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, context['username'])
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources, context['username'])
         search_results = search_records_to_map(records, {})
 
         # semantic search data
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, context['username'])
+        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, extra_sources, context['username'])
         search_results = search_records_to_map(records, search_results, is_vector_search=True)
 
         # reset value of vector_retrieval_type, e.g., site connection

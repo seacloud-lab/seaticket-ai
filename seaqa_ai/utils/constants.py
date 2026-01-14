@@ -36,20 +36,20 @@ class ConnectionType(Enum):
             item.value
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value
         ]
-    
-class NonConnectionType(Enum):
+
+class ExtraSourceType(Enum):
     KNOWLEDGE_BASE = 'knowledge_base'
     TICKET = 'ticket'
 
     @classmethod
-    def get_document_connection_types(cls):
+    def get_document_extra_source_types(cls):
         return [
             item.value
             for item in cls if item.value in SOURCES_TYPE.DOCUMENTS.value
         ]
     
     @classmethod
-    def get_issue_connection_types(cls):
+    def get_issue_extra_source_types(cls):
         return [
             item.value
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value
@@ -57,12 +57,12 @@ class NonConnectionType(Enum):
 
 class SOURCES_TYPE(Enum):
     DOCUMENTS = (
-        NonConnectionType.KNOWLEDGE_BASE.value,
+        ExtraSourceType.KNOWLEDGE_BASE.value,
         ConnectionType.SITE.value,
         ConnectionType.SEAFILE.value
     )
     ISSUES = (
-        NonConnectionType.TICKET.value,
+        ExtraSourceType.TICKET.value,
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.EMAIL.value

@@ -1,7 +1,7 @@
 import logging
 from seaqa_ai.config import get_model_config_by_id
-from seaqa_ai.agent.tools.content_generators import generate_markdown
-from seaqa_ai.agent.tools.search_tools import documents_search, issues_search
+from seaqa_ai.agent.tools.content_generators import GenerateMarkdown
+from seaqa_ai.agent.tools.search_tools import DocumentsSearch, IssuesSearch
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from smolagents.models import LiteLLMModel
@@ -13,11 +13,11 @@ class ChatManager:
     def __init__(self, app):
         self.app = app
         self.search_tools = (
-            documents_search(app),
-            issues_search(app),
+            DocumentsSearch(app),
+            IssuesSearch(app),
         )
         self.content_generators = (
-            generate_markdown(app),
+            GenerateMarkdown(app),
         )
 
     def get_ai_reply(self, resolve_type, message, attachments, context, model):
