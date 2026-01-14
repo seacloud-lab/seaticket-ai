@@ -31,13 +31,19 @@ class AIUtils:
         try:
             prompt = f"""Based on the provided ticket information, please generate a concise and informative ticket.
 
-            {record_detail}
+{record_detail}
 
-            **Instructions:**
-            1. Generate a new, clear, and concise title for the ticket.
-            2. Create a detailed description that summarizes the key points from the body content.
-            3. The output language must be consistent with the input language.
-            """
+**Instructions:**
+1. Generate a new, clear, and concise title for the ticket.
+2. Create a detailed description that summarizes the key points from the body content.
+3. The output language must be consistent with the input language.
+4. Return the result in JSON format with "title" and "description" keys.
+
+**Example Output:**
+{{
+    "title": "New Ticket Title",
+    "description": "A detailed summary of the ticket body."
+}}"""
 
             messages = [
                 {
@@ -224,7 +230,6 @@ Query Record:
 Candidate Records:
 {candidates_text}
 
-**CRITICAL Instructions:**
 1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
 2. Consider both the title and other fields when determining relevance. Meanwhile, the title field of the candidate record has a higher relevance weight.
 3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
@@ -233,6 +238,19 @@ Candidate Records:
     - Shares common themes or concepts
     - Could provide useful context or related information
 4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
+
+**OUTPUT FORMAT REQUIREMENTS:**
+- You MUST output a valid JSON object with EXACTLY this structure:
+{{
+  "results": [
+    {{"connection_id": "string_value", "record_id": "string_value"}},
+    {{"connection_id": "string_value", "record_id": "string_value"}}
+  ]
+}}
+- The "results" array must contain objects ordered from most relevant to least relevant.
+- If no records are relevant, set "results" to an empty array: []
+- Each "connection_id" and "record_id" MUST be string values (convert numbers to strings if needed).
+- Do NOT include any additional text, explanations, or markdown formatting outside the JSON.
 """)
 
             messages = [
@@ -278,7 +296,7 @@ Candidate Records:
                 messages=messages,
                 context=context,
                 temperature=self.temperature,
-                response_format=gen_completion_format(response_schema)
+                response_format=gen_completion_format(response_schema, 'rank_relevant_records')
             )
 
             token_usage = {
