@@ -7,10 +7,18 @@ from seaqa_ai.utils import localize_time, parse_json
 
 logger = logging.getLogger(__name__)
 
-def tool_output(output):
+def format_tool_output(output):
     if isinstance(output, dict):
-        return output.get('to_observation', output), output.get('to_db', output)
-    return output, output
+        return {
+            'to_observation': output.get('to_observation', output),
+            'to_db': output.get('to_db', output),
+            'extra_token_usage': output.get('extra_token_usage', {})
+        }
+    return {
+        'to_observation': output,
+        'to_db': output,
+        'extra_token_usage': {}
+    }
 
 def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output=None, error=None, fix_tool_calls_id=None):
     if isinstance(tool_call, ToolCall):

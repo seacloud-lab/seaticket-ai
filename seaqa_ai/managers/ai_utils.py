@@ -31,13 +31,19 @@ class AIUtils:
         try:
             prompt = f"""Based on the provided ticket information, please generate a concise and informative ticket.
 
-            {record_detail}
+{record_detail}
 
-            **Instructions:**
-            1. Generate a new, clear, and concise title for the ticket.
-            2. Create a detailed description that summarizes the key points from the body content.
-            3. The output language must be consistent with the input language.
-            """
+**Instructions:**
+1. Generate a new, clear, and concise title for the ticket.
+2. Create a detailed description that summarizes the key points from the body content.
+3. The output language must be consistent with the input language.
+4. Return the result in JSON format with "title" and "description" keys.
+
+**Example Output:**
+{{
+    "title": "New Ticket Title",
+    "description": "A detailed summary of the ticket body."
+}}"""
 
             messages = [
                 {
@@ -224,7 +230,6 @@ Query Record:
 Candidate Records:
 {candidates_text}
 
-**CRITICAL Instructions:**
 1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
 2. Consider both the title and other fields when determining relevance. Meanwhile, the title field of the candidate record has a higher relevance weight.
 3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
@@ -233,6 +238,19 @@ Candidate Records:
     - Shares common themes or concepts
     - Could provide useful context or related information
 4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
+
+**OUTPUT FORMAT REQUIREMENTS:**
+- You MUST output a valid JSON object with EXACTLY this structure:
+{{
+  "results": [
+    {{"connection_id": "string_value", "record_id": "string_value"}},
+    {{"connection_id": "string_value", "record_id": "string_value"}}
+  ]
+}}
+- The "results" array must contain objects ordered from most relevant to least relevant.
+- If no records are relevant, set "results" to an empty array: []
+- Each "connection_id" and "record_id" MUST be string values (convert numbers to strings if needed).
+- Do NOT include any additional text, explanations, or markdown formatting outside the JSON.
 """)
 
             messages = [
@@ -278,8 +296,14 @@ Candidate Records:
                 messages=messages,
                 context=context,
                 temperature=self.temperature,
-                response_format=gen_completion_format(response_schema)
+                response_format=gen_completion_format(response_schema, 'rank_relevant_records')
             )
+
+            token_usage = {
+                'input_tokens': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
 
             response = response.choices[0].message.content
 
@@ -300,9 +324,10 @@ Candidate Records:
                 except:
                     record_id = result.get('record_id')
                 # sometime ai response a dict not a str
-                if {'connection_id': connection_id, 'record_id': record_id} in candidate_keys:
+                if {'connection_id': connection_id, 'record_id': record_id} in candidate_keys and \
+                    f'{record_id}:{connection_id}' not in validated_keys:
                     validated_keys.append(f'{record_id}:{connection_id}')
-            return validated_keys
+            return validated_keys, token_usage
 
         except Exception as e:
             logger.error(f"Error ranking related records: {e}")
@@ -321,7 +346,7 @@ Candidate Records:
         for record_id_record_map in search_result.values():
             for record in record_id_record_map.values():
                 new_records.append(record)
-        ranked_record_id_connection_pairs = self.rank_issues_by_relevance(query, new_records, context)[:limit]
+        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)[:limit]
         search_result_after_ranked = {}
         rank_pairs = []
         for pair in ranked_record_id_connection_pairs:
@@ -348,7 +373,7 @@ Candidate Records:
         # get source results for records after ranked
         search_result_after_ranked = retrieve_content_of_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        return search_result_after_ranked
+        return search_result_after_ranked, rerank_token_usage
     
     def search(self, query, connections, extra_sources, context, limit=100):
         if limit <= 0:
@@ -377,7 +402,7 @@ Candidate Records:
         project_uuid = str(uuid.UUID(project_uuid))
         search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
 
-        search_results = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map)
+        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map)
 
         # reformat to list
         sources_results = []
@@ -385,4 +410,4 @@ Candidate Records:
             for record in record_id_record_map.values():
                 sources_results.append(record)
         
-        return sources_results
+        return sources_results, rerank_token_usage

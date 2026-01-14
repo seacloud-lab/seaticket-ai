@@ -4,13 +4,22 @@ from seaqa_ai.utils.constants import ExtraSourceType
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_TOOLS_RESULT_FORMAT = """The result of this tool has the below format (ranked by keyword relevance):
-===== Reference 0 ===== Title: <title of Reference 0> =====
-<Reference 0's content>
-
-
-===== Reference 1 ===== Title: <title of Reference 1> =====
-<Reference 1's content>
+_SEARCH_TOOLS_RESULT_FORMAT = """
+[
+    {
+        "label": "<reference_0>",
+        "title": "Title",
+        "content": "Search result's content",
+        
+        // ... Other useful information, e.g., url ...
+    }, {
+        "label": "<reference_1>",
+        "title": "Title",
+        "content": "Search result's content",
+        
+        // ... Other useful information, e.g., url ...
+    }
+]
 """
 
 class BasicSearchTool(BasicTool):
@@ -33,7 +42,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
+        current_search_results, rerank_token_usage = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
 
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
@@ -58,7 +67,8 @@ class BasicSearchTool(BasicTool):
         # Format the retrieved documents for readability
         return {
             'to_observation': to_observation,
-            'to_db': current_search_results
+            'to_db': current_search_results,
+            'extra_token_usage': rerank_token_usage
         }
 
 class DocumentsSearch(BasicSearchTool):
