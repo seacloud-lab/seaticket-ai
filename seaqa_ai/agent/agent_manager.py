@@ -138,26 +138,35 @@ class AgentManager:
                 messages=memory,
                 context=context,
                 tools=tool_executor.get(),
-                temperature=temperature,
+                temperature=temperature
             ).choices[0].message
 
-            if response.tool_calls:
+            current_step = 0
+            thought_process['actions'] = []
+
+            while (response := llm_api.completion(
+                messages=memory,
+                context=context,
+                tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
+                temperature=temperature
+            ).choices[0].message).tool_calls:
+                current_step += 1
                 memory += {
                     'role': 'assistant',
                     'tool_calls': response.tool_calls
                 }
 
-                thought_process['tool_calls'] = []
                 fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
+                new_tool_call_to_thought_process = {'tool_calls': []}
 
                 for tool_call in response.tool_calls:
                     arguments = tool_call['function']['arguments']
                     if isinstance(arguments, str):
                         arguments = parse_json(arguments)
-                    new_tool_call_to_thought_process = {
+                    new_tool_call_to_thought_process['tool_calls'].append({
                         'name': tool_call['function']['name'],
                         'arguments': arguments
-                    }
+                    })
                     try:
                         tool_output = format_tool_output(tool_executor.execute(tool_call))
 
@@ -172,7 +181,7 @@ class AgentManager:
                             json_object = result_to_observation
 
                         json_code_block = convert_to_json_code_block(json_object)
-                        new_tool_call_to_thought_process['output'] = json_code_block
+                        new_tool_call_to_thought_process['result'] = json_code_block
 
                         memory += {
                             'role': 'tool',
@@ -193,17 +202,9 @@ class AgentManager:
                             'tool_call_id': tool_call['id'],
                             'content': f'{error_type}: {error_message}'
                         }
-                    thought_process['tool_calls'].append(new_tool_call_to_thought_process)
+                    thought_process['actions'].append(new_tool_call_to_thought_process)
 
-                content = llm_api.completion(
-                        messages=memory,
-                        context=context,
-                        temperature=temperature,
-                        model=model
-                    ).choices[0].message.content
-
-            else:
-                content = response.content
+            content = response.content
 
             # filter invalid references
             answer, sources = get_answer_and_sources(tool_executor, content)

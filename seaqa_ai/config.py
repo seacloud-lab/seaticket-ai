@@ -170,6 +170,7 @@ CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 
 ## Max steps
 MAX_STEPS = configs.get('MAX_STEPS', 5)
+assert MAX_STEPS > 0, "MAX_STEPS must larger than 0"
 
 # Redis
 REDIS_HOST = configs.get('REDIS_HOST', 'redis')
