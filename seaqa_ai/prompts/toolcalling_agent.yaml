@@ -214,52 +214,15 @@ system_prompt: |-
               "name": "final_answer",
               "arguments": {"answer": "<img url="512x512-a-portrait-of-John-Doe.jpg" />"}
           }
-      - Example task 6: Please provide a Markdown document describing how to deploy Seafile CE using Docker.
-          Action:
-          {
-              "name": "documents_search",
-              "arguments": {
-                  "query": "Deploy Seafile CE with Docker"
-              }
-          }
-          Observation: 
-          [
-              {
-                  "label": "<reference_0>",
-                  "title": "Installation of Seafile Server Community Edition with Docker",
-                  "content": "some details about how to deploy Seafile CE with docker ...",
-                  "url": "https://manual.seafile.com/latest/setup/setup_ce_by_docker/"
-              }
-          ]
-
-          Action:
-          {
-            "name": "generate_markdown",
-            "arguments": {
-                "file_name": "Deploy Seafile CE with Docker.md"
-                "content": "some details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ..."
-            }
-          }
-          Observation:
-          <seaqa-markdown file_name='seafile-introduction.md'>
-          # Deploy Seafile CE with Docker
-          some details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ...
-          </seaqa-markdown>
-
-          Action:
-          {
-              "name": "final_answer",
-              "arguments": {"answer": "Okay, I've provided a Markdown document that explains how to deploy Seafile CE using Docker.\n<seaqa-markdown file_name='seafile-introduction.md'>\n# Deploy Seafile CE with Docker\nsome details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ...\n</seaqa-markdown>"}
-          }
   
   For general requests, no additional tools are required:
-  - Example task 5: "What is the result of the following operation: 5 + 3 + 1294.678?"
+  - Example task 6: "What is the result of the following operation: 5 + 3 + 1294.678?"
     Action:
     {
         "name": "final_answer",
         "arguments": {"answer": "1302.678"}
     }
-  - Example task 6: "Which one is the maximum value in 5, 9, 19, 28 and 3"
+  - Example task 7: "Which one is the maximum value in 5, 9, 19, 28 and 3"
     {
         "name": "final_answer",
         "arguments": {"answer": "the maximum value in your provided is 28"}

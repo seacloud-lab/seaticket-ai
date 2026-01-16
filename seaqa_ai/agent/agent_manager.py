@@ -166,7 +166,7 @@ class AgentManager:
                         arguments = parse_json(arguments)
                     new_tool_call_to_thought_process['tool_calls'].append({
                         'name': tool_call['function']['name'],
-                        'arguments': arguments
+                        'arguments': {key: object_to_json_str(value) for key, value in arguments.items()}
                     })
                     try:
                         tool_output = format_tool_output(tool_executor.execute(tool_call))

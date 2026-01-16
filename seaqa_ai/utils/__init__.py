@@ -325,7 +325,7 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
 
                 tks = [{
                         'name': tool_call['function']['name'],
-                        'arguments': tool_call['function']['arguments'],
+                        'arguments': {key: object_to_json_str(value) for key, value in tool_call['function']['arguments'].items()},
                     }
                     for tool_call in tool_calls
                 ]
