@@ -51,7 +51,6 @@ def parse_json(json_str):
             try:
                 json_obj = ast.literal_eval(json_str)
             except Exception as e:
-                
                 return json_str
         return json_obj
     return json_str
@@ -126,6 +125,15 @@ def combine_attachments_to_message(attachments, message):
         final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments) + '\n\n'
 
     return final_message + message
+
+def remove_attachments_content(attachments):
+    for attachment in deepcopy(attachments):
+        if attachment.get('content'):
+            del attachment['content']
+        if attachment.get('comments'):
+            del attachment['comments']
+        if attachment.get('emails'):
+            del attachment['emails']
 
 def format_thought_process_user_input(attachments, message):
     document_attachments = []

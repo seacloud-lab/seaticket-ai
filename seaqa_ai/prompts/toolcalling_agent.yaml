@@ -15,7 +15,7 @@ system_prompt: |-
 
   1. Always provide a tool call, else you will fail.
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
-  3. Do not call tools unrelated to the task (i.e., Do not use tools that are irrelevant to the user's intent if the user's intent is not explicitly stated). 
+  3. Do not call tools unrelated to the task (i.e., Do not use tools that are irrelevant to the user's intent if the user's intent is not explicitly stated). For example, if users are only asking technical questions and don't mention other operations, so you shouldn't use content generation tools like `generate_markdown`.
   4. If the user's task does not require additional tools to perform the operation or assist in answering, please use the `final_answer` tool to answer directly. (For example, no other tools are needed for tasks like summarizing a text or other problems that can be solved without reference materials, just call `final_answer` is fine)
   5. If you believe a user's question requires reference materials to resolve, you should (Unless otherwise stated):
       1. In your **first step**, search official documentation (using the tool like `documents_search`) to see if it addresses the user's concerns. If the answer obtained so far, combined with your experience, can solve the user's problem, then call the `final_answer` tool and return the result unless the user has other requests that need to be processed.

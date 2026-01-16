@@ -3,7 +3,7 @@ import json
 import datetime
 from smolagents import ToolCall
 from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.utils import localize_time, parse_json
+from seaqa_ai.utils import localize_time, object_to_json_str
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ def format_tool_output(output):
         return {
             'to_observation': output.get('to_observation', output),
             'to_db': output.get('to_db', output),
-            'extra_token_usage': output.get('extra_token_usage', {})
+            'extra_token_usage': output.get('extra_token_usage', {}),
         }
     return {
         'to_observation': output,
@@ -29,11 +29,9 @@ def save_tool_call(db_session_class, session_uuid, message_id, tool_call, output
         
         tool_call_id = tool_call['id'] if not fix_tool_calls_id else fix_tool_calls_id
         arguments = tool_call['function']['arguments']
-        if isinstance(arguments, str):
-            arguments = parse_json(arguments)
         tool_call_info = {
             'name': tool_call['function']['name'],
-            'arguments': arguments,
+            'arguments': object_to_json_str(arguments),
             'output': output
         }
 

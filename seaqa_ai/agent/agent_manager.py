@@ -14,7 +14,8 @@ from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
 from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, object_to_json_str, localize_time, \
-    convert_to_json_code_block, get_answer_and_sources, combine_attachments_to_message
+    convert_to_json_code_block, get_answer_and_sources, combine_attachments_to_message, \
+    remove_attachments_content
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -127,10 +128,10 @@ class AgentManager:
             }
 
             thought_process['task']['user_input'] = {
+                'raw': user_raw_message,
                 'message': message,
-                'attachments': attachments
+                'attachments': remove_attachments_content(attachments)
             }
-            thought_process['task']['user_raw_message'] = user_raw_message
 
             llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
 
@@ -210,7 +211,7 @@ class AgentManager:
             answer, sources = get_answer_and_sources(tool_executor, content)
 
             # result to thought process
-            thought_process['result'] = content
+            thought_process['result'] = object_to_json_str(content)
             
             with self.db_session_class() as db_session:
                 record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
