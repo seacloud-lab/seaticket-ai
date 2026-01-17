@@ -73,8 +73,9 @@ class AgentManager:
 
             answer, sources = get_answer_and_sources(tool_executor, agent_output.output)
 
-            for message in agent_output.messages:
-                if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
+            # set final_answer tool to db call due to AgentMaxStepsError has not called to final_answer
+            for agent_message in agent_output.messages:
+                if (error := agent_message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
                     with self.db_session_class() as db_session:
                         record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
                         new_tool_calls = {
@@ -84,14 +85,15 @@ class AgentManager:
                         new_tool_calls['tool_calls_final_answer'] = {
                             'is_final_answer': True,
                             'reach_max_steps': True,
-                            'result': object_to_json_str(message.get('action_output')),
+                            'result': object_to_json_str(agent_message.get('action_output')),
                             'static': {
-                                'token_usage': message.get('token_usage', {})
+                                'token_usage': agent_message.get('token_usage', {})
                             },
                             'time': localize_time(datetime.datetime.now()).isoformat()
                         }
                         record.tool_calls = json.dumps(new_tool_calls)
                         db_session.commit()
+                    break
 
             return {
                 'answer': answer,
@@ -211,18 +213,20 @@ class AgentManager:
             answer, sources = get_answer_and_sources(tool_executor, content)
 
             # result to thought process
-            thought_process['result'] = object_to_json_str(content)
+            thought_process['final_answer'] = {
+                'result': object_to_json_str(content),
+                'is_final_answer': True,
+                'reach_max_steps': current_step == config.MAX_STEPS
+            }
             
             with self.db_session_class() as db_session:
                 record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
                 if record:
                     new_tool_calls = record.to_dict()['tool_calls']
-                    new_tool_calls['result'] = content
+                    new_tool_calls['final_answer'] = thought_process['final_answer']
                     record.tool_calls = json.dumps(new_tool_calls)
                 else:
-                    record = ChatToolCalls(session_uuid, message_id, {
-                        'result': content
-                    })
+                    record = ChatToolCalls(session_uuid, message_id, {'final_answer': thought_process['final_answer']})
                     db_session.add(record)
                 db_session.commit()
 

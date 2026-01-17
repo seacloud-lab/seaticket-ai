@@ -183,10 +183,10 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
         'task': {
             'system_prompt': '',
             'user_input': {
+                'raw': '',
                 'message': '',
                 'attachments': []
             },
-            'user_raw_message': ''
         },
         'context': [],
         'actions': [],
@@ -197,7 +197,8 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
                 'output_tokens': 0,
                 'total_tokens': 0
             },
-            'time_usage': 0
+            'time_usage': 0,
+            'reach_max_steps': False
         },
         'static': {
             'token_usage': {
@@ -230,8 +231,8 @@ def smolagent_steps_to_thought_process(memory_steps, message, attachments):
 
     for step in memory_steps:
         # task
-        if not results['task']['user_raw_message'] and 'task' in step:
-            results['task']['user_raw_message'] = step['task']
+        if not results['task']['user_input']['raw'] and 'task' in step:
+            results['task']['user_input']['raw'] = step['task']
         if not results['task']['system_prompt'] and 'model_input_messages' in step:
             """
             step['model_input_messages']: sources messages of inputing (including system_prompt, context and user_input):
