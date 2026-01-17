@@ -346,7 +346,8 @@ Candidate Records:
         for record_id_record_map in search_result.values():
             for record in record_id_record_map.values():
                 new_records.append(record)
-        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)[:limit]
+        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)
+        ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
         rank_pairs = []
         for pair in ranked_record_id_connection_pairs:
