@@ -17,19 +17,14 @@ class OpenAIMemory:
 
     @property
     def context_thought_process(self):
-        results = {
-            'task': {
-                'system_prompt': self.steps[0]['content']
-            },
-            'context': []
-        }
+        results = []
 
         for step in self.steps[1:]:
             if 'created_at' not in step:
                 continue
             if step['role'] == 'assistant':
-                if not results['context']:
-                    results['context'].append({
+                if not results:
+                    results.append({
                         'date': step['created_at'],
                         'user_input': '',
                         'assistant_response': [{
@@ -41,7 +36,7 @@ class OpenAIMemory:
                         }]
                     })
                 else:
-                    results['context'][-1]['assistant_response'].append({
+                    results[-1]['assistant_response'].append({
                         'date': step['created_at'],
                         'content': {
                             'answer': step['content'],
@@ -49,7 +44,7 @@ class OpenAIMemory:
                         }
                     })
             else:
-                results['context'].append({
+                results.append({
                     'date': step['created_at'],
                     'user_input': combine_attachments_to_message(step['attachments'], step['content']),
                     'assistant_response': []

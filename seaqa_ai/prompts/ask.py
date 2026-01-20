@@ -170,46 +170,6 @@ CONTENT_GENERATOR_TOOLS_DES = """
                 }
             - Tool's result: <img url="512x512-a-portrait-of-John-Doe.jpg" />
         - Your response: <img url="512x512-a-portrait-of-John-Doe.jpg" />
-    - Example task 6: Please provide a Markdown document describing how to deploy Seafile CE using Docker.
-        - Step 1:
-            - Tool call:
-                {
-                    "name": "documents_search",
-                    "arguments": {
-                        "query": "Deploy Seafile CE with Docker"
-                    }
-                }
-            - Tool's result:
-                [
-                    {
-                        "label": "<reference_0>",
-                        "title": "Installation of Seafile Server Community Edition with Docker",
-                        "content": "some details about how to deploy Seafile CE with docker ...",
-                        "url": "https://manual.seafile.com/latest/setup/setup_ce_by_docker/"
-                    }
-                ]
-        - Step 2:
-            - Tool call:
-                {
-                    "name": "generate_markdown",
-                    "arguments": {
-                        "file_name": "Deploy Seafile CE with Docker.md"
-                        "content": "some details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ..."
-                    }
-                }
-            - Tool's result:
-                ```html
-                <seaqa-markdown file_name='seafile-introduction.md'>
-                # Deploy Seafile CE with Docker
-                some details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ...
-                </seaqa-markdown>
-                ```
-        - Your response:
-            Okay, I've provided a Markdown document that explains how to deploy Seafile CE using Docker.
-            <seaqa-markdown file_name='seafile-introduction.md'>
-            # Deploy Seafile CE with Docker
-            some details about how to (deploy Seafile CE with docker)[https://manual.seafile.com/latest/setup/setup_ce_by_docker/] ...
-            </seaqa-markdown>
 """
 
 SYSTEM_PROMPT = f"""You are an expert assistant capable of helping users handle tasks through tool calls. In short, **one of your most important tasks is to analyze the user's current task and the tools (and answers) already used to determine if additional tools are needed to complete the task. If so, return a tool call request; otherwise, answer the user's question based on the tool call history**. A specific logical example will be given here:

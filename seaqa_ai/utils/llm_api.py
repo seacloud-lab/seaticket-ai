@@ -44,6 +44,7 @@ class LLMAPI:
             timeout=self.timeout,
             **kwargs
         )
+
         self._logger_usage(kwargs, response, context)
         return response
 

@@ -90,6 +90,7 @@ MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 
 # LLM
 LLM_MODELS = configs.get('LLM_MODELS', [])
+ENABLE_TEST_TOOL = configs.get('ENABLE_TEST_TOOL', False)
 
 def check_model_validation(model_config):
     if not isinstance(model_config, dict):
@@ -171,6 +172,22 @@ CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 ## Max steps
 MAX_STEPS = configs.get('MAX_STEPS', 5)
 assert MAX_STEPS > 0, "MAX_STEPS must larger than 0"
+
+## Thought process
+THOUGHT_PROCESS_CONFIGS = configs.get('THOUGHT_PROCESS', {})
+
+### Task
+THOUGHT_PROCESS_TASKS_CONFIGS = THOUGHT_PROCESS_CONFIGS.get('tasks', {})
+THOUGHT_PROCESS_ENABLE_RECORD_TASKS = THOUGHT_PROCESS_CONFIGS.get('enabled', True)
+THOUGHT_PROCESS_RECORD_SYSTEM_PROMPT = THOUGHT_PROCESS_TASKS_CONFIGS.get('system_prompt', False)
+THOUGHT_PROCESS_RECORD_USER_INPUT = THOUGHT_PROCESS_TASKS_CONFIGS.get('user_input', True)
+THOUGHT_PROCESS_RECORD_USER_INPUT_RAW = THOUGHT_PROCESS_TASKS_CONFIGS.get('user_input_raw', True)
+
+### context
+THOUGHT_PROCESS_RECORD_CONTEXT = THOUGHT_PROCESS_CONFIGS.get('context', False)
+
+### Tools
+THOUGHT_PROCESS_RECORD_SEARCH_TOOL_CONTENTS = THOUGHT_PROCESS_CONFIGS.get('search_tool_contents', False)
 
 # Redis
 REDIS_HOST = configs.get('REDIS_HOST', 'redis')

@@ -55,3 +55,39 @@ class SmolAgentsMemory(AgentMemory):
         memory_step.record = record
         self.steps.append(memory_step)
         return self
+    
+    @property
+    def context_thought_process(self):
+        results = []
+
+        for step in self.steps[1:]:
+            if 'created_at' not in step.record:
+                continue
+            if step.record['role'] == 'assistant':
+                if not results:
+                    results.append({
+                        'date': step.record['created_at'],
+                        'user_input': '',
+                        'assistant_response': [{
+                            'date': step.record['created_at'],
+                            'content': {
+                                'answer': step.record['content'],
+                                'references': object_to_json_str(step.record['sources'])
+                            }
+                        }]
+                    })
+                else:
+                    results[-1]['assistant_response'].append({
+                        'date': step.record['created_at'],
+                        'content': {
+                            'answer': step.record['content'],
+                            'references': object_to_json_str(step.record['sources'])
+                        }
+                    })
+            else:
+                results.append({
+                    'date': step.record['created_at'],
+                    'user_input': combine_attachments_to_message(step.record['attachments'], step.record['content']),
+                    'assistant_response': []
+                })
+        return results

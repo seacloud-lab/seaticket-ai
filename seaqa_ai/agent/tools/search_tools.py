@@ -33,16 +33,15 @@ class BasicSearchTool(BasicTool):
         existed_search_records_num = len(sources_results)
 
         if not connections and not extra_sources or existed_search_records_num >= self.MAX_SOURCES_COUNT:
-            return {
-                'to_observation': '',
-                'to_db': []
-            }
+            return []
 
         limit = self.MAX_SOURCES_COUNT - existed_search_records_num
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
         current_search_results, rerank_token_usage = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
+
+        tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
@@ -56,20 +55,14 @@ class BasicSearchTool(BasicTool):
                 doc['url'] = search_result['url']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
-                del search_result['snippets']
             to_observation.append(doc)
-            del search_result['content']
 
         tool_executor.cache.update({
             'sources_results': sources_results + current_search_results
         })
 
         # Format the retrieved documents for readability
-        return {
-            'to_observation': to_observation,
-            'to_db': current_search_results,
-            'extra_token_usage': rerank_token_usage
-        }
+        return to_observation
 
 class DocumentsSearch(BasicSearchTool):
     tool = {
