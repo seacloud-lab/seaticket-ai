@@ -10,7 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
-    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_SEARCH_TOOL_CONTENTS
+    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
     ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 from seaqa_ai.utils.storage import S3Storage
@@ -94,7 +94,7 @@ def gen_completion_format(schema, name='result_parser'):
     }
 
 def filter_tool_calls_content(tool_name, results):
-    if tool_name in ('documents_search', 'issues_search') and not THOUGHT_PROCESS_RECORD_SEARCH_TOOL_CONTENTS:
+    if tool_name in ('documents_search', 'issues_search') and not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
         new_results = deepcopy(results)
         for new_result in new_results:
             try:
