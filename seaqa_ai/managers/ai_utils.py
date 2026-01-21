@@ -63,7 +63,7 @@ class AIUtils:
                 'required': ['title', 'description']
             }
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', 0))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', 1))
 
             response = llm_client.completion(
                 messages=messages,
@@ -162,7 +162,7 @@ class AIUtils:
                     }
                 ]
             
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', 0))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', 1))
 
             response = llm_client.completion(
                 messages=messages,
@@ -284,7 +284,7 @@ Candidate Records:
                 'required': ['results']
             }
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', 1))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', 2))
 
             response = llm_client.completion(
                 messages=messages,
