@@ -12,7 +12,7 @@ from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
 from seaqa_ai.utils import parse_json, object_to_json_str, get_answer_and_sources, combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
-from seaqa_ai.utils.llm_api import LLMAPI
+from seaqa_ai.utils.llm_api import LiteLLMModel, get_llm_client_by_model_id
 
 logger = logging.getLogger(__name__)
 
@@ -21,24 +21,24 @@ class AgentManager:
         self.app = app
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
 
-    def execute(self, agent_name, tool_executor, message, attachments, **kwargs):
+    def execute(self, agent_name, model, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
+        llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
 
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
-            
-            server_model = kwargs.get('server_model')
             prompt_templates = yaml.safe_load(
                 importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
             )
             prompt_templates['system_prompt'] = prompt_templates['system_prompt'].replace("{{MAX_STEPS}}", str(config.MAX_STEPS))
+
             agent = ToolCallingAgent(
                 self.db_session_class,
                 session_uuid,
                 prompt_templates=prompt_templates,
-                tool_executor=tool_executor,  # List of tools available to the agent
-                model=server_model,
+                tools=tool_executor,  # List of tools available to the agent
+                model=LiteLLMModel(client=llm_client, model_id=model, context=context),
                 max_steps=config.MAX_STEPS,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
@@ -88,14 +88,6 @@ class AgentManager:
 
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
-            model=kwargs.get('model')
-            llm_type=kwargs.get('llm_type')
-            llm_url=kwargs.get('llm_url')
-            llm_key=kwargs.get('llm_key')
-            temperature=kwargs.get('temperature', 0.1)
-
-            if 'gpt-5' in model:
-                temperature = 1
             context=kwargs.get('context')
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
@@ -115,17 +107,14 @@ class AgentManager:
                 'content': user_raw_message
             }
 
-            llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
-
             current_step = 0
             while current_step < config.MAX_STEPS:
                 current_step += 1
                 time_begin = time.time()
-                response = llm_api.completion(
+                response = llm_client.completion(
                     messages=memory,
                     context=context,
-                    tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                    temperature=temperature
+                    tools=tool_executor.get() if current_step < config.MAX_STEPS else None
                 )
 
                 try:
