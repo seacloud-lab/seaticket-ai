@@ -19,7 +19,7 @@ class ChatMessages(Base):
     is_agent_mode = Column(Boolean, nullable=False)
 
     __table_args__ = (
-        Index('idx_session_uuid_message_id', 'session_uuid', 'created_at'),
+        Index('idx_session_uuid_message_id', 'session_uuid', 'message_id'),
     )   
 
     def to_dict(self):

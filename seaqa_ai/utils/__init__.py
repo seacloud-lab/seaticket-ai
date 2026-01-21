@@ -141,13 +141,15 @@ def combine_attachments_to_message(attachments, message):
     return final_message + message
 
 def remove_attachments_content(attachments):
-    for attachment in deepcopy(attachments):
+    new_attachments = deepcopy(attachments)
+    for attachment in new_attachments:
         if attachment.get('content'):
             del attachment['content']
         if attachment.get('comments'):
             del attachment['comments']
         if attachment.get('emails'):
             del attachment['emails']
+    return new_attachments
 
 def chunk_text(text, max_tokens=500, overlap_tokens=120):
     if not text:

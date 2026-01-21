@@ -24,7 +24,6 @@ class AgentManager:
     def execute(self, agent_name, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
-        message_id = context.get('message_id')
 
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -37,7 +36,6 @@ class AgentManager:
             agent = ToolCallingAgent(
                 self.db_session_class,
                 session_uuid,
-                message_id,
                 prompt_templates=prompt_templates,
                 tool_executor=tool_executor,  # List of tools available to the agent
                 model=server_model,
