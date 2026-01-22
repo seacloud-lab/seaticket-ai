@@ -10,7 +10,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import parse_json, object_to_json_str, get_answer_and_sources, combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content
+from seaqa_ai.utils import parse_json, object_to_json_str, get_answer_and_sources, combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content, remove_sources_content_and_snippets
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -83,7 +83,7 @@ class AgentManager:
             return {
                 'answer': answer,
                 'thought_process': tool_executor.thought_process.details,
-                'sources':sources
+                'sources': remove_sources_content_and_snippets(sources)
             }
 
         # ask mode
@@ -189,7 +189,7 @@ class AgentManager:
                     return {
                         'answer': answer,
                         'thought_process': tool_executor.thought_process.details,
-                        'sources': sources
+                        'sources': remove_sources_content_and_snippets(sources)
                     }
             raise AssertionError('Invalid AI responses led to unexpected steps.')
 

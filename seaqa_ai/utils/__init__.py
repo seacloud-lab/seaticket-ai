@@ -93,19 +93,24 @@ def gen_completion_format(schema, name='result_parser'):
         }
     }
 
+def remove_sources_content_and_snippets(sources):
+    for source in sources:
+        try:
+            del source['content']
+        except:
+            pass
+        try:
+            del source['snippets']
+        except:
+            pass
+    return sources
+
 def filter_tool_calls_content(tool_name, results):
-    if tool_name in ('documents_search', 'issues_search') and not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
-        new_results = deepcopy(results)
-        for new_result in new_results:
-            try:
-                del new_result['snippets']
-            except:
-                pass
-            try:
-                del new_result['content']
-            except:
-                pass
-        return new_results
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (
+            'documents_search', 
+            'issues_search'
+        ):
+        return remove_sources_content_and_snippets(deepcopy(results))
     return results
 
 def object_to_json_str(obj):
