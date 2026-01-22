@@ -2,7 +2,7 @@ import json
 import logging
 import litellm
 import smolagents.models
-from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME
+from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER
 from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
 
 logger = logging.getLogger(__name__)
@@ -12,8 +12,7 @@ def get_llm_client_by_model_id(data_logger, model_id):
     return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
 
 def get_llm_client_by_model_tier(data_logger, min_model_tier):
-    filtered_tier_model_map = {tier: model for tier, model in LLM_MODEL_TIER_MODELS_MAP.items() if tier >= min_model_tier}
-    logger.info(filtered_tier_model_map)
+    filtered_tier_model_map = {MODEL_REASONING_TIER.get_level(tier): model for tier, model in LLM_MODEL_TIER_MODELS_MAP.items() if MODEL_REASONING_TIER.get_level(tier) >= MODEL_REASONING_TIER.get_level(min_model_tier)}
     if not filtered_tier_model_map:
         model_config = DEFAULT_LLM_MODEL
     else:

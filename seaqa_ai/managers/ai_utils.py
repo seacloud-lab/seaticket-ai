@@ -4,7 +4,7 @@ import uuid
 from copy import copy
 from seaqa_ai.config import AI_UTILS_TIER
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import ExtraSourceType
+from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 
 
@@ -63,7 +63,7 @@ class AIUtils:
                 'required': ['title', 'description']
             }
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', 1))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
                 messages=messages,
@@ -162,7 +162,7 @@ class AIUtils:
                     }
                 ]
             
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', 1))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
                 messages=messages,
@@ -284,7 +284,7 @@ Candidate Records:
                 'required': ['results']
             }
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', 2))
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
 
             response = llm_client.completion(
                 messages=messages,

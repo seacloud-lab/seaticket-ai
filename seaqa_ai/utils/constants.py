@@ -76,3 +76,18 @@ class ATTACHMENTS_TYPE(Enum):
     DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
     ISSUES = SOURCES_TYPE.ISSUES.value
     OTHERS = ()
+
+class MODEL_REASONING_TIER(Enum):
+    LOW = 'low'
+    MEDIUM = 'MEDIUM'
+    HIGH = 'high'
+
+    @classmethod
+    def get_level(cls, tier):
+        if tier.lower() == cls.LOW.value:
+            return 1
+        elif tier.lower() == cls.MEDIUM.value:
+            return 2
+        elif tier.lower() == cls.HIGH.value:
+            return 3
+        return 0
