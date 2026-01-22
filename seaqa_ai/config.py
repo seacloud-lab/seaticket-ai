@@ -87,7 +87,7 @@ def get_llm_models_maps(models):
             continue
         model['label'] = model.get('label', model['model'])
         model_id_models_map[model['model']] = model
-        if model.get('tier') and isinstance(model['tier'], int) and model['tier'] not in tier_model_map:
+        if model.get('tier') and model['tier'] not in tier_model_map:
             tier_model_map[model['tier']] = model
         if model.get('default', False) and not default_model:
             default_model = model

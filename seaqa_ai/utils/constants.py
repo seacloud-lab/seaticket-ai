@@ -79,7 +79,7 @@ class ATTACHMENTS_TYPE(Enum):
 
 class MODEL_REASONING_TIER(Enum):
     LOW = 'low'
-    MEDIUM = 'MEDIUM'
+    MEDIUM = 'medium'
     HIGH = 'high'
 
     @classmethod
