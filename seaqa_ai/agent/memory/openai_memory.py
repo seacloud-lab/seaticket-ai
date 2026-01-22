@@ -50,11 +50,11 @@ class OpenAIMemory:
                 }
                 if THOUGHT_PROCESS_RECORD_USER_INPUT:
                     result_of_a_step['user_input'] = {
-                        'attachments': step.record['attachments'],
-                        'message': step.record['content']
+                        'attachments': step['attachments'],
+                        'message': step['content']
                     }
                     if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
-                        result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step.record['attachments'], step.record['content'])
+                        result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step['attachments'], step['content'])
                 results.append(result_of_a_step)
         return results
 
