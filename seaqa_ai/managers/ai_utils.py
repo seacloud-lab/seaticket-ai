@@ -199,6 +199,10 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     record_id = candidate['pk']
                 else:
                     continue
+                try:
+                    record_id = int(record_id)
+                except:
+                    pass
                 if candidate.get('type') in ExtraSourceType:
                     connection_id = candidate.get('type')
                 else:
