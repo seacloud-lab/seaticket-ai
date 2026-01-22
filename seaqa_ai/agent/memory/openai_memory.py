@@ -1,5 +1,5 @@
-import json
-from seaqa_ai.utils import object_to_json_str, combine_attachments_to_message, retrieve_origin_reference_format
+from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT_RAW, THOUGHT_PROCESS_RECORD_USER_INPUT
+from seaqa_ai.utils import combine_attachments_to_message, retrieve_origin_reference_format
 
 class OpenAIMemory:
     """
@@ -31,7 +31,7 @@ class OpenAIMemory:
                             'date': step['created_at'],
                             'content': {
                                 'answer': step['content'],
-                                'references': object_to_json_str(step['sources'])
+                                'sources': step['sources']
                             }
                         }]
                     })
@@ -40,15 +40,22 @@ class OpenAIMemory:
                         'date': step['created_at'],
                         'content': {
                             'answer': step['content'],
-                            'references': object_to_json_str(step['sources'])
+                            'sources': step['sources']
                         }
                     })
             else:
-                results.append({
-                    'date': step['created_at'],
-                    'user_input': combine_attachments_to_message(step['attachments'], step['content']),
+                result_of_a_step = {
+                    'date': step.record['created_at'],
                     'assistant_response': []
-                })
+                }
+                if THOUGHT_PROCESS_RECORD_USER_INPUT:
+                    result_of_a_step['user_input'] = {
+                        'attachments': step.record['attachments'],
+                        'message': step.record['content']
+                    }
+                    if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+                        result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step.record['attachments'], step.record['content'])
+                results.append(result_of_a_step)
         return results
 
     def __add__(self, steps):

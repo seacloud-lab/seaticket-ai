@@ -1,5 +1,6 @@
 from smolagents.memory import MemoryStep, AgentMemory
 from smolagents.models import ChatMessage, MessageRole
+from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT, THOUGHT_PROCESS_RECORD_USER_INPUT_RAW
 from seaqa_ai.utils import object_to_json_str, combine_attachments_to_message, retrieve_origin_reference_format
 
 class SmolAgentsMemoryStep(MemoryStep):
@@ -72,7 +73,7 @@ class SmolAgentsMemory(AgentMemory):
                             'date': step.record['created_at'],
                             'content': {
                                 'answer': step.record['content'],
-                                'references': object_to_json_str(step.record['sources'])
+                                'sources': step.record['sources']
                             }
                         }]
                     })
@@ -81,13 +82,20 @@ class SmolAgentsMemory(AgentMemory):
                         'date': step.record['created_at'],
                         'content': {
                             'answer': step.record['content'],
-                            'references': object_to_json_str(step.record['sources'])
+                            'sources': step.record['sources']
                         }
                     })
             else:
-                results.append({
+                result_of_a_step = {
                     'date': step.record['created_at'],
-                    'user_input': combine_attachments_to_message(step.record['attachments'], step.record['content']),
                     'assistant_response': []
-                })
+                }
+                if THOUGHT_PROCESS_RECORD_USER_INPUT:
+                    result_of_a_step['user_input'] = {
+                        'attachments': step.record['attachments'],
+                        'message': step.record['content']
+                    }
+                    if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+                        result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step.record['attachments'], step.record['content'])
+                results.append(result_of_a_step)
         return results
