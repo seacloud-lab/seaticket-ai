@@ -45,7 +45,7 @@ class OpenAIMemory:
                     })
             else:
                 result_of_a_step = {
-                    'date': step.record['created_at'],
+                    'date': step['created_at'],
                     'assistant_response': []
                 }
                 if THOUGHT_PROCESS_RECORD_USER_INPUT:

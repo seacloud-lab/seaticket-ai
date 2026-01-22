@@ -1,6 +1,7 @@
 import json
 import inspect
 import smolagents
+from copy import deepcopy
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
 _tool_type_python_type_map = {
@@ -180,7 +181,7 @@ class tool_{tool_name}(Tool):
         }
         """
 
-        tool_info = tool_info['function']
+        tool_info = deepcopy(tool_info['function'])
         tool_name = tool_info['name']
         tool_description = tool_info['description']
         availables_parms = inspect.signature(func).parameters

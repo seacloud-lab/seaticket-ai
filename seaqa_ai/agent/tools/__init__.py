@@ -1,6 +1,6 @@
 class BasicTool(object):
     tool = {}
-    def __init__(self, app, ):
+    def __init__(self, app):
         self.app = app
 
     def register(self, tool_executor, **constant_kwargs):
