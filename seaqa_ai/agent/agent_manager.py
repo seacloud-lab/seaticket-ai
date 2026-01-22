@@ -37,7 +37,7 @@ class AgentManager:
                 self.db_session_class,
                 session_uuid,
                 prompt_templates=prompt_templates,
-                tools=tool_executor,  # List of tools available to the agent
+                tool_executor=tool_executor,  # List of tools available to the agent
                 model=LiteLLMModel(client=llm_client, model_id=model, context=context),
                 max_steps=config.MAX_STEPS,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
