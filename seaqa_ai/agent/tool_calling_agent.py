@@ -1,28 +1,19 @@
 import smolagents
-from  dataclasses import dataclass
 import logging
-import json
-import uuid
-from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.agent.utils import format_tool_output, save_tool_call
-from seaqa_ai.utils import parse_json, object_to_json_str
+from seaqa_ai.utils import parse_json, object_to_json_str, filter_tool_calls_content
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class ToolOutput(smolagents.ToolOutput):
-    extra_token_usage: dict
-
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
-    def __init__(self, db_session_class, session_uuid, message_id, tools, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
+    def __init__(self, db_session_class, session_uuid, tool_executor, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
         self.db_session_class = db_session_class
         self.session_uuid = session_uuid
-        self.message_id = message_id
+        self.tool_executor = tool_executor
 
-        super().__init__(tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)
+        super().__init__(tool_executor.tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)
 
-    def process_single_tool_call(self, tool_call: smolagents.ToolCall, fix_tool_calls_id = None) -> smolagents.ToolOutput:
+    def process_single_tool_call(self, tool_call: smolagents.ToolCall) -> smolagents.ToolOutput:
         tool_name = tool_call.name
         tool_arguments = tool_call.arguments or {}
         self.logger.log(
@@ -32,6 +23,7 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         try:
             tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
         except Exception as e:
+            self.tool_executor.thought_process.add_tool_call(tool_name, tool_arguments)
             logger.exception(f'Execute tool call failure: {e}')
             raise
         tool_call_result_type = type(tool_call_result)
@@ -43,19 +35,12 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
             # TODO: tool_call_result naming could allow for different names of same type
             self.state[observation_name] = tool_call_result
             observation = f"Stored '{observation_name}' in memory."
-            to_observation = tool_call_result
+            self.tool_executor.thought_process.add_tool_call(tool_name, tool_arguments, filter_tool_calls_content(tool_name, observation))
         else:
             if isinstance(tool_call_result, smolagents.AgentText):
                 tool_call_result = parse_json(tool_call_result)
-
-            tool_output = format_tool_output(tool_call_result)
-
-            to_db = tool_output.get('to_db')
-            to_observation = tool_output.get('to_observation')
-            extra_token_usage = tool_output.get('extra_token_usage', {})
-
-            save_tool_call(self.db_session_class, self.session_uuid, self.message_id, tool_call, to_db, fix_tool_calls_id=fix_tool_calls_id)
-            observation = str(to_observation).strip()
+            self.tool_executor.thought_process.add_tool_call(tool_name, tool_arguments, filter_tool_calls_content(tool_name, tool_call_result))
+            observation = str(object_to_json_str(tool_call_result)).strip()
 
         self.logger.log(
             f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
@@ -63,13 +48,12 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         )
         is_final_answer = tool_name == "final_answer"
 
-        return ToolOutput(
+        return smolagents.ToolOutput(
             id=tool_call.id,
-            output=to_observation,
+            output=tool_call_result,
             is_final_answer=is_final_answer,
             observation=observation,
-            tool_call=tool_call,
-            extra_token_usage=extra_token_usage
+            tool_call=tool_call
         )
 
     def process_tool_calls(
@@ -97,9 +81,9 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
 
         # Process tool calls in parallel
         outputs = {}
-        fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
+        self.tool_executor.thought_process.add_tool_calls_group()
         for tool_call in parallel_calls.values():
-            tool_output = self.process_single_tool_call(tool_call, fix_tool_calls_id)
+            tool_output = self.process_single_tool_call(tool_call)
             outputs[tool_output.id] = tool_output
             yield tool_output
 
@@ -107,41 +91,6 @@ class ToolCallingAgent(smolagents.ToolCallingAgent):
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"
-            input_tokens = tool_output.extra_token_usage.get('input_tokens', 0)
-            output_tokens = tool_output.extra_token_usage.get('output_tokens', 0)
-            memory_step.token_usage.input_tokens += input_tokens
-            memory_step.token_usage.output_tokens += output_tokens
-            memory_step.token_usage.total_tokens += tool_output.extra_token_usage.get('total_tokens') or (input_tokens + output_tokens)
-
-        # save usages infomation to db
-        if parallel_calls:
-            with self.db_session_class() as db_session:
-                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==self.session_uuid, ChatToolCalls.message_id==self.message_id).first()
-                if record:
-                    new_tool_calls = record.to_dict()['tool_calls']
-                    if fix_tool_calls_id in new_tool_calls:
-                        new_tool_calls[fix_tool_calls_id]['static'] = {
-                            'token_usage': {
-                                'input_tokens': memory_step.token_usage.input_tokens,
-                                'output_tokens': memory_step.token_usage.output_tokens,
-                                'total_tokens': memory_step.token_usage.total_tokens,
-                            }
-                        }
-
-                        if new_tool_calls[fix_tool_calls_id]['substeps'][0]['name'] == 'final_answer':
-                            new_tool_calls[fix_tool_calls_id]['is_final_answer'] = True
-                            new_tool_calls[fix_tool_calls_id]['reach_max_steps'] = False
-                            new_tool_calls[fix_tool_calls_id]['result'] = object_to_json_str(memory_step.observations)
-                            del new_tool_calls[fix_tool_calls_id]['substeps']
-
-                        if memory_step.error:
-                            new_tool_calls[fix_tool_calls_id]['error'] = {
-                                'type': memory_step.error.__class__.__name__,
-                                'message': str(memory_step.error.message)
-                            }
-
-                        record.tool_calls = json.dumps(new_tool_calls)
-                        db_session.commit()
 
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations

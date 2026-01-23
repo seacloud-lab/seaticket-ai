@@ -2,19 +2,15 @@ import logging
 import yaml
 import importlib
 import json
-import uuid
-import datetime
+import time
 from smolagents import LogLevel
 from seaqa_ai import config
 from seaqa_ai.prompts.ask import SYSTEM_PROMPT as ASK_SYSTEM_PROMPT
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.db.models import ChatToolCalls
-from seaqa_ai.agent.utils import format_tool_output, save_tool_call
 from seaqa_ai.agent.memory import build_memory_from_db
 from seaqa_ai.agent.memory.openai_memory import OpenAIMemory
 from seaqa_ai.agent.tool_calling_agent import ToolCallingAgent
-from seaqa_ai.utils import smolagent_steps_to_thought_process, parse_json, object_to_json_str, localize_time, \
-    convert_to_json_code_block, get_answer_and_sources, combine_attachments_to_message
+from seaqa_ai.utils import parse_json, object_to_json_str, get_answer_and_sources, combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content, remove_sources_content_and_snippets
 from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils.llm_api import LLMAPI
 
@@ -28,7 +24,6 @@ class AgentManager:
     def execute(self, agent_name, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
-        message_id = context.get('message_id')
 
         # agent mode
         if agent_name == AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
@@ -41,61 +36,54 @@ class AgentManager:
             agent = ToolCallingAgent(
                 self.db_session_class,
                 session_uuid,
-                message_id,
                 prompt_templates=prompt_templates,
-                tools=tool_executor.tools,  # List of tools available to the agent
+                tool_executor=tool_executor,  # List of tools available to the agent
                 model=server_model,
                 max_steps=config.MAX_STEPS,  # Limit the number of reasoning steps
                 verbosity_level=LogLevel.DEBUG,  # Show detailed agent reasoning debug
                 return_full_result=True,
             )
 
+            user_raw_message = combine_attachments_to_message(attachments, message)
+            tool_executor.thought_process.set_task(prompt_templates['system_prompt'], user_raw_message, message, remove_attachments_content(attachments))
+
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    agent.memory = build_memory_from_db(AGENT_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, agent.prompt_templates["system_prompt"], session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    agent.memory = build_memory_from_db(AGENT_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, prompt_templates['system_prompt'], session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    tool_executor.thought_process.context = agent.memory.context_thought_process
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
 
-            agent_output = agent.run(combine_attachments_to_message(attachments, message), reset=config.DISABLE_CONTEXT)
-            for msg in agent_output.messages:
-                model_input_messages = msg.get('model_input_messages')
-                if model_input_messages:
-                    msg['model_input_messages'] = [input_msg.dict() for input_msg in msg.get('model_input_messages')]
-
-                model_output_message = msg.get('model_output_message')
-                if model_output_message:
-                    model_output_message.pop('raw', None)
-
-                model_output = msg.get('model_output')
-                if model_output:
-                    msg['model_output'] = [model_output_msg.dict() for model_output_msg in model_output]
+            agent_output = agent.run(user_raw_message, reset=config.DISABLE_CONTEXT)
 
             answer, sources = get_answer_and_sources(tool_executor, agent_output.output)
 
-            for message in agent_output.messages:
-                if (error := message.get('error', {})) and error.get('type') == 'AgentMaxStepsError':
-                    with self.db_session_class() as db_session:
-                        record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
-                        new_tool_calls = {
-                            tool_calls_id: tool_calls
-                            for tool_calls_id, tool_calls in record.to_dict()['tool_calls'].items() if 'is_final_answer' not in tool_calls
-                        }
-                        new_tool_calls['tool_calls_final_answer'] = {
-                            'is_final_answer': True,
-                            'reach_max_steps': True,
-                            'result': object_to_json_str(message.get('action_output')),
-                            'static': {
-                                'token_usage': message.get('token_usage', {})
-                            },
-                            'time': localize_time(datetime.datetime.now()).isoformat()
-                        }
-                        record.tool_calls = json.dumps(new_tool_calls)
-                        db_session.commit()
+            # set time_usage & max step
+            for agent_message in agent_output.messages:
+                step_number = agent_message.get('step_number')
+                if not step_number:
+                    continue
+                step_number -= 1
+                if agent_message.get('tool_calls') or agent_message.get('error'):
+                    error = agent_message.get('error', {})
+                    if error and error.get('type') == 'AgentMaxStepsError':
+                        # final answer
+                        tool_executor.thought_process.set_final_answer(object_to_json_str(agent_message.get('action_output')), True, agent_message.get('token_usage', {}), agent_message.get('timing', {}).get('duration', 0))    
+                    else:
+                        # actions step -> a group in thought process
+                        tool_executor.thought_process.actions[step_number]['time_usage'] = agent_message.get('timing', {}).get('duration', 0)
+                        tool_executor.thought_process.actions[step_number]['token_usage'] = agent_message.get('token_usage', {
+                            'input_tokens': 0,
+                            'output_tokens': 0,
+                            'total_tokens': 0
+                        })
+                        if error:
+                            tool_executor.thought_process.actions[step_number]['error'] = error   
 
             return {
                 'answer': answer,
-                'thought_process': smolagent_steps_to_thought_process(agent_output.messages, message, attachments),
-                'sources':sources
+                'thought_process': tool_executor.thought_process.details,
+                'sources': remove_sources_content_and_snippets(sources)
             }
 
         # ask mode
@@ -118,118 +106,92 @@ class AgentManager:
             else:
                 memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
 
-            thought_process = memory.context_thought_process
             user_raw_message = combine_attachments_to_message(attachments, message)
+            tool_executor.thought_process.set_task(ASK_SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
+            tool_executor.thought_process.context = memory.context_thought_process
 
             memory += {
                 'role': 'user', 
                 'content': user_raw_message
             }
 
-            thought_process['task']['user_input'] = {
-                'message': message,
-                'attachments': attachments
-            }
-            thought_process['task']['user_raw_message'] = user_raw_message
-
             llm_api = LLMAPI(data_logger=self.app.data_logger, llm_type=llm_type, base_url=llm_url, api_key=llm_key, model=model)
 
-            response = llm_api.completion(
-                messages=memory,
-                context=context,
-                tools=tool_executor.get(),
-                temperature=temperature
-            ).choices[0].message
-
             current_step = 0
-            thought_process['actions'] = []
-
-            while (response := llm_api.completion(
-                messages=memory,
-                context=context,
-                tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                temperature=temperature
-            ).choices[0].message).tool_calls:
+            while current_step < config.MAX_STEPS:
                 current_step += 1
-                memory += {
-                    'role': 'assistant',
-                    'tool_calls': response.tool_calls
-                }
+                time_begin = time.time()
+                response = llm_api.completion(
+                    messages=memory,
+                    context=context,
+                    tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
+                    temperature=temperature
+                )
 
-                fix_tool_calls_id = f'tool_calls_group_{uuid.uuid4().hex[:16]}'
-                new_tool_call_to_thought_process = {'tool_calls': []}
+                try:
+                    llm_message = response.choices[0].message
+                except:
+                    raise AssertionError('Invalid AI responses')
 
-                for tool_call in response.tool_calls:
-                    arguments = tool_call['function']['arguments']
-                    if isinstance(arguments, str):
-                        arguments = parse_json(arguments)
-                    new_tool_call_to_thought_process['tool_calls'].append({
-                        'name': tool_call['function']['name'],
-                        'arguments': arguments
-                    })
-                    try:
-                        tool_output = format_tool_output(tool_executor.execute(tool_call))
-
-                        result_to_db = tool_output.get('to_db')
-                        result_to_observation = tool_output.get('to_observation')
-
-                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, result_to_db, fix_tool_calls_id=fix_tool_calls_id)
-
+                # action step
+                if llm_message.tool_calls:
+                    memory += {
+                        'role': 'assistant',
+                        'tool_calls': llm_message.tool_calls
+                    }
+                    tool_executor.thought_process.add_tool_calls_group()
+                    for tool_call in llm_message.tool_calls:
+                        tool_name = tool_call['function']['name']
+                        arguments = tool_call['function']['arguments']
+                        if isinstance(arguments, str):
+                            arguments = parse_json(arguments)
                         try:
-                            json_object = json.loads(result_to_observation)
-                        except:
-                            json_object = result_to_observation
-
-                        json_code_block = convert_to_json_code_block(json_object)
-                        new_tool_call_to_thought_process['result'] = json_code_block
-
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': json.dumps(result_to_observation)
-                        }
-                    except Exception as e:
-                        logger.exception(f'Execute tool call failure: {e}')
-                        save_tool_call(self.db_session_class, session_uuid, message_id, tool_call, error=e, fix_tool_calls_id=fix_tool_calls_id)
-                        error_type = type(e).__name__
-                        error_message = repr(e)
-                        new_tool_call_to_thought_process['error'] = {
-                            'type': error_type,
-                            'message': error_message
-                        }
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': f'{error_type}: {error_message}'
-                        }
-                    thought_process['actions'].append(new_tool_call_to_thought_process)
-
-            content = response.content
-
-            # filter invalid references
-            answer, sources = get_answer_and_sources(tool_executor, content)
-
-            # result to thought process
-            thought_process['result'] = content
-            
-            with self.db_session_class() as db_session:
-                record = db_session.query(ChatToolCalls).filter(ChatToolCalls.session_uuid==session_uuid, ChatToolCalls.message_id==message_id).first()
-                if record:
-                    new_tool_calls = record.to_dict()['tool_calls']
-                    new_tool_calls['result'] = content
-                    record.tool_calls = json.dumps(new_tool_calls)
-                else:
-                    record = ChatToolCalls(session_uuid, message_id, {
-                        'result': content
+                            tool_output = tool_executor.execute(tool_call)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments, filter_tool_calls_content(tool_name, tool_output))
+                            memory += {
+                                'role': 'tool',
+                                'tool_call_id': tool_call['id'],
+                                'content': json.dumps(tool_output)
+                            }
+                        except Exception as e:
+                            logger.exception(f'Execute tool call failure: {e}')
+                            error_type = type(e).__name__
+                            error_message = repr(e)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments)
+                            tool_executor.thought_process.set_last_group_error({
+                                'type': error_type,
+                                'message': error_message
+                            })
+                            memory += {
+                                'role': 'tool',
+                                'tool_call_id': tool_call['id'],
+                                'content': f'{error_type}: {error_message}'
+                            }
+                    tool_executor.thought_process.update_last_group_tokens_usage({
+                        'input_tokens': response.usage.prompt_tokens,
+                        'output_tokens': response.usage.completion_tokens,
+                        'total_tokens': response.usage.total_tokens,
                     })
-                    db_session.add(record)
-                db_session.commit()
+                    tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
-            return {
-                'answer': answer,
-                'thought_process': thought_process,
-                'sources': sources
-            }
+                # final answer
+                else:
+                    content = llm_message.content
+                    tool_executor.thought_process.set_final_answer(content, current_step >= config.MAX_STEPS, {
+                        'input_tokens': response.usage.prompt_tokens,
+                        'output_tokens': response.usage.completion_tokens,
+                        'total_tokens': response.usage.total_tokens,
+                    }, time.time() - time_begin)
+
+                    # filter invalid references
+                    answer, sources = get_answer_and_sources(tool_executor, content)
+
+                    return {
+                        'answer': answer,
+                        'thought_process': tool_executor.thought_process.details,
+                        'sources': remove_sources_content_and_snippets(sources)
+                    }
+            raise AssertionError('Invalid AI responses led to unexpected steps.')
 
         else:
             raise AssertionError(f"agent_name only receive values `{AGENT_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value}` and `{ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value}`")

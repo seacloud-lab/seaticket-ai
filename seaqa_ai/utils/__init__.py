@@ -8,10 +8,9 @@ import hashlib
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime
-from smolagents.models import MessageRole
 from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
-    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
+    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
     ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 from seaqa_ai.utils.storage import S3Storage
@@ -51,7 +50,6 @@ def parse_json(json_str):
             try:
                 json_obj = ast.literal_eval(json_str)
             except Exception as e:
-                
                 return json_str
         return json_obj
     return json_str
@@ -95,6 +93,26 @@ def gen_completion_format(schema, name='result_parser'):
         }
     }
 
+def remove_sources_content_and_snippets(sources):
+    for source in sources:
+        try:
+            del source['content']
+        except:
+            pass
+        try:
+            del source['snippets']
+        except:
+            pass
+    return sources
+
+def filter_tool_calls_content(tool_name, results):
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (
+            'documents_search', 
+            'issues_search'
+        ):
+        return remove_sources_content_and_snippets(deepcopy(results))
+    return results
+
 def object_to_json_str(obj):
     result = obj
     if isinstance(obj, str) or isinstance(obj, AgentText):
@@ -127,270 +145,16 @@ def combine_attachments_to_message(attachments, message):
 
     return final_message + message
 
-def format_thought_process_user_input(attachments, message):
-    document_attachments = []
-    issues_attachments = []
-
-    for attachment in attachments:
-        if attachment['type'] in ATTACHMENTS_TYPE.DOCUMENTS.value:
-            document_attachments.append(attachment)
-        elif attachment['type'] in ATTACHMENTS_TYPE.ISSUES.value:
-            issues_attachments.append(attachment)
-    
-    final_message = ''
-    if document_attachments:
-        final_message += ATTACHMENTS_PROMPTS.DOCUMENTS.value + convert_to_json_code_block(document_attachments)
-
-    if issues_attachments:
-        final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments)
-
-    return final_message + message
-
-def smolagent_steps_to_thought_process(memory_steps, message, attachments):
-    """
-    # Format output of agent memory_steps
-
-    ## Args
-    - memory_steps: steps of SmolAgents memory
-
-    ## Returns
-    Json-like object with:
-    - task: system prompts & user input
-    - context: chat history
-    - actions: Action steps with tokens usage
-    - final_answer: final answer & with tokens usage
-    """
-
-    actions_input_tokens = 0
-    actions_output_tokens = 0
-    actions_total_tokens = 0
-    actions_time_usage = 0
-
-    answer_input_tokens = 0
-    answer_output_tokens = 0
-    answer_total_tokens = 0
-    answer_time_usage = 0
-
-    results = {
-        'task': {
-            'system_prompt': '',
-            'user_input': {
-                'message': '',
-                'attachments': []
-            },
-            'user_raw_message': ''
-        },
-        'context': [],
-        'actions': [],
-        'final_answer': {
-            'result': '',
-            'token_usage': {
-                'input_tokens': 0,
-                'output_tokens': 0,
-                'total_tokens': 0
-            },
-            'time_usage': 0
-        },
-        'static': {
-            'token_usage': {
-                'input_tokens': {
-                    'action_steps': 0,
-                    'answer_generation': 0,
-                    'total': 0
-                },
-                'output_tokens': {
-                    'action_steps': 0,
-                    'answer_generation': 0,
-                    'total': 0
-                },
-                'total_tokens': {
-                    'action_steps': 0,
-                    'answer_generation': 0,
-                    'total': 0
-                }
-            },
-            'time_usage': {
-                'action_steps': 0,
-                'answer_generation': 0,
-                'total': 0
-            }
-        }
-    }
-
-    results['task']['user_input']['message'] = message
-    results['task']['user_input']['attachments'] = attachments
-
-    for step in memory_steps:
-        # task
-        if not results['task']['user_raw_message'] and 'task' in step:
-            results['task']['user_raw_message'] = step['task']
-        if not results['task']['system_prompt'] and 'model_input_messages' in step:
-            """
-            step['model_input_messages']: sources messages of inputing (including system_prompt, context and user_input):
-
-            ```json
-            [
-                // system prompts
-                {
-                    'role': 'system',
-                    'content': [
-                        {
-                            'type': 'text',
-                            'text': 'system_prompt'
-                        }
-                    ]
-                },
-
-                // context
-                {
-                    'role': 'user' // or 'assistant'
-                    'content': [
-                        {
-                            'type': 'text',
-                            'text': 'a history chat message'
-                        }
-                    ]
-                },
-
-                // user input
-                {
-                    'role': 'user',
-                    'content': [
-                        {
-                            'type': 'text',
-                            'text': 'user input'
-                        }
-                    ]
-                }
-            ]
-            ```
-            """
-            
-            for msg in step['model_input_messages']:
-                if msg.get('role') == MessageRole.SYSTEM:
-                    results['task']['system_prompt'] = msg['content'][0]['text']
-                    break
-
-        # context    
-        if 'context' in step:
-            """
-            response['context'] = [
-                {
-                    'date': 'date when user sent the message', #str
-                    'user_input': 'user_input', # str
-                    'assistant_response': [
-                        'response_1', # -> {'answer', 'references'}
-                        'response_2',
-                        # ...
-                    ]
-                },
-                # ...
-            ]
-            """
-            if step['context']['role'] == 'assistant':
-                if not results['context']:
-                    results['context'].append({
-                        'date': step['context']['date'],
-                        'user_input': '',
-                        'assistant_response': [{
-                            'date': step['context']['date'],
-                            'content': step['context']['content']
-                        }]
-                    })
-                else:
-                    results['context'][-1]['assistant_response'].append({
-                        'date': step['context']['date'],
-                        'content': step['context']['content']
-                    })
-            else:
-                results['context'].append({
-                    'date': step['context']['date'],
-                    'user_input': step['context']['content'],
-                    'assistant_response': []
-                })
-
-        if (tool_calls := step.get('tool_calls')) or (error := step.get('error', {})):
-            # action step
-
-            if not step['is_final_answer'] and not error.get('type') == 'AgentMaxStepsError':
-                # common actions
-
-                tks = [{
-                        'name': tool_call['function']['name'],
-                        'arguments': tool_call['function']['arguments'],
-                    }
-                    for tool_call in tool_calls
-                ]
-
-                actions_input_tokens += step['token_usage']['input_tokens']
-                actions_output_tokens += step['token_usage']['output_tokens']
-                actions_total_tokens += step['token_usage']['total_tokens']
-                actions_time_usage += step['timing']['duration']
-
-                results['actions'].append({
-                    'tool_calls': tks,
-                    'token_usage': {
-                        'input_tokens': step['token_usage']['input_tokens'],
-                        'output_tokens': step['token_usage']['output_tokens'],
-                        'total_tokens': step['token_usage']['total_tokens'],
-                    },
-                    'time_usage': step['timing']['duration'],
-                    'result': object_to_json_str(step['action_output'] if error else step['observations'])
-                })
-                if error:
-                    results['actions'][-1]['error'] = {
-                        'type': error['type'],
-                        'message': error['message']
-                    }
-
-            else:
-                # final answer
-                result = step['action_output'] if error else step['observations']
-                result = result
-
-                answer_input_tokens = step['token_usage']['input_tokens']
-                answer_output_tokens = step['token_usage']['output_tokens']
-                answer_total_tokens = step['token_usage']['total_tokens']
-                answer_time_usage = step['timing']['duration']
-
-                results['final_answer'] = {
-                    'result': result,
-                    'token_usage': {
-                        'input_tokens': step['token_usage']['input_tokens'],
-                        'output_tokens': step['token_usage']['output_tokens'],
-                        'total_tokens': step['token_usage']['total_tokens'],
-                    },
-                    'time_usage': step['timing']['duration'],
-                    'reach_max_steps': True if error else False
-                }
-    
-    results['static'] = {
-        'token_usage': {
-            'input_tokens': {
-                'action_steps': actions_input_tokens,
-                'answer_generation': answer_input_tokens,
-                'total': actions_input_tokens + answer_input_tokens
-            },
-            'output_tokens': {
-                'action_steps': actions_output_tokens,
-                'answer_generation': answer_output_tokens,
-                'total': actions_output_tokens + answer_output_tokens
-            },
-            'total_tokens': {
-                'action_steps': actions_total_tokens,
-                'answer_generation': answer_total_tokens,
-                'total': actions_total_tokens + answer_total_tokens
-            }
-        },
-        'time_usage': {
-            'action_steps': actions_time_usage,
-            'answer_generation': answer_time_usage,
-            'total': actions_time_usage + answer_time_usage
-        }
-    }
-
-    return results
-
+def remove_attachments_content(attachments):
+    new_attachments = deepcopy(attachments)
+    for attachment in new_attachments:
+        if attachment.get('content'):
+            del attachment['content']
+        if attachment.get('comments'):
+            del attachment['comments']
+        if attachment.get('emails'):
+            del attachment['emails']
+    return new_attachments
 
 def chunk_text(text, max_tokens=500, overlap_tokens=120):
     if not text:

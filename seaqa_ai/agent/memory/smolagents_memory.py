@@ -1,5 +1,6 @@
 from smolagents.memory import MemoryStep, AgentMemory
 from smolagents.models import ChatMessage, MessageRole
+from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT, THOUGHT_PROCESS_RECORD_USER_INPUT_RAW
 from seaqa_ai.utils import object_to_json_str, combine_attachments_to_message, retrieve_origin_reference_format
 
 class SmolAgentsMemoryStep(MemoryStep):
@@ -55,3 +56,46 @@ class SmolAgentsMemory(AgentMemory):
         memory_step.record = record
         self.steps.append(memory_step)
         return self
+    
+    @property
+    def context_thought_process(self):
+        results = []
+
+        for step in self.steps[1:]:
+            if 'created_at' not in step.record:
+                continue
+            if step.record['role'] == 'assistant':
+                if not results:
+                    results.append({
+                        'date': step.record['created_at'],
+                        'user_input': '',
+                        'assistant_response': [{
+                            'date': step.record['created_at'],
+                            'content': {
+                                'answer': step.record['content'],
+                                'sources': step.record['sources']
+                            }
+                        }]
+                    })
+                else:
+                    results[-1]['assistant_response'].append({
+                        'date': step.record['created_at'],
+                        'content': {
+                            'answer': step.record['content'],
+                            'sources': step.record['sources']
+                        }
+                    })
+            else:
+                result_of_a_step = {
+                    'date': step.record['created_at'],
+                    'assistant_response': []
+                }
+                if THOUGHT_PROCESS_RECORD_USER_INPUT:
+                    result_of_a_step['user_input'] = {
+                        'attachments': step.record['attachments'],
+                        'message': step.record['content']
+                    }
+                    if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+                        result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step.record['attachments'], step.record['content'])
+                results.append(result_of_a_step)
+        return results

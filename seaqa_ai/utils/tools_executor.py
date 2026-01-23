@@ -1,6 +1,8 @@
 import json
 import inspect
 import smolagents
+from copy import deepcopy
+from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
 _tool_type_python_type_map = {
     "string": "str",
@@ -24,6 +26,7 @@ class InvalidToolException(Exception):
 class BasicToolExecutor(object):
     def __init__(self):
         self.cache = {}
+        self.thought_process = ThoughtProcessRecorder()
         self.clean()
 
     def register(self, func, tool_info, **constant_kwargs):
@@ -178,7 +181,7 @@ class tool_{tool_name}(Tool):
         }
         """
 
-        tool_info = tool_info['function']
+        tool_info = deepcopy(tool_info['function'])
         tool_name = tool_info['name']
         tool_description = tool_info['description']
         availables_parms = inspect.signature(func).parameters

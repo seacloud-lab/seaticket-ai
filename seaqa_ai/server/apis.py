@@ -49,7 +49,6 @@ def get_ai_reply():
     issue_connections = data.get('issue_connections', [])
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
-    message_id = data.get('message_id')
     llm_model = data.get('llm_model')
     context = {
         'username': username,
@@ -57,8 +56,7 @@ def get_ai_reply():
         'project_uuid': project_uuid,
         'document_connections': document_connections,
         'issue_connections': issue_connections,
-        'org_id': org_id,
-        'message_id': message_id
+        'org_id': org_id
     }
 
     if not message:
@@ -67,8 +65,6 @@ def get_ai_reply():
         return {'error_msg': 'project_uuid invalid.'}, 400
     if not username:
         return {'error_msg': 'username invalid.'}, 400
-    if not message_id:
-        return {'error_msg': 'message_id invalid.'}, 400
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
 

@@ -1,5 +1,6 @@
 import logging
-from seaqa_ai.config import get_model_config_by_id
+from seaqa_ai.config import get_model_config_by_id, ENABLE_TEST_TOOL
+from seaqa_ai.agent.tools import TestTool
 from seaqa_ai.agent.tools.content_generators import GenerateMarkdown
 from seaqa_ai.agent.tools.search_tools import DocumentsSearch, IssuesSearch
 from seaqa_ai.utils.tools_executor import FunctionCallingToolExecutor, SmolAgentsToolExecutor
@@ -19,6 +20,7 @@ class ChatManager:
         self.content_generators = (
             GenerateMarkdown(app),
         )
+        self.test_tool = TestTool(app)
 
     def get_ai_reply(self, resolve_type, message, attachments, context, model):
         if resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
@@ -33,6 +35,8 @@ class ChatManager:
             tool.register(tool_executor, context=context)
         for tool in self.content_generators:
             tool.register(tool_executor)
+        if ENABLE_TEST_TOOL:
+            self.test_tool.register(tool_executor)
 
     def _gen_ans_ask(self, message, attachments, context, model):
         """
