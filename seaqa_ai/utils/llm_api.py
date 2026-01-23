@@ -1,14 +1,27 @@
 import json
 import logging
 import litellm
-from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME
-from seaqa_ai.config import EMBEDDING_MODEL
+import smolagents.models
+from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER
+from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
+def get_llm_client_by_model_id(data_logger, model_id):
+    model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL)
+    return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
 
-class LLMAPI:
-    def __init__(self, data_logger, llm_type='openai', base_url=None, api_key=None, model='gpt-4.1', timeout=180):
+def get_llm_client_by_model_tier(data_logger, min_model_tier):
+    filtered_tier_model_map = {MODEL_REASONING_TIER.get_level(tier): model for tier, model in LLM_MODEL_TIER_MODELS_MAP.items() if MODEL_REASONING_TIER.get_level(tier) >= MODEL_REASONING_TIER.get_level(min_model_tier)}
+    if not filtered_tier_model_map:
+        model_config = DEFAULT_LLM_MODEL
+    else:
+        available_min_tier = min(filtered_tier_model_map.keys())
+        model_config = filtered_tier_model_map[available_min_tier]
+    return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
+
+class BasicLLMAPI:
+    def __init__(self, data_logger, model, llm_type='openai', base_url=None, api_key=None, timeout=180):
         self.data_logger = data_logger
         self.timeout = timeout
         if llm_type == 'other':
@@ -17,38 +30,14 @@ class LLMAPI:
             llm_type = None
             if not api_key:
                 api_key = 'not-keys-needed'
+        self.llm_type = llm_type
         self.model = f'{llm_type}/{model}' if llm_type else model
         self.model_id = model
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
 
-    def completion(self, **kwargs):
-        if 'model' in kwargs:
-            kwargs.pop('model')
-
-        if 'base_url' in kwargs:
-            kwargs.pop('base_url')
-
-        if 'api_key' in kwargs:
-            kwargs.pop('api_key')
-
-        context = {}
-        if 'context' in kwargs:
-            context = kwargs.pop('context')
-
-        response = litellm.completion(
-            model=self.model,
-            base_url=self.base_url,
-            api_key=self.api_key,
-            timeout=self.timeout,
-            **kwargs
-        )
-
-        self._logger_usage(kwargs, response, context)
-        return response
-
-    def _logger_usage(self, kwargs, response, context, model=None):
+    def _logger_usage(self, response, context, model=None):
         try:
             if hasattr(response, 'usage') and response.usage:
                 self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
@@ -65,24 +54,53 @@ class LLMAPI:
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")
 
-    def generate_embeddings(self, texts, context):
+class CompletionAPI(BasicLLMAPI):
+    def completion(self, **kwargs):
+        if 'model' in kwargs:
+            kwargs.pop('model')
+
+        if 'base_url' in kwargs:
+            kwargs.pop('base_url')
+
+        if 'api_key' in kwargs:
+            kwargs.pop('api_key')
+
+        context = {}
+        if 'context' in kwargs:
+            context = kwargs.pop('context')
+
+        if 'gpt-5' in self.model_id:
+            kwargs['temperature'] = 1
+
+        response = litellm.completion(
+            model=self.model,
+            base_url=self.base_url,
+            api_key=self.api_key,
+            timeout=self.timeout,
+            **kwargs
+        )
+
+        self._logger_usage(response, context)
+        return response
+
+class EmbeddingAPI(BasicLLMAPI):
+    def generate(self, texts, context):
         if isinstance(texts, str):
             texts = [texts]
-        if EMBEDDING_MODEL['type'] == 'other':
-            custom_llm_provider = 'openai'
-        elif EMBEDDING_MODEL['type'] == 'proxy':
-            custom_llm_provider = 'openai'
-            if not EMBEDDING_MODEL['key']:
-                EMBEDDING_MODEL['key'] = 'not-keys-needed'
-        else:
-            custom_llm_provider = EMBEDDING_MODEL['type']
         response = litellm.embedding(
-            model=EMBEDDING_MODEL['model'],
+            model=self.model,
             input=texts,
-            api_base=EMBEDDING_MODEL['url'],
-            api_key=EMBEDDING_MODEL['key'],
-            custom_llm_provider=custom_llm_provider,
+            api_base=self.base_url,
+            api_key=self.api_key,
+            custom_llm_provider=self.llm_type,
             timeout=self.timeout
         )
-        self._logger_usage(None, response, context, EMBEDDING_MODEL['model'])
+        self._logger_usage(response, context)
         return response.data
+    
+class LiteLLMModel(smolagents.models.LiteLLMModel):
+    def __init__(self, model_id = None, api_base = None, api_key = None, custom_role_conversions = None, flatten_messages_as_text = None, **kwargs):
+        if 'gpt-5' in model_id:
+            super().__init__(model_id, api_base, api_key, custom_role_conversions, flatten_messages_as_text, temperature=1, **kwargs)
+        else:
+            super().__init__(model_id, api_base, api_key, custom_role_conversions, flatten_messages_as_text, **kwargs)

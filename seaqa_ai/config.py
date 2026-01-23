@@ -65,6 +65,38 @@ class _ConfigParser(object):
                 pass
             return value
         return self.yaml_configs.get(key, default)
+    
+def check_llm_validated(model):
+    if not isinstance(model, dict) or model.get('disable', False):
+        return False
+    if model.get('type') in ('proxy', 'other', 'hosted_vllm'):
+        required_fields = ('model', 'url')
+    else:
+        required_fields = ('model', 'key')
+    return all(field in model for field in required_fields)
+
+def get_llm_models_maps(models):
+    if not models or not isinstance(models, list):
+        return []
+    model_id_models_map = {}
+    tier_model_map = {}
+    default_model = None
+
+    for model in models:
+        if not check_llm_validated(model):
+            continue
+        model['label'] = model.get('label', model['model'])
+        model_id_models_map[model['model']] = model
+        if model.get('tier') and model['tier'] not in tier_model_map:
+            tier_model_map[model['tier']] = model
+        if model.get('default', False) and not default_model:
+            default_model = model
+    if not model_id_models_map:
+        raise ValueError('No valid LLM configurations')
+    if not default_model:
+        default_model = model_id_models_map[list(model_id_models_map.keys())[0]]
+
+    return model_id_models_map, tier_model_map, default_model
 
 
 CONF_DIR = os.getenv('CONF_PATH', '/opt/seaqa/conf/')
@@ -89,80 +121,13 @@ MYSQL_DB = configs.get('SEAQA_MYSQL_SEAQA_DB_NAME', 'sea_qa')
 MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 
 # LLM
-LLM_MODELS = configs.get('LLM_MODELS', [])
-ENABLE_TEST_TOOL = configs.get('ENABLE_TEST_TOOL', False)
-
-def check_model_validation(model_config):
-    if not isinstance(model_config, dict):
-        return False
-    if model_config.get('type') in ('proxy', 'other', 'hosted_vllm'):
-        required_fields = ('model', 'url')
-    else:
-        required_fields = ('model', 'key')
-    if not all(field in model_config for field in required_fields):
-        return False
-    
-    return True
-
-def get_useful_llm_configs_from_model_config(model_config):
-    return {
-        'model': model_config.get('model'),
-        'type': model_config.get('type', 'openai'),
-        'url': model_config.get('url'),
-        'key': model_config.get('key')
-    }
-    
-
-def get_default_model_config():
-    if not LLM_MODELS:
-        raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
-
-    first_model = None
-    for model_config in LLM_MODELS:
-        if not check_model_validation(model_config):
-            continue
-
-        if model_config.get('default') == True:
-            return get_useful_llm_configs_from_model_config(model_config)
-        elif not first_model:
-            first_model = get_useful_llm_configs_from_model_config(model_config)
-
-    if first_model:
-        return first_model
-
-    raise ValueError("No valid model configuration in LLM_MODELS.")
-
-def get_light_weight_model_config():
-    if not LLM_MODELS:
-        raise ValueError("LLM_MODELS is empty. Please configure at least one model.")
-
-    for model_config in LLM_MODELS:
-        if not check_model_validation(model_config):
-            continue
-
-        if model_config.get('lightweight_task_llm_model') == True:
-            return get_useful_llm_configs_from_model_config(model_config)
-
-    return get_default_model_config()
-
-def get_model_config_by_id(model_id):
-    for model_config in LLM_MODELS:
-        if not isinstance(model_config, dict):
-            continue
-        if model_config.get('model') != model_id:
-            continue
-
-        if not check_model_validation(model_config):
-            raise ValueError(f"Model '{model_id}' missing required config fields")
-
-        return get_useful_llm_configs_from_model_config(model_config)
-    raise ValueError(f"Model '{model_id}' not found. ")
-
+LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL = get_llm_models_maps(configs.get('LLM_MODELS', []))
 EMBEDDING_MODEL = configs.get('EMBEDDING_MODEL', {})
-if check_model_validation(EMBEDDING_MODEL):
-    EMBEDDING_MODEL = get_useful_llm_configs_from_model_config(EMBEDDING_MODEL)
-else:
+if not check_llm_validated(EMBEDDING_MODEL):
     raise ValueError('EMBEDDING_MODEL is not set or invalid')
+
+## AI_UTILS
+AI_UTILS_TIER = configs.get('AI_UTILS_TIER', {})
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)
@@ -187,6 +152,7 @@ THOUGHT_PROCESS_RECORD_USER_INPUT_RAW = THOUGHT_PROCESS_TASKS_CONFIGS.get('user_
 THOUGHT_PROCESS_RECORD_CONTEXT = THOUGHT_PROCESS_CONFIGS.get('context', False)
 
 ### Tools
+ENABLE_TEST_TOOL = configs.get('ENABLE_TEST_TOOL', False)
 THOUGHT_PROCESS_RECORD_TOOL_DETAILS = THOUGHT_PROCESS_CONFIGS.get('tool_details', False)
 
 # Redis
