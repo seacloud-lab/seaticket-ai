@@ -68,12 +68,6 @@ def get_ai_reply():
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
 
-    if llm_model:
-        try:
-            config.get_model_config_by_id(llm_model)
-        except ValueError as e:
-            return {'error_msg': str(e)}, 404
-
     try:
         return flask_app.app.chat_manager.get_ai_reply(resolve_type, message, attachments, context, llm_model), 200
     except Exception as e:
@@ -146,7 +140,7 @@ def generate_chunks_embedding():
     try:
 
         chunks = chunk_text(content)
-        embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(chunks, context)
+        embeddings = flask_app.app.embedding_api.generate(chunks, context)
         if embeddings and len(embeddings) > 0:
             return {'chunks': chunks, 'embeddings': embeddings}, 200
         return {'error_msg': 'No embedding generated.'}, 400
@@ -183,7 +177,7 @@ def generate_embedding():
     }
 
     try:
-        embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(content, context)
+        embeddings = flask_app.app.embedding_api.generate(content, context)
         if embeddings and len(embeddings) > 0:
             return {'embedding': embeddings[0].get('embedding')}, 200
         return {'error_msg': 'No embedding generated.'}, 400
@@ -225,7 +219,7 @@ def generate_summary():
         summary = flask_app.app.ai_utils.generate_summary(type, content, context)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
-            embeddings = flask_app.app.ai_utils.llm_api.generate_embeddings(summary, context)
+            embeddings = flask_app.app.embedding_api.generate(summary, context)
             if embeddings:
                 result["embedding"] = embeddings[0].get('embedding')
     except Exception as e:
