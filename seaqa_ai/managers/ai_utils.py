@@ -2,10 +2,10 @@ import logging
 import json_repair
 import uuid
 from copy import copy
+from seaqa_ai.config import AI_UTILS_TIER
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import ExtraSourceType
-from seaqa_ai.utils.llm_api import LLMAPI
-from seaqa_ai.config import get_light_weight_model_config
+from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
+from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 
 
 logger = logging.getLogger(__name__)
@@ -14,15 +14,6 @@ logger = logging.getLogger(__name__)
 class AIUtils:
     def __init__(self, app):
         self.app = app
-        light_weight_model_config = get_light_weight_model_config()
-        self.llm_api = LLMAPI(app.data_logger,
-            light_weight_model_config['type'],
-            light_weight_model_config['url'],
-            light_weight_model_config['key'],
-            light_weight_model_config['model']
-        )
-        self.temperature = 0.1 if 'gpt-5' not in light_weight_model_config['model'] else 1
-
 
     def gen_ticket_from_record(self, record_detail, context):
         """
@@ -72,10 +63,11 @@ class AIUtils:
                 'required': ['title', 'description']
             }
 
-            response = self.llm_api.completion(
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
+
+            response = llm_client.completion(
                 messages=messages,
                 context=context,
-                temperature=self.temperature,
                 response_format=gen_completion_format(response_schema)
             ).choices[0].message.content
 
@@ -170,11 +162,11 @@ class AIUtils:
                     }
                 ]
             
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
 
-            response = self.llm_api.completion(
+            response = llm_client.completion(
                 messages=messages,
                 context=context or {},
-                temperature=self.temperature,
                 max_tokens=100
             )
             return response.choices[0].message.content.strip()
@@ -296,10 +288,11 @@ Candidate Records:
                 'required': ['results']
             }
 
-            response = self.llm_api.completion(
+            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
+
+            response = llm_client.completion(
                 messages=messages,
                 context=context,
-                temperature=self.temperature,
                 response_format=gen_completion_format(response_schema, 'rank_relevant_records')
             )
 
