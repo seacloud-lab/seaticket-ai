@@ -253,6 +253,7 @@ class AgentManager:
                         # check has final_answer
                         if not is_final_answer_tool_call and 'final_answer' in tool_calls_name:
                             is_final_answer_tool_call = True
+                            yield SSE.status('Answering')
                             for i, tool_call_name in enumerate(tool_calls_name):
                                 if tool_call_name == 'final_answer':
                                     final_answer_tool_call_index = i
@@ -285,6 +286,9 @@ class AgentManager:
                     if last_tool_calls_has_search_tools and (found_records := len(tool_executor.cache.get('sources_results', []))):
                         yield SSE.search_found(found_records)
 
+                    if not is_final_answer_tool_call:
+                        yield SSE.status('LLM Reasoning')
+
                     # reset delta properties
                     reach_max_steps = False
                     tool_calls_name = []
@@ -301,7 +305,6 @@ class AgentManager:
                     tool_executor.thought_process.actions[step.step_number - 1]['token_usage'] = step.token_usage.dict()
                     if step.error:
                         tool_executor.thought_process.actions[step.step_number - 1]['error'] = step.error.dict()
-                    yield SSE.status('LLM Reasoning')
                 # Always appearing as the last step, yield final answer
                 elif isinstance(step, FinalAnswerStep):
                     if reach_max_steps:
@@ -350,6 +353,7 @@ class AgentManager:
                 content = ""
                 current_tool_index = -1
                 token_usage = {}
+                has_yield_answering_status = False
 
                 for chunk in response:
                     if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
@@ -386,6 +390,9 @@ class AgentManager:
                                         tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
 
                         elif hasattr(delta, 'content') and delta.content:
+                            if not has_yield_answering_status:
+                                yield SSE.status('Answering')
+                                has_yield_answering_status = True
                             yield SSE.answer(delta.content)
                             content += delta.content
                     if hasattr(chunk, 'usage'):
