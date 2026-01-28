@@ -4,12 +4,10 @@ MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
 
 class ASK_MODE_PROPERTIES_MAP(Enum):
     RESOLVE_TYPE = 'ask'
-    EXECUTE_AGENT = 'function_calling'
     MEMORY = 'openai'
 
 class AGENT_MODE_PROPERTIES_MAP(Enum):
     RESOLVE_TYPE = 'agent'
-    EXECUTE_AGENT = 'reasoning_agent'
     MEMORY = 'smolagents'
 
 class ConnectionType(Enum):

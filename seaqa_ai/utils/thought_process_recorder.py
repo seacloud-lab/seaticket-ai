@@ -1,5 +1,8 @@
+import logging
 from seaqa_ai import config
 from seaqa_ai.utils import object_to_json_str
+
+logger = logging.getLogger(__name__)
 
 class ThoughtProcessRecorder(object):
     def __init__(self):
