@@ -24,7 +24,9 @@ def build_memory_from_db(memory_type, db_session_class, system_prompt, session_u
     # query records for newest
     with db_session_class() as db_session:
         query_args = [
-            ChatMessages.session_uuid == session_uuid
+            ChatMessages.session_uuid == session_uuid,
+            ChatMessages.as_context == True,
+            ChatMessages.role in ('user', 'assistant')
         ]
         if valid_time > 0:
             query_args.append(

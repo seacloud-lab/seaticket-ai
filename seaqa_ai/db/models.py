@@ -16,10 +16,11 @@ class ChatMessages(Base):
     sources = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
-    is_agent_mode = Column(Boolean, nullable=False)
+    as_context = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
-        Index('idx_session_uuid_message_id', 'session_uuid', 'message_id'),
+        Index('idx_session_uuid_created_at', 'session_uuid', 'created_at'),
+        Index('idx_session_uuid_created_at_as_context_role', 'session_uuid', 'role', created_at.desc(), as_context.desc())
     )   
 
     def to_dict(self):
@@ -51,6 +52,6 @@ class ChatMessages(Base):
             'sources': sources,
             'created_at': localize_time(self.created_at).isoformat(),
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
-            'is_agent_mode': self.is_agent_mode
+            'as_context': self.as_context
         }
         return res
