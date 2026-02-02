@@ -16,6 +16,11 @@ from seaqa_ai.utils.llm_api import LiteLLMModel, get_llm_client_by_model_id
 
 logger = logging.getLogger(__name__)
 
+def _build_system_prompt_with_project_prompt(base_prompt, project_prompt):
+    if project_prompt:
+        return f"{base_prompt}\n\n## Project-specific Instructions\n{project_prompt}"
+    return base_prompt
+
 class AgentManager:
     def __init__(self, app):
         self.app = app
@@ -32,6 +37,12 @@ class AgentManager:
                 importlib.resources.files("seaqa_ai.prompts").joinpath("toolcalling_agent.yaml").read_text()
             )
             prompt_templates['system_prompt'] = prompt_templates['system_prompt'].replace("{{MAX_STEPS}}", str(config.MAX_STEPS))
+            
+            # Append project-level prompt if provided
+            project_prompt = context.get('project_prompt', '')
+            prompt_templates['system_prompt'] = _build_system_prompt_with_project_prompt(
+                prompt_templates['system_prompt'], project_prompt
+            )
 
             agent = ToolCallingAgent(
                 self.db_session_class,
@@ -89,17 +100,22 @@ class AgentManager:
         # ask mode
         elif agent_name == ASK_MODE_PROPERTIES_MAP.EXECUTE_AGENT.value:
             context=kwargs.get('context')
+            
+            # Build system prompt with project-level instructions
+            project_prompt = context.get('project_prompt', '') if context else ''
+            system_prompt = _build_system_prompt_with_project_prompt(ASK_SYSTEM_PROMPT, project_prompt)
+            
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, ASK_SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    memory = build_memory_from_db(ASK_MODE_PROPERTIES_MAP.MEMORY.value, self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
+                    memory = OpenAIMemory(system_prompt)
             else:
-                memory = OpenAIMemory(ASK_SYSTEM_PROMPT)
+                memory = OpenAIMemory(system_prompt)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            tool_executor.thought_process.set_task(ASK_SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
+            tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, remove_attachments_content(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 
             memory += {

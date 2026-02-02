@@ -50,13 +50,15 @@ def get_ai_reply():
     resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
     llm_model = data.get('llm_model')
+    project_prompt = data.get('project_prompt', '')
     context = {
         'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
         'document_connections': document_connections,
         'issue_connections': issue_connections,
-        'org_id': org_id
+        'org_id': org_id,
+        'project_prompt': project_prompt
     }
 
     if not message:
