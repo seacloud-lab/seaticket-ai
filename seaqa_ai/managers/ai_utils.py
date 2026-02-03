@@ -3,6 +3,9 @@ import json_repair
 import uuid
 from copy import copy
 from seaqa_ai.config import AI_UTILS_TIER
+from seaqa_ai.prompts.ai_utils import SYSTEM_PROMPTS_MAP as AI_UTILS_PROMPTS_MAP, UserContentPrompts
+from seaqa_ai.prompts.ai_utils.schemas import SCHEMAS_MAP
+from seaqa_ai.prompts.ai_utils.generate_summary import PROMPTS_MAP as GENERATE_SUMMAEY_PROMPTS_MAP
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
@@ -20,55 +23,23 @@ class AIUtils:
         Generate a ticket with a title and description based on the input title and body content.
         """
         try:
-            prompt = f"""Based on the provided ticket information, please generate a concise and informative ticket.
-
-{record_detail}
-
-**Instructions:**
-1. Generate a new, clear, and concise title for the ticket.
-2. Create a detailed description that summarizes the key points from the body content.
-3. The output language must be consistent with the input language.
-4. Return the result in JSON format with "title" and "description" keys.
-
-**Example Output:**
-{{
-    "title": "New Ticket Title",
-    "description": "A detailed summary of the ticket body."
-}}"""
-
             messages = [
                 {
                     "role": "system",
-                    "content": "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information."
+                    "content": AI_UTILS_PROMPTS_MAP['generate_ticket']
                 },
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": UserContentPrompts.generate_ticket(record_detail)
                 }
             ]
-
-            response_schema = {
-                'type': 'object',
-                'properties': {
-                    'title': {
-                        'type': 'string',
-                        'description': 'New Ticket Title'
-                    },
-                    'description': {
-                        'type': 'string',
-                        'description': 'A detailed summary of the ticket body'
-                    }
-                },
-                'additionalProperties': False,
-                'required': ['title', 'description']
-            }
 
             llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
                 messages=messages,
                 context=context,
-                response_format=gen_completion_format(response_schema)
+                response_format=gen_completion_format(SCHEMAS_MAP['generate_ticket'])
             ).choices[0].message.content
 
             try:
@@ -85,82 +56,19 @@ class AIUtils:
             logger.error(f"Error generating ticket: {str(e)}")
             return '', ''
 
-    def generate_summary(self, type, content, context):
+    def generate_summary(self, connection_type, content, context):
         try:
-            if type == 'github_issue':
-                messages = [
+            system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
+            messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a GitHub issue analysis expert. Read the issue's title and body, then craft a "
-                        "single-sentence English summary describing the core problem. Keep it concise (no more "
-                        "than 100 characters) and return only that sentence without extra commentary or formatting."
-                    )
+                    "content": system_prompts
                 },
                 {
                     "role": "user",
                     "content": f"""{content}"""
                 }
             ]
-            elif type == 'site' or type == 'seafile' or type == 'knowledge_base':
-                messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a document summarization expert. Read the document, then craft a single-sentence English summary describing the core content."
-                            "The summary should capture the main points and themes of the document clearly and effectively."
-                            "Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting."
-                        )
-                    },
-                    {"role": "user", "content": 'Summarize the following content' + content}
-                ]
-
-            elif type == 'discourse_forum':
-                messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a Discourse forum post analysis expert. Read the post's title and body, then craft a "
-                        "single-sentence English summary describing the core topic or request. Keep it concise (no more "
-                        "than 100 characters) and return only that sentence without extra commentary or formatting."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"""{content}"""
-                }
-            ]
-            elif type == 'email':
-                messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a email analysis expert. Read the email's title and body, then craft a "
-                        "single-sentence English summary describing the core topic or request. Keep it concise (no more "
-                        "than 100 characters) and return only that sentence without extra commentary or formatting."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"""{content}"""
-                }
-            ]
-            elif type == 'ticket':
-                messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a ticket analysis expert. A ticket: is a recorded unit of work that is created to track a request, "
-                            "an issue, a task, or an incident: from its initiation to completion. Read the ticket's title and body, then craft a "
-                            "single-sentence English summary describing the core topic or request. Keep it concise (no more "
-                            "than 100 characters) and return only that sentence without extra commentary or formatting."  
-                        )                      
-                    },
-                    {
-                        "role": "user", 
-                        "content": f"""{content}"""
-                    }
-                ]
             
             llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
 
@@ -218,82 +126,23 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             
             candidates_text = convert_to_json_code_block(candidates_text)
 
-            prompt = (f"""You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.
-
-Query Record:
-{query_record}
-
-Candidate Records:
-{candidates_text}
-
-1. Analyze the semantic similarity and topical relevance between the query record and each candidate record.
-2. Consider both the title and other fields when determining relevance. Meanwhile, the title field of the candidate record has a higher relevance weight.
-3. ONLY include records that are truly relevant to the query record. A record is relevant if it:
-    - Addresses similar title, topics, issues, or problems
-    - Has related technical content or features
-    - Shares common themes or concepts
-    - Could provide useful context or related information
-4. Exclude records that are unrelated, off-topic, or have no meaningful connection to the query.
-
-**OUTPUT FORMAT REQUIREMENTS:**
-- You MUST output a valid JSON object with EXACTLY this structure:
-{{
-  "results": [
-    {{"connection_id": "string_value", "record_id": "string_value"}},
-    {{"connection_id": "string_value", "record_id": "string_value"}}
-  ]
-}}
-- The "results" array must contain objects ordered from most relevant to least relevant.
-- If no records are relevant, set "results" to an empty array: []
-- Each "connection_id" and "record_id" MUST be string values (convert numbers to strings if needed).
-- Do NOT include any additional text, explanations, or markdown formatting outside the JSON.
-""")
-
             messages = [
                 {
                     "role": "system",
-                    "content": "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
+                    "content": AI_UTILS_PROMPTS_MAP['rank_relevant_records']
                 },
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": UserContentPrompts.rank_relevant_records(query_record, candidates_text)
                 }
             ]
-
-            response_schema = {
-                'type': 'object',
-                'properties': {
-                    'results': {
-                        'type': 'array',
-                        'description': 'The relevant record keys ordered from most relevant to least relevant. If no records are relevant, set it to an empty array: []',
-                        'items': {
-                            'type': 'object',
-                            'description': 'The key of a record',
-                            'properties': {
-                                'connection_id': {
-                                    'type': 'string',
-                                    'description': 'the connection_id field of the candidate record'
-                                },
-                                'record_id': {
-                                    'type': 'string',
-                                    'description': 'the record_id field of the candidate record'
-                                },
-                            },
-                            'required': ['connection_id', 'record_id'],
-                            'additionalProperties': False
-                        }
-                    }
-                },
-                'additionalProperties': False,
-                'required': ['results']
-            }
 
             llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
 
             response = llm_client.completion(
                 messages=messages,
                 context=context,
-                response_format=gen_completion_format(response_schema, 'rank_relevant_records')
+                response_format=gen_completion_format(SCHEMAS_MAP['rank_relevant_records'], 'rank_relevant_records')
             )
 
             token_usage = {

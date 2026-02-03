@@ -26,7 +26,7 @@ def build_memory_from_db(memory_type, db_session_class, system_prompt, session_u
         query_args = [
             ChatMessages.session_uuid == session_uuid,
             ChatMessages.as_context == True,
-            ChatMessages.role in ('user', 'assistant')
+            ChatMessages.role.in_(['user', 'assistant'])
         ]
         if valid_time > 0:
             query_args.append(
