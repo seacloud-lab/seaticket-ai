@@ -59,7 +59,7 @@ class BasicChatManager(object):
         try:
             if stream:
                 return self.streamly_run(model, tool_executor, message, attachments, context=context)
-            return self.run(message, tool_executor, attachments, context=context)
+            return self.run(model, tool_executor, message, attachments, context=context)
         except Exception as e:
             logger.exception(f"Error generating answer: {str(e)}")
             return f"Sorry, an error occurred while generating the answer: {str(e)}"
