@@ -3,9 +3,9 @@ import jwt
 import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP
+from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils import chunk_text
-from seaqa_ai.managers.chat_manager import ChatManager
+from seaqa_ai.managers.chat_manager import NormalChatManager, ReasoningChatManager
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -70,10 +70,16 @@ def get_ai_reply():
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
     
-    chat_manager = ChatManager(flask_app.app)
+    if resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
+        chat_manager = NormalChatManager(flask_app.app)
+    elif resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
+        chat_manager = ReasoningChatManager(flask_app.app)
+    else:
+        return {'error_msg': 'resolve_type invalid.'}, 400
+    
     if stream:
         return Response(
-            stream_with_context(chat_manager.get_ai_reply(resolve_type, message, attachments, context, llm_model, True)),
+            stream_with_context(chat_manager(message, attachments, context, llm_model, True)),
             content_type='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',
@@ -82,7 +88,7 @@ def get_ai_reply():
         )
     else:
         try:
-            return chat_manager.get_ai_reply(resolve_type, message, attachments, context, llm_model), 200
+            return chat_manager(message, attachments, context, llm_model), 200
         except Exception as e:
             logger.exception(e)
             return {'error_msg': 'Internet server error.'}, 500
