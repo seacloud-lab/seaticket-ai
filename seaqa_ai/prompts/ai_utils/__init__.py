@@ -1,5 +1,6 @@
 SYSTEM_PROMPTS_MAP = {
     'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information.",
+    'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record.",
     'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
 }
 
@@ -21,7 +22,48 @@ class UserContentPrompts:
     "title": "New Ticket Title",
     "description": "A detailed summary of the ticket body."
 }}"""
-    
+
+    @staticmethod
+    def generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments=None):
+        comments_lines = []
+        for c in (ticket_comments or [])[:50]:
+            if not isinstance(c, dict):
+                continue
+            content = (c.get('content') or '').strip()
+            if not content:
+                continue
+            author = (c.get('author') or c.get('creator') or c.get('nickname') or '').strip()
+            created_time = (c.get('created_time') or c.get('commented_at') or '').strip()
+            prefix = '- '
+            if author or created_time:
+                prefix = f"- ({created_time}) {author}: "
+            comments_lines.append(prefix + content)
+        comments_text = '\n'.join(comments_lines) if comments_lines else '(no comments)'
+
+        return f"""Convert the following ticket into a knowledge base record.
+Ticket Title:
+{ticket_title}
+
+Ticket Content:
+{ticket_content}
+
+Ticket Comments:
+{comments_text}
+
+**Requirements:**
+1. The output language must be consistent with the input language.
+2. kb_title should be concise and suitable as a KB record title.
+3. kb_content should be a clean, structured article in plain text/markdown.
+4. If comments provide important clarifications, root cause, workaround, or resolution, incorporate them.
+5. Do NOT include any additional text, explanations, or markdown fences outside the JSON.
+
+**Output JSON format (MUST follow exactly):**
+{{
+  "kb_title": "...",
+  "kb_content": "..."
+}}
+"""
+
     @staticmethod
     def rank_relevant_records(query_record, candidates_text):
         return f"""You are an expert in analyzing the relevance between records. Given a query record and a list of candidate records, your task is to identify and rank ONLY the relevant candidates.

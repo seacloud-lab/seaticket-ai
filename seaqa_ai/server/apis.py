@@ -111,6 +111,50 @@ def convert_record_to_ticket():
     return {'title': title, 'description': description}, 200
 
 
+@flask_app.route('/convert-ticket-to-kb-record', methods=['POST'])
+def convert_ticket_to_kb_record():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    username = data.get('username')
+    ticket_title = data.get('ticket_title')
+    ticket_content = data.get('ticket_content')
+    ticket_comments = data.get('ticket_comments') or data.get('comments') or []
+
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
+
+    context = {
+        'username': username,
+        'org_id': org_id,
+        'project_uuid': project_uuid
+    }
+
+    if not ticket_title and not ticket_content:
+        return {'error_msg': 'ticket data invalid.'}, 400
+    if not username:
+        return {'error_msg': 'username invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+    if ticket_comments and not isinstance(ticket_comments, list):
+        return {'error_msg': 'ticket_comments invalid.'}, 400
+
+    try:
+        kb_title, kb_content = flask_app.app.ai_utils.gen_kb_record_from_ticket(ticket_title or '', ticket_content or '', ticket_comments or [], context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+
+    return {'kb_title': kb_title, 'kb_content': kb_content}, 200
+
+
 @flask_app.route('/generate-chunks-embedding', methods=['POST'])
 def generate_chunks_embedding():
     is_valid = check_auth_token(request)
