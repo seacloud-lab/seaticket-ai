@@ -56,6 +56,47 @@ class AIUtils:
             logger.error(f"Error generating ticket: {str(e)}")
             return '', ''
 
+    def gen_kb_record_from_ticket(self, ticket_title, ticket_content, ticket_comments, context):
+        """
+        Generate a knowledge base record (kb_title, kb_content) from a ticket.
+        """
+        try:
+            messages = [
+                {
+                    'role': 'system',
+                    'content': AI_UTILS_PROMPTS_MAP['generate_kb_record_from_ticket']
+                },
+                {
+                    'role': 'user',
+                    'content': UserContentPrompts.generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments)
+                }
+            ]
+
+            llm_client = get_llm_client_by_model_tier(
+                self.app.data_logger,
+                AI_UTILS_TIER.get('generate_kb_record_from_ticket', MODEL_REASONING_TIER.LOW.value)
+            )
+
+            response = llm_client.completion(
+                messages=messages,
+                context=context,
+                response_format=gen_completion_format(SCHEMAS_MAP['generate_kb_record_from_ticket'])
+            ).choices[0].message.content
+
+            try:
+                result = json_repair.loads(response, strict=True)
+            except Exception as e:
+                logger.exception(f'Failure to parse kb record result: {e}')
+                return '', ''
+
+            kb_title = result.get('kb_title', '')
+            kb_content = result.get('kb_content', '')
+            return kb_title, kb_content
+
+        except Exception as e:
+            logger.error(f"Error generating knowledge base record: {str(e)}")
+            return '', ''
+
     def generate_summary(self, connection_type, content, context):
         try:
             system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])

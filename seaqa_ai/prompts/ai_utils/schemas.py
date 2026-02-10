@@ -14,6 +14,21 @@ SCHEMAS_MAP = {
         'additionalProperties': False,
         'required': ['title', 'description']
     },
+    'generate_kb_record_from_ticket': {
+        'type': 'object',
+        'properties': {
+            'kb_title': {
+                'type': 'string',
+                'description': 'Knowledge base record title'
+            },
+            'kb_content': {
+                'type': 'string',
+                'description': 'Knowledge base record content'
+            }
+        },
+        'additionalProperties': False,
+        'required': ['kb_title', 'kb_content']
+    },
     'rank_relevant_records': {
         'type': 'object',
         'properties': {
