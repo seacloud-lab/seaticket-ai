@@ -11,7 +11,7 @@ from seaqa_ai.agent.agent_manager import AgentManager
 class SeaQAAIApp(object):
     def __init__(self, config):
         self.data_logger = DataLogging(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
-SEADB_SERVER_URL
+
         self.chat_manager = ChatManager(self)
         self.ai_utils = AIUtils(self)
         self.seaqa_indexer_api = SeaQAIndexerAPI(config.SEAQA_INDEXER_INNER_SERVER_URL, config.JWT_PRIVATE_KEY)
