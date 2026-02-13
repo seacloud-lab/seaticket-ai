@@ -1,4 +1,4 @@
-SYSTEM_PROMPTS_MAP = {
+AI_UTILS_PROMPTS_MAP = {
     'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information.",
     'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record.",
     'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
@@ -96,3 +96,11 @@ Candidate Records:
 - Each "connection_id" and "record_id" MUST be string values (convert numbers to strings if needed).
 - Do NOT include any additional text, explanations, or markdown formatting outside the JSON.
 """
+
+GENERATE_SUMMAEY_PROMPTS_MAP = {
+    'github_issue': "You are a GitHub issue analysis expert. Read the issue's title and body, then craft a single-sentence English summary describing the core problem. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
+    'discourse_forum': "You are a Discourse forum post analysis expert. Read the post's title and body, then craft a single-sentence English summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
+    'email': "You are a email analysis expert. Read the email's title and body, then craft a single-sentence English summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
+    'ticket': "You are a ticket analysis expert. A ticket: is a recorded unit of work that is created to track a request, an issue, a task, or an incident: from its initiation to completion. Read the ticket's title and body, then craft a single-sentence English summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
+    'documents': "You are a document summarization expert. Read the document, then craft a single-sentence English summary describing the core content. The summary should capture the main points and themes of the document clearly and effectively. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting."
+}

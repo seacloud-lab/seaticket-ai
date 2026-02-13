@@ -6,9 +6,7 @@ logger = logging.getLogger(__name__)
 
 class ToolCallingAgent(smolagents.ToolCallingAgent):
 
-    def __init__(self, db_session_class, session_uuid, tool_executor, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
-        self.db_session_class = db_session_class
-        self.session_uuid = session_uuid
+    def __init__(self, tool_executor, model, prompt_templates = None, planning_interval = None, stream_outputs = False, **kwargs):
         self.tool_executor = tool_executor
 
         super().__init__(tool_executor.tools, model, prompt_templates, planning_interval, stream_outputs, None, **kwargs)

@@ -2,14 +2,6 @@ from enum import Enum
 
 MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
 
-class ASK_MODE_PROPERTIES_MAP(Enum):
-    RESOLVE_TYPE = 'ask'
-    MEMORY = 'openai'
-
-class AGENT_MODE_PROPERTIES_MAP(Enum):
-    RESOLVE_TYPE = 'agent'
-    MEMORY = 'smolagents'
-
 class ConnectionType(Enum):
     EMAIL = 'email'
     GITHUB_ISSUE = 'github_issue'

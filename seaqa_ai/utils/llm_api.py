@@ -1,7 +1,6 @@
 import json
 import logging
 import litellm
-import smolagents.models
 from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER
 from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
 
@@ -97,10 +96,3 @@ class EmbeddingAPI(BasicLLMAPI):
         )
         self._logger_usage(response, context)
         return response.data
-    
-class LiteLLMModel(smolagents.models.LiteLLMModel):
-    def __init__(self, client, custom_role_conversions = None, flatten_messages_as_text = None, **kwargs):
-        if 'gpt-5' in client.model_id:
-            super().__init__(client.model_id, client.base_url, client.api_key, custom_role_conversions, flatten_messages_as_text, client=client, temperature=1, **kwargs)
-        else:
-            super().__init__(client.model_id, client.base_url, client.api_key, custom_role_conversions, flatten_messages_as_text, client=client, **kwargs)

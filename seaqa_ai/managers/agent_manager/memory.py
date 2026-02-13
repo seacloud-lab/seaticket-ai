@@ -99,3 +99,4 @@ class SmolAgentsMemory(AgentMemory):
                         result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step.record['attachments'], step.record['content'])
                 results.append(result_of_a_step)
         return results
+

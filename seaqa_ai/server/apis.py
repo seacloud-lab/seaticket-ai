@@ -3,9 +3,8 @@ import jwt
 import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP, AGENT_MODE_PROPERTIES_MAP
 from seaqa_ai.utils import chunk_text
-from seaqa_ai.managers.chat_manager import NormalChatManager, ReasoningChatManager
+from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -48,7 +47,6 @@ def get_ai_reply():
     project_uuid = data.get('project_uuid')
     document_connections = data.get('document_connections', [])
     issue_connections = data.get('issue_connections', [])
-    resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
     llm_model = data.get('llm_model')
     stream = data.get('stream', False)
@@ -70,14 +68,8 @@ def get_ai_reply():
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
     
-    if resolve_type == ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-        chat_manager = NormalChatManager(flask_app.app)
-    elif resolve_type == AGENT_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value:
-        chat_manager = ReasoningChatManager(flask_app.app)
-    else:
-        return {'error_msg': 'resolve_type invalid.'}, 400
-    
     if stream:
+        chat_manager = StreamingChat(flask_app.app)
         return Response(
             stream_with_context(chat_manager(message, attachments, context, llm_model, True)),
             content_type='text/event-stream',
@@ -87,6 +79,7 @@ def get_ai_reply():
             }
         )
     else:
+        chat_manager = SyncChat(flask_app.app)
         try:
             return chat_manager(message, attachments, context, llm_model), 200
         except Exception as e:

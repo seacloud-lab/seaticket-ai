@@ -1,4 +1,7 @@
+from sqlalchemy import desc
+from datetime import datetime, timedelta
 from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT_RAW, THOUGHT_PROCESS_RECORD_USER_INPUT
+from seaqa_ai.db.models import ChatMessages
 from seaqa_ai.utils import combine_attachments_to_message, retrieve_origin_reference_format
 
 class OpenAIMemory:
@@ -77,3 +80,42 @@ class OpenAIMemory:
                     'content': retrieve_origin_reference_format(step['content'], step['sources']) if step['role'] == 'assistant' else combine_attachments_to_message(step['attachments'], step['content'])
                 }
             yield new_step
+
+def build_memory_from_db(db_session_class, system_prompt, session_uuid, window_limit, valid_time):
+    memory = OpenAIMemory(system_prompt)
+    if not session_uuid:
+        return memory
+
+    # context config check
+    assert isinstance(window_limit, int), 'Invalid window number of context'
+    assert isinstance(valid_time, int), 'Invalid valid time of context'
+
+    # query records for newest
+    with db_session_class() as db_session:
+        query_args = [
+            ChatMessages.session_uuid == session_uuid,
+            ChatMessages.as_context == True,
+            ChatMessages.role.in_(['user', 'assistant'])
+        ]
+        if valid_time > 0:
+            query_args.append(
+                ChatMessages.created_at > datetime.now() - timedelta(hours=valid_time)
+            )
+        records = (
+            db_session.query(ChatMessages)
+            .filter(*query_args)
+            .order_by(desc(ChatMessages.created_at))
+        )
+
+        if window_limit > 0:
+            records = records.limit(window_limit)
+
+        records = records.all()
+
+        records.sort(key=lambda x: x.created_at)
+        
+        for record in records:
+            memory += record.to_dict()
+
+    return memory
+

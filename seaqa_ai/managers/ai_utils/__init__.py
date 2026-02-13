@@ -3,9 +3,8 @@ import json_repair
 import uuid
 from copy import copy
 from seaqa_ai.config import AI_UTILS_TIER
-from seaqa_ai.prompts.ai_utils import SYSTEM_PROMPTS_MAP as AI_UTILS_PROMPTS_MAP, UserContentPrompts
-from seaqa_ai.prompts.ai_utils.schemas import SCHEMAS_MAP
-from seaqa_ai.prompts.ai_utils.generate_summary import PROMPTS_MAP as GENERATE_SUMMAEY_PROMPTS_MAP
+from seaqa_ai.managers.ai_utils.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
+from seaqa_ai.managers.ai_utils.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
