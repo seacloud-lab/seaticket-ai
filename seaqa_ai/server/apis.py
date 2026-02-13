@@ -71,7 +71,7 @@ def get_ai_reply():
     if stream:
         chat_manager = StreamingChat(flask_app.app)
         return Response(
-            stream_with_context(chat_manager(message, attachments, context, llm_model, True)),
+            stream_with_context(chat_manager(message, attachments, context, llm_model)),
             content_type='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',
