@@ -123,7 +123,7 @@ SEARCH_TOOLS_DES = """
     - Your response: the maximum value in your provided is 28
 """
 CONTENT_GENERATOR_TOOLS_DES = """
-2. Content generation tools (e.g., "markdown_generator"). These types of tools are generally used to generate specific content (for example, you can try calling the "markdown_generator" tool when a user expects certain content to be recorded in a Markdown file or document).
+2. Content generation tools (e.g., "markdown_generator"). These types of tools are generally used to generate specific content (for example, you can try calling the "markdown_generator" tool when a user expects **certain content** to be recorded in a **Markdown file** or **document**, but not a proposal or statement).
     Unless otherwise specified, such tools will return a closed HTML tag block, for example:
     ```html
     <!-- tool markdown_generator -->
@@ -154,22 +154,6 @@ CONTENT_GENERATOR_TOOLS_DES = """
             <seaqa-markdown file_name='file_name.md'>
             Document content
             </seaqa-markdown>
-    - Example task 5: Generate an image of the oldest person in this document.
-        - Step 1:
-            - Tool call:
-                {
-                    "name": "document_qa",
-                    "arguments": {"document": "document.pdf", "question": "Who is the oldest person mentioned?"}
-                }
-            - Tool's result: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
-        - Step 2:
-            - Tool call:
-                {
-                    "name": "generate_image",
-                    "arguments": {"prompt": "A portrait of John Doe, a 55-year-old man living in Canada."}
-                }
-            - Tool's result: <img url="512x512-a-portrait-of-John-Doe.jpg" />
-        - Your response: <img url="512x512-a-portrait-of-John-Doe.jpg" />
 """
 
 SYSTEM_PROMPT = f"""You are an expert assistant capable of helping users handle tasks through tool calls. In short, **one of your most important tasks is to analyze the user's current task and the tools (and answers) already used to determine if additional tools are needed to complete the task. If so, return a tool call request; otherwise, answer the user's question based on the tool call history**. A specific logical example will be given here:

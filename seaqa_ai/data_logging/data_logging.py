@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 import logging
-from seaqa_ai.event_redis import RedisClient
 
 logger = logging.getLogger(__name__)
 
 
 class DataLogging(object):
 
-    def __init__(self, host, port, password):
-        self.redis = RedisClient(host, port, password)
+    def __init__(self, redis_client):
+        self.redis_client = redis_client
 
     def log_data(self, channel_name, message):
         try:
-            self.redis.publish(channel_name, message)
+            self.redis_client.publish(channel_name, message)
         except Exception as e:
             logger.warning('publish message: %s, to channel: %s, error: %s .', message, channel_name, e)
