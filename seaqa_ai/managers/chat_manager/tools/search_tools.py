@@ -1,5 +1,5 @@
 import logging
-from seaqa_ai.agent.tools import BasicTool
+from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ExtraSourceType
 
 logger = logging.getLogger(__name__)

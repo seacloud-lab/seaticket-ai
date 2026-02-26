@@ -2,7 +2,7 @@ import json
 import inspect
 import smolagents
 from copy import deepcopy
-from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
+from seaqa_ai.utils.tools import BasicToolExecutor
 
 _tool_type_python_type_map = {
     "string": "str",
@@ -15,79 +15,10 @@ _tool_type_python_type_map = {
     "null": "None"
 }
 
-class Tool(smolagents.Tool):
+class SmolAgentsTool(smolagents.Tool):
     def __init__(self, tool_executor, *args, **kwargs):
         self.tool_executor = tool_executor
         super().__init__(*args, **kwargs)
-
-class InvalidToolException(Exception):
-    pass
-
-class BasicToolExecutor(object):
-    def __init__(self):
-        self.cache = {}
-        self.thought_process = ThoughtProcessRecorder()
-        self.clean()
-
-    def register(self, func, tool_info, **constant_kwargs):
-        raise NotImplementedError()
-    
-    def registers(self, funcs, tool_infos, constant_kwargs_s=[]):
-        if len(funcs) != len(tool_infos):
-            raise InvalidToolException('Register tools set failure, length does not match!')
-
-        for i in range(len(funcs)):
-            try:
-                constant_kwargs = constant_kwargs_s[i]
-            except IndexError:
-                constant_kwargs = {}
-            self.register(funcs[i], tool_infos[i], **constant_kwargs)
-    
-    def clean(self, *args, **kwargs):
-        raise NotImplementedError()
-    
-class FunctionCallingToolExecutor(BasicToolExecutor):
-    tools = {}
-    
-    def clean(self):
-        self.tools = {}
-
-    def register(self, func, tool_info, **constant_kwargs):
-        """
-        func: callable
-        tool_info: json-like openai format tool defined
-        """
-        name = tool_info.get('function', {}).get('name')
-        if not name:
-            raise InvalidToolException(tool_info)
-        
-        self.tools[name] = {
-            'func': func,
-            'constant_kwargs': constant_kwargs,
-            'tool_info': tool_info
-        }
-
-    def get(self):
-        return [
-            tool['tool_info']
-            for tool in self.tools.values()
-        ]
-    
-    def execute(self, tool_call):
-        function = tool_call['function']
-        name = function['name']
-        params = json.loads(function.get('arguments', '{}'))
-        constant_kwargs = self.tools[name]['constant_kwargs']
-        avaliables_params = inspect.signature(self.tools[name]['func']).parameters
-        params.update({
-            k: v
-            for k, v in constant_kwargs.items() if k in avaliables_params and k not in params
-        })
-
-        if 'tool_executor' in avaliables_params and 'tool_executor' not in params:
-            params.update({'tool_executor': self})
-        
-        return self.tools[name]['func'](**params)
 
 class SmolAgentsToolExecutor(BasicToolExecutor):
     tools = [smolagents.FinalAnswerTool()]
@@ -138,7 +69,7 @@ class SmolAgentsToolExecutor(BasicToolExecutor):
             all_parms_str = all_parms_str[2:]
 
         register_string = f"""
-class tool_{tool_name}(Tool):
+class tool_{tool_name}(SmolAgentsTool):
     inputs: dict = {tool_parms_properties}
 
     output_type: str = 'string'
@@ -226,3 +157,4 @@ class tool_{tool_name}(Tool):
 
     def register(self, func, tool_info, **constant_kwargs):
         self.tools.append(self._register_tool(func, tool_info, **constant_kwargs))
+

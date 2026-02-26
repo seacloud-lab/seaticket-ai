@@ -1,10 +1,10 @@
 import logging
 import jwt
 import json
-from flask import Flask, request
+from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils.constants import ASK_MODE_PROPERTIES_MAP
 from seaqa_ai.utils import chunk_text
+from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -47,9 +47,9 @@ def get_ai_reply():
     project_uuid = data.get('project_uuid')
     document_connections = data.get('document_connections', [])
     issue_connections = data.get('issue_connections', [])
-    resolve_type = data.get('resolve_type', ASK_MODE_PROPERTIES_MAP.RESOLVE_TYPE.value)
     org_id = data.get('org_id')
     llm_model = data.get('llm_model')
+    stream = data.get('stream', False)
     context = {
         'username': username,
         'session_uuid': session_uuid,
@@ -67,13 +67,24 @@ def get_ai_reply():
         return {'error_msg': 'username invalid.'}, 400
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
-
-    try:
-        return flask_app.app.chat_manager.get_ai_reply(resolve_type, message, attachments, context, llm_model), 200
-    except Exception as e:
-        logger.exception(e)
-        return {'error_msg': 'Internet server error.'}, 500
-
+    
+    if stream:
+        chat_manager = StreamingChat(flask_app.app)
+        return Response(
+            stream_with_context(chat_manager(message, attachments, context, llm_model)),
+            content_type='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'
+            }
+        )
+    else:
+        chat_manager = SyncChat(flask_app.app)
+        try:
+            return chat_manager(message, attachments, context, llm_model), 200
+        except Exception as e:
+            logger.exception(e)
+            return {'error_msg': 'Internet server error.'}, 500
 
 @flask_app.route('/convert-record-to-ticket', methods=['POST'])
 def convert_record_to_ticket():

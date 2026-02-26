@@ -95,14 +95,8 @@ def gen_completion_format(schema, name='result_parser'):
 
 def remove_sources_content_and_snippets(sources):
     for source in sources:
-        try:
-            del source['content']
-        except:
-            pass
-        try:
-            del source['snippets']
-        except:
-            pass
+        source.pop('content', None)
+        source.pop('snippets', None)
     return sources
 
 def filter_tool_calls_content(tool_name, results):
@@ -148,12 +142,9 @@ def combine_attachments_to_message(attachments, message):
 def remove_attachments_content(attachments):
     new_attachments = deepcopy(attachments)
     for attachment in new_attachments:
-        if attachment.get('content'):
-            del attachment['content']
-        if attachment.get('comments'):
-            del attachment['comments']
-        if attachment.get('emails'):
-            del attachment['emails']
+        attachment.pop('content', None)
+        attachment.pop('comments', None)
+        attachment.pop('emails', None)
     return new_attachments
 
 def chunk_text(text, max_tokens=500, overlap_tokens=120):
