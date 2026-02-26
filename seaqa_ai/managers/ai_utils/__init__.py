@@ -6,7 +6,7 @@ from seaqa_ai.config import AI_UTILS_TIER
 from seaqa_ai.managers.ai_utils.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
 from seaqa_ai.managers.ai_utils.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
+from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 
 
@@ -96,13 +96,17 @@ class AIUtils:
             logger.error(f"Error generating knowledge base record: {str(e)}")
             return '', ''
 
-    def generate_summary(self, connection_type, content, context):
+    def generate_summary(self, connection_type, content, context, lang):
         try:
             system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
+            target_lang = LANGUAGE[lang] if lang is not None else 'English'
+            lang_instruction = (
+                f"Output language requirement: You must write the summary in {target_lang}. "
+            )
             messages = [
                 {
                     "role": "system",
-                    "content": system_prompts
+                    "content": f"{system_prompts}\n\n{lang_instruction}"
                 },
                 {
                     "role": "user",
