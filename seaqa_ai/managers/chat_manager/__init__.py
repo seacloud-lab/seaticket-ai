@@ -144,147 +144,151 @@ class SyncChat(BasicChat):
 
 class StreamingChat(BasicChat):
     def run(self, model, tool_executor, message, attachments, **kwargs):
-        context = kwargs.get('context', {})
-        session_uuid = context.get('session_uuid')
-        llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
-        context=kwargs.get('context')
-        yield SSE.status('Preparing', 'Initializing user input')
-        if session_uuid and not config.DISABLE_CONTEXT:
-            try:
-                memory = build_memory_from_db(self.db_session_class, SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
-            except Exception as e:
-                logger.warning(f'Failure to build context: {e}')
+        try:
+            context = kwargs.get('context', {})
+            session_uuid = context.get('session_uuid')
+            llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
+            yield SSE.status('Preparing', 'Initializing user input')
+            if session_uuid and not config.DISABLE_CONTEXT:
+                try:
+                    memory = build_memory_from_db(self.db_session_class, SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                except Exception as e:
+                    logger.warning(f'Failure to build context: {e}')
+                    memory = OpenAIMemory(SYSTEM_PROMPT)
+            else:
                 memory = OpenAIMemory(SYSTEM_PROMPT)
-        else:
-            memory = OpenAIMemory(SYSTEM_PROMPT)
 
-        user_raw_message = combine_attachments_to_message(attachments, message)
-        tool_executor.thought_process.set_task(SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
-        tool_executor.thought_process.context = memory.context_thought_process
+            user_raw_message = combine_attachments_to_message(attachments, message)
+            tool_executor.thought_process.set_task(SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
+            tool_executor.thought_process.context = memory.context_thought_process
 
-        memory += {
-            'role': 'user', 
-            'content': user_raw_message
-        }
+            memory += {
+                'role': 'user', 
+                'content': user_raw_message
+            }
 
-        current_step = 0
-        while current_step < config.MAX_STEPS:
-            yield SSE.status('LLM Reasoning')
-            current_step += 1
-            time_begin = time.time()
-            response = llm_client.completion(
-                messages=memory,
-                context=context,
-                tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                stream=True
-            )
+            current_step = 0
+            while current_step < config.MAX_STEPS:
+                yield SSE.status('LLM Reasoning')
+                current_step += 1
+                time_begin = time.time()
+                response = llm_client.completion(
+                    messages=memory,
+                    context=context,
+                    tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
+                    stream=True
+                )
 
-            tool_calls = []
-            content = ""
-            current_tool_index = -1
-            token_usage = {}
-            has_yield_answering_status = False
+                tool_calls = []
+                content = ""
+                current_tool_index = -1
+                token_usage = {}
+                has_yield_answering_status = False
 
-            for chunk in response:
-                if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                    for tool_call in chunk.tool_calls:
-                        if tool_call.type == 'function':
-                            tool_calls.append({
-                                'id': tool_call.id,
-                                'type': 'function',
-                                'function': {
-                                    'name': tool_call.function.name,
-                                    'arguments': tool_call.function.arguments
-                                }
-                            })
-                elif hasattr(chunk, 'choices') and chunk.choices:
-                    delta = chunk.choices[0].delta
-                    
-                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
-                        for tool_call_delta in delta.tool_calls:
-                            if tool_call_delta.index is not None and tool_call_delta.index > current_tool_index:
-                                current_tool_index = tool_call_delta.index
+                for chunk in response:
+                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                        for tool_call in chunk.tool_calls:
+                            if tool_call.type == 'function':
                                 tool_calls.append({
-                                    'id': tool_call_delta.id or f"call_{tool_call_delta.index}",
+                                    'id': tool_call.id,
                                     'type': 'function',
                                     'function': {
-                                        'name': '',
-                                        'arguments': ''
+                                        'name': tool_call.function.name,
+                                        'arguments': tool_call.function.arguments
                                     }
                                 })
-                            
-                            if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
-                                if tool_call_delta.function.name:
-                                    tool_calls[current_tool_index]['function']['name'] = tool_call_delta.function.name
-                                if tool_call_delta.function.arguments:
-                                    tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
+                    elif hasattr(chunk, 'choices') and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        
+                        if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                            for tool_call_delta in delta.tool_calls:
+                                if tool_call_delta.index is not None and tool_call_delta.index > current_tool_index:
+                                    current_tool_index = tool_call_delta.index
+                                    tool_calls.append({
+                                        'id': tool_call_delta.id or f"call_{tool_call_delta.index}",
+                                        'type': 'function',
+                                        'function': {
+                                            'name': '',
+                                            'arguments': ''
+                                        }
+                                    })
+                                
+                                if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
+                                    if tool_call_delta.function.name:
+                                        tool_calls[current_tool_index]['function']['name'] = tool_call_delta.function.name
+                                    if tool_call_delta.function.arguments:
+                                        tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
 
-                    elif hasattr(delta, 'content') and delta.content:
-                        if not has_yield_answering_status:
-                            yield SSE.status('Answering')
-                            has_yield_answering_status = True
-                        yield SSE.answer(delta.content)
-                        content += delta.content
-                if hasattr(chunk, 'usage'):
-                    token_usage = {
-                        'input_tokens': chunk.usage.prompt_tokens,
-                        'output_tokens': chunk.usage.completion_tokens,
-                        'total_tokens': chunk.usage.total_tokens,
+                        elif hasattr(delta, 'content') and delta.content:
+                            if not has_yield_answering_status:
+                                yield SSE.status('Answering')
+                                has_yield_answering_status = True
+                            yield SSE.answer(delta.content)
+                            content += delta.content
+                    if hasattr(chunk, 'usage'):
+                        token_usage = {
+                            'input_tokens': chunk.usage.prompt_tokens,
+                            'output_tokens': chunk.usage.completion_tokens,
+                            'total_tokens': chunk.usage.total_tokens,
+                        }
+
+                # action step
+                if tool_calls:
+                    has_search_tool = False
+
+                    yield SSE.status('Calling tools', tool_calls)
+                    memory += {
+                        'role': 'assistant',
+                        'tool_calls': tool_calls
                     }
+                    tool_executor.thought_process.add_tool_calls_group()
+                    for tool_call in tool_calls:
+                        tool_name = tool_call['function']['name']
+                        arguments = tool_call['function']['arguments']
 
-            # action step
-            if tool_calls:
-                has_search_tool = False
+                        if tool_name in ('documents_search', 'issues_search'):
+                            has_search_tool = True
+                        if isinstance(arguments, str):
+                            arguments = parse_json(arguments)
+                        try:
+                            tool_output = tool_executor.execute(tool_call)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments, filter_tool_calls_content(tool_name, tool_output))
+                            memory += {
+                                'role': 'tool',
+                                'tool_call_id': tool_call['id'],
+                                'content': json.dumps(tool_output)
+                            }
+                        except Exception as e:
+                            logger.exception(f'Execute tool call failure: {e}')
+                            error_type = type(e).__name__
+                            error_message = repr(e)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments)
+                            tool_executor.thought_process.set_last_group_error({
+                                'type': error_type,
+                                'message': error_message
+                            })
+                            memory += {
+                                'role': 'tool',
+                                'tool_call_id': tool_call['id'],
+                                'content': f'{error_type}: {error_message}'
+                            }
+                    tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
+                    tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
-                yield SSE.status('Calling tools', tool_calls)
-                memory += {
-                    'role': 'assistant',
-                    'tool_calls': tool_calls
-                }
-                tool_executor.thought_process.add_tool_calls_group()
-                for tool_call in tool_calls:
-                    tool_name = tool_call['function']['name']
-                    arguments = tool_call['function']['arguments']
+                    if has_search_tool and (found_records := len(tool_executor.cache.get('sources_results', []))):
+                        yield SSE.search_found(found_records)
 
-                    if tool_name in ('documents_search', 'issues_search'):
-                        has_search_tool = True
-                    if isinstance(arguments, str):
-                        arguments = parse_json(arguments)
-                    try:
-                        tool_output = tool_executor.execute(tool_call)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments, filter_tool_calls_content(tool_name, tool_output))
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': json.dumps(tool_output)
-                        }
-                    except Exception as e:
-                        logger.exception(f'Execute tool call failure: {e}')
-                        error_type = type(e).__name__
-                        error_message = repr(e)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments)
-                        tool_executor.thought_process.set_last_group_error({
-                            'type': error_type,
-                            'message': error_message
-                        })
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': f'{error_type}: {error_message}'
-                        }
-                tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
-                tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
+                # final answer
+                else:
+                    tool_executor.thought_process.set_final_answer(content, current_step >= config.MAX_STEPS, token_usage, time.time() - time_begin)
 
-                if has_search_tool and (found_records := len(tool_executor.cache.get('sources_results', []))):
-                    yield SSE.search_found(found_records)
-
-            # final answer
-            else:
-                tool_executor.thought_process.set_final_answer(content, current_step >= config.MAX_STEPS, token_usage, time.time() - time_begin)
-
-                # filter invalid references
-                answer, sources = get_answer_and_sources(tool_executor, content)
-            
-                yield SSE.results(answer, remove_sources_content_and_snippets(sources), tool_executor.thought_process.details)
-                yield SSE.done()
-                break
+                    # filter invalid references
+                    answer, sources = get_answer_and_sources(tool_executor, content)
+                
+                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), tool_executor.thought_process.details)
+                    yield SSE.done()
+                    break
+        except Exception as e:
+            logger.exception(f'Streaming run AI failure: {e}')
+            yield SSE.error(repr(e))
+            yield SSE.done()
