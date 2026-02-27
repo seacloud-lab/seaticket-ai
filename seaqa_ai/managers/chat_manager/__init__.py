@@ -176,7 +176,10 @@ class StreamingChat(BasicChat):
                     messages=memory,
                     context=context,
                     tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                    stream=True
+                    stream=True,
+                    stream_options={
+                        "include_usage": True
+                    }
                 )
 
                 tool_calls = []
@@ -231,6 +234,7 @@ class StreamingChat(BasicChat):
                             'output_tokens': chunk.usage.completion_tokens,
                             'total_tokens': chunk.usage.total_tokens,
                         }
+                        llm_client.logger_usage(token_usage, context)
 
                 # action step
                 if tool_calls:
