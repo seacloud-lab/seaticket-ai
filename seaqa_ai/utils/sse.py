@@ -60,4 +60,4 @@ class SSE:
     
     @staticmethod
     def error(error_msg):
-        return f'data: [ERROR: {error_msg}]'
+        return f'data: [ERROR: {error_msg}]\n\n'

@@ -36,22 +36,35 @@ class BasicLLMAPI:
         self.api_key = api_key
         self.timeout = timeout
 
-    def _logger_usage(self, response, context, model=None):
+    def logger_usage(self, token_usage, context, model=None):
+        """
+        logger token usage manually for compatible to stream response
+        """
         try:
-            if hasattr(response, 'usage') and response.usage:
-                self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
-                    'model': self.model_id if not model else model,
-                    'usage': {
-                        'prompt_tokens': response.usage.prompt_tokens,
-                        'completion_tokens': response.usage.completion_tokens,
-                        'total_tokens': response.usage.total_tokens
-                    },
-                    'username': context.get('username'),
-                    'org_id': context.get('org_id'),
-                    'project_uuid': context.get('project_uuid'),
-                }))
+            self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
+                'model': self.model_id if not model else model,
+                'usage': {
+                    'prompt_tokens': token_usage['input_tokens'],
+                    'completion_tokens': token_usage['output_tokens'],
+                    'total_tokens': token_usage['total_tokens']
+                },
+                'username': context.get('username'),
+                'org_id': context.get('org_id'),
+                'project_uuid': context.get('project_uuid'),
+            }))
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")
+
+    def _logger_usage_from_response(self, response, context, model=None):
+        try:
+            # try-except statement for compatible to stream response
+            return self.logger_usage({
+                'input_token': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens,
+            }, context, model)
+        except:
+            pass
 
 class CompletionAPI(BasicLLMAPI):
     def completion(self, **kwargs):
@@ -79,7 +92,7 @@ class CompletionAPI(BasicLLMAPI):
             **kwargs
         )
 
-        self._logger_usage(response, context)
+        self._logger_usage_from_response(response, context)
         return response
 
 class EmbeddingAPI(BasicLLMAPI):
@@ -94,5 +107,5 @@ class EmbeddingAPI(BasicLLMAPI):
             custom_llm_provider=self.llm_type,
             timeout=self.timeout
         )
-        self._logger_usage(response, context)
+        self._logger_usage_from_response(response, context)
         return response.data
