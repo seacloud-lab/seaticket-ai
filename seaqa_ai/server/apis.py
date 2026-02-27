@@ -72,12 +72,12 @@ def get_ai_reply():
         chat_manager = StreamingChat(flask_app.app)
         return Response(
             stream_with_context(chat_manager(message, attachments, context, llm_model)),
-            content_type='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache',
-                'X-Accel-Buffering': 'no'
-            }
-        )
+                content_type='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no'
+                }
+            )
     else:
         chat_manager = SyncChat(flask_app.app)
         try:
