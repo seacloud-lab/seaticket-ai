@@ -9,7 +9,7 @@ from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, Issu
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
 from seaqa_ai.utils import parse_json, uuid_str_to_32_chars
-from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils.constants import ConnectionType, remove_reference_markers
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor
@@ -43,8 +43,9 @@ class BasicChat(object):
 
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
-        for tool in self.content_generators:
-            tool.register(tool_executor, context=context)
+        if not context.get('is_external_portal'):
+            for tool in self.content_generators:
+                tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
@@ -168,6 +169,10 @@ class SyncChat(BasicChat):
 
                 # filter invalid references
                 answer, sources = get_answer_and_sources(tool_executor, content)
+
+                if context.get('is_external_portal'):
+                    answer = remove_reference_markers(answer)
+                    sources = []
 
                 return {
                     'answer': answer,
@@ -327,7 +332,11 @@ class StreamingChat(BasicChat):
 
                     # filter invalid references
                     answer, sources = get_answer_and_sources(tool_executor, content)
-                
+
+                    if context.get('is_external_portal'):
+                        answer = remove_reference_markers(answer)
+                        sources = []
+
                     yield SSE.results(answer, remove_sources_content_and_snippets(sources), tool_executor.thought_process.details)
                     yield SSE.done()
                     break

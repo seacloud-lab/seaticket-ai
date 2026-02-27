@@ -51,6 +51,7 @@ def get_ai_reply():
     llm_model = data.get('llm_model')
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
+    is_external_portal = data.get('is_external_portal', False)
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
         'username': username,
@@ -58,6 +59,7 @@ def get_ai_reply():
         'project_uuid': project_uuid,
         'org_id': org_id,
         'project_prompt': project_prompt,
+        'is_external_portal': is_external_portal,
         'attachments_hex': [
             gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
