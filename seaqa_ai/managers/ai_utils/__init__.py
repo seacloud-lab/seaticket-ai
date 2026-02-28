@@ -99,7 +99,7 @@ class AIUtils:
     def generate_summary(self, connection_type, content, context, lang):
         try:
             system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
-            target_lang = LANGUAGE[lang] if lang is not None else 'English'
+            target_lang = LANGUAGE.get(lang, 'English')
             lang_instruction = (
                 f"Output language requirement: You must write the summary in {target_lang}. "
             )

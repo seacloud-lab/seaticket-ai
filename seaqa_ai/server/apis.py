@@ -256,6 +256,7 @@ def generate_summary():
     username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
+    lang = data.get('lang')
 
     if not connection_type:
         return {'error_msg': 'type invalid.'}, 400
@@ -271,7 +272,7 @@ def generate_summary():
         'project_uuid': project_uuid
     }
     try:
-        summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context)
+        summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context, lang)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
             embeddings = flask_app.app.embedding_api.generate(summary, context)
