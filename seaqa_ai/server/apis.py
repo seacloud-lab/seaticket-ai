@@ -9,6 +9,8 @@ from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
 
+AGENT_RUNS_TABLE = 'agent_runs'
+AGENT_ACTIONS_TABLE = 'agent_actions'
 
 def check_auth_token(req):
     auth = req.headers.get('Authorization', '').split()
@@ -325,3 +327,180 @@ def rank_issues_by_relevance():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
+
+@flask_app.route('/agent/runs/', methods=['GET'])
+def list_agent_runs():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied.'}, 403
+
+    project_uuid = request.args.get('project_uuid')
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 20))
+    offset = (page - 1) * per_page
+
+    try:
+        seadb_api = flask_app.app.seadb_api
+        # Get runs
+        runs_sql = (
+            f"SELECT * FROM `{AGENT_RUNS_TABLE}` "
+            f"ORDER BY `started_at` DESC "
+            f"LIMIT {offset}, {per_page + 1}"
+        )
+        runs_result = seadb_api.query_rows(project_uuid, runs_sql)
+        runs = runs_result.get('results', [])
+
+        has_more = len(runs) > per_page
+        if has_more:
+            runs = runs[:per_page]
+
+        # Batch fetch all actions for these runs
+        run_ids = [r['_pk'] for r in runs]
+        actions_by_run = {}
+        if run_ids:
+            run_ids_str = ','.join(str(r) for r in run_ids)
+            actions_sql = (
+                f"SELECT * FROM `{AGENT_ACTIONS_TABLE}` "
+                f"WHERE `run_id` IN ({run_ids_str}) "
+                f"ORDER BY `run_id` DESC, `created_at` ASC"
+            )
+            actions_result = seadb_api.query_rows(project_uuid, actions_sql)
+            all_actions = actions_result.get('results', [])
+
+            # Group actions by run_id
+            for action in all_actions:
+                run_id = action.get('run_id')
+                if run_id not in actions_by_run:
+                    actions_by_run[run_id] = []
+                actions_by_run[run_id].append(action)
+
+        # Build enriched runs from pre-grouped actions
+        enriched_runs = []
+        for run in runs:
+            run_pk = run['_pk']
+            actions = actions_by_run.get(run_pk, [])
+
+            # Group actions by ticket_id
+            tickets_map = {}
+            for action in actions:
+                tid = action.get('ticket_id')
+                if tid not in tickets_map:
+                    tickets_map[tid] = {
+                        'id': tid,
+                        'title': action.get('ticket_title', ''),
+                        'actions': [],
+                    }
+                tickets_map[tid]['actions'].append({
+                    'id': action['_pk'],
+                    'type': action.get('action_type', ''),
+                    'tool_name': action.get('tool_name', ''),
+                    'content': action.get('content', ''),
+                    'result': action.get('result', ''),
+                    'status': action.get('status', ''),
+                    'suggestion_text': action.get('suggestion_text', ''),
+                    'created_at': action.get('created_at', ''),
+                    'executed_at': action.get('executed_at', ''),
+                })
+
+            enriched_runs.append({
+                'id': run_pk,
+                'status': run.get('status', ''),
+                'started_at': run.get('started_at', ''),
+                'finished_at': run.get('finished_at', ''),
+                'tickets_processed': run.get('tickets_processed', 0),
+                'error_message': run.get('error_message', ''),
+                'tickets': list(tickets_map.values()),
+            })
+
+        return {'runs': enriched_runs, 'has_more': has_more}, 200
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internal server error.'}, 500
+
+@flask_app.route('/api/v1/agent/runs/<int:run_id>/', methods=['GET'])
+def get_agent_run_detail(run_id):
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied.'}, 403
+
+    project_uuid = request.args.get('project_uuid')
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    try:
+        seadb_api = flask_app.app.seadb_api
+        run_sql = f"SELECT * FROM `{AGENT_RUNS_TABLE}` WHERE `_pk` = {run_id}"
+        run_result = seadb_api.query_rows(project_uuid, run_sql)
+        runs = run_result.get('results', [])
+        if not runs:
+            return {'error_msg': 'Run not found.'}, 404
+        run = runs[0]
+
+        actions_sql = (
+            f"SELECT * FROM `{AGENT_ACTIONS_TABLE}` "
+            f"WHERE `run_id` = {run_id} "
+            f"ORDER BY `created_at` ASC"
+        )
+        actions_result = seadb_api.query_rows(project_uuid, actions_sql)
+        actions = actions_result.get('results', [])
+
+        tickets_map = {}
+        for action in actions:
+            tid = action.get('ticket_id')
+            if tid not in tickets_map:
+                tickets_map[tid] = {
+                    'id': tid,
+                    'title': action.get('ticket_title', ''),
+                    'actions': [],
+                }
+            tickets_map[tid]['actions'].append({
+                'id': action['_pk'],
+                'type': action.get('action_type', ''),
+                'tool_name': action.get('tool_name', ''),
+                'content': action.get('content', ''),
+                'result': action.get('result', ''),
+                'status': action.get('status', ''),
+                'created_at': action.get('created_at', ''),
+                'executed_at': action.get('executed_at', ''),
+            })
+
+        return {
+            'id': run['_pk'],
+            'status': run.get('status', ''),
+            'started_at': run.get('started_at', ''),
+            'finished_at': run.get('finished_at', ''),
+            'tickets_processed': run.get('tickets_processed', 0),
+            'error_message': run.get('error_message', ''),
+            'tickets': list(tickets_map.values()),
+        }, 200
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internal server error.'}, 500
+
+@flask_app.route('/agent/trigger/', methods=['POST'])
+def trigger_agent():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied.'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception:
+        return {'error_msg': 'Bad request.'}, 400
+
+    project_uuid = data.get('project_uuid')
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    try:
+        agent_manager = flask_app.app.agent_scheduler.agent_manager
+        run_id = agent_manager.run_single_project(project_uuid)
+        if run_id is None:
+            return {'error_msg': 'Failed to trigger agent.'}, 500
+        return {'success': True, 'run_id': run_id}, 200
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internal server error.'}, 500

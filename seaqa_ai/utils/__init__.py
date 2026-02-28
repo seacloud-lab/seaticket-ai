@@ -6,6 +6,7 @@ import pytz
 import re
 import ast
 import hashlib
+import uuid
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime
@@ -17,6 +18,20 @@ from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
+
+
+def uuid_str_to_36_chars(project_uuid):
+    if isinstance(project_uuid, uuid.UUID):
+        return str(project_uuid)
+    if len(project_uuid) == 32:
+        return str(uuid.UUID(project_uuid))
+    else:
+        return project_uuid
+
+def uuid_str_to_32_chars(project_uuid):
+    if len(project_uuid) == 36:
+        return uuid.UUID(project_uuid).hex
+    return project_uuid
 
 def localize_time(date):
     """

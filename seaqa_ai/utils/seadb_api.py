@@ -2,6 +2,7 @@ import time
 import jwt
 import logging
 import requests
+from seaqa_ai.utils import uuid_str_to_36_chars
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class SeaDBAPI:
         return parse_response(response)
     
     def query_rows(self, base_id, sql, params=[], convert_keys=True):
+        base_id = uuid_str_to_36_chars(base_id)
         headers = self.gen_headers(base_id)
         post_data = {
             'sql': sql,
@@ -48,6 +50,28 @@ class SeaDBAPI:
         response = requests.post(url, json=post_data, headers=headers, timeout=self.timeout)
         return parse_response(response)
     
+    def insert_rows(self, base_id, table_name, rows):
+        base_id = uuid_str_to_36_chars(base_id)
+        headers = self.gen_headers(base_id)
+        url = f'{self.server_url}/api/v1/{base_id}/rows'
+        data = {
+            'table_name': str(table_name),
+            'rows': rows
+        }
+        response = requests.post(url, json=data, headers=headers, timeout=self.timeout)
+        return parse_response(response)
+
+    def update_rows(self, base_id, table_name, rows):
+        base_id = uuid_str_to_36_chars(base_id)
+        headers = self.gen_headers(base_id)
+        url = f'{self.server_url}/api/v1/{base_id}/rows'
+        data = {
+            'table_name': table_name,
+            'updates': rows
+        }
+        response = requests.put(url, json=data, headers=headers, timeout=self.timeout)
+        return parse_response(response)
+
     def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False, record_fields_str='*', comments_field_str='*', comments_topic_id_field_name=None):
         """
         return {
