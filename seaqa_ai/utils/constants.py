@@ -2,6 +2,15 @@ from enum import Enum
 
 MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
 
+
+LANGUAGE = {
+    'en': 'English',
+    'zh-cn': 'Chinese',
+    'fr' : 'French',
+    'de' : 'German',
+}
+
+
 class ConnectionType(Enum):
     EMAIL = 'email'
     GITHUB_ISSUE = 'github_issue'

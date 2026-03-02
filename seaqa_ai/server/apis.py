@@ -271,7 +271,7 @@ def generate_summary():
         'project_uuid': project_uuid
     }
     try:
-        summary = flask_app.app.ai_utils.generate_summary(connection_type, content, context)
+        summary = flask_app.app.ai_utils.generate_summary(connection_type, project_uuid, content, context)
         result = {"summary": summary, 'embeddings': []}
         if include_vector and summary:
             embeddings = flask_app.app.embedding_api.generate(summary, context)

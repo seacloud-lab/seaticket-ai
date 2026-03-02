@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import uuid
 import json
 import pytz
 import re
@@ -457,3 +458,9 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                 search_results[connection_id][record_id]['content'] = search_results[connection_id][record_id]['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
     return search_results
+
+def uuid_str_to_32_chars(project_uuid):
+    if len(project_uuid) == 36:
+        return uuid.UUID(project_uuid).hex
+    else:
+        return project_uuid

@@ -1,14 +1,16 @@
+import json
 import logging
 import json_repair
 import uuid
 from copy import copy
-from seaqa_ai.config import AI_UTILS_TIER
+from seaqa_ai.config import AI_UTILS_TIER, SQLALCHEMY_DATABASE_URI
+from seaqa_ai.db import init_db_session_class
 from seaqa_ai.managers.ai_utils.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
 from seaqa_ai.managers.ai_utils.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, convert_to_json_code_block, gen_completion_format
-from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER
+from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
-
+from seaqa_ai.utils.seaqa_db import SeaqaDB
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,8 @@ logger = logging.getLogger(__name__)
 class AIUtils:
     def __init__(self, app):
         self.app = app
+        self.db_session_class = init_db_session_class(SQLALCHEMY_DATABASE_URI)
+        self.seaqa_db = SeaqaDB(self.db_session_class)
 
     def gen_ticket_from_record(self, record_detail, context):
         """
@@ -96,13 +100,26 @@ class AIUtils:
             logger.error(f"Error generating knowledge base record: {str(e)}")
             return '', ''
 
-    def generate_summary(self, connection_type, content, context):
+    def generate_summary(self, connection_type, project_uuid,  content, context):
+        try:
+            project_settings = self.seaqa_db.get_project_settings_by_project_uuid(project_uuid)
+            settings = json.loads(project_settings) if project_settings else {}
+            lang = settings.get('lang')
+        except Exception as e:
+            logger.warning(
+                "Failed to load/parse project settings, fallback to default language. error: %s", e)
+            lang = 'en'
+
         try:
             system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
+            target_lang = LANGUAGE.get(lang, 'English')
+            lang_instruction = (
+                f"Output language requirement: You must write the summary in {target_lang}. "
+            )
             messages = [
                 {
                     "role": "system",
-                    "content": system_prompts
+                    "content": f"{system_prompts}\n\n{lang_instruction}"
                 },
                 {
                     "role": "user",
