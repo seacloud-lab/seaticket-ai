@@ -56,7 +56,7 @@ def clean_json_markdown(raw_response):
 
 def parse_json(json_str):
     """
-    Parse a JSON string  into a JSON object with error correction
+    Parse a JSON string into a JSON object with error correction
     """
     if isinstance(json_str, str):
         try:

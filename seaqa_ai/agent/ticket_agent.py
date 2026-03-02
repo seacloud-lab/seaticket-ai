@@ -1,23 +1,25 @@
 """
-TicketAgent: A specialized smolagents-based agent for processing tickets.
+TicketAgent: Agent for processing tickets via LiteLLM function calling.
 
-This agent extends ToolCallingAgent to:
-1. Inject ticket context into tool executions
-2. Record actions to SeaDB for auditing and user review
-3. Handle the special 'pending' status for actions requiring user confirmation
+This agent:
+1. Injects ticket context into tool executions
+2. Records actions to SeaDB for auditing and user review
+3. Handles the special 'pending' status for actions requiring user confirmation
 """
+import json
 import logging
-import smolagents
-
-from seaqa_ai.utils.tools import SmolAgentsToolExecutor
+from seaqa_ai.utils.llm_api import CompletionAPI
+from seaqa_ai.agent.tools.agent_tools import FINAL_ANSWER_TOOL_CLASS
+from seaqa_ai.utils.tools import SimpleToolExecutor
+from litellm import Message, ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
 
 
-class TicketAgent(smolagents.ToolCallingAgent):
+class TicketAgent:
     """
     Agent specialized for ticket analysis and action suggestions.
-    
+
     Features:
     - Injects ticket context (ticket_id, ticket_title) into tool calls
     - Records each tool execution as an action in SeaDB
@@ -26,22 +28,21 @@ class TicketAgent(smolagents.ToolCallingAgent):
 
     def __init__(
         self,
-        tool_executor: SmolAgentsToolExecutor,
-        model,
+        tool_executor: SimpleToolExecutor,
+        llm_client: CompletionAPI,
         ticket_context: dict,
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
         system_prompt=None,
         max_steps=10,
-        **kwargs
     ):
         """
         Initialize the TicketAgent.
-        
+
         Args:
-            tool_executor: SmolAgentsToolExecutor with registered tools
-            model: The LLM model to use
+            tool_executor: SimpleToolExecutor with registered tools
+            llm_client: CompletionAPI client for LLM calls
             ticket_context: Dict containing ticket_id, ticket_title
             action_recorder: Callable to record actions to SeaDB
             run_id: The current agent run ID
@@ -50,172 +51,178 @@ class TicketAgent(smolagents.ToolCallingAgent):
             max_steps: Maximum reasoning steps
         """
         self.tool_executor = tool_executor
+        self.llm_client = llm_client
         self.ticket_context = ticket_context
         self.action_recorder = action_recorder
         self.run_id = run_id
-        self._custom_system_prompt = system_prompt
-        
-        # Use provided tool metadata (smolagents loses original class attributes)
-        self._tool_metadata = tool_metadata or {}
-        
-        super().__init__(
-            tools=tool_executor.tools,
-            model=model,
-            max_steps=max_steps,
-            **kwargs
-        )
-        
-        # Override system prompt after initialization if provided
-        if self._custom_system_prompt:
-            self.prompt_templates["system_prompt"] = self._custom_system_prompt
+        self.tool_metadata = tool_metadata or {}
+        self.system_prompt = system_prompt or ''
+        self.max_steps = max_steps
 
-    def execute_tool_call(self, tool_name: str, arguments: dict):
-        """
-        Execute a tool call.
-        
-        Note: Ticket context is now set on tool instances via set_ticket_context()
-        before registration, so we don't need to inject it here.
-        """
-        # Handle final_answer specially
-        if tool_name == "final_answer":
-            return arguments.get("answer", "") or arguments.get("summary", "") or ""
-        
-        # self.tools is a dict: {tool_name: tool_object}
-        tool = self.tools.get(tool_name)
-        if tool is None:
-            raise ValueError(f"Unknown tool: {tool_name}")
-        
-        return tool(**arguments)
+        final_answer_tool = FINAL_ANSWER_TOOL_CLASS(None)
+        tool_executor.register(final_answer_tool.execute, final_answer_tool.tool)
 
-    def process_single_tool_call(self, tool_call: smolagents.ToolCall) -> smolagents.ToolOutput:
+        self.tools = tool_executor.get()
+
+    def run(self, task: str) -> str:
         """
-        Process a single tool call with action recording.
-        
-        Overrides parent to:
-        1. Execute the tool with ticket context
-        2. Record the action to SeaDB
+        Run the agent reasoning loop on a task.
+
+        Calls LLM -> handles tool calls -> feeds results back -> repeats
+        until final_answer is called or max_steps is reached.
         """
-        tool_name = tool_call.name
-        tool_arguments = tool_call.arguments or {}
-        
-        self.logger.log(
-            smolagents.Panel(smolagents.Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-            level=smolagents.LogLevel.INFO,
-        )
-        
+        messages = self._build_initial_messages(task)
+
+        for step in range(self.max_steps):
+            message = self._request_llm_message(messages, step)
+            assistant_message = self._build_assistant_message(message)
+            messages.append(assistant_message)
+
+            if not message.tool_calls:
+                return message.content or ''
+
+            final_result = self._process_tool_calls(message.tool_calls, messages)
+            if final_result is not None:
+                return final_result
+
+        logger.warning(f'Agent reached max steps ({self.max_steps})')
+        return ''
+
+    def _build_initial_messages(self, task: str) -> list[dict]:
+        return [
+            {'role': 'system', 'content': self.system_prompt},
+            {'role': 'user', 'content': task},
+        ]
+
+    def _request_llm_message(self, messages: list[dict], step: int) -> Message:
         try:
-            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+            response = self.llm_client.completion(
+                messages=messages,
+                tools=self.tools,
+                tool_choice='auto',
+            )
+            return response.choices[0].message
         except Exception as e:
-            logger.exception(f'Execute tool call failure: {e}')
-            # Record error action
+            logger.exception(f'LLM call failed at step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name=tool_name,
-                    arguments=tool_arguments,
+                    tool_name=None, 
+                    arguments={}, 
                     result=str(e),
-                    action_type='error',
+                    action_type='error', 
+                    action_status='failed',
+                    content=f'LLM error: {e}'
+                )
+            raise
+
+    def _build_assistant_message(self, message: Message) -> dict:
+        msg_dict = {'role': 'assistant', 'content': message.content or ''}
+        if message.tool_calls:
+            msg_dict['tool_calls'] = [
+                {
+                    'id': tc.id,
+                    'type': 'function',
+                    'function': {
+                        'name': tc.function.name,
+                        'arguments': tc.function.arguments,
+                    }
+                }
+                for tc in message.tool_calls
+            ]
+        return msg_dict
+
+    def _process_tool_calls(self, tool_calls: list[ChatCompletionMessageToolCall], messages: list[dict]) -> str | None:
+        for tool_call in tool_calls:
+            tool_name = tool_call.function.name
+            arguments = self._parse_tool_arguments(tool_call.function.arguments)
+
+            logger.info(f"Calling tool: '{tool_name}' with arguments: {arguments}")
+            observation = self._execute_tool_and_observe(tool_name, arguments)
+            logger.info(f"Observations: {observation}")
+
+            is_final_answer = tool_name == 'final_answer'
+            self._record_tool_action(tool_name, arguments, observation, is_final_answer)
+
+            if is_final_answer:
+                return observation
+
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': tool_call.id,
+                'content': observation,
+            })
+
+        return None
+
+    def _parse_tool_arguments(self, raw_args) -> dict:
+        try:
+            return json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def _execute_tool_call(self, tool_name: str, arguments: dict):
+        """Execute a tool call by name."""
+        if tool_name == 'final_answer':
+            return arguments.get('answer', '') or arguments.get('summary', '') or ''
+        return self.tool_executor.execute(tool_name, **arguments)
+
+    def _execute_tool_and_observe(self, tool_name: str, arguments: dict) -> str:
+        try:
+            result = self._execute_tool_call(tool_name, arguments)
+        except Exception as e:
+            logger.exception(f'Execute tool call failure: {e}')
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name, 
+                    arguments=arguments,
+                    result=str(e), 
+                    action_type='error', 
                     action_status='failed'
                 )
             raise
-        
-        # Convert result to string observation
-        observation = str(tool_call_result).strip() if tool_call_result else ""
-        self.logger.log(
-            f"Observations: {observation.replace('[', '|')}",
-            level=smolagents.LogLevel.INFO,
-        )
-        
-        # Handle final_answer specially
-        is_final_answer = tool_name == "final_answer"
+        return str(result).strip() if result is not None else ''
 
-        # Record the action to SeaDB
-        if self.action_recorder and self.run_id:
-            if is_final_answer:
-                # Final answer is recorded as summary
-                summary = tool_arguments.get('summary') or tool_arguments.get('answer') or observation
-                self._record_action(
-                    tool_name='final_answer',
-                    arguments=tool_arguments,
-                    result=None,
-                    action_type='summary',
-                    action_status='completed',
-                    content=summary
-                )
-            else:
-                # Get metadata for this tool
-                metadata = self._tool_metadata.get(tool_name, {})
-                action_type = metadata.get('action_type', 'tool_call')
-                action_status = metadata.get('action_status', 'completed')
-                suggestion_text = metadata.get('suggestion_text', '') if action_type == 'suggestion' else ''
-                
-                # Extract content from arguments
-                content = (
-                    tool_arguments.get('analysis') or
-                    tool_arguments.get('message') or 
-                    tool_arguments.get('comment') or 
-                    tool_arguments.get('content') or 
-                    ''
-                )
-                
-                self._record_action(
-                    tool_name=tool_name,
-                    arguments=tool_arguments,
-                    result=observation,
-                    action_type=action_type,
-                    action_status=action_status,
-                    content=content,
-                    suggestion_text=suggestion_text
-                )
-        
-        return smolagents.ToolOutput(
-            id=tool_call.id,
-            output=tool_call_result,
-            is_final_answer=is_final_answer,
-            observation=observation,
-            tool_call=tool_call
-        )
+    def _record_tool_action(self, tool_name: str, arguments: dict, observation: str, is_final_answer: bool):
+        if not (self.action_recorder and self.run_id):
+            return
 
-    def process_tool_calls(
-        self, chat_message: smolagents.ChatMessage, memory_step: smolagents.ActionStep
-    ) -> smolagents.Generator[smolagents.ToolCall | smolagents.ToolOutput]:
-        """
-        Process tool calls from the model output and update agent memory.
-        
-        This override ensures our process_single_tool_call is called (not the
-        parent's internal function).
-        """
-        parallel_calls: dict[str, smolagents.ToolCall] = {}
-        assert chat_message.tool_calls is not None
-        for chat_tool_call in chat_message.tool_calls:
-            tool_call = smolagents.ToolCall(
-                name=chat_tool_call.function.name,
-                arguments=chat_tool_call.function.arguments,
-                id=chat_tool_call.id
+        if is_final_answer:
+            summary = arguments.get('summary') or arguments.get('answer') or observation
+            self._record_action(
+                tool_name='final_answer', 
+                arguments=arguments, 
+                result=None,
+                action_type='summary', 
+                action_status='completed', 
+                content=summary
             )
-            yield tool_call
-            parallel_calls[tool_call.id] = tool_call
+            return
 
-        # Process tool calls and call OUR process_single_tool_call
-        outputs = {}
-        for tool_call in parallel_calls.values():
-            tool_output = self.process_single_tool_call(tool_call)
-            outputs[tool_output.id] = tool_output
-            yield tool_output
-
-        # Update memory step
-        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.observations = memory_step.observations or ""
-        for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            memory_step.observations += tool_output.observation + "\n"
-        memory_step.observations = (
-            memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
+        metadata = self.tool_metadata.get(tool_name, {})
+        action_type = metadata.get('action_type', 'tool_call')
+        action_status = metadata.get('action_status', 'completed')
+        suggestion_text = metadata.get('suggestion_text', '') if action_type == 'suggestion' else ''
+        content = (
+            arguments.get('analysis') or
+            arguments.get('message') or
+            arguments.get('comment') or
+            arguments.get('content') or
+            ''
+        )
+        self._record_action(
+            tool_name=tool_name, 
+            arguments=arguments, 
+            result=observation,
+            action_type=action_type, 
+            action_status=action_status,
+            content=content, 
+            suggestion_text=suggestion_text
         )
 
     def _record_action(self, tool_name, arguments, result, action_type, action_status, content=None, suggestion_text=None):
         """Record an action to SeaDB via the action_recorder callback."""
         if not self.action_recorder:
             return
-        
         try:
             self.action_recorder(
                 run_id=self.run_id,
@@ -230,26 +237,3 @@ class TicketAgent(smolagents.ToolCallingAgent):
             )
         except Exception as e:
             logger.exception(f'Failed to record action: {e}')
-
-    def run(self, task: str, **kwargs) -> smolagents.RunResult:
-        """
-        Run the agent on a task.
-        
-        If the agent completes without calling final_answer, record the
-        final response as an summary action.
-        """
-        try:
-            result = super().run(task, **kwargs)
-            return result
-        except Exception as e:
-            # Record error if agent fails
-            if self.action_recorder and self.run_id:
-                self._record_action(
-                    tool_name=None,
-                    arguments={},
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                    content=f'Agent error: {e}'
-                )
-            raise

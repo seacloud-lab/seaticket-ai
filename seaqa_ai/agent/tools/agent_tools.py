@@ -182,9 +182,44 @@ class AddCommentTool(TicketAgentTool):
         return result_text
 
 
+class FinalAnswerTool(BasicTool):
+    """Tool to provide the final answer/summary."""
+    
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'final_answer',
+            'description': 'Provide the final answer/summary when you have completed all tasks.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'answer': {
+                        'type': 'string',
+                        'description': 'The final answer or summary of actions taken.'
+                    },
+                    'summary': {
+                        'type': 'string',
+                        'description': 'A brief summary of what was done.'
+                    }
+                }
+            }
+        }
+    }
+
+    action_type = 'summary'
+    action_status = 'completed'
+
+    def execute(self, answer='', summary=''):
+        """Return the final answer or summary."""
+        return answer or summary or ''
+
+
 # Collect all agent tools for easy registration
 AGENT_TOOL_CLASSES = [
     AnalyzeTicketTool,
     NotifyAssigneeTool,
     AddCommentTool,
 ]
+
+# Final answer is handled specially in TicketAgent (always available)
+FINAL_ANSWER_TOOL_CLASS = FinalAnswerTool

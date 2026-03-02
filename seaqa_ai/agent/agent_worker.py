@@ -1,5 +1,5 @@
 """
-AgentWorker: Processes tickets for a single project using smolagents framework.
+AgentWorker: Processes tickets for a single project.
 
 This module implements the core ticket processing logic:
 1. Query tickets from SeaDB that need attention
@@ -7,17 +7,16 @@ This module implements the core ticket processing logic:
 3. Record actions and results back to SeaDB
 """
 import logging
-import smolagents
 from datetime import datetime, timezone, timedelta
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.utils.assignee_resolver import AssigneeResolver
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
-from seaqa_ai.agent.llm_models import LiteLLMModel
-from seaqa_ai.utils.tools import SmolAgentsToolExecutor
+from seaqa_ai.utils.tools import SimpleToolExecutor
 from seaqa_ai.agent.ticket_agent import TicketAgent
 from seaqa_ai.agent.tools.agent_tools import AGENT_TOOL_CLASSES
+from seaqa_ai.utils.llm_api import CompletionAPI
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +65,11 @@ def _parse_datetime(dt_str):
 
 class AgentWorker:
     """
-    Processes tickets for a single project using smolagents framework.
-    
+    Processes tickets for a single project.
+
     This class:
     1. Queries tickets from SeaDB that need attention
-    2. Uses TicketAgent (based on smolagents) to analyze each ticket
+    2. Uses TicketAgent to analyze each ticket via LLM function calling
     3. Records all actions to SeaDB for auditing and user review
     """
 
@@ -219,7 +218,7 @@ class AgentWorker:
             'activities': activities
         }
     
-    # ── AI reasoning with smolagents ───────────────────────────────
+    # ── AI reasoning ───────────────────────────────────────────────
 
     def _build_ticket_message(self, ticket, ticket_context):
         """Build the user message describing the ticket for AI analysis."""
@@ -250,26 +249,24 @@ class AgentWorker:
 
         return '\n'.join(parts)
 
-    def _create_tool_executor(self, ticket_context=None) -> tuple[SmolAgentsToolExecutor, dict]:
-        """Create and configure a SmolAgentsToolExecutor with agent tools.
-        
+    def _create_tool_executor(self, ticket_context=None) -> tuple[SimpleToolExecutor, dict]:
+        """Create and configure a SimpleToolExecutor with agent tools.
+
         Args:
             ticket_context: Dict with ticket_id, ticket_title to inject into tools
-        
+
         Returns:
-            tuple: (SmolAgentsToolExecutor, tool_metadata dict)
+            tuple: (SimpleToolExecutor, tool_metadata dict)
         """
-        tool_executor = SmolAgentsToolExecutor()
+        tool_executor = SimpleToolExecutor()
         tool_metadata = {}
         
         # Register all agent tools and set their ticket context
         for tool_cls in AGENT_TOOL_CLASSES:
             tool_instance = tool_cls(self.app)
-            # Set ticket context if provided (tools will access via self.ticket_context)
             if ticket_context and hasattr(tool_instance, 'set_ticket_context'):
                 tool_instance.set_ticket_context(ticket_context)
-            
-            # Collect metadata before registration (smolagents loses these attributes)
+
             tool_name = tool_instance.tool.get('function', {}).get('name', '')
             if tool_name:
                 tool_metadata[tool_name] = {
@@ -277,21 +274,20 @@ class AgentWorker:
                     'action_status': getattr(tool_instance, 'action_status', 'completed'),
                     'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
                 }
-            
+
             tool_instance.register(tool_executor)
-        
+
         return tool_executor, tool_metadata
 
-    def _get_llm_model(self):
-        """Get the LLM model for the agent (smolagents compatible)."""
+    def _get_llm_client(self) -> CompletionAPI:
+        """Get the LLM client for the agent."""
         model_id = self.agent_settings.get('model', 'gemini-2.5-flash')
-        llm_client = get_llm_client_by_model_id(self.app.data_logger, model_id)
-        return LiteLLMModel(llm_client)
+        return get_llm_client_by_model_id(self.app.data_logger, model_id)
 
-    def process_ticket(self, ticket, run_id) -> smolagents.RunResult:
+    def process_ticket(self, ticket, run_id) -> str:
         """
-        Run the AI reasoning loop for a single ticket using smolagents.
-        
+        Run the AI reasoning loop for a single ticket.
+
         This method:
         1. Builds context for the ticket
         2. Creates a TicketAgent with registered tools
@@ -314,13 +310,13 @@ class AgentWorker:
         # Create tool executor and register tools with ticket context
         tool_executor, tool_metadata = self._create_tool_executor(ticket_context)
 
-        # Get LLM model
-        llm_model = self._get_llm_model()
+        # Get LLM client
+        llm_client = self._get_llm_client()
 
         # Create the agent with action recording callback and custom system prompt
         agent = TicketAgent(
             tool_executor=tool_executor,
-            model=llm_model,
+            llm_client=llm_client,
             ticket_context=ticket_context,
             action_recorder=self.create_action_record,
             run_id=run_id,
@@ -330,7 +326,6 @@ class AgentWorker:
         )
 
         try:
-            # Run the agent
             result = agent.run(ticket_message)
             return result
         except Exception as e:
