@@ -176,15 +176,17 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
     
     return chunks
 
-def retrieve_origin_reference_format(content, sources):
+def retrieve_origin_reference_format(content, sources, with_tanger=False):
     """
     Restore the original reference format to avoid context errors.
     """
     if sources:
-        content += '\n\n\nThe following information is for context only (not exist in your original answer and is for reference only)!!! Do not output this as part of the formatting in subsequent turns:\n'
+        if with_tanger:
+            content += '\n\n\nThe following information is for context only (not exist in your original answer and is for reference only)!!! Do not output this as part of the formatting in subsequent turns:\n'
         for i, source in enumerate(sources):
             content = content.replace(f'[Reference {i + 1}]', f'<reference_{i}>')
-            content += f'<reference_{i}>: [{source.get("title", source.get("url"))}]({source.get("url", "#")})\n'
+            if with_tanger:
+                content += f'<reference_{i}>: [{source.get("title", source.get("url"))}]({source.get("url", "#")})\n'
 
     return content
 
