@@ -59,7 +59,7 @@ class BasicLLMAPI:
         try:
             # try-except statement for compatible to stream response
             return self.logger_usage({
-                'input_token': response.usage.prompt_tokens,
+                'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens,
                 'total_tokens': response.usage.total_tokens,
             }, context, model)
