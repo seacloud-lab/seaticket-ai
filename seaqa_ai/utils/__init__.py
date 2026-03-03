@@ -9,7 +9,6 @@ import hashlib
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime
-from smolagents.agent_types import AgentText
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
@@ -32,7 +31,7 @@ def localize_time(date):
     return date
 
 def clean_json_markdown(raw_response):
-    if not isinstance(raw_response, str) and not isinstance(raw_response, AgentText):
+    if not isinstance(raw_response, str):
         return raw_response
     if raw_response.strip().startswith('```'):
         lines = raw_response.strip().splitlines()
@@ -42,9 +41,9 @@ def clean_json_markdown(raw_response):
 
 def parse_json(json_str):
     """
-    Parse a JSON string OR AgentText into a JSON object with error correction
+    Parse a JSON string  into a JSON object with error correction
     """
-    if isinstance(json_str, str) or isinstance(json_str, AgentText):
+    if isinstance(json_str, str):
         try:
             json_obj = json.loads(json_str)
         except:
@@ -110,13 +109,13 @@ def filter_tool_calls_content(tool_name, results):
 
 def object_to_json_str(obj):
     result = obj
-    if isinstance(obj, str) or isinstance(obj, AgentText):
+    if isinstance(obj, str):
         result = parse_json(obj)
     result = convert_to_json_code_block(result)
     return result
 
 def convert_to_json_code_block(obj):
-    if not isinstance(obj, str) and not isinstance(obj, AgentText):
+    if not isinstance(obj, str):
         result = '```json\n' + json.dumps(obj, indent=4, ensure_ascii=False) + '\n```'
         return result
     return obj
