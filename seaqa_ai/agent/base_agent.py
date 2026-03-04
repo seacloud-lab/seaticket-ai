@@ -1,28 +1,33 @@
 """
-TicketAgent: Agent for processing tickets via LiteLLM function calling.
+BaseAgent: generic ReAct-style LLM function-calling loop.
 
-This agent:
-1. Injects ticket context into tool executions
-2. Records actions to SeaDB for auditing and user review
-3. Handles the special 'pending' status for actions requiring user confirmation
+Works for any source type (ticket, github_issue, discourse_topic, email_thread).
+The caller injects a record_context dict that identifies the source record being processed:
+  {
+    'source_type': 'github_issue',
+    'source_id': '3_42',          # '{connection_id}_{record_id}' for non-ticket sources
+    'source_title': 'Login fails on Safari',
+  }
+
+Actions are recorded to SeaDB via the action_recorder callback.
 """
 import json
 import logging
 from seaqa_ai.utils.llm_api import CompletionAPI
-from seaqa_ai.agent.tools.agent_tools import FINAL_ANSWER_TOOL_CLASS
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.utils.tools import SimpleToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
 
 
-class TicketAgent:
+class BaseAgent:
     """
-    Agent specialized for ticket analysis and action suggestions.
+    Generic agent that drives a tool-calling reasoning loop.
 
     Features:
-    - Injects ticket context (ticket_id, ticket_title) into tool calls
-    - Records each tool execution as an action in SeaDB
+    - Injects record context (source_type, source_id, source_title) into tool calls
+    - Records each tool execution as an action in SeaDB via action_recorder
     - Supports 'pending' status for actions requiring user confirmation
     """
 
@@ -30,7 +35,7 @@ class TicketAgent:
         self,
         tool_executor: SimpleToolExecutor,
         llm_client: CompletionAPI,
-        ticket_context: dict,
+        record_context: dict,
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
@@ -38,39 +43,34 @@ class TicketAgent:
         max_steps=10,
     ):
         """
-        Initialize the TicketAgent.
-
         Args:
-            tool_executor: SimpleToolExecutor with registered tools
-            llm_client: CompletionAPI client for LLM calls
-            ticket_context: Dict containing ticket_id, ticket_title
-            action_recorder: Callable to record actions to SeaDB
-            run_id: The current agent run ID
-            tool_metadata: Dict mapping tool_name to {action_type, action_status}
-            system_prompt: Optional custom system prompt
-            max_steps: Maximum reasoning steps
+            tool_executor: SimpleToolExecutor with all tools already registered.
+            llm_client: CompletionAPI client used for LLM calls.
+            record_context: dict with keys source_type, source_id, source_title.
+            action_recorder: callable(run_id, source_type, source_id, source_title,
+                             action_type, tool_name, content, result, action_status,
+                             suggestion_text) -> int
+            run_id: current agent run _pk in SeaDB.
+            tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
+            system_prompt: system message injected at the start of each reasoning loop.
+            max_steps: maximum number of LLM calls before giving up.
         """
         self.tool_executor = tool_executor
         self.llm_client = llm_client
-        self.ticket_context = ticket_context
+        self.record_context = record_context
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
         self.system_prompt = system_prompt or ''
         self.max_steps = max_steps
 
-        final_answer_tool = FINAL_ANSWER_TOOL_CLASS(None)
+        final_answer_tool = FinalAnswerTool(None)
         tool_executor.register(final_answer_tool.execute, final_answer_tool.tool)
 
         self.tools = tool_executor.get()
 
     def run(self, task: str) -> str:
-        """
-        Run the agent reasoning loop on a task.
-
-        Calls LLM -> handles tool calls -> feeds results back -> repeats
-        until final_answer is called or max_steps is reached.
-        """
+        """Drive the reasoning loop until final_answer is called or max_steps reached."""
         messages = self._build_initial_messages(task)
 
         for step in range(self.max_steps):
@@ -106,12 +106,12 @@ class TicketAgent:
             logger.exception(f'LLM call failed at step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name=None, 
-                    arguments={}, 
+                    tool_name=None,
+                    arguments={},
                     result=str(e),
-                    action_type='error', 
+                    action_type='error',
                     action_status='failed',
-                    content=f'LLM error: {e}'
+                    content=f'LLM error: {e}',
                 )
             raise
 
@@ -131,14 +131,18 @@ class TicketAgent:
             ]
         return msg_dict
 
-    def _process_tool_calls(self, tool_calls: list[ChatCompletionMessageToolCall], messages: list[dict]) -> str | None:
+    def _process_tool_calls(
+        self,
+        tool_calls: list[ChatCompletionMessageToolCall],
+        messages: list[dict],
+    ) -> str | None:
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = self._parse_tool_arguments(tool_call.function.arguments)
 
             logger.info(f"Calling tool: '{tool_name}' with arguments: {arguments}")
             observation = self._execute_tool_and_observe(tool_name, arguments)
-            logger.info(f"Observations: {observation}")
+            logger.info(f'Observation: {observation}')
 
             is_final_answer = tool_name == 'final_answer'
             self._record_tool_action(tool_name, arguments, observation, is_final_answer)
@@ -161,7 +165,6 @@ class TicketAgent:
             return {}
 
     def _execute_tool_call(self, tool_name: str, arguments: dict):
-        """Execute a tool call by name."""
         if tool_name == 'final_answer':
             return arguments.get('answer', '') or arguments.get('summary', '') or ''
         return self.tool_executor.execute(tool_name, **arguments)
@@ -170,31 +173,37 @@ class TicketAgent:
         try:
             result = self._execute_tool_call(tool_name, arguments)
         except Exception as e:
-            logger.exception(f'Execute tool call failure: {e}')
+            logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name=tool_name, 
+                    tool_name=tool_name,
                     arguments=arguments,
-                    result=str(e), 
-                    action_type='error', 
-                    action_status='failed'
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
                 )
             raise
         return str(result).strip() if result is not None else ''
 
-    def _record_tool_action(self, tool_name: str, arguments: dict, observation: str, is_final_answer: bool):
+    def _record_tool_action(
+        self,
+        tool_name: str,
+        arguments: dict,
+        observation: str,
+        is_final_answer: bool,
+    ):
         if not (self.action_recorder and self.run_id):
             return
 
         if is_final_answer:
             summary = arguments.get('summary') or arguments.get('answer') or observation
             self._record_action(
-                tool_name='final_answer', 
-                arguments=arguments, 
+                tool_name='final_answer',
+                arguments=arguments,
                 result=None,
-                action_type='summary', 
-                action_status='completed', 
-                content=summary
+                action_type='summary',
+                action_status='completed',
+                content=summary,
             )
             return
 
@@ -206,34 +215,46 @@ class TicketAgent:
             arguments.get('analysis') or
             arguments.get('message') or
             arguments.get('comment') or
+            arguments.get('resolution') or
+            arguments.get('reason') or
             arguments.get('content') or
             ''
         )
         self._record_action(
-            tool_name=tool_name, 
-            arguments=arguments, 
+            tool_name=tool_name,
+            arguments=arguments,
             result=observation,
-            action_type=action_type, 
+            action_type=action_type,
             action_status=action_status,
-            content=content, 
-            suggestion_text=suggestion_text
+            content=content,
+            suggestion_text=suggestion_text,
         )
 
-    def _record_action(self, tool_name, arguments, result, action_type, action_status, content=None, suggestion_text=None):
+    def _record_action(
+        self,
+        tool_name,
+        arguments,
+        result,
+        action_type,
+        action_status,
+        content=None,
+        suggestion_text=None,
+    ):
         """Record an action to SeaDB via the action_recorder callback."""
         if not self.action_recorder:
             return
         try:
             self.action_recorder(
                 run_id=self.run_id,
-                ticket_id=self.ticket_context.get('ticket_id'),
-                ticket_title=self.ticket_context.get('ticket_title'),
+                source_type=self.record_context.get('source_type'),
+                source_id=self.record_context.get('source_id'),
+                source_title=self.record_context.get('source_title'),
                 action_type=action_type,
                 tool_name=tool_name,
                 content=content or '',
                 result=result,
                 action_status=action_status,
-                suggestion_text=suggestion_text or ''
+                suggestion_text=suggestion_text or '',
             )
         except Exception as e:
             logger.exception(f'Failed to record action: {e}')

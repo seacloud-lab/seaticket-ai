@@ -1,30 +1,19 @@
+"""
+Agent tools specific to ticket processing.
+
+Tools:
+- AnalyzeTicketTool: records the agent's analysis of a ticket
+- NotifyAssigneeTool: suggests notifying ticket assignees (pending user confirmation)
+- AddCommentTool: suggests adding a comment to a ticket (pending user confirmation)
+"""
 import logging
-from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.tools.common_tools import BaseAgentTool
 
 logger = logging.getLogger(__name__)
 
 
-class TicketAgentTool(BasicTool):
-    """Base class for agent tools that need ticket context."""
-    
-    # Ticket context will be set by the agent before execution
-    ticket_context = None
-    
-    def set_ticket_context(self, ticket_context):
-        """Set the ticket context for this tool."""
-        self.ticket_context = ticket_context or {}
-    
-    def get_ticket_id(self):
-        """Get the current ticket ID from context."""
-        return (self.ticket_context or {}).get('ticket_id', 'Unknown ID')
-    
-    def get_ticket_title(self):
-        """Get the current ticket title from context."""
-        return (self.ticket_context or {}).get('ticket_title', 'Untitled')
-
-
-class AnalyzeTicketTool(TicketAgentTool):
-    """Tool for the agent to explicitly record its analysis of a ticket."""
+class AnalyzeTicketTool(BaseAgentTool):
+    """Records the agent's analysis of a ticket before taking any action."""
 
     tool = {
         'type': 'function',
@@ -52,14 +41,14 @@ class AnalyzeTicketTool(TicketAgentTool):
     action_status = 'completed'
 
     def execute(self, analysis):
-        ticket_id = self.get_ticket_id()
-        ticket_title = self.get_ticket_title()
-        return f'Analysis recorded for ticket #{ticket_id} - {ticket_title}.'
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+        return f'Analysis recorded for ticket #{source_id} - {source_title}.'
 
 
-class NotifyAssigneeTool(TicketAgentTool):
-    """Tool to notify assignees of a ticket."""
-    
+class NotifyAssigneeTool(BaseAgentTool):
+    """Suggests notifying the assignees of a ticket; requires user confirmation."""
+
     tool = {
         'type': 'function',
         'function': {
@@ -87,26 +76,14 @@ class NotifyAssigneeTool(TicketAgentTool):
         }
     }
 
-    # Metadata for action recording
     action_type = 'suggestion'
     action_status = 'pending'
     suggestion_text = 'Suggest notifying assignees of the ticket.'
 
     def execute(self, message, reason=None):
-        """
-        Notify assignees of a ticket automatically.
-        (seaqa-web handles this through its ProjectNotification system).
-        
-        Args:
-            message: The notification message
-            reason: The reason for notification
-        
-        Returns:
-            str: Result description
-        """
-        ticket_id = self.get_ticket_id()
-        ticket_title = self.get_ticket_title()
-        
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+
         message = (message or '').strip()
         reason = (reason or 'unspecified').strip()
 
@@ -117,16 +94,15 @@ class NotifyAssigneeTool(TicketAgentTool):
         if len(message) > 300:
             preview += '...'
 
-        result_text = (
-            f'Notification suggestion prepared for ticket #{ticket_id} - {ticket_title} '
+        return (
+            f'Notification suggestion prepared for ticket #{source_id} - {source_title} '
             f'(reason: {reason}): {preview}'
         )
-        return result_text
 
 
-class AddCommentTool(TicketAgentTool):
-    """Tool to suggest adding a comment to a ticket."""
-    
+class AddCommentTool(BaseAgentTool):
+    """Suggests adding a comment to a ticket; requires user confirmation."""
+
     tool = {
         'type': 'function',
         'function': {
@@ -150,27 +126,15 @@ class AddCommentTool(TicketAgentTool):
         }
     }
 
-    # Metadata for action recording
     action_type = 'suggestion'
     action_status = 'pending'
     suggestion_text = 'Suggest adding a comment to the ticket.'
 
     def execute(self, comment):
-        """
-        Suggest adding a comment to a ticket. The comment is not posted
-        immediately but stored as a pending suggestion for user review.
-        
-        Args:
-            comment: The comment content
-        
-        Returns:
-            str: Result description
-        """
-        ticket_id = self.get_ticket_id()
-        ticket_title = self.get_ticket_title()
-        
-        comment = (comment or '').strip()
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
 
+        comment = (comment or '').strip()
         if not comment:
             return 'Cannot add comment suggestion: empty comment content.'
 
@@ -178,48 +142,12 @@ class AddCommentTool(TicketAgentTool):
         if len(comment) > 300:
             preview += '...'
 
-        result_text = f'Comment suggestion prepared for ticket #{ticket_id} - {ticket_title}: {preview}'
-        return result_text
+        return f'Comment suggestion prepared for ticket #{source_id} - {source_title}: {preview}'
 
 
-class FinalAnswerTool(BasicTool):
-    """Tool to provide the final answer/summary."""
-    
-    tool = {
-        'type': 'function',
-        'function': {
-            'name': 'final_answer',
-            'description': 'Provide the final answer/summary when you have completed all tasks.',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'answer': {
-                        'type': 'string',
-                        'description': 'The final answer or summary of actions taken.'
-                    },
-                    'summary': {
-                        'type': 'string',
-                        'description': 'A brief summary of what was done.'
-                    }
-                }
-            }
-        }
-    }
-
-    action_type = 'summary'
-    action_status = 'completed'
-
-    def execute(self, answer='', summary=''):
-        """Return the final answer or summary."""
-        return answer or summary or ''
-
-
-# Collect all agent tools for easy registration
-AGENT_TOOL_CLASSES = [
+# All ticket-specific tools for registration by TicketAgentWorker
+TICKET_TOOL_CLASSES = [
     AnalyzeTicketTool,
     NotifyAssigneeTool,
     AddCommentTool,
 ]
-
-# Final answer is handled specially in TicketAgent (always available)
-FINAL_ANSWER_TOOL_CLASS = FinalAnswerTool

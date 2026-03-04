@@ -383,17 +383,21 @@ def list_agent_runs():
             run_pk = run['_pk']
             actions = actions_by_run.get(run_pk, [])
 
-            # Group actions by ticket_id
-            tickets_map = {}
+            # Group actions by (source_type, source_id) so each source record
+            # appears as one item regardless of how many actions it generated.
+            items_map = {}
             for action in actions:
-                tid = action.get('ticket_id')
-                if tid not in tickets_map:
-                    tickets_map[tid] = {
-                        'id': tid,
-                        'title': action.get('ticket_title', ''),
+                source_type = action.get('source_type', '')
+                source_id = action.get('source_id', '')
+                key = (source_type, source_id)
+                if key not in items_map:
+                    items_map[key] = {
+                        'source_type': source_type,
+                        'source_id': source_id,
+                        'source_title': action.get('source_title', ''),
                         'actions': [],
                     }
-                tickets_map[tid]['actions'].append({
+                items_map[key]['actions'].append({
                     'id': action['_pk'],
                     'type': action.get('action_type', ''),
                     'tool_name': action.get('tool_name', ''),
@@ -410,9 +414,9 @@ def list_agent_runs():
                 'status': run.get('status', ''),
                 'started_at': run.get('started_at', ''),
                 'finished_at': run.get('finished_at', ''),
-                'tickets_processed': run.get('tickets_processed', 0),
+                'items_processed': run.get('items_processed', 0),
                 'error_message': run.get('error_message', ''),
-                'tickets': list(tickets_map.values()),
+                'items': list(items_map.values()),
             })
 
         return {'runs': enriched_runs, 'has_more': has_more}, 200
@@ -447,22 +451,26 @@ def get_agent_run_detail(run_id):
         actions_result = seadb_api.query_rows(project_uuid, actions_sql)
         actions = actions_result.get('results', [])
 
-        tickets_map = {}
+        items_map = {}
         for action in actions:
-            tid = action.get('ticket_id')
-            if tid not in tickets_map:
-                tickets_map[tid] = {
-                    'id': tid,
-                    'title': action.get('ticket_title', ''),
+            source_type = action.get('source_type', '')
+            source_id = action.get('source_id', '')
+            key = (source_type, source_id)
+            if key not in items_map:
+                items_map[key] = {
+                    'source_type': source_type,
+                    'source_id': source_id,
+                    'source_title': action.get('source_title', ''),
                     'actions': [],
                 }
-            tickets_map[tid]['actions'].append({
+            items_map[key]['actions'].append({
                 'id': action['_pk'],
                 'type': action.get('action_type', ''),
                 'tool_name': action.get('tool_name', ''),
                 'content': action.get('content', ''),
                 'result': action.get('result', ''),
                 'status': action.get('status', ''),
+                'suggestion_text': action.get('suggestion_text', ''),
                 'created_at': action.get('created_at', ''),
                 'executed_at': action.get('executed_at', ''),
             })
@@ -472,9 +480,9 @@ def get_agent_run_detail(run_id):
             'status': run.get('status', ''),
             'started_at': run.get('started_at', ''),
             'finished_at': run.get('finished_at', ''),
-            'tickets_processed': run.get('tickets_processed', 0),
+            'items_processed': run.get('items_processed', 0),
             'error_message': run.get('error_message', ''),
-            'tickets': list(tickets_map.values()),
+            'items': list(items_map.values()),
         }, 200
     except Exception as e:
         logger.exception(e)
@@ -497,10 +505,8 @@ def trigger_agent():
 
     try:
         agent_manager = flask_app.app.agent_scheduler.agent_manager
-        run_id = agent_manager.run_single_project(project_uuid)
-        if run_id is None:
-            return {'error_msg': 'Failed to trigger agent.'}, 500
-        return {'success': True, 'run_id': run_id}, 200
+        agent_manager.run_single_project(project_uuid)
+        return {'success': True}, 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internal server error.'}, 500
