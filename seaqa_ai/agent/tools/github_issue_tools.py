@@ -77,6 +77,8 @@ class SuggestResolutionTool(BaseAgentTool):
             'description': (
                 'Suggest a resolution for a GitHub issue that can be addressed with existing knowledge. '
                 'Call this when the issue matches a known problem. '
+                'The resolution MUST include the URL of the related record (GitHub issue or forum topic) '
+                'so the user can refer to it. '
                 'The suggestion requires user confirmation before being acted upon.'
             ),
             'parameters': {
@@ -86,7 +88,9 @@ class SuggestResolutionTool(BaseAgentTool):
                         'type': 'string',
                         'description': (
                             'The proposed resolution or answer to the issue. '
-                            'Write it as if it were a helpful reply to the issue author.'
+                            'Write it as if it were a helpful reply to the issue author. '
+                            'MUST include the URL of the related record (e.g. the duplicate GitHub issue '
+                            'or the Discourse forum topic) so the user can refer to it directly.'
                         )
                     },
                     'reasoning': {
