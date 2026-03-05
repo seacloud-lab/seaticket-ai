@@ -78,7 +78,7 @@ class NotifyAssigneeTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest notifying assignees of the ticket.'
+    suggestion_text = 'Notify assignees of the ticket.'
 
     def execute(self, message, reason=None):
         source_id = self.get_source_id()
@@ -128,7 +128,7 @@ class AddCommentTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest adding a comment to the ticket.'
+    suggestion_text = 'Add a comment to the ticket.'
 
     def execute(self, comment):
         source_id = self.get_source_id()

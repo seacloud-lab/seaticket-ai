@@ -105,7 +105,7 @@ class SuggestResolutionTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest a resolution for this GitHub issue.'
+    suggestion_text = 'Propose a resolution for this GitHub issue.'
 
     def execute(self, resolution, reasoning=None):
         source_id = self.get_source_id()
@@ -159,7 +159,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest creating an internal ticket from this GitHub issue.'
+    suggestion_text = 'Create an internal ticket from this GitHub issue.'
 
     def execute(self, reason):
         source_id = self.get_source_id()
