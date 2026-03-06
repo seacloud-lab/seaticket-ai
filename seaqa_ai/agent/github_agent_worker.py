@@ -3,7 +3,7 @@ GithubIssueAgentWorker: processes new GitHub Issues for a single connection.
 
 For each new issue (created since the last run, open, not yet linked to a ticket):
 1. Build full context: issue body + comments + related records (via vector search + reranking).
-2. Run the AI loop. The agent will call analyze_issue first, then either
+2. Run the AI loop. The agent will call record_issue_analysis first, then either
    suggest_resolution (known problem) or suggest_create_ticket (new problem).
 3. All suggestions are stored as pending actions awaiting user confirmation.
 """
@@ -58,13 +58,13 @@ For each issue provided, a "Most Related Record" section may be included. Use it
 
 ## Processing Steps (ONE tool call per step, strictly in order)
 
-1. Call analyze_issue to record your findings based on the related record info.
+1. Call record_issue_analysis to record your findings based on the related record info.
 2a. If KNOWN problem → Call suggest_resolution with a helpful reply that ALWAYS includes the related record URL.
 2b. If NEW problem → Call suggest_create_ticket with the reason.
 3. Call final_answer to summarize what was done. This MUST be the last tool call.
 
 Rules:
-- Always call analyze_issue first.
+- Always call record_issue_analysis first.
 - Call only ONE tool per step. Never call multiple tools in the same step.
 - Call either suggest_resolution OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.

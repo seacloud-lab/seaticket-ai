@@ -2,7 +2,7 @@
 Agent tools specific to GitHub Issue processing.
 
 The agent follows a two-step decision flow for each new issue:
-  1. analyze_issue  — always called first to record findings
+  1. record_issue_analysis  — always called first to record findings
   2a. suggest_resolution   — if the issue matches a known problem (pending user confirmation)
   2b. suggest_create_ticket — if the issue is novel and should become a ticket (pending user confirmation)
 
@@ -14,13 +14,13 @@ from seaqa_ai.agent.tools.common_tools import BaseAgentTool
 logger = logging.getLogger(__name__)
 
 
-class AnalyzeIssueTool(BaseAgentTool):
+class RecordIssueAnalysisTool(BaseAgentTool):
     """Records the agent's analysis of a GitHub issue before taking any action."""
 
     tool = {
         'type': 'function',
         'function': {
-            'name': 'analyze_issue',
+            'name': 'record_issue_analysis',
             'description': (
                 'Record your analysis of the GitHub issue. '
                 'Always call this tool first before taking any other actions. '
@@ -181,7 +181,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
 # All GitHub issue tools for registration by GithubIssueAgentWorker
 GITHUB_ISSUE_TOOL_CLASSES = [
-    AnalyzeIssueTool,
+    RecordIssueAnalysisTool,
     SuggestResolutionTool,
     SuggestCreateTicketTool,
 ]

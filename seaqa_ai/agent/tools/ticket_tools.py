@@ -12,13 +12,13 @@ from seaqa_ai.agent.tools.common_tools import BaseAgentTool
 logger = logging.getLogger(__name__)
 
 
-class AnalyzeTicketTool(BaseAgentTool):
+class RecordTicketAnalysisTool(BaseAgentTool):
     """Records the agent's analysis of a ticket before taking any action."""
 
     tool = {
         'type': 'function',
         'function': {
-            'name': 'analyze_ticket',
+            'name': 'record_ticket_analysis',
             'description': (
                 'Record your analysis of the current ticket situation. '
                 'Always call this tool first before taking any other actions. '
@@ -147,7 +147,7 @@ class AddCommentTool(BaseAgentTool):
 
 # All ticket-specific tools for registration by TicketAgentWorker
 TICKET_TOOL_CLASSES = [
-    AnalyzeTicketTool,
+    RecordTicketAnalysisTool,
     NotifyAssigneeTool,
     AddCommentTool,
 ]

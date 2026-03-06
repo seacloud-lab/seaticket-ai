@@ -25,13 +25,13 @@ DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that helps manage tickets
 You run periodically to analyze tickets and take actions to help the team stay on top of their work.
 
 For each ticket provided, follow these steps strictly in order, ONE tool call per step:
-1. Call analyze_ticket to record your findings about the ticket's current state, any issues, and what action you plan to take.
+1. Call record_ticket_analysis to record your findings about the ticket's current state, any issues, and what action you plan to take.
 2. Optionally call notify_assignee if there is a genuine reason (e.g., approaching due date, long inactivity).
 3. Optionally call add_comment to suggest a reply or update comment on the ticket.
 4. Call final_answer to provide a brief summary of what was done. This MUST be the last tool call.
 
 Rules:
-- Always call analyze_ticket first before any other actions.
+- Always call record_ticket_analysis first before any other actions.
 - Call only ONE tool per step. Never call multiple tools in the same step.
 - final_answer MUST be called alone, never together with any other tool in the same step.
 - Once you call final_answer, you are done. Do NOT call any more tools after final_answer.
