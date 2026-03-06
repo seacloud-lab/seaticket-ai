@@ -7,6 +7,7 @@ Responsibilities:
 3. Record analysis and suggestions (notify assignee, add comment) to SeaDB.
 """
 import logging
+import json
 from datetime import datetime, timezone, timedelta
 
 from seaqa_ai import config
@@ -24,7 +25,7 @@ SOURCE_TYPE = 'ticket'
 DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that helps manage tickets in a project management system.
 You run periodically to analyze tickets and take actions to help the team stay on top of their work.
 
-For each ticket provided, follow these steps strictly in order, ONE tool call per step:
+For each ticket provided in JSON format, follow these steps strictly in order, ONE tool call per step:
 1. Call record_ticket_analysis to record your findings about the ticket's current state, any issues, and what action you plan to take.
 2. Optionally call notify_assignee if there is a genuine reason (e.g., approaching due date, long inactivity).
 3. Optionally call add_comment to suggest a reply or update comment on the ticket.
@@ -39,6 +40,22 @@ Rules:
 - Comment suggestions should be helpful and actionable.
 - Be concise in your analysis and only state the most essential points.
 - Do NOT repeat the analysis or actions after calling final_answer.
+
+## Input Format
+
+The ticket is provided as a JSON object with the following fields:
+- ticket_id: unique identifier
+- title: ticket title
+- state: current state
+- substate: sub-state if applicable
+- priority: priority level
+- assignees: list of assigned team members
+- created_time: when created
+- last_modified: last modification time
+- due_date: deadline if set
+- content: detailed description
+- recent_comments: array of recent comments with creator, created_time, content
+- recent_activities: array of recent activities with activity_type, created_time, detail
 """
 
 
@@ -106,39 +123,46 @@ class TicketAgentWorker(BaseAgentWorker):
         return {'comments': comments, 'activities': activities}
 
     def build_item_message(self, item: dict, item_context: dict) -> str:
-        """Build the user message describing the ticket for LLM analysis."""
-        parts = [
-            f"## Ticket #{item['_pk']}: {item.get('title', 'Untitled')}",
-            f"- State: {item.get('state', 'N/A')}",
-            f"- Substate: {item.get('substate', 'N/A')}",
-            f"- Priority: {item.get('priority', 'N/A')}",
-            f"- Assignees: {self.assignee_resolver.resolve_assignees_for_display(item.get('assignees'))}",
-            f"- Created: {item.get('created_time', 'N/A')}",
-            f"- Last modified: {item.get('modified_time', 'N/A')}",
-            f"- Due date: {item.get('due_date', 'N/A')}",
-        ]
-        if item.get('content'):
-            parts.append(f"\n### Content\n{item['content'][:5000]}")
-
+        """Build the user message describing the ticket for LLM analysis (JSON format)."""
+        
         comments = item_context.get('comments', [])
+        formatted_comments = []
         if comments:
-            parts.append('\n### Recent 10 Comments')
             for c in comments[-10:]:
                 creator = self.assignee_resolver.resolve_user_for_display(c.get('creator', '?'))
-                parts.append(
-                    f"- [{creator or '?'} @ {c.get('created_time', '?')}]: {c.get('content') or ''}"
-                )
-
+                formatted_comments.append({
+                    'creator': creator or '?',
+                    'created_time': c.get('created_time', '?'),
+                    'content': c.get('content') or ''
+                })
+        
         activities = item_context.get('activities', [])
+        formatted_activities = []
         if activities:
-            parts.append('\n### Recent 10 Activities')
             for a in activities[-10:]:
                 detail = self.assignee_resolver.convert_activity_detail(a.get('detail', ''))
-                parts.append(
-                    f"- [{a.get('activity_type', '?')} @ {a.get('created_time', '?')}]: {detail}"
-                )
-
-        return '\n'.join(parts)
+                formatted_activities.append({
+                    'activity_type': a.get('activity_type', '?'),
+                    'created_time': a.get('created_time', '?'),
+                    'detail': detail
+                })
+        
+        message_dict = {
+            'ticket_id': item['_pk'],
+            'title': item.get('title', 'Untitled'),
+            'state': item.get('state', 'N/A'),
+            'substate': item.get('substate', 'N/A'),
+            'priority': item.get('priority', 'N/A'),
+            'assignees': self.assignee_resolver.resolve_assignees_for_display(item.get('assignees')),
+            'created_time': item.get('created_time', 'N/A'),
+            'last_modified': item.get('modified_time', 'N/A'),
+            'due_date': item.get('due_date', 'N/A'),
+            'content': item.get('content', '')[:5000] if item.get('content') else '',
+            'recent_comments': formatted_comments,
+            'recent_activities': formatted_activities,
+        }
+        
+        return json.dumps(message_dict, ensure_ascii=False, indent=2)
 
     # ── Ticket-specific queries ─────────────────────────────────────
 

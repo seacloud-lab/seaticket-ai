@@ -8,6 +8,7 @@ For each new issue (created since the last run, open, not yet linked to a ticket
 3. All suggestions are stored as pending actions awaiting user confirmation.
 """
 import logging
+import json
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import text
 
@@ -32,13 +33,13 @@ RELATED_RECORD_SCORE_THRESHOLD = 0.5
 
 DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that triages incoming GitHub Issues for a project.
 
-For each issue provided, a "Most Related Record" section may be included. Use it to determine if the issue is a known problem.
+For each issue provided in JSON format, a "most_related_record" field may be included. Use it to determine if the issue is a known problem.
 
 ## Known Issue Detection Rules
 
-1. If NO related record is provided → This is a NEW problem → Call suggest_create_ticket.
+1. If "most_related_record" is null/empty → This is a NEW problem → Call suggest_create_ticket.
 
-2. If a related record IS provided:
+2. If "most_related_record" is present:
 
    a) If type is "github_issue":
       - If state is "closed": This is a KNOWN and RESOLVED problem.
@@ -70,6 +71,23 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When writing a resolution, ALWAYS include the related record URL in the reply text.
 - Be concise and actionable.
+
+## Input Format
+
+The issue is provided as a JSON object with the following fields:
+- source_id: unique identifier for this issue
+- title: issue title
+- issue_number: GitHub issue number
+- state: current state (open/closed)
+- author: who created it
+- labels: issue labels
+- issue_type: type of issue
+- created_time: when created
+- url: link to the issue
+- linked_ticket: ticket link if any
+- content: main issue description
+- recent_comments: array of recent comments with author, created_time, content
+- most_related_record: details of the most similar known issue/discussion (if found)
 """
 
 
@@ -126,50 +144,56 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         return {'comments': comments, 'related_record': related_record}
 
     def build_item_message(self, item: dict, item_context: dict) -> str:
-        """Build the user message describing the GitHub issue for LLM analysis."""
+        """Build the user message describing the GitHub issue for LLM analysis (JSON format)."""
+        
         source_id = f'{self.connection_id}_{item["_pk"]}'
-        parts = [
-            f"## GitHub Issue {source_id}: {item.get('title', 'Untitled')}",
-            f"- Issue number: #{item.get('issue_number', 'N/A')}",
-            f"- State: {item.get('state', 'N/A')}",
-            f"- Author: {item.get('author', 'N/A')}",
-            f"- Labels: {item.get('labels', 'N/A')}",
-            f"- Type: {item.get('issue_type', 'N/A')}",
-            f"- Created: {item.get('created_time', 'N/A')}",
-            f"- URL: {item.get('url', 'N/A')}",
-            f"- Linked ticket: {item.get('linked_ticket', 'N/A')}",
-        ]
-
+        
         content = (item.get('content') or '').strip()
-        if content:
-            parts.append(f"\n### Issue Body\n{content[:MAX_CONTENT_CHARS]}")
-
+        
         comments = item_context.get('comments', [])
+        formatted_comments = []
         if comments:
-            parts.append(f'\n### Recent 10 Comments')
             for c in comments[-10:]:
-                body = (c.get('content') or '').strip()[:MAX_COMMENT_CHARS]
-                parts.append(
-                    f"- [{c.get('author', '?')} @ {c.get('created_time', '?')}]: {body}"
-                )
-
+                content = (c.get('content') or '').strip()[:MAX_COMMENT_CHARS]
+                formatted_comments.append({
+                    'author': c.get('author', '?'),
+                    'created_time': c.get('created_time', '?'),
+                    'content': content
+                })
+        
         related_record = item_context.get('related_record')
+        related_record_info = None
         if related_record:
-            parts.append('\n### Most Related Record')
-            parts.append(f"- Type: {related_record.get('type', 'N/A')}")
-            parts.append(f"- Title: {related_record.get('title', 'N/A')}")
-            parts.append(f"- Score: {related_record.get('score', 'N/A')}")
-            parts.append(f"- URL: {related_record.get('url', 'N/A')}")
-            if related_record.get('type') == 'github_issue':
-                parts.append(f"- State: {related_record.get('state', 'N/A')}")
-                if related_record.get('state_reason'):
-                    parts.append(f"- State Reason: {related_record.get('state_reason')}")
-            elif related_record.get('type') == 'discourse_forum':
-                parts.append(f"- Resolved: {related_record.get('resolved', 'N/A')}")
-            if related_record.get('ai_summary'):
-                parts.append(f"- Summary: {related_record.get('ai_summary', '')[:500]}")
+            related_record_info = {
+                'type': related_record.get('type', 'N/A'),
+                'title': related_record.get('title', 'N/A'),
+                'score': related_record.get('score', 'N/A'),
+                'url': related_record.get('url', 'N/A'),
+                'state': related_record.get('state', 'N/A') if related_record.get('type') == 'github_issue' else None,
+                'state_reason': related_record.get('state_reason') if related_record.get('type') == 'github_issue' else None,
+                'resolved': related_record.get('resolved', 'N/A') if related_record.get('type') == 'discourse_forum' else None,
+                'ai_summary': related_record.get('ai_summary', '')[:500] if related_record.get('ai_summary') else None,
+            }
+            # Remove None values for cleaner JSON
+            related_record_info = {k: v for k, v in related_record_info.items() if v is not None}
+        
+        message_dict = {
+            'source_id': source_id,
+            'title': item.get('title', 'Untitled'),
+            'issue_number': item.get('issue_number', 'N/A'),
+            'state': item.get('state', 'N/A'),
+            'author': item.get('author', 'N/A'),
+            'labels': item.get('labels', 'N/A'),
+            'issue_type': item.get('issue_type', 'N/A'),
+            'created_time': item.get('created_time', 'N/A'),
+            'url': item.get('url', 'N/A'),
+            'linked_ticket': item.get('linked_ticket', 'N/A'),
+            'content': content[:MAX_CONTENT_CHARS] if content else '',
+            'recent_comments': formatted_comments,
+            'most_related_record': related_record_info,
+        }
 
-        return '\n'.join(parts)
+        return json.dumps(message_dict, ensure_ascii=False, indent=2)
 
     # ── GitHub-specific queries ─────────────────────────────────────
 
