@@ -424,7 +424,7 @@ def list_agent_runs():
         logger.exception(e)
         return {'error_msg': 'Internal server error.'}, 500
 
-@flask_app.route('/api/v1/agent/runs/<int:run_id>/', methods=['GET'])
+@flask_app.route('/agent/runs/<int:run_id>/', methods=['GET'])
 def get_agent_run_detail(run_id):
     is_valid = check_auth_token(request)
     if not is_valid:
