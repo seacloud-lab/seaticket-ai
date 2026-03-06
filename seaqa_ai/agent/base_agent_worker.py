@@ -26,9 +26,6 @@ from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 
 logger = logging.getLogger(__name__)
 
-AGENT_RUNS_TABLE = 'agent_runs'
-AGENT_ACTIONS_TABLE = 'agent_actions'
-
 
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -53,6 +50,9 @@ class BaseAgentWorker:
     Manages run records in SeaDB, assembles the BaseAgent for each item,
     and delegates source-specific logic to subclasses.
     """
+
+    AGENT_RUNS_TABLE = 'agent_runs'
+    AGENT_ACTIONS_TABLE = 'agent_actions'
 
     def __init__(self, app, project):
         self.app = app
@@ -107,7 +107,7 @@ class BaseAgentWorker:
     def get_last_run_time(self):
         """Return the started_at datetime of the most recently completed run, or None."""
         sql = (
-            f"SELECT * FROM `{AGENT_RUNS_TABLE}` "
+            f"SELECT * FROM `{self.AGENT_RUNS_TABLE}` "
             f"WHERE `status` = 'completed' "
             f"ORDER BY `started_at` DESC LIMIT 1"
         )
@@ -145,7 +145,7 @@ class BaseAgentWorker:
             'suggestion_text': suggestion_text or '',
             'created_at': _now_iso(),
         }
-        res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
+        res = self.seadb_api.insert_rows(self.project_uuid, self.AGENT_ACTIONS_TABLE, [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
             raise Exception(f'Expected 1 PK, got {len(pks)}')

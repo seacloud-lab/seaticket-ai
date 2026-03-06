@@ -16,10 +16,6 @@ from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
 
 logger = logging.getLogger(__name__)
 
-TICKETS_TABLE = 'tickets'
-TICKET_COMMENTS_TABLE = 'ticket_comments'
-TICKET_ACTIVITIES_TABLE = 'ticket_activities'
-
 SOURCE_TYPE = 'ticket'
 
 DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that helps manage tickets in a project management system.
@@ -37,6 +33,7 @@ Rules:
 - final_answer MUST be called alone, never together with any other tool in the same step.
 - Once you call final_answer, you are done. Do NOT call any more tools after final_answer.
 - Only notify assignees when there is a genuine reason (approaching the deadline, long inactivity, etc.)
+- Do NOT call notify_assignee if previous_notifications shows an already-executed notification for this ticket. This avoids sending duplicate notifications.
 - Comment suggestions should be helpful and actionable.
 - Be concise in your analysis and only state the most essential points.
 - Do NOT repeat the analysis or actions after calling final_answer.
@@ -56,6 +53,7 @@ The ticket is provided as a JSON object with the following fields:
 - content: detailed description
 - recent_comments: array of recent comments with creator, created_time, content
 - recent_activities: array of recent activities with activity_type, created_time, detail
+- previous_notifications: array of previously executed notifications with reason and executed_at timestamps. If empty, no previous notifications have been sent.
 """
 
 
@@ -63,6 +61,10 @@ class TicketAgentWorker(BaseAgentWorker):
     """Processes changed and due-soon tickets for a single project."""
 
     _DEFAULT_NOTIFY_BEFORE_DUE_HOURS = 48
+
+    TICKETS_TABLE = 'tickets'
+    TICKET_COMMENTS_TABLE = 'ticket_comments'
+    TICKET_ACTIVITIES_TABLE = 'ticket_activities'
 
     @property
     def notify_before_due_hours(self) -> int:
@@ -98,11 +100,11 @@ class TicketAgentWorker(BaseAgentWorker):
         return list(ticket_map.values())[:config.AGENT_MAX_TICKETS_PER_RUN]
 
     def get_item_context(self, item: dict) -> dict:
-        """Fetch comments and activities for a ticket."""
+        """Fetch comments, activities, and historical notifications for a ticket."""
         ticket_id = item['_pk']
 
         comments_sql = (
-            f"SELECT * FROM `{TICKET_COMMENTS_TABLE}` "
+            f"SELECT * FROM `{self.TICKET_COMMENTS_TABLE}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"ORDER BY `_pk` ASC LIMIT 100"
@@ -112,7 +114,7 @@ class TicketAgentWorker(BaseAgentWorker):
         ).get('results', [])
 
         activities_sql = (
-            f"SELECT * FROM `{TICKET_ACTIVITIES_TABLE}` "
+            f"SELECT * FROM `{self.TICKET_ACTIVITIES_TABLE}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"ORDER BY `created_time` ASC LIMIT 100"
         )
@@ -120,7 +122,41 @@ class TicketAgentWorker(BaseAgentWorker):
             self.project_uuid, activities_sql
         ).get('results', [])
 
-        return {'comments': comments, 'activities': activities}
+        # Query historical executed notifications for this ticket
+        executed_notifications = self.get_executed_actions(
+            source_type=SOURCE_TYPE,
+            source_id=str(ticket_id),
+            tool_name='notify_assignee'
+        )
+
+        return {
+            'comments': comments,
+            'activities': activities,
+            'executed_notifications': executed_notifications,
+        }
+
+    def get_executed_actions(self, source_type: str, source_id: str, tool_name: str = None) -> list[dict]:
+        """Query executed/confirmed actions for a source record.
+        
+        Args:
+            source_type: Type of the source (e.g., 'ticket')
+            source_id: ID of the source record
+            tool_name: Optional filter by tool name (e.g., 'notify_assignee')
+        
+        Returns:
+            List of action records ordered by created_at DESC
+        """
+        conditions = [
+            f"`source_type` = '{source_type}'",
+            f"`source_id` = '{source_id}'",
+            "`status` = 'executed'",
+        ]
+        if tool_name:
+            conditions.append(f"`tool_name` = '{tool_name}'")
+        
+        where = ' AND '.join(conditions)
+        sql = f"SELECT * FROM `{self.AGENT_ACTIONS_TABLE}` WHERE {where} ORDER BY `created_at` DESC LIMIT 10"
+        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
 
     def build_item_message(self, item: dict, item_context: dict) -> str:
         """Build the user message describing the ticket for LLM analysis (JSON format)."""
@@ -147,6 +183,15 @@ class TicketAgentWorker(BaseAgentWorker):
                     'detail': detail
                 })
         
+        executed_notifications = item_context.get('executed_notifications', [])
+        formatted_notifications = []
+        if executed_notifications:
+            for n in executed_notifications:
+                formatted_notifications.append({
+                    'reason': n.get('content', ''),
+                    'executed_at': n.get('executed_at') or n.get('created_at', '?'),
+                })
+        
         message_dict = {
             'ticket_id': item['_pk'],
             'title': item.get('title', 'Untitled'),
@@ -160,6 +205,7 @@ class TicketAgentWorker(BaseAgentWorker):
             'content': item.get('content', '')[:5000] if item.get('content') else '',
             'recent_comments': formatted_comments,
             'recent_activities': formatted_activities,
+            'previous_notifications': formatted_notifications,
         }
         
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
@@ -178,7 +224,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
         where = ' AND '.join(conditions)
         sql = (
-            f"SELECT * FROM `{TICKETS_TABLE}` WHERE {where} "
+            f"SELECT * FROM `{self.TICKETS_TABLE}` WHERE {where} "
             f"ORDER BY `modified_time` DESC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
@@ -189,7 +235,7 @@ class TicketAgentWorker(BaseAgentWorker):
         now = datetime.now(timezone.utc)
         threshold = (now + timedelta(hours=hours)).isoformat()
         sql = (
-            f"SELECT * FROM `{TICKETS_TABLE}` "
+            f"SELECT * FROM `{self.TICKETS_TABLE}` "
             f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
