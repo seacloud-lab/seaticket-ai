@@ -35,6 +35,22 @@ class BasicChat(object):
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
+    def _build_system_prompt(self, base_prompt, project_prompt):
+        """
+        Merge project-level prompt with base system prompt.
+        If project_prompt is provided, it will be prepended to the base prompt
+        to provide project-specific context for all conversations.
+        """
+        if not project_prompt or not project_prompt.strip():
+            return base_prompt
+        
+        return f"""Project Context:
+{project_prompt}
+
+---------------
+
+{base_prompt}"""
+    
     def __call__(self, message, attachments, context, model):
         tool_executor = ToolExecutor()
         self._register_tools(tool_executor, context)
@@ -47,19 +63,23 @@ class SyncChat(BasicChat):
     def run(self, model, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
+        project_prompt = context.get('project_prompt', '')
         llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
         context=kwargs.get('context')
+        
+        system_prompt = self._build_system_prompt(SYSTEM_PROMPT, project_prompt)
+        
         if session_uuid and not config.DISABLE_CONTEXT:
             try:
-                memory = build_memory_from_db(self.db_session_class, SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
             except Exception as e:
                 logger.warning(f'Failure to build context: {e}')
-                memory = OpenAIMemory(SYSTEM_PROMPT)
+                memory = OpenAIMemory(system_prompt)
         else:
-            memory = OpenAIMemory(SYSTEM_PROMPT)
+            memory = OpenAIMemory(system_prompt)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
-        tool_executor.thought_process.set_task(SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
+        tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, remove_attachments_content(attachments))
         tool_executor.thought_process.context = memory.context_thought_process
 
         memory += {
@@ -147,19 +167,23 @@ class StreamingChat(BasicChat):
         try:
             context = kwargs.get('context', {})
             session_uuid = context.get('session_uuid')
+            project_prompt = context.get('project_prompt', '')
             llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
             yield SSE.status('Preparing', 'Initializing user input')
+            
+            system_prompt = self._build_system_prompt(SYSTEM_PROMPT, project_prompt)
+            
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(self.db_session_class, SYSTEM_PROMPT, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(SYSTEM_PROMPT)
+                    memory = OpenAIMemory(system_prompt)
             else:
-                memory = OpenAIMemory(SYSTEM_PROMPT)
+                memory = OpenAIMemory(system_prompt)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            tool_executor.thought_process.set_task(SYSTEM_PROMPT, user_raw_message, message, remove_attachments_content(attachments))
+            tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, remove_attachments_content(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 
             memory += {
