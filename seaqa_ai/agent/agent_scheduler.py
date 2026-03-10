@@ -20,7 +20,7 @@ class AgentScheduler:
       - Reschedules the job when run_interval_hours has changed.
       - Removes the job for projects that became disabled or were deleted.
 
-    Each per-project job calls AgentManager.run_single_project(project_uuid).
+    Each per-project job calls AgentManager.run(project_uuid).
     """
 
     def __init__(self, app):
@@ -39,7 +39,7 @@ class AgentScheduler:
     def _add_project_job(self, project_uuid: str, interval_hours: float):
         job_id = self._project_job_id(project_uuid)
         self.scheduler.add_job(
-            self.agent_manager.run_single_project,
+            self.agent_manager.run,
             IntervalTrigger(hours=interval_hours),
             id=job_id,
             args=[project_uuid],

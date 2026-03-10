@@ -75,7 +75,7 @@ class AgentManager:
             [{'pk': run_pk, 'row': updates}],
         )
 
-    def run_single_project(self, project_uuid: str):
+    def run(self, project_uuid: str):
         """Run all workers for a single project.
         """
         session = self.db_session_class()

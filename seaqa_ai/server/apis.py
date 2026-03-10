@@ -344,7 +344,7 @@ def trigger_agent():
 
     try:
         agent_manager = flask_app.app.agent_scheduler.agent_manager
-        agent_manager.run_single_project(project_uuid)
+        agent_manager.run(project_uuid)
         return {'success': True}, 200
     except Exception as e:
         logger.exception(e)
