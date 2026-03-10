@@ -1,23 +1,17 @@
 """
 AgentManager: coordinates agent runs across all projects.
 """
-import json
 import logging
-from datetime import datetime, timezone
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.ticket_agent_worker import TicketAgentWorker
 from seaqa_ai.agent.github_agent_worker import GithubIssueAgentWorker
-from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.utils import uuid_str_to_32_chars, now_iso
 from seaqa_ai.agent.constants import GITHUB_ISSUE_CONNECTION_TYPE, AGENT_RUNS_TABLE
 
 logger = logging.getLogger(__name__)
-
-
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
 
 
 class AgentManager:
@@ -65,7 +59,7 @@ class AgentManager:
     def _create_shared_run_record(self, project_uuid: str) -> int:
         row = {
             'status': 'running',
-            'started_at': _now_iso(),
+            'started_at': now_iso(),
             'items_processed': 0,
         }
         res = self.app.seadb_api.insert_rows(project_uuid, AGENT_RUNS_TABLE, [row])
@@ -145,7 +139,7 @@ class AgentManager:
         try:
             self._update_run_record(project_uuid, run_pk, {
                 'status': final_status,
-                'finished_at': _now_iso(),
+                'finished_at': now_iso(),
                 'items_processed': total_items_processed,
                 'error_message': error_message,
             })

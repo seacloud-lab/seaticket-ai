@@ -13,11 +13,10 @@ and the LLM reasoning loop invocation, so subclasses only implement domain logic
 """
 import logging
 from abc import abstractmethod
-from datetime import datetime, timezone
-from typing import Optional
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.utils import parse_datetime, now_iso
 from seaqa_ai.utils.assignee_resolver import AssigneeResolver
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import SimpleToolExecutor
@@ -26,22 +25,6 @@ from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
 
 logger = logging.getLogger(__name__)
-
-
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _parse_datetime(dt_str):
-    if not dt_str:
-        return None
-    try:
-        if dt_str.endswith('Z'):
-            dt_str = dt_str[:-1] + '+00:00'
-        return datetime.fromisoformat(dt_str)
-    except Exception as e:
-        logger.exception(f'Error parsing datetime: {e}')
-        return None
 
 
 class BaseAgentWorker:
@@ -112,7 +95,7 @@ class BaseAgentWorker:
         result = self.seadb_api.query_rows(self.project_uuid, sql)
         rows = result.get('results', [])
         if rows:
-            return _parse_datetime(rows[0]['started_at'])
+            return parse_datetime(rows[0]['started_at'])
         return None
 
 
@@ -141,7 +124,7 @@ class BaseAgentWorker:
             'result': result or '',
             'status': action_status,
             'suggestion_text': suggestion_text or '',
-            'created_at': _now_iso(),
+            'created_at': now_iso(),
         }
         res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
         pks = res.get('pks', [])

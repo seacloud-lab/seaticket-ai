@@ -9,7 +9,7 @@ import hashlib
 import uuid
 import urllib.parse
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
@@ -44,6 +44,22 @@ def localize_time(date):
             date = pytz.utc.localize(date)
         return date.astimezone(time_zone)
     return date
+
+def now_iso():
+    return localize_time(datetime.now(timezone.utc)).isoformat()
+
+def parse_datetime(dt_str):
+    if not dt_str:
+        return None
+    try:
+        if isinstance(dt_str, datetime):
+            return localize_time(dt_str)
+        if dt_str.endswith('Z'):
+            dt_str = dt_str[:-1] + '+00:00'
+        return localize_time(datetime.fromisoformat(dt_str))
+    except Exception as e:
+        logger.exception(f'Error parsing datetime: {e}')
+        return None
 
 def clean_json_markdown(raw_response):
     if not isinstance(raw_response, str):
