@@ -153,13 +153,35 @@ class AgentRunner:
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = self._parse_tool_arguments(tool_call.function.arguments)
+            tool_failed = False
 
             logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
-            observation = self._execute_tool_and_observe(tool_name, arguments)
+            try:
+                result = self.tool_executor.execute(tool_name, **arguments)
+                observation = str(result).strip() if result is not None else ''
+            except Exception as e:
+                tool_failed = True
+                logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
+                observation = json.dumps({
+                    'status': 'error',
+                    'tool_name': tool_name,
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                }, ensure_ascii=False)
+                if self.action_recorder and self.run_id:
+                    self._record_action(
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        result=str(e),
+                        action_type='error',
+                        action_status='failed',
+                    )
             logger.debug(f'Observation: {observation}')
 
             is_final_answer = tool_name == 'final_answer'
-            self._record_tool_action(tool_name, arguments, observation, is_final_answer)
+
+            if not tool_failed:
+                self._record_tool_action(tool_name, arguments, observation, is_final_answer)
 
             if is_final_answer:
                 return observation
@@ -177,27 +199,6 @@ class AgentRunner:
             return json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
         except (json.JSONDecodeError, TypeError):
             return {}
-
-    def _execute_tool_call(self, tool_name: str, arguments: dict):
-        if tool_name == 'final_answer':
-            return arguments.get('answer', '') or arguments.get('summary', '') or ''
-        return self.tool_executor.execute(tool_name, **arguments)
-
-    def _execute_tool_and_observe(self, tool_name: str, arguments: dict) -> str:
-        try:
-            result = self._execute_tool_call(tool_name, arguments)
-        except Exception as e:
-            logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
-            if self.action_recorder and self.run_id:
-                self._record_action(
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                )
-            raise
-        return str(result).strip() if result is not None else ''
 
     def _record_tool_action(
         self,
