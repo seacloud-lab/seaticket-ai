@@ -169,6 +169,9 @@ MAX_DOCUMENT_CONTENT_SIZE = 10000
 SEADB_SERVER_URL = configs.get('SEADB_SERVER_URL', 'http://seadb:8888')
 SEADB_SERVER_ACCESS_TOKEN = configs.get('SEADB_SERVER_ACCESS_TOKEN', '')
 
+# SeaQA Web (used for constructing absolute links in agent suggestions)
+SEAQA_WEB_SERVICE_URL = configs.get('SEAQA_WEB_SERVICE_URL', 'http://127.0.0.1')
+
 # S3
 S3_HOST = configs.get('S3_HOST')
 S3_WEB_CRAWL_BUCKET = configs.get('S3_WEB_CRAWL_BUCKET')

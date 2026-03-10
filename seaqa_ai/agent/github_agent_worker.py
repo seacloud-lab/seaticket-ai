@@ -10,6 +10,7 @@ For each new issue (created since the last run, open, not yet linked to a ticket
 import logging
 import json
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote
 from sqlalchemy import text
 
 from seaqa_ai import config
@@ -56,6 +57,17 @@ For each issue provided in JSON format, a "most_related_record" field may be inc
       - If resolved is "false": This is a KNOWN but UNRESOLVED problem.
         → Call suggest_resolution. Your resolution MUST include the forum topic URL.
         → Mention that there is an ongoing discussion about this issue.
+
+   c) If type is "email":
+      - If linked_ticket is missing/empty: this is NOT enough evidence for a known issue.
+        → Treat as NEW problem and call suggest_create_ticket.
+      - If linked_ticket exists:
+        - If linked_ticket_state is "closed": This is a KNOWN and RESOLVED problem.
+          → Call suggest_resolution. Include the email thread URL if available.
+          → Mention the linked ticket as the tracked/resolved record.
+        - If linked_ticket_state is "open": This is a KNOWN but UNRESOLVED problem.
+          → Call suggest_resolution. Include the email thread URL if available.
+          → Mention the linked ticket is already tracking this issue.
 
 ## Processing Steps (ONE tool call per step, strictly in order)
 
@@ -172,6 +184,8 @@ class GithubIssueAgentWorker(BaseAgentWorker):
                 'state': related_record.get('state', 'N/A') if related_record.get('type') == 'github_issue' else None,
                 'state_reason': related_record.get('state_reason') if related_record.get('type') == 'github_issue' else None,
                 'resolved': related_record.get('resolved', 'N/A') if related_record.get('type') == 'discourse_forum' else None,
+                'linked_ticket': related_record.get('linked_ticket') if related_record.get('type') == 'email' else None,
+                'linked_ticket_state': related_record.get('linked_ticket_state') if related_record.get('type') == 'email' else None,
                 'ai_summary': related_record.get('ai_summary', '')[:500] if related_record.get('ai_summary') else None,
             }
             # Remove None values for cleaner JSON
@@ -358,6 +372,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
 
         For github_issue records: fetches state, state_reason, url.
         For discourse_forum records: fetches resolved.
+        For email records: fetches linked_ticket and linked_ticket_state.
         """
         record_type = result.get('type')
         connection_id = result.get('connection_id')
@@ -387,4 +402,71 @@ class GithubIssueAgentWorker(BaseAgentWorker):
             if rows:
                 details['resolved'] = rows[0].get('resolved', False)
 
+        elif record_type == 'email':
+            thread_table_name = f'email_thread_{connection_id}'
+            sql = f"SELECT `linked_ticket` FROM `{thread_table_name}` WHERE _pk = {pk}"
+            rows = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+            if rows:
+                linked_ticket = rows[0].get('linked_ticket')
+                details['linked_ticket'] = linked_ticket
+                details['url'] = self._build_email_thread_url(connection_id, pk) or details['url']
+                if linked_ticket:
+                    ticket_sql = (
+                        "SELECT `state` FROM `tickets` "
+                        f"WHERE _pk = {linked_ticket} AND (`deleted` = False OR `deleted` IS NULL) LIMIT 1"
+                    )
+                    ticket_rows = self.seadb_api.query_rows(self.project_uuid, ticket_sql).get('results', [])
+                    if ticket_rows:
+                        ticket_state = (ticket_rows[0].get('state') or '').strip().lower()
+                        if ticket_state:
+                            details['linked_ticket_state'] = ticket_state
+
         return details
+
+    def _build_email_thread_url(self, connection_id, thread_pk) -> str:
+        """Build absolute SeaQA web URL for a connection record page."""
+        project_meta = self._get_project_meta_for_web_url()
+        workspace_id = project_meta.get('workspace_id')
+        project_name = project_meta.get('name')
+        if not workspace_id or not project_name:
+            return ''
+
+        encoded_project_name = quote(str(project_name), safe='')
+        web_service_url = (config.SEAQA_WEB_SERVICE_URL or '').rstrip('/')
+        if not web_service_url:
+            return ''
+        return (
+            f"{web_service_url}/workspace/{workspace_id}/project/{encoded_project_name}/"
+            f"connections/{connection_id}/records/{thread_pk}/"
+        )
+
+    def _get_project_meta_for_web_url(self) -> dict:
+        """Return project metadata needed to build SeaQA web links."""
+        cached = getattr(self, '_project_meta_cache', None)
+        if isinstance(cached, dict):
+            return cached
+
+        session = self.db_session_class()
+        try:
+            result = session.execute(
+                text(
+                    "SELECT name, workspace_id FROM projects "
+                    "WHERE uuid = :uuid AND deleted = 0 LIMIT 1"
+                ),
+                {'uuid': uuid_str_to_32_chars(self.project_uuid)},
+            )
+            row = result.fetchone()
+            meta = {
+                'name': row[0] if row else None,
+                'workspace_id': row[1] if row else None,
+            }
+        except Exception as e:
+            logger.warning(
+                f'Failed to fetch project metadata for web url, project {self.project_uuid}: {e}'
+            )
+            meta = {'name': None, 'workspace_id': None}
+        finally:
+            session.close()
+
+        self._project_meta_cache = meta
+        return meta
