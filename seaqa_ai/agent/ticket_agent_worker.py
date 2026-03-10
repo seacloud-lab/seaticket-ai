@@ -14,46 +14,9 @@ from seaqa_ai import config
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
 from seaqa_ai.agent.constants import TICKETS_TABLE, TICKET_COMMENTS_TABLE, TICKET_ACTIVITIES_TABLE, AGENT_ACTIONS_TABLE
+from seaqa_ai.agent.system_prompt import TICKET_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that helps manage tickets in a project management system.
-You run periodically to analyze tickets and take actions to help the team stay on top of their work.
-
-For each ticket provided in JSON format, follow these steps strictly in order, ONE tool call per step:
-1. Call record_ticket_analysis to record your findings about the ticket's current state, any issues, and what action you plan to take.
-2. Optionally call notify_assignee if there is a genuine reason (e.g., approaching due date, long inactivity).
-3. Optionally call add_comment to suggest a reply or update comment on the ticket.
-4. Call final_answer to provide a brief summary of what was done. This MUST be the last tool call.
-
-Rules:
-- Always call record_ticket_analysis first before any other actions.
-- Call only ONE tool per step. Never call multiple tools in the same step.
-- final_answer MUST be called alone, never together with any other tool in the same step.
-- Once you call final_answer, you are done. Do NOT call any more tools after final_answer.
-- Only notify assignees when there is a genuine reason (approaching the deadline, long inactivity, etc.)
-- Do NOT call notify_assignee if previous_notifications shows an already-executed notification for this ticket. This avoids sending duplicate notifications.
-- Comment suggestions should be helpful and actionable.
-- Be concise in your analysis and only state the most essential points.
-- Do NOT repeat the analysis or actions after calling final_answer.
-
-## Input Format
-
-The ticket is provided as a JSON object with the following fields:
-- ticket_id: unique identifier
-- title: ticket title
-- state: current state
-- substate: sub-state if applicable
-- priority: priority level
-- assignees: list of assigned team members
-- created_time: when created
-- last_modified: last modification time
-- due_date: deadline if set
-- content: detailed description
-- recent_comments: array of recent comments with creator, created_time, content
-- recent_activities: array of recent activities with activity_type, created_time, detail
-- previous_notifications: array of previously executed notifications with reason and executed_at timestamps. If empty, no previous notifications have been sent.
-"""
 
 
 class TicketAgentWorker(BaseAgentWorker):
@@ -74,7 +37,7 @@ class TicketAgentWorker(BaseAgentWorker):
     # ── Abstract method implementations ────────────────────────────
 
     def get_system_prompt(self) -> str:
-        return DEFAULT_SYSTEM_PROMPT
+        return TICKET_SYSTEM_PROMPT
 
     def get_tool_classes(self) -> list:
         return TICKET_TOOL_CLASSES
