@@ -20,7 +20,7 @@ class AgentScheduler:
       - Reschedules the job when run_interval_hours has changed.
       - Removes the job for projects that became disabled or were deleted.
 
-    Each per-project job calls AgentManager.run(project_uuid).
+    Each per-project job calls AgentManager.run(project).
     """
 
     def __init__(self, app):
@@ -36,13 +36,14 @@ class AgentScheduler:
     def _project_job_id(project_uuid: str) -> str:
         return f'agent_project_{project_uuid}'
 
-    def _add_project_job(self, project_uuid: str, interval_hours: float):
+    def _add_project_job(self, project: dict, interval_hours: float):
+        project_uuid = project['uuid']
         job_id = self._project_job_id(project_uuid)
         self.scheduler.add_job(
             self.agent_manager.run,
             IntervalTrigger(hours=interval_hours),
             id=job_id,
-            args=[project_uuid],
+            args=[project],
             replace_existing=True,
         )
         self._project_intervals[project_uuid] = interval_hours
@@ -84,17 +85,20 @@ class AgentScheduler:
 
             if self.scheduler.get_job(job_id) is None:
                 # Project newly enabled – add job.
-                self._add_project_job(uuid, interval_hours)
+                self._add_project_job(project, interval_hours)
             elif self._project_intervals.get(uuid) != interval_hours:
                 # Interval changed – reschedule.
                 self.scheduler.reschedule_job(
                     job_id,
                     trigger=IntervalTrigger(hours=interval_hours),
                 )
+                self.scheduler.modify_job(job_id, args=[project])
                 self._project_intervals[uuid] = interval_hours
                 logger.info(
                     f'Rescheduled agent run job for project {uuid} to {interval_hours}h'
                 )
+            else:
+                self.scheduler.modify_job(job_id, args=[project])
 
         # Remove jobs for projects that are now disabled / deleted.
         for uuid in list(self._project_intervals.keys()):

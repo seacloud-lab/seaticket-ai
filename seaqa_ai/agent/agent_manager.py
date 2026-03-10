@@ -41,6 +41,17 @@ class AgentManager:
         finally:
             session.close()
 
+    def get_project(self, project_uuid: str) -> dict | None:
+        session = self.db_session_class()
+        try:
+            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+            return Project.get_project_by_uuid(session, project_uuid_32)
+        except Exception as e:
+            logger.exception(f'Failed to query project {project_uuid}: {e}')
+            return None
+        finally:
+            session.close()
+
     def _get_github_issue_connections(self, project_uuid: str) -> list[dict]:
         """Return all active github_issue connections for the given project.
 
@@ -75,22 +86,15 @@ class AgentManager:
             [{'pk': run_pk, 'row': updates}],
         )
 
-    def run(self, project_uuid: str):
-        """Run all workers for a single project.
-        """
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
-            project = Project.get_project_by_uuid(session, project_uuid_32)
-            
-            if not project:
-                logger.warning(f'Project {project_uuid} not found or deleted')
-                return None
-        except Exception as e:
-            logger.exception(f'Failed to query project {project_uuid}: {e}')
+    def run(self, project: dict):
+        """Run all workers for a single validated project."""
+        if not isinstance(project, dict):
+            logger.warning('Invalid project payload for agent run')
             return None
-        finally:
-            session.close()
+        project_uuid = project.get('uuid')
+        if not project_uuid:
+            logger.warning('Project uuid missing in agent run payload')
+            return None
 
         total_items_processed = 0
         worker_errors = []

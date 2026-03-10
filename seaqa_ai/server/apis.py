@@ -344,7 +344,10 @@ def trigger_agent():
 
     try:
         agent_manager = flask_app.app.agent_scheduler.agent_manager
-        agent_manager.run(project_uuid)
+        project = agent_manager.get_project(project_uuid)
+        if not project:
+            return {'error_msg': 'project not found.'}, 404
+        agent_manager.run(project)
         return {'success': True}, 200
     except Exception as e:
         logger.exception(e)
