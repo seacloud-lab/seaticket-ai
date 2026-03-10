@@ -74,7 +74,7 @@ class AgentRunner:
         messages = self._build_initial_messages(task)
 
         for step in range(self.max_steps):
-            message = self._request_llm_message(messages, step)
+            message = self._request_llm_message(messages, step, use_tools=True)
             assistant_message = self._build_assistant_message(message)
             messages.append(assistant_message)
 
@@ -86,7 +86,12 @@ class AgentRunner:
                 return final_result
 
         logger.warning(f'Agent reached max steps ({self.max_steps})')
-        return ''
+        final_message = self._request_llm_message(
+            messages=messages,
+            step=self.max_steps,
+            use_tools=False,
+        )
+        return final_message.content or ''
 
     def _build_initial_messages(self, task: str) -> list[dict]:
         return [
@@ -94,13 +99,15 @@ class AgentRunner:
             {'role': 'user', 'content': task},
         ]
 
-    def _request_llm_message(self, messages: list[dict], step: int) -> Message:
+    def _request_llm_message(self, messages: list[dict], step: int, use_tools: bool = True) -> Message:
         try:
-            response = self.llm_client.completion(
-                messages=messages,
-                tools=self.tools,
-                tool_choice='auto',
-            )
+            request_kwargs = {'messages': messages}
+            if use_tools:
+                request_kwargs.update({
+                    'tools': self.tools,
+                    'tool_choice': 'auto',
+                })
+            response = self.llm_client.completion(**request_kwargs)
             return response.choices[0].message
         except Exception as e:
             logger.exception(f'LLM call failed at step {step}: {e}')
@@ -140,9 +147,9 @@ class AgentRunner:
             tool_name = tool_call.function.name
             arguments = self._parse_tool_arguments(tool_call.function.arguments)
 
-            logger.info(f"Calling tool: '{tool_name}' with arguments: {arguments}")
+            logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
             observation = self._execute_tool_and_observe(tool_name, arguments)
-            logger.info(f'Observation: {observation}')
+            logger.debug(f'Observation: {observation}')
 
             is_final_answer = tool_name == 'final_answer'
             self._record_tool_action(tool_name, arguments, observation, is_final_answer)
