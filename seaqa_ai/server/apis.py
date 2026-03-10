@@ -327,7 +327,7 @@ def rank_issues_by_relevance():
         return {'error_msg': 'Internet server error.'}, 500
 
 
-@flask_app.route('/agent/trigger/', methods=['POST'])
+@flask_app.route('/trigger-agent', methods=['POST'])
 def trigger_agent():
     is_valid = check_auth_token(request)
     if not is_valid:
