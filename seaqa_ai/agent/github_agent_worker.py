@@ -138,7 +138,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         comments = self._get_issue_comments(item)
         related_record = None
         try:
-            related_record = self._get_issue_related_records(item)
+            related_record = self._get_issue_related_record(item)
         except Exception as e:
             logger.warning(f'Failed to get related records for issue {item.get("_pk")}: {e}')
         return {'comments': comments, 'related_record': related_record}
@@ -248,7 +248,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         finally:
             session.close()
 
-    def _get_issue_related_records(self, item: dict) -> dict | None:
+    def _get_issue_related_record(self, item: dict) -> dict | None:
         """Fetch the top related record for a GitHub issue via vector search + reranking.
 
         Returns a detail dict (type, score, title, url, state/resolved, …) for the
