@@ -20,8 +20,7 @@ from seaqa_ai.utils import parse_datetime, now_iso
 from seaqa_ai.utils.assignee_resolver import AssigneeResolver
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import SimpleToolExecutor
-from seaqa_ai.agent.base_agent import BaseAgent
-from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
+from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
 
 logger = logging.getLogger(__name__)
@@ -182,7 +181,7 @@ class BaseAgentWorker:
         tool_executor, tool_metadata = self._create_tool_executor(record_context)
         llm_client = self._get_llm_client()
 
-        agent = BaseAgent(
+        agent_runner = AgentRunner(
             tool_executor=tool_executor,
             llm_client=llm_client,
             record_context=record_context,
@@ -194,7 +193,7 @@ class BaseAgentWorker:
         )
 
         try:
-            return agent.run(item_message)
+            return agent_runner.run(item_message)
         except Exception as e:
             logger.exception(
                 f'Agent failed for {record_context.get("source_type")} '

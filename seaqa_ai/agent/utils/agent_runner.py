@@ -1,5 +1,5 @@
 """
-BaseAgent: generic ReAct-style LLM function-calling loop.
+AgentRunner: generic ReAct-style LLM function-calling loop.
 
 Works for any source type (ticket, github_issue, discourse_topic, email_thread).
 The caller injects a record_context dict that identifies the source record being processed:
@@ -21,7 +21,7 @@ from litellm import Message, ChatCompletionMessageToolCall
 logger = logging.getLogger(__name__)
 
 
-class BaseAgent:
+class AgentRunner:
     """
     Generic agent that drives a tool-calling reasoning loop.
 
