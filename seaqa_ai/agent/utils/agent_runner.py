@@ -152,8 +152,42 @@ class AgentRunner:
     ) -> str | None:
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
-            arguments = self._parse_tool_arguments(tool_call.function.arguments)
+            is_final_answer = tool_name == 'final_answer'
             tool_failed = False
+
+            try:
+                raw_arguments = tool_call.function.arguments
+                parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
+                if not isinstance(parsed_arguments, dict):
+                    raise TypeError('Tool arguments must be a JSON object.')
+                arguments = parsed_arguments
+            except (json.JSONDecodeError, TypeError) as e:
+                tool_failed = True
+                arguments = {}
+                logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
+                observation = json.dumps({
+                    'status': 'error',
+                    'tool_name': tool_name,
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                }, ensure_ascii=False)
+                if self.action_recorder and self.run_id:
+                    self._record_action(
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        result=str(e),
+                        action_type='error',
+                        action_status='failed',
+                    )
+                logger.debug(f'Observation: {observation}')
+                if is_final_answer:
+                    return observation
+                messages.append({
+                    'role': 'tool',
+                    'tool_call_id': tool_call.id,
+                    'content': observation,
+                })
+                continue
 
             logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
             try:
@@ -178,8 +212,6 @@ class AgentRunner:
                     )
             logger.debug(f'Observation: {observation}')
 
-            is_final_answer = tool_name == 'final_answer'
-
             if not tool_failed:
                 self._record_tool_action(tool_name, arguments, observation, is_final_answer)
 
@@ -193,12 +225,6 @@ class AgentRunner:
             })
 
         return None
-
-    def _parse_tool_arguments(self, raw_args) -> dict:
-        try:
-            return json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
-        except (json.JSONDecodeError, TypeError):
-            return {}
 
     def _record_tool_action(
         self,
