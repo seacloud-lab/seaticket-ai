@@ -72,6 +72,26 @@ class Project(Base):
             logger.exception(f'Failed to query project by uuid: {e}')
             return None
 
+    @classmethod
+    def get_project_metadata(cls, session, uuid: str) -> dict:
+        """Query project name and workspace_id by UUID."""
+        try:
+            project = session.query(cls.name, cls.workspace_id).filter(
+                cls.uuid == uuid,
+                cls.deleted == 0
+            ).first()
+            
+            if not project:
+                return {'name': None, 'workspace_id': None}
+            
+            return {
+                'name': project[0],
+                'workspace_id': project[1],
+            }
+        except Exception as e:
+            logger.exception(f'Failed to query project metadata for uuid {uuid}: {e}')
+            return {'name': None, 'workspace_id': None}
+
 
 class ProjectConnection(Base):
     __tablename__ = 'project_connection'
@@ -109,6 +129,21 @@ class ProjectConnection(Base):
             ]
         except Exception as e:
             logger.exception(f'Failed to query connections for project {project_uuid}: {e}')
+            return []
+
+    @classmethod
+    def get_connection_ids_by_project_and_types(cls, session, project_uuid: str, connection_types: tuple) -> list[int]:
+        """Query active connection IDs for a project filtered by multiple types."""
+        try:
+            connections_query = session.query(cls.id).filter(
+                cls.project_uuid == project_uuid,
+                cls.type.in_(connection_types),
+                cls.deleted == 0,
+                cls.is_active == 1
+            )
+            return [conn[0] for conn in connections_query]
+        except Exception as e:
+            logger.exception(f'Failed to query connection ids for project {project_uuid}: {e}')
             return []
 
 

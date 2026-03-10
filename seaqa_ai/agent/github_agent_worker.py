@@ -14,6 +14,7 @@ from urllib.parse import quote
 from sqlalchemy import text
 
 from seaqa_ai import config
+from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
@@ -247,18 +248,12 @@ class GithubIssueAgentWorker(BaseAgentWorker):
 
     def _get_search_connection_ids(self) -> list[int]:
         """Return all active ISSUE-category connection ids for this project."""
-        type_placeholders = ', '.join(f"'{t}'" for t in ISSUE_CONNECTION_TYPES)
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text(
-                    f"SELECT id FROM project_connection "
-                    f"WHERE project_uuid = :uuid AND type IN ({type_placeholders}) "
-                    f"AND deleted = 0 AND is_active = 1"
-                ),
-                {'uuid': uuid_str_to_32_chars(self.project_uuid)},
+            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+            return ProjectConnection.get_connection_ids_by_project_and_types(
+                session, project_uuid_32, ISSUE_CONNECTION_TYPES
             )
-            return [row[0] for row in result.fetchall()]
         finally:
             session.close()
 
@@ -448,18 +443,8 @@ class GithubIssueAgentWorker(BaseAgentWorker):
 
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text(
-                    "SELECT name, workspace_id FROM projects "
-                    "WHERE uuid = :uuid AND deleted = 0 LIMIT 1"
-                ),
-                {'uuid': uuid_str_to_32_chars(self.project_uuid)},
-            )
-            row = result.fetchone()
-            meta = {
-                'name': row[0] if row else None,
-                'workspace_id': row[1] if row else None,
-            }
+            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+            meta = Project.get_project_metadata(session, project_uuid_32)
         except Exception as e:
             logger.warning(
                 f'Failed to fetch project metadata for web url, project {self.project_uuid}: {e}'
