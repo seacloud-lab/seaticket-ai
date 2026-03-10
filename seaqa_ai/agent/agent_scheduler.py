@@ -5,12 +5,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from seaqa_ai import config
 from seaqa_ai.agent.agent_manager import AgentManager
+from seaqa_ai.agent.constants import CONFIG_SYNC_INTERVAL_SECONDS
 
 logger = logging.getLogger(__name__)
-
-# How often (seconds) the scheduler syncs project configs from the DB.
-# Determines how quickly changes to agent.enabled / run_interval_hours take effect.
-CONFIG_SYNC_INTERVAL_SECONDS = 60
 
 
 class AgentScheduler:

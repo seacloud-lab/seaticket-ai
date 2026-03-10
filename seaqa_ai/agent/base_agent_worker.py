@@ -23,6 +23,7 @@ from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import SimpleToolExecutor
 from seaqa_ai.agent.base_agent import BaseAgent
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
+from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,6 @@ class BaseAgentWorker:
     Manages run records in SeaDB, assembles the BaseAgent for each item,
     and delegates source-specific logic to subclasses.
     """
-
-    AGENT_RUNS_TABLE = 'agent_runs'
-    AGENT_ACTIONS_TABLE = 'agent_actions'
 
     def __init__(self, app, project):
         self.app = app
@@ -107,7 +105,7 @@ class BaseAgentWorker:
     def get_last_run_time(self):
         """Return the started_at datetime of the most recently completed run, or None."""
         sql = (
-            f"SELECT * FROM `{self.AGENT_RUNS_TABLE}` "
+            f"SELECT * FROM `{AGENT_RUNS_TABLE}` "
             f"WHERE `status` = 'completed' "
             f"ORDER BY `started_at` DESC LIMIT 1"
         )
@@ -145,7 +143,7 @@ class BaseAgentWorker:
             'suggestion_text': suggestion_text or '',
             'created_at': _now_iso(),
         }
-        res = self.seadb_api.insert_rows(self.project_uuid, self.AGENT_ACTIONS_TABLE, [row])
+        res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
             raise Exception(f'Expected 1 PK, got {len(pks)}')

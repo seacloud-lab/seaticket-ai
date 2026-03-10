@@ -18,20 +18,9 @@ from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.agent.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELATED_RECORD_SCORE_THRESHOLD, ISSUE_CONNECTION_TYPES
 
 logger = logging.getLogger(__name__)
-
-SOURCE_TYPE = 'github_issue'
-
-# Maximum body characters sent to the LLM to avoid excessive token usage
-MAX_CONTENT_CHARS = 5000
-MAX_COMMENT_CHARS = 1000
-
-# Connection types considered as ISSUE category for related records search
-ISSUE_CONNECTION_TYPES = ('github_issue', 'discourse_forum', 'email')
-
-# Minimum similarity score to consider a related record as a known issue
-RELATED_RECORD_SCORE_THRESHOLD = 0.5
 
 DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that triages incoming GitHub Issues for a project.
 
@@ -107,6 +96,8 @@ The issue is provided as a JSON object with the following fields:
 class GithubIssueAgentWorker(BaseAgentWorker):
     """Processes new GitHub Issues for a single GitHub connection within a project."""
 
+    SOURCE_TYPE = 'github_issue'
+
     def __init__(self, app, project, connection: dict):
         """
         Args:
@@ -137,7 +128,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
     def build_record_context(self, item: dict) -> dict:
         """source_id uses the '{connection_id}_{record_pk}' composite format."""
         return {
-            'source_type': SOURCE_TYPE,
+            'source_type': self.SOURCE_TYPE,
             'source_id': f'{self.connection_id}_{item["_pk"]}',
             'source_title': item.get('title', 'Untitled'),
         }

@@ -11,11 +11,9 @@ from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.ticket_agent_worker import TicketAgentWorker
 from seaqa_ai.agent.github_agent_worker import GithubIssueAgentWorker
 from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.agent.constants import GITHUB_ISSUE_CONNECTION_TYPE, AGENT_RUNS_TABLE
 
 logger = logging.getLogger(__name__)
-
-GITHUB_ISSUE_CONNECTION_TYPE = 'github_issue'
-AGENT_RUNS_TABLE = 'agent_runs'
 
 
 def _now_iso():

@@ -13,10 +13,9 @@ from datetime import datetime, timezone, timedelta
 from seaqa_ai import config
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
+from seaqa_ai.agent.constants import TICKETS_TABLE, TICKET_COMMENTS_TABLE, TICKET_ACTIVITIES_TABLE, AGENT_ACTIONS_TABLE
 
 logger = logging.getLogger(__name__)
-
-SOURCE_TYPE = 'ticket'
 
 DEFAULT_SYSTEM_PROMPT = """You are an autonomous agent that helps manage tickets in a project management system.
 You run periodically to analyze tickets and take actions to help the team stay on top of their work.
@@ -62,9 +61,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
     _DEFAULT_NOTIFY_BEFORE_DUE_HOURS = 48
 
-    TICKETS_TABLE = 'tickets'
-    TICKET_COMMENTS_TABLE = 'ticket_comments'
-    TICKET_ACTIVITIES_TABLE = 'ticket_activities'
+    SOURCE_TYPE = 'ticket'
 
     @property
     def notify_before_due_hours(self) -> int:
@@ -84,7 +81,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
     def build_record_context(self, item: dict) -> dict:
         return {
-            'source_type': SOURCE_TYPE,
+            'source_type': self.SOURCE_TYPE,
             'source_id': str(item['_pk']),
             'source_title': item.get('title', 'Untitled'),
         }
@@ -104,7 +101,7 @@ class TicketAgentWorker(BaseAgentWorker):
         ticket_id = item['_pk']
 
         comments_sql = (
-            f"SELECT * FROM `{self.TICKET_COMMENTS_TABLE}` "
+            f"SELECT * FROM `{TICKET_COMMENTS_TABLE}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"ORDER BY `_pk` ASC LIMIT 100"
@@ -114,7 +111,7 @@ class TicketAgentWorker(BaseAgentWorker):
         ).get('results', [])
 
         activities_sql = (
-            f"SELECT * FROM `{self.TICKET_ACTIVITIES_TABLE}` "
+            f"SELECT * FROM `{TICKET_ACTIVITIES_TABLE}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"ORDER BY `created_time` ASC LIMIT 100"
         )
@@ -124,7 +121,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
         # Query historical executed notifications for this ticket
         executed_notifications = self.get_executed_actions(
-            source_type=SOURCE_TYPE,
+            source_type=self.SOURCE_TYPE,
             source_id=str(ticket_id),
             tool_name='notify_assignee'
         )
@@ -155,7 +152,7 @@ class TicketAgentWorker(BaseAgentWorker):
             conditions.append(f"`tool_name` = '{tool_name}'")
         
         where = ' AND '.join(conditions)
-        sql = f"SELECT * FROM `{self.AGENT_ACTIONS_TABLE}` WHERE {where} ORDER BY `created_at` DESC LIMIT 10"
+        sql = f"SELECT * FROM `{AGENT_ACTIONS_TABLE}` WHERE {where} ORDER BY `created_at` DESC LIMIT 10"
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
 
     def build_item_message(self, item: dict, item_context: dict) -> str:
@@ -224,7 +221,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
         where = ' AND '.join(conditions)
         sql = (
-            f"SELECT * FROM `{self.TICKETS_TABLE}` WHERE {where} "
+            f"SELECT * FROM `{TICKETS_TABLE}` WHERE {where} "
             f"ORDER BY `modified_time` DESC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
@@ -235,7 +232,7 @@ class TicketAgentWorker(BaseAgentWorker):
         now = datetime.now(timezone.utc)
         threshold = (now + timedelta(hours=hours)).isoformat()
         sql = (
-            f"SELECT * FROM `{self.TICKETS_TABLE}` "
+            f"SELECT * FROM `{TICKETS_TABLE}` "
             f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
