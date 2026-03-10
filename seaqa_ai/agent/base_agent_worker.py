@@ -16,7 +16,8 @@ from abc import abstractmethod
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.utils import parse_datetime, now_iso
+from seaqa_ai.db.models import Project, Workspace
+from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
 from seaqa_ai.utils.assignee_resolver import AssigneeResolver
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import SimpleToolExecutor
@@ -41,6 +42,7 @@ class BaseAgentWorker:
         self.project_uuid = project['uuid']
         self.agent_settings = project.get('settings', {}).get('agent', {})
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
+        self.project_org_id = self._get_project_org_id()
         self._assignee_display_cache = {}
         self.assignee_resolver = AssigneeResolver(
             db_session_class=self.db_session_class,
@@ -166,6 +168,29 @@ class BaseAgentWorker:
         model_id = self.agent_settings.get('model', 'gemini-2.5-flash')
         return get_llm_client_by_model_id(self.app.data_logger, model_id)
 
+    def _get_project_org_id(self):
+        session = self.db_session_class()
+        try:
+            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+            project_metadata = Project.get_project_metadata(session, project_uuid_32)
+            workspace_id = project_metadata.get('workspace_id')
+            if workspace_id is None:
+                return None
+            return Workspace.get_org_id_by_workspace_id(session, workspace_id)
+        except Exception as e:
+            logger.warning(f'Failed to resolve org_id for project {self.project_uuid}: {e}')
+            return None
+        finally:
+            session.close()
+
+    def _build_ai_stats_context(self) -> dict:
+        """Build context used for AI usage statistics logging."""
+        return {
+            'username': 'agent',
+            'org_id': self.project_org_id if self.project_org_id is not None else -1,
+            'project_uuid': self.project_uuid,
+        }
+
     # ── Per-item processing ─────────────────────────────────────────
 
     def process_item(self, item: dict, run_id: int) -> str:
@@ -185,6 +210,7 @@ class BaseAgentWorker:
             tool_executor=tool_executor,
             llm_client=llm_client,
             record_context=record_context,
+            ai_stats_context=self._build_ai_stats_context(),
             action_recorder=self.create_action_record,
             run_id=run_id,
             tool_metadata=tool_metadata,

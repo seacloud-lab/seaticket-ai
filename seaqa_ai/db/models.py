@@ -93,6 +93,30 @@ class Project(Base):
             return {'name': None, 'workspace_id': None}
 
 
+class Workspace(Base):
+    __tablename__ = 'workspaces'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(length=255), nullable=True)
+    owner = Column(String(length=255), nullable=False, unique=True)
+    created_at = Column(DateTime, nullable=False)
+    org_id = Column(Integer, nullable=False, index=True)
+    deleted = Column(SmallInteger, nullable=False, default=0, index=True)
+    delete_time = Column(DateTime, nullable=True)
+
+    @classmethod
+    def get_org_id_by_workspace_id(cls, session, workspace_id: int):
+        try:
+            workspace = session.query(cls.org_id).filter(
+                cls.id == workspace_id,
+                cls.deleted == 0
+            ).first()
+            return workspace[0] if workspace else None
+        except Exception as e:
+            logger.exception(f'Failed to query workspace org_id by workspace_id {workspace_id}: {e}')
+            return None
+
+
 class ProjectConnection(Base):
     __tablename__ = 'project_connection'
 

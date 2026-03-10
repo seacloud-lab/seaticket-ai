@@ -36,6 +36,7 @@ class AgentRunner:
         tool_executor: SimpleToolExecutor,
         llm_client: CompletionAPI,
         record_context: dict,
+        ai_stats_context: dict | None = None,
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
@@ -47,6 +48,8 @@ class AgentRunner:
             tool_executor: SimpleToolExecutor with all tools already registered.
             llm_client: CompletionAPI client used for LLM calls.
             record_context: dict with keys source_type, source_id, source_title.
+            ai_stats_context: dict with keys used for AI usage statistics logging
+                            (e.g. username, org_id, project_uuid).
             action_recorder: callable(run_id, source_type, source_id, source_title,
                              action_type, tool_name, content, result, action_status,
                              suggestion_text) -> int
@@ -58,6 +61,7 @@ class AgentRunner:
         self.tool_executor = tool_executor
         self.llm_client = llm_client
         self.record_context = record_context
+        self.ai_stats_context = ai_stats_context or {}
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
@@ -101,7 +105,10 @@ class AgentRunner:
 
     def _request_llm_message(self, messages: list[dict], step: int, use_tools: bool = True) -> Message:
         try:
-            request_kwargs = {'messages': messages}
+            request_kwargs = {
+                'messages': messages,
+                'context': self.ai_stats_context,
+            }
             if use_tools:
                 request_kwargs.update({
                     'tools': self.tools,
