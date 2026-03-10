@@ -4,10 +4,10 @@ AgentManager: coordinates agent runs across all projects.
 import json
 import logging
 from datetime import datetime, timezone
-from sqlalchemy import text
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.ticket_agent_worker import TicketAgentWorker
 from seaqa_ai.agent.github_agent_worker import GithubIssueAgentWorker
 from seaqa_ai.utils import uuid_str_to_32_chars
@@ -45,24 +45,7 @@ class AgentManager:
         """
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text("SELECT uuid, settings FROM projects WHERE deleted = 0")
-            )
-            rows = result.fetchall()
-            projects = []
-            for row in rows:
-                try:
-                    settings = json.loads(row[1] or '{}')
-                except (json.JSONDecodeError, TypeError):
-                    settings = {}
-                projects.append({
-                    'uuid': str(row[0]),
-                    'settings': settings,
-                })
-            return projects
-        except Exception as e:
-            logger.exception(f'Failed to query projects: {e}')
-            return []
+            return Project.get_all_non_deleted_projects(session)
         finally:
             session.close()
 
@@ -74,23 +57,10 @@ class AgentManager:
         """
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text(
-                    "SELECT id, type, name FROM project_connection "
-                    "WHERE project_uuid = :uuid AND type = :conn_type AND deleted = 0"
-                ),
-                {
-                    'uuid': uuid_str_to_32_chars(project_uuid),
-                    'conn_type': GITHUB_ISSUE_CONNECTION_TYPE,
-                },
+            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+            return ProjectConnection.get_connections_by_project_and_type(
+                session, project_uuid_32, GITHUB_ISSUE_CONNECTION_TYPE
             )
-            rows = result.fetchall()
-            return [{'id': row[0], 'type': row[1], 'name': row[2]} for row in rows]
-        except Exception as e:
-            logger.exception(
-                f'Failed to query github_issue connections for project {project_uuid}: {e}'
-            )
-            return []
         finally:
             session.close()
 
@@ -113,45 +83,17 @@ class AgentManager:
             [{'pk': run_pk, 'row': updates}],
         )
 
-    def run_all_projects(self):
-        """Run agent for all projects that have agent.enabled=true."""
-        projects = self.get_all_projects()
-        for project in projects:
-            agent_cfg = project.get('settings', {}).get('agent', {})
-            if not agent_cfg.get('enabled', False):
-                continue
-            try:
-                self.run_single_project(project['uuid'])
-            except Exception as e:
-                logger.exception(f'Error running agent for project {project["uuid"]}: {e}')
-
     def run_single_project(self, project_uuid: str):
         """Run all workers for a single project.
         """
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text(
-                    "SELECT uuid, settings FROM projects "
-                    "WHERE uuid = :uuid AND deleted = 0"
-                ),
-                {'uuid': uuid_str_to_32_chars(project_uuid)},
-            )
-            row = result.fetchone()
-            if not row:
+            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+            project = Project.get_project_by_uuid(session, project_uuid_32)
+            
+            if not project:
                 logger.warning(f'Project {project_uuid} not found or deleted')
                 return None
-
-            settings_str = row[1] or '{}'
-            try:
-                settings = json.loads(settings_str)
-            except (json.JSONDecodeError, TypeError):
-                settings = {}
-
-            project = {
-                'uuid': str(row[0]),
-                'settings': settings,
-            }
         except Exception as e:
             logger.exception(f'Failed to query project {project_uuid}: {e}')
             return None
