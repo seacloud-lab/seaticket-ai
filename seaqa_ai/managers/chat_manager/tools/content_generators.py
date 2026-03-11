@@ -49,7 +49,7 @@ Seafile docker based installation consist of the following components (docker im
 """
 
 
-class CreateKnowledgeBaseEntry(BasicTool):
+class KnowledgeBaseEntryCreator(BasicTool):
     tool = {
         'type': 'function',
         'function': {
