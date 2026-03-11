@@ -42,7 +42,7 @@ class BaseAgentWorker:
         self.agent_settings = project.get('settings', {}).get('agent', {})
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.project_org_id = self._get_project_org_id()
-        self.assignee_resolver = app.username_resolver
+        self.username_resolver = app.username_resolver
         self.last_items_processed = 0
         self.last_run_failed = False
         self.last_run_error_message = ''

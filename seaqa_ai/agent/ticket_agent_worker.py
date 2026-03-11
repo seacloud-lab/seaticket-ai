@@ -125,7 +125,7 @@ class TicketAgentWorker(BaseAgentWorker):
         formatted_comments = []
         if comments:
             for c in comments[-10:]:
-                creator = self.assignee_resolver.email2nickname(c.get('creator', '?'))
+                creator = self.username_resolver.email2nickname(c.get('creator', '?'))
                 formatted_comments.append({
                     'creator': creator or '?',
                     'created_time': c.get('created_time', '?'),
@@ -136,7 +136,7 @@ class TicketAgentWorker(BaseAgentWorker):
         formatted_activities = []
         if activities:
             for a in activities[-10:]:
-                detail = self.assignee_resolver.convert_activity_detail(a.get('detail', ''))
+                detail = self.username_resolver.convert_usernames_fields_to_nicknames(a.get('detail', ''))
                 formatted_activities.append({
                     'activity_type': a.get('activity_type', '?'),
                     'created_time': a.get('created_time', '?'),
@@ -158,7 +158,7 @@ class TicketAgentWorker(BaseAgentWorker):
             'state': item.get('state', 'N/A'),
             'substate': item.get('substate', 'N/A'),
             'priority': item.get('priority', 'N/A'),
-            'assignees': self.assignee_resolver.emails2nicknames(item.get('assignees')),
+            'assignees': self.username_resolver.emails2nicknames(item.get('assignees')),
             'created_time': item.get('created_time', 'N/A'),
             'last_modified': item.get('modified_time', 'N/A'),
             'due_date': item.get('due_date', 'N/A'),
