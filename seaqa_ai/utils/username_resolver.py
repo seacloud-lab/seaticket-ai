@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 class UsernameResolver:
     """Resolve SeaQA assignee/user IDs into readable display names."""
 
-    def __init__(self, db_session_class, cache=None):
+    def __init__(self, db_session_class):
         self.db_session_class = db_session_class
-        self.cache = cache if cache is not None else {}
+        self.cache = {}
 
     def extract_assignee_users(self, assignees_raw):
         """Normalize ticket assignees to a list of user IDs/emails."""

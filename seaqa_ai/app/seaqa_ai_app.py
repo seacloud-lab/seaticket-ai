@@ -5,11 +5,15 @@ from seaqa_ai.utils.llm_api import EmbeddingAPI
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.seadb_api import SeaDBAPI
 from seaqa_ai.utils.event_redis import RedisClient
+from seaqa_ai.utils.username_resolver import UsernameResolver
+from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.agent_scheduler import AgentScheduler
 
 
 class SeaQAAIApp(object):
     def __init__(self, config):
+        self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
+        self.username_resolver = UsernameResolver(self.db_session_class)
         self.redis_client = RedisClient(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
         self.data_logger = DataLogging(self.redis_client)
         self.ai_utils = AIUtils(self)
