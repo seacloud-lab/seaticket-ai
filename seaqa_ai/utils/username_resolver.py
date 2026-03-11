@@ -47,7 +47,7 @@ class UsernameResolver:
             return split_values
         return [value]
 
-    def build_assignee_display_name(self, user, nickname, contact_email):
+    def _format_display_name(self, user, nickname, contact_email):
         if nickname:
             nickname_str = str(nickname).strip()
             if nickname_str:
@@ -72,7 +72,7 @@ class UsernameResolver:
             profiles = ProfileProfile.get_profiles_by_users(session, users_to_query)
             for profile in profiles:
                 user = str(profile['user'])
-                self.cache[user] = self.build_assignee_display_name(
+                self.cache[user] = self._format_display_name(
                     user=user,
                     nickname=profile['nickname'],
                     contact_email=profile['contact_email']
@@ -90,7 +90,7 @@ class UsernameResolver:
         if not user:
             return ''
         self.warmup_assignee_display_cache([user])
-        return self.cache.get(user) or self.build_assignee_display_name(user, None, None)
+        return self.cache.get(user) or self._format_display_name(user, None, None)
 
     def emails2nicknames(self, emails):
         """Resolve assignees and keep original ordering of values."""
@@ -114,7 +114,7 @@ class UsernameResolver:
             if cached_name:
                 resolved_names.append(cached_name)
             else:
-                resolved_names.append(self.build_assignee_display_name(user, None, None))
+                resolved_names.append(self._format_display_name(user, None, None))
 
         return ', '.join(resolved_names) if resolved_names else 'N/A'
 
