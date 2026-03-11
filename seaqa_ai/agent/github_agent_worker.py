@@ -18,6 +18,7 @@ from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.agent.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELATED_RECORD_SCORE_THRESHOLD, ISSUE_CONNECTION_TYPES
 from seaqa_ai.agent.system_prompt import GITHUB_ISSUE_SYSTEM_PROMPT
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         sql = (
             f"SELECT * FROM `{self._issues_table}` WHERE {where} "
             f"ORDER BY `created_time` ASC "
-            f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
+            f"LIMIT {config.AGENT_MAX_GITHUB_ISSUES_PER_RUN}"
         )
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
 
