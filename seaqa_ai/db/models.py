@@ -170,6 +170,41 @@ class ProjectConnection(Base):
             logger.exception(f'Failed to query connection ids for project {project_uuid}: {e}')
             return []
 
+class ProfileProfile(Base):
+    __tablename__ = 'profile_profile'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user = Column(String(length=254), unique=True, nullable=False, index=True)
+    nickname = Column(String(length=64), nullable=False)
+    intro = Column(Text, nullable=False)
+    lang_code = Column(Text, nullable=True)
+    login_id = Column(String(length=225), nullable=True, unique=True, index=True)
+    contact_email = Column(String(length=225), nullable=True, unique=True, index=True)
+    institution = Column(String(length=225), nullable=True, index=True)
+    list_in_address_book = Column(SmallInteger, nullable=False, default=1)
+    phone = Column(String(length=20), nullable=True, unique=True)
+    need_show_video = Column(SmallInteger, nullable=False, default=0)
+    unit = Column(Text, nullable=True)
+    sms_2fa = Column(SmallInteger, nullable=False, default=0)
+    is_manually_set_contact_email = Column(SmallInteger, nullable=False, default=0)
+
+    @classmethod
+    def get_profiles_by_users(cls, session, users: list) -> list[dict]:
+        try:
+            profiles_query = session.query(cls.user, cls.nickname, cls.contact_email).filter(
+                cls.user.in_(users)
+            )
+            return [
+                {
+                    'user': profile[0],
+                    'nickname': profile[1],
+                    'contact_email': profile[2]
+                }
+                for profile in profiles_query
+            ]
+        except Exception as e:
+            logger.exception(f'Failed to query profiles for users: {e}')
+            return []
 
 class ChatMessages(Base):
     __tablename__ = 'chat_messages'

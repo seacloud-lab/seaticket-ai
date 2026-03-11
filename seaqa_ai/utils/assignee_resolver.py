@@ -1,7 +1,7 @@
 import json
 import logging
 
-from sqlalchemy import bindparam, text  # pyright: ignore[reportMissingImports]
+from seaqa_ai.db.models import ProfileProfile
 
 logger = logging.getLogger(__name__)
 
@@ -69,21 +69,13 @@ class AssigneeResolver:
 
         session = self.db_session_class()
         try:
-            result = session.execute(
-                text(
-                    "SELECT `user`, `nickname`, `contact_email` "
-                    "FROM `profile_profile` "
-                    "WHERE `user` IN :users"
-                ).bindparams(bindparam('users', expanding=True)),
-                {'users': users_to_query}
-            )
-            rows = result.fetchall()
-            for row in rows:
-                user = str(row[0])
+            profiles = ProfileProfile.get_profiles_by_users(session, users_to_query)
+            for profile in profiles:
+                user = str(profile['user'])
                 self.cache[user] = self.build_assignee_display_name(
                     user=user,
-                    nickname=row[1],
-                    contact_email=row[2]
+                    nickname=profile['nickname'],
+                    contact_email=profile['contact_email']
                 )
         except Exception as e:
             logger.exception(f'Failed to resolve assignees from MySQL: {e}')
