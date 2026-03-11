@@ -6,7 +6,7 @@ from seaqa_ai.db.models import ProfileProfile
 logger = logging.getLogger(__name__)
 
 
-class AssigneeResolver:
+class UsernameResolver:
     """Resolve SeaQA assignee/user IDs into readable display names."""
 
     def __init__(self, db_session_class, cache=None):

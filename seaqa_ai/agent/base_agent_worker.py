@@ -18,7 +18,7 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, Workspace
 from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
-from seaqa_ai.utils.assignee_resolver import AssigneeResolver
+from seaqa_ai.utils.username_resolver import UsernameResolver
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import SimpleToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
@@ -44,7 +44,7 @@ class BaseAgentWorker:
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.project_org_id = self._get_project_org_id()
         self._assignee_display_cache = {}
-        self.assignee_resolver = AssigneeResolver(
+        self.assignee_resolver = UsernameResolver(
             db_session_class=self.db_session_class,
             cache=self._assignee_display_cache,
         )
