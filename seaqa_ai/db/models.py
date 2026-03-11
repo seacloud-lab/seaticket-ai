@@ -3,7 +3,6 @@ import logging
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text, Boolean, Index, Integer, SmallInteger
 from seaqa_ai.db import Base
 from seaqa_ai.utils import localize_time
-from sqlalchemy import exc as sqla_exc
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +144,8 @@ class ProjectConnection(Base):
             connections_query = session.query(cls.id, cls.type, cls.name).filter(
                 cls.project_uuid == project_uuid,
                 cls.type == connection_type,
-                cls.deleted == 0
+                cls.deleted == 0,
+                cls.is_active == 1
             )
             return [
                 {'id': conn[0], 'type': conn[1], 'name': conn[2]}

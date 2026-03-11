@@ -35,22 +35,23 @@ class AgentManager:
         Returns:
             list[dict]: Each item has 'uuid' and 'settings' keys.
         """
-        session = self.db_session_class()
-        try:
-            return Project.get_all_non_deleted_projects(session)
-        finally:
-            session.close()
+        with self.db_session_class() as db_session:
+            try:
+                return Project.get_all_non_deleted_projects(db_session)
+            except Exception as e:
+                logger.exception(f'Failed to get projects: {e}')
+        return None
+
 
     def get_project(self, project_uuid: str) -> dict | None:
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
-            return Project.get_project_by_uuid(session, project_uuid_32)
-        except Exception as e:
-            logger.exception(f'Failed to query project {project_uuid}: {e}')
-            return None
-        finally:
-            session.close()
+
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return Project.get_project_by_uuid(db_session, project_uuid_32)
+            except Exception as e:
+                logger.exception(f'Failed to query project {project_uuid}: {e}')
+
 
     def _get_github_issue_connections(self, project_uuid: str) -> list[dict]:
         """Return all active github_issue connections for the given project.
@@ -58,14 +59,14 @@ class AgentManager:
         Returns:
             list[dict]: Each item has at least 'id' and 'type' keys.
         """
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(project_uuid)
-            return ProjectConnection.get_connections_by_project_and_type(
-                session, project_uuid_32, GITHUB_ISSUE_CONNECTION_TYPE
-            )
-        finally:
-            session.close()
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return ProjectConnection.get_connections_by_project_and_type(
+                    db_session, project_uuid_32, GITHUB_ISSUE_CONNECTION_TYPE
+                )
+            except Exception as e:
+                logger.exception(f'Failed to query project {project_uuid} connection: {e}')
 
     def _create_shared_run_record(self, project_uuid: str) -> int:
         row = {

@@ -496,3 +496,33 @@ def uuid_str_to_32_chars(project_uuid):
         return uuid.UUID(project_uuid).hex
     else:
         return project_uuid
+    
+def normalize_usernames(usernames_raw):
+    """Normalize ticket assignees to a list of user IDs/emails."""
+    if not usernames_raw:
+        return []
+    if isinstance(usernames_raw, list):
+        return [str(v).strip() for v in usernames_raw if str(v).strip()]
+    if not isinstance(usernames_raw, str):
+        value = str(usernames_raw).strip()
+        return [value] if value else []
+
+    value = usernames_raw.strip()
+    if not value:
+        return []
+
+    # parse_json: failure keeps raw string; success may be list/dict/etc.
+    parsed = parse_json(value)
+
+    if isinstance(parsed, list):
+        return [str(v).strip() for v in parsed if str(v).strip()]
+
+    # Fallback for comma/semicolon separated legacy formats.
+    split_values = []
+    for sep in (',', ';'):
+        if sep in value:
+            split_values = [v.strip() for v in value.split(sep) if v.strip()]
+            break
+    if split_values:
+        return split_values
+    return [value]

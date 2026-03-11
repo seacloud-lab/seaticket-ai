@@ -9,9 +9,7 @@ For each new issue (created since the last run, open, not yet linked to a ticket
 """
 import logging
 import json
-from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
-from sqlalchemy import text
 
 from seaqa_ai import config
 from seaqa_ai.db.models import Project, ProjectConnection
@@ -22,7 +20,6 @@ from seaqa_ai.agent.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELAT
 from seaqa_ai.agent.system_prompt import GITHUB_ISSUE_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
 
 class GithubIssueAgentWorker(BaseAgentWorker):
     """Processes new GitHub Issues for a single GitHub connection within a project."""
@@ -170,14 +167,14 @@ class GithubIssueAgentWorker(BaseAgentWorker):
 
     def _get_search_connection_ids(self) -> list[int]:
         """Return all active ISSUE-category connection ids for this project."""
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
-            return ProjectConnection.get_connection_ids_by_project_and_types(
-                session, project_uuid_32, ISSUE_CONNECTION_TYPES
-            )
-        finally:
-            session.close()
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+                return ProjectConnection.get_connection_ids_by_project_and_types(
+                    db_session, project_uuid_32, ISSUE_CONNECTION_TYPES
+                )
+            except Exception as e:
+                logger.warning(f'Failure to query search connections: {e}')
 
     def _get_issue_related_record(self, item: dict) -> dict | None:
         """Fetch the top related record for a GitHub issue via vector search + reranking.
@@ -363,17 +360,15 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         if isinstance(cached, dict):
             return cached
 
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
-            meta = Project.get_project_metadata(session, project_uuid_32)
-        except Exception as e:
-            logger.warning(
-                f'Failed to fetch project metadata for web url, project {self.project_uuid}: {e}'
-            )
-            meta = {'name': None, 'workspace_id': None}
-        finally:
-            session.close()
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+                meta = Project.get_project_metadata(db_session, project_uuid_32)
+            except Exception as e:
+                logger.warning(
+                    f'Failed to fetch project metadata for web url, project {self.project_uuid}: {e}'
+                )
+                meta = {'name': None, 'workspace_id': None}
 
         self._project_meta_cache = meta
         return meta

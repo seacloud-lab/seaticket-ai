@@ -164,19 +164,17 @@ class BaseAgentWorker:
         return get_llm_client_by_model_id(self.app.data_logger, model_id)
 
     def _get_project_org_id(self):
-        session = self.db_session_class()
-        try:
-            project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
-            project_metadata = Project.get_project_metadata(session, project_uuid_32)
-            workspace_id = project_metadata.get('workspace_id')
-            if workspace_id is None:
-                return None
-            return Workspace.get_org_id_by_workspace_id(session, workspace_id)
-        except Exception as e:
-            logger.warning(f'Failed to resolve org_id for project {self.project_uuid}: {e}')
-            return None
-        finally:
-            session.close()
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+                project_metadata = Project.get_project_metadata(db_session, project_uuid_32)
+                workspace_id = project_metadata.get('workspace_id')
+                if workspace_id is None:
+                    return None
+                return Workspace.get_org_id_by_workspace_id(db_session, workspace_id)
+            except Exception as e:
+                logger.warning(f'Failed to resolve org_id for project {self.project_uuid}: {e}')
+
 
     def _build_ai_stats_context(self) -> dict:
         """Build context used for AI usage statistics logging."""
