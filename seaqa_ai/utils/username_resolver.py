@@ -1,8 +1,8 @@
-import ast
 import json
 import logging
 
 from seaqa_ai.db.models import ProfileProfile
+from seaqa_ai.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -99,16 +99,8 @@ class UsernameResolver:
         if not value:
             return []
 
-        # Keep raw string on parse failure; parsed can be list/dict/etc on success.
-        parsed = value
-        if value.startswith(('[', '{')):
-            try:
-                parsed = json.loads(value)
-            except Exception:
-                try:
-                    parsed = ast.literal_eval(value)
-                except Exception:
-                    parsed = value
+        # parse_json: failure keeps raw string; success may be list/dict/etc.
+        parsed = parse_json(value)
 
         if isinstance(parsed, list):
             return [str(v).strip() for v in parsed if str(v).strip()]
