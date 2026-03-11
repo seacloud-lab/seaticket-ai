@@ -4,8 +4,8 @@ import time
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
-from seaqa_ai.managers.chat_manager.tools import ToolExecutor, TestTool, DocumentsSearch, IssuesSearch, GenerateMarkdown
-from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator
+from seaqa_ai.managers.chat_manager.tools import ToolExecutor, TestTool, DocumentsSearch, IssuesSearch
+from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
 from seaqa_ai.utils import parse_json, get_answer_and_sources, \
     combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content, \
@@ -24,7 +24,7 @@ class BasicChat(object):
             IssuesSearch(app),
         )
         self.content_generators = (
-            GenerateMarkdown(app),
+            MarkdownGenerator(app),
             KnowledgeBaseEntryCreator(app),
         )
         self.test_tool = TestTool(app)

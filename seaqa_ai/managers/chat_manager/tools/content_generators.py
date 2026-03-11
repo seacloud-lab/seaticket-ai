@@ -3,7 +3,7 @@ from seaqa_ai.utils.tools import BasicTool
 
 logger = logging.getLogger(__name__)
 
-class GenerateMarkdown(BasicTool):
+class MarkdownGenerator(BasicTool):
     tool = {
         'type': 'function',
         'function': {
@@ -90,7 +90,7 @@ LDAP_SERVER_URL = 'ldap://your-server'
 
     def execute(self, title, content):
         """
-        generate the kb entry with <seaqa-kb-entry> HTML tag (content in tag body, like GenerateMarkdown)
+        generate the kb entry with <seaqa-kb-entry> HTML tag (content in tag body, like MarkdownGenerator)
         """
         return f"""<seaqa-kb-entry title="{title}">
 {content}
