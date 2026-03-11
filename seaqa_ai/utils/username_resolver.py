@@ -26,7 +26,7 @@ class UsernameResolver:
 
     def emails2nicknames(self, emails):
         """Resolve assignees and keep original ordering of values."""
-        users = self._extract_assignee_usernames(emails)
+        users = self._normalize_assignee_usernames(emails)
         if not users:
             return 'N/A'
 
@@ -85,7 +85,7 @@ class UsernameResolver:
             return json.dumps(converted, ensure_ascii=False)
         return converted
 
-    def _extract_assignee_usernames(self, assignees_raw):
+    def _normalize_assignee_usernames(self, assignees_raw):
         """Normalize ticket assignees to a list of user IDs/emails."""
         if not assignees_raw:
             return []
