@@ -46,7 +46,7 @@ def localize_time(date):
     return date
 
 def now_iso():
-    return localize_time(datetime.now(timezone.utc)).isoformat()
+    return localize_time(datetime.now()).isoformat()
 
 def parse_datetime(dt_str):
     if not dt_str:
