@@ -1,5 +1,6 @@
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
+
 class BasicTool(object):
     tool = {}
     def __init__(self, app):
@@ -36,3 +37,43 @@ class BasicToolExecutor(object):
     
     def clean(self, *args, **kwargs):
         raise NotImplementedError()
+
+
+class SimpleToolExecutor(BasicToolExecutor):
+    """
+    Tool executor that stores tools in OpenAI function calling format.
+    """
+
+    def __init__(self):
+        self._tools = {}
+        super().__init__()
+
+    def clean(self):
+        """Clear all registered tools."""
+        self._tools = {}
+
+    def register(self, func, tool_info, **constant_kwargs):
+        """
+        Register a tool.
+
+        Args:
+            func: The callable function to execute
+            tool_info: OpenAI-style tool definition dict
+            constant_kwargs: Kwargs to always pass to the function
+        """
+        name = tool_info.get('function', {}).get('name')
+        if not name:
+            raise ValueError(f'Invalid tool_info: missing function name in {tool_info}')
+        self._tools[name] = (func, tool_info, constant_kwargs)
+
+    def execute(self, name, **kwargs):
+        """Execute a registered tool by name."""
+        if name not in self._tools:
+            raise ValueError(f'Unknown tool: {name}')
+        func, _, constant_kwargs = self._tools[name]
+        merged = {**constant_kwargs, **kwargs}
+        return func(**merged)
+
+    def get(self):
+        """Return tool definitions in OpenAI format."""
+        return [tool_info for _, tool_info, _ in self._tools.values()]

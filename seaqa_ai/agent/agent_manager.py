@@ -1,0 +1,156 @@
+"""
+AgentManager: coordinates agent runs across all projects.
+"""
+import logging
+
+from seaqa_ai import config
+from seaqa_ai.db import init_db_session_class
+from seaqa_ai.db.models import Project, ProjectConnection
+from seaqa_ai.agent.ticket_agent_worker import TicketAgentWorker
+from seaqa_ai.agent.github_agent_worker import GithubIssueAgentWorker
+from seaqa_ai.utils import uuid_str_to_32_chars, now_iso
+from seaqa_ai.agent.constants import GITHUB_ISSUE_CONNECTION_TYPE, AGENT_RUNS_TABLE
+
+logger = logging.getLogger(__name__)
+
+
+class AgentManager:
+    """
+    Coordinates agent runs across all projects.
+
+    Responsibilities:
+    1. Triggered periodically by the scheduler.
+    2. Queries MySQL for all projects with agent.enabled=true.
+    3. For each project, runs TicketAgentWorker plus one GithubIssueAgentWorker
+       per github_issue connection.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
+
+    def get_all_projects(self):
+        """Query all non-deleted projects with their settings from MySQL.
+
+        Returns:
+            list[dict]: Each item has 'uuid' and 'settings' keys.
+        """
+        with self.db_session_class() as db_session:
+            try:
+                return Project.get_all_non_deleted_projects(db_session)
+            except Exception as e:
+                logger.exception(f'Failed to get projects: {e}')
+        return None
+
+
+    def get_project(self, project_uuid: str) -> dict | None:
+
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return Project.get_project_by_uuid(db_session, project_uuid_32)
+            except Exception as e:
+                logger.exception(f'Failed to query project {project_uuid}: {e}')
+
+
+    def _get_github_issue_connections(self, project_uuid: str) -> list[dict]:
+        """Return all active github_issue connections for the given project.
+
+        Returns:
+            list[dict]: Each item has at least 'id' and 'type' keys.
+        """
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return ProjectConnection.get_connections_by_project_and_type(
+                    db_session, project_uuid_32, GITHUB_ISSUE_CONNECTION_TYPE
+                )
+            except Exception as e:
+                logger.exception(f'Failed to query project {project_uuid} connection: {e}')
+
+    def _create_shared_run_record(self, project_uuid: str) -> int:
+        row = {
+            'status': 'running',
+            'started_at': now_iso(),
+            'items_processed': 0,
+        }
+        res = self.app.seadb_api.insert_rows(project_uuid, AGENT_RUNS_TABLE, [row])
+        pks = res.get('pks', [])
+        if len(pks) != 1:
+            raise Exception(f'Expected 1 PK, got {len(pks)}')
+        return pks[0]
+
+    def _update_run_record(self, project_uuid: str, run_pk: int, updates: dict):
+        self.app.seadb_api.update_rows(
+            project_uuid,
+            AGENT_RUNS_TABLE,
+            [{'pk': run_pk, 'row': updates}],
+        )
+
+    def run(self, project: dict):
+        """Run all workers for a single validated project."""
+        if not isinstance(project, dict):
+            logger.warning('Invalid project payload for agent run')
+            return None
+        project_uuid = project.get('uuid')
+        if not project_uuid:
+            logger.warning('Project uuid missing in agent run payload')
+            return None
+
+        total_items_processed = 0
+        worker_errors = []
+        run_pk = None
+
+        try:
+            run_pk = self._create_shared_run_record(project_uuid)
+        except Exception as e:
+            logger.exception(f'Failed to create run record for project {project_uuid}: {e}')
+            return None
+
+        # 1. Process tickets
+        try:
+            ticket_worker = TicketAgentWorker(self.app, project)
+            ticket_worker.run(run_pk=run_pk)
+            total_items_processed += ticket_worker.last_items_processed
+            if ticket_worker.last_run_failed and ticket_worker.last_run_error_message:
+                worker_errors.append(f'ticket: {ticket_worker.last_run_error_message}')
+        except Exception as e:
+            logger.exception(f'TicketAgentWorker failed for project {project_uuid}: {e}')
+            worker_errors.append(f'ticket: {str(e)[:300]}')
+
+        # 2. Process GitHub Issues
+        connections = self._get_github_issue_connections(project_uuid)
+        for connection in connections:
+            try:
+                github_worker = GithubIssueAgentWorker(self.app, project, connection)
+                github_worker.run(run_pk=run_pk)
+                total_items_processed += github_worker.last_items_processed
+                if github_worker.last_run_failed and github_worker.last_run_error_message:
+                    worker_errors.append(
+                        f'github_connection_{connection["id"]}: '
+                        f'{github_worker.last_run_error_message}'
+                    )
+            except Exception as e:
+                logger.exception(
+                    f'GithubIssueAgentWorker failed for project {project_uuid}, '
+                    f'connection {connection["id"]}: {e}'
+                )
+                worker_errors.append(
+                    f'github_connection_{connection["id"]}: {str(e)[:300]}'
+                )
+
+        final_status = 'failed' if worker_errors else 'completed'
+        error_message = '; '.join(worker_errors)[:1000] if worker_errors else ''
+        try:
+            self._update_run_record(project_uuid, run_pk, {
+                'status': final_status,
+                'finished_at': now_iso(),
+                'items_processed': total_items_processed,
+                'error_message': error_message,
+            })
+        except Exception as e:
+            logger.exception(
+                f'Failed to finalize run {run_pk} for project {project_uuid}: {e}'
+            )
+
+        return run_pk

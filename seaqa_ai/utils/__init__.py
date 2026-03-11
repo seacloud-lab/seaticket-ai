@@ -6,9 +6,10 @@ import pytz
 import re
 import ast
 import hashlib
+import uuid
 import urllib.parse
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from seaqa_ai.config import TIME_ZONE, MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE, \
@@ -17,6 +18,20 @@ from seaqa_ai.utils.storage import S3Storage
 
 time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
+
+
+def uuid_str_to_36_chars(project_uuid):
+    if isinstance(project_uuid, uuid.UUID):
+        return str(project_uuid)
+    if len(project_uuid) == 32:
+        return str(uuid.UUID(project_uuid))
+    else:
+        return project_uuid
+
+def uuid_str_to_32_chars(project_uuid):
+    if len(project_uuid) == 36:
+        return uuid.UUID(project_uuid).hex
+    return project_uuid
 
 def localize_time(date):
     """
@@ -30,6 +45,22 @@ def localize_time(date):
         return date.astimezone(time_zone)
     return date
 
+def now_iso():
+    return localize_time(datetime.now(timezone.utc)).isoformat()
+
+def parse_datetime(dt_str):
+    if not dt_str:
+        return None
+    try:
+        if isinstance(dt_str, datetime):
+            return localize_time(dt_str)
+        if dt_str.endswith('Z'):
+            dt_str = dt_str[:-1] + '+00:00'
+        return localize_time(datetime.fromisoformat(dt_str))
+    except Exception as e:
+        logger.exception(f'Error parsing datetime: {e}')
+        return None
+
 def clean_json_markdown(raw_response):
     if not isinstance(raw_response, str):
         return raw_response
@@ -41,7 +72,7 @@ def clean_json_markdown(raw_response):
 
 def parse_json(json_str):
     """
-    Parse a JSON string  into a JSON object with error correction
+    Parse a JSON string into a JSON object with error correction
     """
     if isinstance(json_str, str):
         try:
@@ -465,3 +496,33 @@ def uuid_str_to_32_chars(project_uuid):
         return uuid.UUID(project_uuid).hex
     else:
         return project_uuid
+    
+def normalize_usernames(usernames_raw):
+    """Normalize ticket assignees to a list of user IDs/emails."""
+    if not usernames_raw:
+        return []
+    if isinstance(usernames_raw, list):
+        return [str(v).strip() for v in usernames_raw if str(v).strip()]
+    if not isinstance(usernames_raw, str):
+        value = str(usernames_raw).strip()
+        return [value] if value else []
+
+    value = usernames_raw.strip()
+    if not value:
+        return []
+
+    # parse_json: failure keeps raw string; success may be list/dict/etc.
+    parsed = parse_json(value)
+
+    if isinstance(parsed, list):
+        return [str(v).strip() for v in parsed if str(v).strip()]
+
+    # Fallback for comma/semicolon separated legacy formats.
+    split_values = []
+    for sep in (',', ';'):
+        if sep in value:
+            split_values = [v.strip() for v in value.split(sep) if v.strip()]
+            break
+    if split_values:
+        return split_values
+    return [value]
