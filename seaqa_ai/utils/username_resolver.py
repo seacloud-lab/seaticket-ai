@@ -82,22 +82,48 @@ class UsernameResolver:
         finally:
             session.close()
 
-    def resolve_user_for_display(self, user):
-        """Resolve a single user to readable display name."""
-        if not user:
+    def email2nickname(self, email):
+        """Resolve one email/user string to readable nickname."""
+        if not email:
             return ''
-        user = str(user).strip()
+        user = str(email).strip()
         if not user:
             return ''
         self.warmup_assignee_display_cache([user])
         return self.cache.get(user) or self.build_assignee_display_name(user, None, None)
 
+    def emails2nicknames(self, emails):
+        """Resolve assignees and keep original ordering of values."""
+        users = self.extract_assignee_users(emails)
+        if not users:
+            return 'N/A'
+
+        # Keep first occurrence order while deduplicating.
+        seen = set()
+        unique_users = []
+        for user in users:
+            if user not in seen:
+                seen.add(user)
+                unique_users.append(user)
+
+        self.warmup_assignee_display_cache(unique_users)
+
+        resolved_names = []
+        for user in users:
+            cached_name = self.cache.get(user)
+            if cached_name:
+                resolved_names.append(cached_name)
+            else:
+                resolved_names.append(self.build_assignee_display_name(user, None, None))
+
+        return ', '.join(resolved_names) if resolved_names else 'N/A'
+
     def convert_user_like_value(self, value):
         """Convert value that may contain user IDs (string/list) to readable form."""
         if isinstance(value, list):
-            return [self.resolve_user_for_display(v) if isinstance(v, str) else v for v in value]
+            return [self.email2nickname(v) if isinstance(v, str) else v for v in value]
         if isinstance(value, str):
-            return self.resolve_user_for_display(value)
+            return self.email2nickname(value)
         return value
 
     def convert_activity_detail(self, detail):
@@ -135,28 +161,3 @@ class UsernameResolver:
             return json.dumps(converted, ensure_ascii=False)
         return converted
 
-    def resolve_assignees_for_display(self, assignees_raw):
-        """Resolve assignees and keep original ordering of values."""
-        users = self.extract_assignee_users(assignees_raw)
-        if not users:
-            return 'N/A'
-
-        # Keep first occurrence order while deduplicating.
-        seen = set()
-        unique_users = []
-        for user in users:
-            if user not in seen:
-                seen.add(user)
-                unique_users.append(user)
-
-        self.warmup_assignee_display_cache(unique_users)
-
-        resolved_names = []
-        for user in users:
-            cached_name = self.cache.get(user)
-            if cached_name:
-                resolved_names.append(cached_name)
-            else:
-                resolved_names.append(self.build_assignee_display_name(user, None, None))
-
-        return ', '.join(resolved_names) if resolved_names else 'N/A'
