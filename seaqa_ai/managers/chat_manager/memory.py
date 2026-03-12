@@ -2,7 +2,7 @@ from sqlalchemy import desc
 from datetime import datetime, timedelta
 from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT_RAW, THOUGHT_PROCESS_RECORD_USER_INPUT
 from seaqa_ai.db.models import ChatMessages
-from seaqa_ai.utils import combine_attachments_to_message, retrieve_origin_reference_format
+from seaqa_ai.managers.chat_manager.utils import combine_attachments_to_message, retrieve_origin_reference_format
 
 class OpenAIMemory:
     """

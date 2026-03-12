@@ -3,6 +3,7 @@ import jwt
 import logging
 import requests
 from seaqa_ai.utils import uuid_str_to_36_chars
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, TICKET_TABLES
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,25 @@ def parse_response(response):
             return response.json()
         except:
             pass
+
+def gen_seadb_table_name(connection_type, connection_id):
+    connection_table_name = f'{connection_type}_{connection_id}'
+    comments_table_name = ''
+
+    if connection_type == ExtraSourceType.KNOWLEDGE_BASE.value:
+        connection_table_name = 'knowledge_base'
+    elif connection_type == ExtraSourceType.TICKET.value:
+        connection_table_name = TICKET_TABLES.TICKETS_TABLE.value
+        comments_table_name = TICKET_TABLES.TICKET_COMMENTS_TABLE.value
+    
+    if connection_type == ConnectionType.GITHUB_ISSUE.value:
+        comments_table_name = f'{connection_type}_comments_{connection_id}'
+    elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
+        comments_table_name = f'{connection_type}_replies_{connection_id}'
+    elif connection_type == ConnectionType.EMAIL.value:
+        comments_table_name = f'{connection_type}_thread_{connection_id}'
+    return connection_table_name, comments_table_name
+
 
 
 class SeaDBAPI:

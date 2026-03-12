@@ -3,15 +3,19 @@ import json
 import time
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
-from seaqa_ai.managers.chat_manager.tools import ToolExecutor, TestTool, DocumentsSearch, IssuesSearch
+from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
-from seaqa_ai.utils import parse_json, get_answer_and_sources, \
-    combine_attachments_to_message, remove_attachments_content, filter_tool_calls_content, \
-    remove_sources_content_and_snippets
+from seaqa_ai.utils import parse_json, uuid_str_to_32_chars
+from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
+from seaqa_ai.utils.tools import OpenAIToolExecutor
+from seaqa_ai.managers.chat_manager.utils import get_answer_and_sources, combine_attachments_to_message, \
+    remove_attachments_content, filter_tool_calls_content, remove_sources_content_and_snippets
+from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +24,25 @@ class BasicChat(object):
         self.app = app
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.search_tools = (
-            DocumentsSearch(app),
-            IssuesSearch(app),
+            DocumentsSearch(),
+            IssuesSearch(),
         )
         self.content_generators = (
-            MarkdownGenerator(app),
-            KnowledgeBaseEntryCreator(app),
+            MarkdownGenerator(),
+            KnowledgeBaseEntryCreator(),
         )
-        self.test_tool = TestTool(app)
+        self.test_tool = TestTool()
 
     def _register_tools(self, tool_executor, context):
+        project_uuid = uuid_str_to_32_chars(context['project_uuid'])
+        with self.db_session_class() as db_session:
+            context.update({
+                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_document_connection_types()),
+                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_issue_connection_types())
+            })
+
         for tool in self.search_tools:
-            tool.register(tool_executor, context=context)
+            tool.register(tool_executor, context=context, app=self.app)
         for tool in self.content_generators:
             tool.register(tool_executor)
         if config.ENABLE_TEST_TOOL:
@@ -54,9 +65,9 @@ class BasicChat(object):
 {base_prompt}"""
     
     def __call__(self, message, attachments, context, model):
-        tool_executor = ToolExecutor()
+        tool_executor = OpenAIToolExecutor()
         self._register_tools(tool_executor, context)
-        return self.run(model, tool_executor, message, attachments, context=context)
+        return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
     def run(self, model, tool_executor, message, attachments, **kwargs):
         raise NotImplementedError()
@@ -116,9 +127,10 @@ class SyncChat(BasicChat):
                     arguments = tool_call['function']['arguments']
                     if isinstance(arguments, str):
                         arguments = parse_json(arguments)
+                    call_backer = ChatCallBacker()
                     try:
-                        tool_output = tool_executor.execute(tool_call)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments, filter_tool_calls_content(tool_name, tool_output))
+                        tool_output = tool_executor.execute(tool_call, call_backer)
+                        tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                         memory += {
                             'role': 'tool',
                             'tool_call_id': tool_call['id'],
@@ -128,7 +140,7 @@ class SyncChat(BasicChat):
                         logger.exception(f'Execute tool call failure: {e}')
                         error_type = type(e).__name__
                         error_message = repr(e)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments)
+                        tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
                         tool_executor.thought_process.set_last_group_error({
                             'type': error_type,
                             'message': error_message
@@ -276,13 +288,14 @@ class StreamingChat(BasicChat):
                         tool_name = tool_call['function']['name']
                         arguments = tool_call['function']['arguments']
 
+                        call_backer = ChatCallBacker()
                         if tool_name in ('documents_search', 'issues_search'):
                             has_search_tool = True
                         if isinstance(arguments, str):
                             arguments = parse_json(arguments)
                         try:
-                            tool_output = tool_executor.execute(tool_call)
-                            tool_executor.thought_process.add_tool_call(tool_name, arguments, filter_tool_calls_content(tool_name, tool_output))
+                            tool_output = tool_executor.execute(tool_call, call_backer)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                             memory += {
                                 'role': 'tool',
                                 'tool_call_id': tool_call['id'],
@@ -292,7 +305,7 @@ class StreamingChat(BasicChat):
                             logger.exception(f'Execute tool call failure: {e}')
                             error_type = type(e).__name__
                             error_message = repr(e)
-                            tool_executor.thought_process.add_tool_call(tool_name, arguments)
+                            tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
                             tool_executor.thought_process.set_last_group_error({
                                 'type': error_type,
                                 'message': error_message

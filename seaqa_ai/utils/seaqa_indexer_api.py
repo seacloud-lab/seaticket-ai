@@ -36,14 +36,11 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
         url = urljoin(self.server_url, '/search')
-        time_begin = time.time()
         resp = requests.post(url, json=params, headers=headers)
-        time_end = time.time()
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
         results = resp_json.get('results', [])
-        logger.debug (f'Found {len(results)} records with query {query}, time usage: {time_end - time_begin}')
         return results
     
     def vector_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25):
@@ -63,12 +60,9 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
         url = urljoin(self.server_url, '/search')
-        time_begin = time.time()
         resp = requests.post(url, json=params, headers=headers)
-        time_end = time.time()
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
         resp_json = resp.json()
         results = resp_json.get('results', [])
-        logger.debug (f'Found {len(results)} records with query {query}, time usage: {time_end - time_begin}')
         return results

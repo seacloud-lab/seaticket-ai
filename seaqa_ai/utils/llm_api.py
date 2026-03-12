@@ -7,7 +7,7 @@ from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, 
 logger = logging.getLogger(__name__)
 
 def get_llm_client_by_model_id(data_logger, model_id):
-    model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL)
+    model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL) if model_id else DEFAULT_LLM_MODEL
     return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
 
 def get_llm_client_by_model_tier(data_logger, min_model_tier):

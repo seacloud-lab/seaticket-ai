@@ -19,7 +19,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, Workspace
 from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
-from seaqa_ai.utils.tools import SimpleToolExecutor
+from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
 
@@ -130,8 +130,8 @@ class BaseAgentWorker:
 
     # ── Tool executor ───────────────────────────────────────────────
 
-    def _create_tool_executor(self, record_context: dict) -> tuple[SimpleToolExecutor, dict]:
-        """Create and configure a SimpleToolExecutor with source-specific tools.
+    def _create_tool_executor(self, record_context: dict) -> tuple[OpenAIToolExecutor, dict]:
+        """Create and configure a OpenAIToolExecutor with source-specific tools.
 
         Args:
             record_context: dict with source_type, source_id, source_title.
@@ -139,11 +139,11 @@ class BaseAgentWorker:
         Returns:
             (tool_executor, tool_metadata dict)
         """
-        tool_executor = SimpleToolExecutor()
+        tool_executor = OpenAIToolExecutor()
         tool_metadata = {}
 
         for tool_cls in self.get_tool_classes():
-            tool_instance = tool_cls(self.app)
+            tool_instance = tool_cls()
             if hasattr(tool_instance, 'set_record_context'):
                 tool_instance.set_record_context(record_context)
 
@@ -158,10 +158,6 @@ class BaseAgentWorker:
             tool_instance.register(tool_executor)
 
         return tool_executor, tool_metadata
-
-    def _get_llm_client(self) -> CompletionAPI:
-        model_id = self.agent_settings.get('model', 'gemini-2.5-flash')
-        return get_llm_client_by_model_id(self.app.data_logger, model_id)
 
     def _get_project_org_id(self):
         with self.db_session_class() as db_session:
@@ -197,7 +193,7 @@ class BaseAgentWorker:
         item_message = self.build_item_message(item, item_context)
 
         tool_executor, tool_metadata = self._create_tool_executor(record_context)
-        llm_client = self._get_llm_client()
+        llm_client = get_llm_client_by_model_id(self.app.data_logger, self.agent_settings.get('model'))
 
         agent_runner = AgentRunner(
             tool_executor=tool_executor,

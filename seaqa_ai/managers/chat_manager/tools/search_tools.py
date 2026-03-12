@@ -26,7 +26,7 @@ class BasicSearchTool(BasicTool):
     MAX_SOURCES_COUNT = 10
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
 
-    def _search(self, query, connections, extra_sources, context, tool_executor):
+    def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
         # Get current task search history
         sources_results = tool_executor.cache.get('sources_results', [])
@@ -39,7 +39,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results, rerank_token_usage = self.app.ai_utils.search(query, connections, extra_sources, context, limit)
+        current_search_results, rerank_token_usage = app.ai_utils.search(query, connections, extra_sources, context, limit, call_back)
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
@@ -83,8 +83,8 @@ class DocumentsSearch(BasicSearchTool):
         }
     }
 
-    def execute(self, query, context, tool_executor):
-        return self._search(query, context['document_connections'], ExtraSourceType.get_document_extra_source_types(), context, tool_executor)
+    def execute(self, query, context, app, tool_executor, call_back):
+        return self._search(query, context['document_connections'], ExtraSourceType.get_document_extra_source_types(), context, app, tool_executor, call_back)
     
 class IssuesSearch(BasicSearchTool):
     tool = {
@@ -105,5 +105,5 @@ class IssuesSearch(BasicSearchTool):
         }
     }
 
-    def execute(self, query, context, tool_executor):
-        return self._search(query, context['issue_connections'], ExtraSourceType.get_issue_extra_source_types(), context, tool_executor)
+    def execute(self, query, context, app, tool_executor, call_back):
+        return self._search(query, context['issue_connections'], ExtraSourceType.get_issue_extra_source_types(), context, app, tool_executor, call_back)

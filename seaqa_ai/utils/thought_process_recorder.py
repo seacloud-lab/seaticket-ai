@@ -52,11 +52,13 @@ class ThoughtProcessRecorder(object):
             'message': error['message']
         }
 
-    def add_tool_call(self, tool_name, arguments, result=None):
+    def add_tool_call(self, tool_name, arguments, execution_detail, result=None):
         self.actions[-1]['tool_calls'].append({
             'name': tool_name,
             'arguments': {key: object_to_json_str(value) for key, value in arguments.items()}
         })
+        if execution_detail:
+            self.actions[-1]['tool_calls'][-1]['execution_detail'] = execution_detail
         self.actions[-1]['result'] += object_to_json_str(result) + '\n'
     
     def set_final_answer(self, result, reach_max_steps=False, token_usage={}, time_usage=0):
