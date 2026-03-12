@@ -4,7 +4,6 @@ from seaqa_ai.utils.tools import BasicTool, BasicToolExecutor, InvalidToolExcept
 
 # import subdir modules for convenience
 from seaqa_ai.managers.chat_manager.tools.search_tools import DocumentsSearch, IssuesSearch
-from seaqa_ai.managers.chat_manager.tools.content_generators import GenerateMarkdown
 
 class TestTool(BasicTool):
     tool = {

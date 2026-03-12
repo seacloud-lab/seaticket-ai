@@ -123,10 +123,10 @@ SEARCH_TOOLS_DES = """
     - Your response: the maximum value in your provided is 28
 """
 CONTENT_GENERATOR_TOOLS_DES = """
-2. Content generation tools (e.g., "markdown_generator"). These types of tools are generally used to generate specific content (for example, you can try calling the "markdown_generator" tool when a user expects **certain content** to be recorded in a **Markdown file** or **document**, but not a proposal or statement).
+2. Content generation tools (e.g., "generate_markdown", "create_knowledge_base_entry"). These types of tools are generally used to generate specific content (for example, you can try calling the "generate_markdown" tool when a user expects **certain content** to be recorded in a **Markdown file** or **document**, but not a proposal or statement).
     Unless otherwise specified, such tools will return a closed HTML tag block, for example:
     ```html
-    <!-- tool markdown_generator -->
+    <!-- tool generate_markdown -->
     <seaqa-markdown file_name='file_name.md'>
     Document content
     </seaqa-markdown>
@@ -142,7 +142,7 @@ CONTENT_GENERATOR_TOOLS_DES = """
 
     - Example task 4: Please record the your above answer into a Markdown document
         - Step 1:
-            - Tool call: Tool `markdown_generator`
+            - Tool call: Tool `generate_markdown`
             - Tool's result:
                 ```html
                 <seaqa-markdown file_name='file_name.md'>
@@ -154,6 +154,23 @@ CONTENT_GENERATOR_TOOLS_DES = """
             <seaqa-markdown file_name='file_name.md'>
             Document content
             </seaqa-markdown>
+
+    - Example task 5: Based on the discussion above, create a knowledge base entry for me
+        - Step 1:
+            - Tool call: Tool `create_knowledge_base_entry`
+            - Tool's result:
+                ```html
+                <seaqa-kb-entry title='How to install Seafile with Docker'>
+                # How to install Seafile with Docker
+                Docker-based deployment is recommended for Seafile Community Edition...
+                </seaqa-kb-entry>
+                ```
+        - Your response:
+            Okay, I've created a knowledge base entry based on our discussion:
+            <seaqa-kb-entry title='How to install Seafile with Docker'>
+            # How to install Seafile with Docker
+            Docker-based deployment is recommended for Seafile Community Edition...
+            </seaqa-kb-entry>
 """
 
 SYSTEM_PROMPT = f"""You are an expert assistant capable of helping users handle tasks through tool calls. In short, **one of your most important tasks is to analyze the user's current task and the tools (and answers) already used to determine if additional tools are needed to complete the task. If so, return a tool call request; otherwise, answer the user's question based on the tool call history**. A specific logical example will be given here:
