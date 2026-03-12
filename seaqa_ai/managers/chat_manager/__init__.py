@@ -178,7 +178,7 @@ class SyncChat(BasicChat):
 
                 return {
                     'answer': answer,
-                    'thought_process': tool_executor.thought_process.details,
+                    'thought_process': {} if context.get('is_external_portal') else tool_executor.thought_process.details,
                     'sources': remove_sources_content_and_snippets(sources)
                 }
         raise AssertionError('Invalid AI responses led to unexpected steps.')
@@ -340,7 +340,8 @@ class StreamingChat(BasicChat):
                         answer = remove_reference_markers(answer)
                         sources = []
 
-                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), tool_executor.thought_process.details)
+                    thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
+                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), thought_process)
                     yield SSE.done()
                     break
         except Exception as e:
