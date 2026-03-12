@@ -3,14 +3,13 @@ import json
 import time
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.db.models import PortalChatMessages
-from seaqa_ai.db.models import ProjectConnection
+from seaqa_ai.db.models import ProjectConnection, PortalChatMessages
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
-from seaqa_ai.utils import parse_json, uuid_str_to_32_chars
-from seaqa_ai.utils.constants import ConnectionType, remove_reference_markers
+from seaqa_ai.utils import parse_json, uuid_str_to_32_chars, remove_reference_markers
+from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor
@@ -36,10 +35,19 @@ class BasicChat(object):
 
     def _register_tools(self, tool_executor, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])
+        allowed_sources = context.get('allowed_sources', [])
+
+        doc_types = ConnectionType.get_document_connection_types()
+        issue_types = ConnectionType.get_issue_connection_types()
+
+        if allowed_sources:
+            doc_types = [t for t in doc_types if t in allowed_sources]
+            issue_types = [t for t in issue_types if t in allowed_sources]
+
         with self.db_session_class() as db_session:
             context.update({
-                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_document_connection_types()),
-                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_issue_connection_types())
+                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
+                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
             })
 
         for tool in self.search_tools:

@@ -52,6 +52,7 @@ def get_ai_reply():
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
     is_external_portal = data.get('is_external_portal', False)
+    allowed_sources = data.get('allowed_sources', [])
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
         'username': username,
@@ -60,6 +61,7 @@ def get_ai_reply():
         'org_id': org_id,
         'project_prompt': project_prompt,
         'is_external_portal': is_external_portal,
+        'allowed_sources': allowed_sources,
         'attachments_hex': [
             gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
