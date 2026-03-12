@@ -15,7 +15,7 @@ import json
 import logging
 from seaqa_ai.utils.llm_api import CompletionAPI
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
-from seaqa_ai.utils.tools import SimpleToolExecutor
+from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class AgentRunner:
 
     def __init__(
         self,
-        tool_executor: SimpleToolExecutor,
+        tool_executor: OpenAIToolExecutor,
         llm_client: CompletionAPI,
         record_context: dict,
         ai_stats_context: dict | None = None,
@@ -45,7 +45,7 @@ class AgentRunner:
     ):
         """
         Args:
-            tool_executor: SimpleToolExecutor with all tools already registered.
+            tool_executor: OpenAIToolExecutor with all tools already registered.
             llm_client: CompletionAPI client used for LLM calls.
             record_context: dict with keys source_type, source_id, source_title.
             ai_stats_context: dict with keys used for AI usage statistics logging
@@ -68,10 +68,8 @@ class AgentRunner:
         self.system_prompt = system_prompt or ''
         self.max_steps = max_steps
 
-        final_answer_tool = FinalAnswerTool(None)
-        tool_executor.register(final_answer_tool.execute, final_answer_tool.tool)
-
-        self.tools = tool_executor.get()
+        final_answer_tool = FinalAnswerTool()
+        final_answer_tool.register(tool_executor)
 
     def run(self, task: str) -> str:
         """Drive the reasoning loop until final_answer is called or max_steps reached."""
@@ -111,7 +109,7 @@ class AgentRunner:
             }
             if use_tools:
                 request_kwargs.update({
-                    'tools': self.tools,
+                    'tools': self.tool_executor.get(),
                     'tool_choice': 'auto',
                 })
             response = self.llm_client.completion(**request_kwargs)
@@ -191,7 +189,7 @@ class AgentRunner:
 
             logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
             try:
-                result = self.tool_executor.execute(tool_name, **arguments)
+                result = self.tool_executor.execute(tool_call)
                 observation = str(result).strip() if result is not None else ''
             except Exception as e:
                 tool_failed = True
@@ -223,8 +221,6 @@ class AgentRunner:
                 'tool_call_id': tool_call.id,
                 'content': observation,
             })
-
-        return None
 
     def _record_tool_action(
         self,

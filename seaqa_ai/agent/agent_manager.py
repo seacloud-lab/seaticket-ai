@@ -9,7 +9,8 @@ from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.ticket_agent_worker import TicketAgentWorker
 from seaqa_ai.agent.github_agent_worker import GithubIssueAgentWorker
 from seaqa_ai.utils import uuid_str_to_32_chars, now_iso
-from seaqa_ai.agent.constants import GITHUB_ISSUE_CONNECTION_TYPE, AGENT_RUNS_TABLE
+from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.agent.constants import AGENT_RUNS_TABLE
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class AgentManager:
             try:
                 project_uuid_32 = uuid_str_to_32_chars(project_uuid)
                 return ProjectConnection.get_connections_by_project_and_type(
-                    db_session, project_uuid_32, GITHUB_ISSUE_CONNECTION_TYPE
+                    db_session, project_uuid_32, ConnectionType.GITHUB_ISSUE.value
                 )
             except Exception as e:
                 logger.exception(f'Failed to query project {project_uuid} connection: {e}')

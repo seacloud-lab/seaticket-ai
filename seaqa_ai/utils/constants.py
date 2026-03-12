@@ -90,3 +90,8 @@ class MODEL_REASONING_TIER(Enum):
         elif tier.lower() == cls.HIGH.value:
             return 3
         return 0
+    
+class TICKET_TABLES(Enum):
+    TICKETS_TABLE = 'tickets'
+    TICKET_COMMENTS_TABLE = 'ticket_comments'
+    TICKET_ACTIVITIES_TABLE = 'ticket_activities'

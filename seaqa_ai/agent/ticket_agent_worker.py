@@ -11,9 +11,10 @@ import json
 from datetime import datetime, timezone, timedelta
 
 from seaqa_ai import config
+from seaqa_ai.utils.constants import TICKET_TABLES
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
-from seaqa_ai.agent.constants import TICKETS_TABLE, TICKET_COMMENTS_TABLE, TICKET_ACTIVITIES_TABLE, AGENT_ACTIONS_TABLE
+from seaqa_ai.agent.constants import AGENT_ACTIONS_TABLE
 from seaqa_ai.agent.system_prompt import TICKET_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class TicketAgentWorker(BaseAgentWorker):
         ticket_id = item['_pk']
 
         comments_sql = (
-            f"SELECT * FROM `{TICKET_COMMENTS_TABLE}` "
+            f"SELECT * FROM `{TICKET_TABLES.TICKET_COMMENTS_TABLE.value}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"ORDER BY `_pk` ASC LIMIT 100"
@@ -74,7 +75,7 @@ class TicketAgentWorker(BaseAgentWorker):
         ).get('results', [])
 
         activities_sql = (
-            f"SELECT * FROM `{TICKET_ACTIVITIES_TABLE}` "
+            f"SELECT * FROM `{TICKET_TABLES.TICKET_ACTIVITIES_TABLE.value}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"ORDER BY `created_time` ASC LIMIT 100"
         )
@@ -184,7 +185,7 @@ class TicketAgentWorker(BaseAgentWorker):
 
         where = ' AND '.join(conditions)
         sql = (
-            f"SELECT * FROM `{TICKETS_TABLE}` WHERE {where} "
+            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` WHERE {where} "
             f"ORDER BY `modified_time` DESC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
@@ -195,7 +196,7 @@ class TicketAgentWorker(BaseAgentWorker):
         now = datetime.now(timezone.utc)
         threshold = (now + timedelta(hours=hours)).isoformat()
         sql = (
-            f"SELECT * FROM `{TICKETS_TABLE}` "
+            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
             f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "

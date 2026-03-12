@@ -1,10 +1,10 @@
+import json
+import inspect
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
 
 class BasicTool(object):
     tool = {}
-    def __init__(self, app):
-        self.app = app
 
     def register(self, tool_executor, **constant_kwargs):
         tool_executor.register(self.execute, self.tool, **constant_kwargs)
@@ -38,42 +38,48 @@ class BasicToolExecutor(object):
     def clean(self, *args, **kwargs):
         raise NotImplementedError()
 
-
-class SimpleToolExecutor(BasicToolExecutor):
-    """
-    Tool executor that stores tools in OpenAI function calling format.
-    """
-
-    def __init__(self):
-        self._tools = {}
-        super().__init__()
-
+class OpenAIToolExecutor(BasicToolExecutor):
+    tools = {}
+    
     def clean(self):
-        """Clear all registered tools."""
-        self._tools = {}
+        self.tools = {}
 
     def register(self, func, tool_info, **constant_kwargs):
         """
-        Register a tool.
-
-        Args:
-            func: The callable function to execute
-            tool_info: OpenAI-style tool definition dict
-            constant_kwargs: Kwargs to always pass to the function
+        func: callable
+        tool_info: json-like openai format tool defined
         """
         name = tool_info.get('function', {}).get('name')
         if not name:
-            raise ValueError(f'Invalid tool_info: missing function name in {tool_info}')
-        self._tools[name] = (func, tool_info, constant_kwargs)
-
-    def execute(self, name, **kwargs):
-        """Execute a registered tool by name."""
-        if name not in self._tools:
-            raise ValueError(f'Unknown tool: {name}')
-        func, _, constant_kwargs = self._tools[name]
-        merged = {**constant_kwargs, **kwargs}
-        return func(**merged)
+            raise InvalidToolException(tool_info)
+        
+        self.tools[name] = {
+            'func': func,
+            'constant_kwargs': constant_kwargs,
+            'tool_info': tool_info
+        }
 
     def get(self):
-        """Return tool definitions in OpenAI format."""
-        return [tool_info for _, tool_info, _ in self._tools.values()]
+        return [
+            tool['tool_info']
+            for tool in self.tools.values()
+        ]
+    
+    def execute(self, tool_call, call_back=lambda: None):
+        function = tool_call['function']
+        name = function['name']
+        params = json.loads(function.get('arguments', '{}'))
+        constant_kwargs = self.tools[name]['constant_kwargs']
+        avaliables_params = inspect.signature(self.tools[name]['func']).parameters
+        params.update({
+            k: v
+            for k, v in constant_kwargs.items() if k in avaliables_params and k not in params
+        })
+
+        if 'tool_executor' in avaliables_params and 'tool_executor' not in params:
+            params.update({'tool_executor': self})
+        
+        if 'call_back' in avaliables_params and 'call_back' not in params:
+            params.update({'call_back': call_back})
+        
+        return self.tools[name]['func'](**params)

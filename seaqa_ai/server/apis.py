@@ -45,8 +45,6 @@ def get_ai_reply():
     username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
-    document_connections = data.get('document_connections', [])
-    issue_connections = data.get('issue_connections', [])
     org_id = data.get('org_id')
     llm_model = data.get('llm_model')
     stream = data.get('stream', False)
@@ -55,8 +53,6 @@ def get_ai_reply():
         'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
-        'document_connections': document_connections,
-        'issue_connections': issue_connections,
         'org_id': org_id,
         'project_prompt': project_prompt
     }

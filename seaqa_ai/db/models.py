@@ -154,6 +154,23 @@ class ProjectConnection(Base):
         except Exception as e:
             logger.exception(f'Failed to query connections for project {project_uuid}: {e}')
             return []
+        
+    @classmethod
+    def get_connections_by_project_and_types(cls, session, project_uuid: str, connection_types: str) -> list[dict]:
+        try:
+            connections_query = session.query(cls.id, cls.type, cls.name).filter(
+                cls.project_uuid == project_uuid,
+                cls.type.in_(connection_types),
+                cls.deleted == 0,
+                cls.is_active == 1
+            )
+            return [
+                {'id': conn[0], 'type': conn[1], 'name': conn[2]}
+                for conn in connections_query
+            ]
+        except Exception as e:
+            logger.exception(f'Failed to query connections for project {project_uuid}: {e}')
+            return []
 
     @classmethod
     def get_connection_ids_by_project_and_types(cls, session, project_uuid: str, connection_types: tuple) -> list[int]:

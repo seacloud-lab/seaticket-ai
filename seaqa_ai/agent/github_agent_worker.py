@@ -16,9 +16,10 @@ from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
-from seaqa_ai.agent.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELATED_RECORD_SCORE_THRESHOLD, ISSUE_CONNECTION_TYPES
+from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils.seadb_api import gen_seadb_table_name
+from seaqa_ai.agent.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELATED_RECORD_SCORE_THRESHOLD
 from seaqa_ai.agent.system_prompt import GITHUB_ISSUE_SYSTEM_PROMPT
-from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         super().__init__(app, project)
         self.connection = connection
         self.connection_id = connection['id']
-        self._issues_table = self._build_issues_table_name()
-        self._comments_table = self._build_comments_table_name()
-
-    def _build_issues_table_name(self) -> str:
-        return f'github_issue_{self.connection_id}'
-
-    def _build_comments_table_name(self) -> str:
-        return f'github_issue_comments_{self.connection_id}'
+        self._issues_table, self._comments_table = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, self.connection_id)
 
     # ── Abstract method implementations ────────────────────────────
 
@@ -172,7 +166,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
             try:
                 project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
                 return ProjectConnection.get_connection_ids_by_project_and_types(
-                    db_session, project_uuid_32, ISSUE_CONNECTION_TYPES
+                    db_session, project_uuid_32, ConnectionType.get_issue_connection_types()
                 )
             except Exception as e:
                 logger.warning(f'Failure to query search connections: {e}')
