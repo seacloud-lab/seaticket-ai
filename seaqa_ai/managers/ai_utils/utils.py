@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from seaqa_ai.config import MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils import url_to_filename
+from seaqa_ai.utils import url_to_filename, gen_attachment_hex
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
@@ -19,7 +19,7 @@ def gen_completion_format(schema, name='result_parser'):
         }
     }
 
-def search_records_to_map(search_records, search_results, is_vector_search=False):
+def search_records_to_map(search_records, search_results, is_vector_search=False, attachments_hex=[]):
     """
     func:  Deduplication and format search_records to a map:
     {
@@ -56,6 +56,8 @@ def search_records_to_map(search_records, search_results, is_vector_search=False
             record_id = int(record[candidate_key])
         except:
             record_id = record[candidate_key]
+        if gen_attachment_hex(record['type'], connection_id, record_id) in attachments_hex:
+            continue
         if record['type'] in ExtraSourceType:
             connection_id = record['type']
         if connection_id not in connection_id_record_id_record_map:

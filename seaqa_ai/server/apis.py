@@ -3,8 +3,8 @@ import jwt
 import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils import chunk_text
-from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
+from seaqa_ai.utils import chunk_text, gen_attachment_hex
+from seaqa_ai.managers.chat_manager import StreamingChat, SyncChat
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -54,7 +54,11 @@ def get_ai_reply():
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
         'org_id': org_id,
-        'project_prompt': project_prompt
+        'project_prompt': project_prompt,
+        'attachments_hex': [
+            gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
+            for attachment in attachments
+        ]
     }
 
     if not message:
