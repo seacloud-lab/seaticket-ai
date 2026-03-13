@@ -10,6 +10,7 @@ import uuid
 import urllib.parse
 from datetime import datetime, timezone
 from seaqa_ai.config import TIME_ZONE
+from seaqa_ai.utils.constants import ExtraSourceType
 
 time_zone = pytz.timezone(TIME_ZONE)
 logger = logging.getLogger(__name__)
@@ -180,3 +181,8 @@ def normalize_usernames(usernames_raw):
     if split_values:
         return split_values
     return [value]
+
+def gen_attachment_hex(source_type, connection_id, record_id):
+    if source_type in ExtraSourceType:
+        return f'{source_type}-{source_type}-{record_id}'
+    return f'{source_type}-{connection_id}-{record_id}'

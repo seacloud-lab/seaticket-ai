@@ -143,7 +143,11 @@ class AIUtils:
     def rank_issues_by_relevance(self, query_record, candidate_records, context):
         try:
             if not candidate_records:
-                return []
+                return [], {
+                    'input_tokens': 0,
+                    'output_tokens': 0,
+                    'total_tokens': 0
+                }
             if isinstance(query_record, dict):
                 query_record = f"""Title: {query_record.get('title', 'N/A')}
 Summary: {query_record.get('ai_summary', 'N/A')}"""
@@ -215,7 +219,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 results = json_repair.loads(response, strict=True).get('results', [])
             except Exception as e:
                 logger.exception(f'Failure to rerank relevance: {e}')
-                return []
+                return [], token_usage
 
             validated_keys = []
             for result in results:
@@ -305,16 +309,16 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources, context['username'])
-        search_results = search_records_to_map(records, {})
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
+        search_results = search_records_to_map(records, {}, attachments_hex=context.get('attachments_hex', []))
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Keywords search': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         # semantic search data
         time_begin = time.time()
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, extra_sources, context['username'])
-        search_results = search_records_to_map(records, search_results, is_vector_search=True)
+        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
+        search_results = search_records_to_map(records, search_results, is_vector_search=True, attachments_hex=context.get('attachments_hex', []))
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})
