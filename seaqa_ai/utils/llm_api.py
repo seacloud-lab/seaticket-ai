@@ -1,7 +1,7 @@
 import json
 import logging
 import litellm
-from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER
+from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER, AIScenario
 from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ class BasicLLMAPI:
                 'username': context.get('username'),
                 'org_id': context.get('org_id'),
                 'project_uuid': context.get('project_uuid'),
+                'scenario': context.get('scenario', AIScenario.UNKNOWN.value),
             }))
         except Exception as e:
             logger.warning(f"Chat completed but failure to log usages: {e}")

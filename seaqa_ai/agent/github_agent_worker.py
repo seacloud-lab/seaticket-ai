@@ -263,11 +263,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
             result = self.app.ai_utils.rank_issues_by_relevance(
                 query_record=query_record,
                 candidate_records=candidate_records,
-                context={
-                    'username': 'agent',
-                    'org_id': -1,
-                    'project_uuid': self.project_uuid,
-                },
+                context=self._build_ai_stats_context(),
             )
 
             ranked_keys = result[0] if isinstance(result, tuple) else result
