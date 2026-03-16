@@ -44,7 +44,7 @@ class BasicChat(object):
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
         for tool in self.content_generators:
-            tool.register(tool_executor)
+            tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
