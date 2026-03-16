@@ -1,4 +1,9 @@
+import datetime
 import logging
+from html import escape
+
+from seaqa_ai import config
+from seaqa_ai.utils.seadb_api import SeaDBAPI
 from seaqa_ai.utils.tools import BasicTool
 
 logger = logging.getLogger(__name__)
@@ -88,11 +93,31 @@ LDAP_SERVER_URL = 'ldap://your-server'
         }
     }
 
-    def execute(self, title, content):
+    def execute(self, title, content, context):
         """
-        generate the kb entry with <seaqa-kb-entry> HTML tag (content in tag body, like MarkdownGenerator)
+        Create KB record and return <seaqa-kb-entry> HTML tag with title and pk.
         """
-        return f"""<seaqa-kb-entry title="{title}">
-{content}
-</seaqa-kb-entry>
-"""
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        seadb_api = SeaDBAPI(
+            secret_key=config.SEADB_SERVER_ACCESS_TOKEN,
+            server_url=config.SEADB_SERVER_URL,
+            username=context['username'],
+        )
+
+        row = {
+            'title': title,
+            'content': content,
+            'tags': [],
+            'creator': context['username'],
+            'created_time': now,
+            'last_modifier': context['username'],
+            'modified_time': now,
+            'deleted': False,
+        }
+        res = seadb_api.insert_rows(context['project_uuid'], 'knowledge_base', [row])
+        pks = res.get('pks', [])
+        if len(pks) != 1:
+            raise AssertionError('Failed to create knowledge base entry')
+
+        kb_pk = pks[0]
+        return f'<seaqa-kb-entry id="{kb_pk}" title="{escape(title, quote=True)}" />'

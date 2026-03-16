@@ -160,17 +160,11 @@ CONTENT_GENERATOR_TOOLS_DES = """
             - Tool call: Tool `create_knowledge_base_entry`
             - Tool's result:
                 ```html
-                <seaqa-kb-entry title='How to install Seafile with Docker'>
-                # How to install Seafile with Docker
-                Docker-based deployment is recommended for Seafile Community Edition...
-                </seaqa-kb-entry>
+                <seaqa-kb-entry id='1234' title='How to install Seafile with Docker' />
                 ```
         - Your response:
             Okay, I've created a knowledge base entry based on our discussion:
-            <seaqa-kb-entry title='How to install Seafile with Docker'>
-            # How to install Seafile with Docker
-            Docker-based deployment is recommended for Seafile Community Edition...
-            </seaqa-kb-entry>
+            <seaqa-kb-entry id='1234' title='How to install Seafile with Docker' />
 """
 
 SYSTEM_PROMPT = f"""You are an expert assistant capable of helping users handle tasks through tool calls. In short, **one of your most important tasks is to analyze the user's current task and the tools (and answers) already used to determine if additional tools are needed to complete the task. If so, return a tool call request; otherwise, answer the user's question based on the tool call history**. A specific logical example will be given here:
