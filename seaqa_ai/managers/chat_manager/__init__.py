@@ -3,7 +3,7 @@ import json
 import time
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.db.models import ProjectConnection, PortalChatMessages
+from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
@@ -94,7 +94,7 @@ class SyncChat(BasicChat):
         
         if session_uuid and not config.DISABLE_CONTEXT:
             try:
-                message_model = PortalChatMessages if context.get('is_external_portal') else None
+                message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
                 memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
             except Exception as e:
                 logger.warning(f'Failure to build context: {e}')
@@ -204,7 +204,7 @@ class StreamingChat(BasicChat):
             
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    message_model = PortalChatMessages if context.get('is_external_portal') else None
+                    message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
                     memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')

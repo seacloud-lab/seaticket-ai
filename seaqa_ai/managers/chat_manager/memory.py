@@ -80,11 +80,7 @@ class OpenAIMemory:
                 }
             yield new_step
 
-def build_memory_from_db(db_session_class, system_prompt, session_uuid, window_limit, valid_time, message_model=None):
-    if message_model is None:
-        from seaqa_ai.db.models import ChatMessages
-        message_model = ChatMessages
-
+def build_memory_from_db(db_session_class, system_prompt, session_uuid, window_limit, valid_time, message_model):
     memory = OpenAIMemory(system_prompt)
     if not session_uuid:
         return memory

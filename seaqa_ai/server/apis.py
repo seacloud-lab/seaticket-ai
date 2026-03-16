@@ -51,7 +51,7 @@ def get_ai_reply():
     llm_model = data.get('llm_model')
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
-    is_external_portal = data.get('is_external_portal', False)
+    is_external_portal = data.get('is_external_portal', False) is True
     allowed_sources = data.get('allowed_sources', [])
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
