@@ -5,10 +5,12 @@ from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
 from seaqa_ai.utils import chunk_text, gen_attachment_hex
 from seaqa_ai.managers.chat_manager import StreamingChat, SyncChat
+from seaqa_ai.utils import chunk_text
+from seaqa_ai.utils.constants import AIScenario
+from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
-
 
 def check_auth_token(req):
     auth = req.headers.get('Authorization', '').split()
@@ -49,6 +51,7 @@ def get_ai_reply():
     llm_model = data.get('llm_model')
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
+    scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
         'username': username,
         'session_uuid': session_uuid,
@@ -58,7 +61,8 @@ def get_ai_reply():
         'attachments_hex': [
             gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
-        ]
+        ],
+        'scenario': scenario,
     }
 
     if not message:
@@ -104,11 +108,13 @@ def convert_record_to_ticket():
     record_detail = data.get('record_detail')
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.RECORD_GENERATION.value)
 
     context = {
         'username': username,
         'org_id': org_id,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
 
     if not record_detail:
@@ -143,11 +149,13 @@ def convert_ticket_to_kb_record():
 
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.RECORD_GENERATION.value)
 
     context = {
         'username': username,
         'org_id': org_id,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
 
     if not ticket_title and not ticket_content:
@@ -182,6 +190,7 @@ def generate_chunks_embedding():
     username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.SUMMARY.value)
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
@@ -192,7 +201,8 @@ def generate_chunks_embedding():
 
     context = {
         'username': username,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
     try:
 
@@ -220,6 +230,7 @@ def generate_embedding():
     username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.UNKNOWN.value)
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
@@ -230,7 +241,8 @@ def generate_embedding():
 
     context = {
         'username': username,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
 
     try:
@@ -258,6 +270,7 @@ def generate_summary():
     username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.SUMMARY.value)
 
     if not connection_type:
         return {'error_msg': 'type invalid.'}, 400
@@ -270,7 +283,8 @@ def generate_summary():
 
     context = {
         'username': username,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
     try:
         summary = flask_app.app.ai_utils.generate_summary(connection_type, project_uuid, content, context)
@@ -301,6 +315,7 @@ def rank_issues_by_relevance():
     username = data.get('username', '')
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.SEARCH.value)
 
     if not query_record:
         return {'error_msg': 'query_record invalid.'}, 400
@@ -318,7 +333,8 @@ def rank_issues_by_relevance():
     context = {
         'username': username,
         'org_id': org_id,
-        'project_uuid': project_uuid
+        'project_uuid': project_uuid,
+        'scenario': scenario,
     }
 
     try:

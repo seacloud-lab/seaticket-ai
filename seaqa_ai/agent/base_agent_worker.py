@@ -22,6 +22,7 @@ from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
+from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,7 @@ class BaseAgentWorker:
             'username': 'agent',
             'org_id': self.project_org_id if self.project_org_id is not None else -1,
             'project_uuid': self.project_uuid,
+            'scenario': AIScenario.AGENT.value,
         }
 
     # ── Per-item processing ─────────────────────────────────────────
