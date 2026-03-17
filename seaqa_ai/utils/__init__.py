@@ -152,6 +152,9 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
     
     return chunks
 
+def remove_reference_markers(content):
+    return re.sub(r'\[Reference \d+\]', '', content)
+
 def normalize_usernames(usernames_raw):
     """Normalize ticket assignees to a list of user IDs/emails."""
     if not usernames_raw:

@@ -275,3 +275,36 @@ class ChatMessages(Base):
             'as_context': self.as_context
         }
         return res
+
+
+class PortalChatMessages(Base):
+    __tablename__ = 'portal_chat_messages'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    session_uuid = Column(String(length=36), nullable=False)
+    message_id = Column(String(length=4), nullable=True)
+    username = Column(String(length=255), nullable=False)
+    role = Column(String(length=20), nullable=False)
+    content = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=True)
+    as_context = Column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        Index('idx_portal_chat_msg_session_created', 'session_uuid', 'created_at'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'session_uuid': self.session_uuid,
+            'message_id': self.message_id,
+            'role': self.role,
+            'content': self.content,
+            'attachments': [],
+            'sources': [],
+            'created_at': localize_time(self.created_at).isoformat(),
+            'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
+            'as_context': self.as_context
+        }

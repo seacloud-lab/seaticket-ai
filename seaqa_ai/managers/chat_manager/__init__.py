@@ -3,12 +3,12 @@ import json
 import time
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.db.models import ProjectConnection
+from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
-from seaqa_ai.utils import parse_json, uuid_str_to_32_chars
+from seaqa_ai.utils import parse_json, uuid_str_to_32_chars, remove_reference_markers
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
@@ -35,16 +35,26 @@ class BasicChat(object):
 
     def _register_tools(self, tool_executor, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])
+        allowed_sources = context.get('allowed_sources', [])
+
+        doc_types = ConnectionType.get_document_connection_types()
+        issue_types = ConnectionType.get_issue_connection_types()
+
+        if allowed_sources:
+            doc_types = [t for t in doc_types if t in allowed_sources]
+            issue_types = [t for t in issue_types if t in allowed_sources]
+
         with self.db_session_class() as db_session:
             context.update({
-                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_document_connection_types()),
-                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, ConnectionType.get_issue_connection_types())
+                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
+                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
             })
 
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
-        for tool in self.content_generators:
-            tool.register(tool_executor, context=context)
+        if not context.get('is_external_portal'):
+            for tool in self.content_generators:
+                tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
@@ -84,7 +94,8 @@ class SyncChat(BasicChat):
         
         if session_uuid and not config.DISABLE_CONTEXT:
             try:
-                memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
+                memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
             except Exception as e:
                 logger.warning(f'Failure to build context: {e}')
                 memory = OpenAIMemory(system_prompt)
@@ -169,9 +180,13 @@ class SyncChat(BasicChat):
                 # filter invalid references
                 answer, sources = get_answer_and_sources(tool_executor, content)
 
+                if context.get('is_external_portal'):
+                    answer = remove_reference_markers(answer)
+                    sources = []
+
                 return {
                     'answer': answer,
-                    'thought_process': tool_executor.thought_process.details,
+                    'thought_process': {} if context.get('is_external_portal') else tool_executor.thought_process.details,
                     'sources': remove_sources_content_and_snippets(sources)
                 }
         raise AssertionError('Invalid AI responses led to unexpected steps.')
@@ -189,7 +204,8 @@ class StreamingChat(BasicChat):
             
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
-                    memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME)
+                    message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
+                    memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
                     memory = OpenAIMemory(system_prompt)
@@ -327,8 +343,13 @@ class StreamingChat(BasicChat):
 
                     # filter invalid references
                     answer, sources = get_answer_and_sources(tool_executor, content)
-                
-                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), tool_executor.thought_process.details)
+
+                    if context.get('is_external_portal'):
+                        answer = remove_reference_markers(answer)
+                        sources = []
+
+                    thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
+                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), thought_process)
                     yield SSE.done()
                     break
         except Exception as e:
