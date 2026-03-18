@@ -123,35 +123,33 @@ class TicketAgentWorker(BaseAgentWorker):
         """Build the user message describing the ticket for LLM analysis (JSON format)."""
         
         comments = item_context.get('comments', [])
-        formatted_comments = []
-        if comments:
-            for c in comments[-10:]:
-                creator = self.username_resolver.email2nickname(c.get('creator', '?'))
-                formatted_comments.append({
-                    'creator': creator or '?',
-                    'created_time': c.get('created_time', '?'),
-                    'content': c.get('content') or ''
-                })
+        formatted_comments = [
+            {
+                'creator': self.username_resolver.email2nickname(c.get('creator', '?')) or '?',
+                'created_time': c.get('created_time', '?'),
+                'content': c.get('content') or ''
+            }
+            for c in (comments[-10:] if comments else [])
+        ]
         
         activities = item_context.get('activities', [])
-        formatted_activities = []
-        if activities:
-            for a in activities[-10:]:
-                detail = self.username_resolver.convert_usernames_fields_to_nicknames(a.get('detail', ''))
-                formatted_activities.append({
-                    'activity_type': a.get('activity_type', '?'),
-                    'created_time': a.get('created_time', '?'),
-                    'detail': detail
-                })
+        formatted_activities = [
+            {
+                'activity_type': a.get('activity_type', '?'),
+                'created_time': a.get('created_time', '?'),
+                'detail': self.username_resolver.convert_usernames_fields_to_nicknames(a.get('detail', ''))
+            }
+            for a in (activities[-10:] if activities else [])
+        ]
         
         executed_notifications = item_context.get('executed_notifications', [])
-        formatted_notifications = []
-        if executed_notifications:
-            for n in executed_notifications:
-                formatted_notifications.append({
-                    'reason': n.get('content', ''),
-                    'executed_at': n.get('executed_at') or n.get('created_at', '?'),
-                })
+        formatted_notifications = [
+            {
+                'reason': n.get('content', ''),
+                'executed_at': n.get('executed_at') or n.get('created_at', '?')
+            }
+            for n in (executed_notifications if executed_notifications else [])
+        ]
         
         message_dict = {
             'ticket_id': item['_pk'],

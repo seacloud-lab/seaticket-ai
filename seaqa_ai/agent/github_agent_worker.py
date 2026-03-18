@@ -78,15 +78,14 @@ class GithubIssueAgentWorker(BaseAgentWorker):
         content = (item.get('content') or '').strip()
         
         comments = item_context.get('comments', [])
-        formatted_comments = []
-        if comments:
-            for c in comments[-10:]:
-                content = (c.get('content') or '').strip()[:MAX_COMMENT_CHARS]
-                formatted_comments.append({
-                    'author': c.get('author', '?'),
-                    'created_time': c.get('created_time', '?'),
-                    'content': content
-                })
+        formatted_comments = [
+            {
+                'author': c.get('author', '?'),
+                'created_time': c.get('created_time', '?'),
+                'content': (c.get('content') or '').strip()[:MAX_COMMENT_CHARS]
+            }
+            for c in (comments[-10:] if comments else [])
+        ]
         
         related_record = item_context.get('related_record')
         related_record_info = None

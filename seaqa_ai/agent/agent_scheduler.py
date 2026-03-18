@@ -101,9 +101,9 @@ class AgentScheduler:
                 self.scheduler.modify_job(job_id, args=[project])
 
         # Remove jobs for projects that are now disabled / deleted.
-        for uuid in list(self._project_intervals.keys()):
-            if uuid not in enabled_uuids:
-                self._remove_project_job(uuid)
+        to_remove = set(self._project_intervals.keys()) - set(enabled_uuids)
+        for uuid in to_remove:
+            self._remove_project_job(uuid)
 
     # ── Public API ─────────────────────────────────────────────────
 

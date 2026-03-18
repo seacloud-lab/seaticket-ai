@@ -11,7 +11,7 @@ from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
-from seaqa_ai.managers.ai_utils.utils import retrieve_content_of_search_results, set_ai_summary, search_records_to_map, gen_completion_format
+from seaqa_ai.managers.ai_utils.utils import retrieve_content_of_search_results, search_records_to_map, gen_completion_format
 from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -251,10 +251,11 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         """
         # rank relevance
         time_begin = time.time()
-        new_records = [] # after reset ai_summary for site connection
-        for record_id_record_map in search_result.values():
-            for record in record_id_record_map.values():
-                new_records.append(record)
+        new_records = new_records = [
+            record 
+            for record_id_record_map in search_result.values() 
+            for record in record_id_record_map.values()
+        ]
         ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
@@ -271,14 +272,16 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 record_id = int(record_id)
             except:
                 logger.warning(f'Invalid record_id: {record_id}')
-            if connection_id in search_result and record_id in search_result[connection_id]:
+            
+            conn_results = search_result.get(connection_id)
+            if conn_results and record_id in conn_results:
                 rank_pairs.append({
                     'connection_id': connection_id,
                     'record_id': record_id
                 })
-                if connection_id not in search_result_after_ranked:
-                    search_result_after_ranked[connection_id] = {}
-                search_result_after_ranked[connection_id][record_id] = search_result[connection_id][record_id]
+                
+                search_result_after_ranked.setdefault(connection_id, {})[record_id] = conn_results[record_id]
+
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Rerank search records': f'time usage: {round(time_end - time_begin, 2)} s; tokens usage: {rerank_token_usage["total_tokens"]} (↑{rerank_token_usage["input_tokens"]} ↓{rerank_token_usage["output_tokens"]})'})
@@ -296,47 +299,40 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         if limit <= 0:
             return [], ''
 
-        connection_ids = ''
-        connection_id_type_map = {}
-        for connection in connections:
-            connection_ids += str(connection['id']) + ','
-            connection_id_type_map[connection['id']] = connection['type']
-        if connection_ids:
-            connection_ids = connection_ids[:-1]
-        connection_id_type_map[ExtraSourceType.KNOWLEDGE_BASE.value] = ExtraSourceType.KNOWLEDGE_BASE.value
-        connection_id_type_map[ExtraSourceType.TICKET.value] = ExtraSourceType.TICKET.value
+        connection_ids = ','.join(str(conn['id']) for conn in connections)
+        connection_id_type_map = {conn['id']: conn['type'] for conn in connections}
+        connection_id_type_map.update({
+            ExtraSourceType.KNOWLEDGE_BASE.value: ExtraSourceType.KNOWLEDGE_BASE.value,
+            ExtraSourceType.TICKET.value: ExtraSourceType.TICKET.value
+        })
+
+        attachments_hex = context.get('attachments_hex', [])
 
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
-        search_results = search_records_to_map(records, {}, attachments_hex=context.get('attachments_hex', []))
+        records = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
+        search_results = search_records_to_map(records, {}, attachments_hex)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Keywords search': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         # semantic search data
         time_begin = time.time()
-        records = self.app.seaqa_indexer_api.vector_search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
-        search_results = search_records_to_map(records, search_results, is_vector_search=True, attachments_hex=context.get('attachments_hex', []))
+        records = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids, extra_sources, context.get('username'), is_vector_search=True)
+        search_results = search_records_to_map(records, search_results, attachments_hex)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})
 
-        # reset value of vector_retrieval_type, e.g., site connection
-        time_begin = time.time()
-        project_uuid = uuid_str_to_32_chars(project_uuid)
-        search_results = set_ai_summary(search_results, self.app.seadb_api, project_uuid, connection_id_type_map)
-        time_end = time.time()
-        if isinstance(call_back, ChatCallBacker):
-            call_back('update_execution_detail', {'Pre-Rerank check (supplement AI summary)': f'time usage: {round(time_end - time_begin, 2)} s'})
-
-        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, project_uuid, connection_id_type_map, call_back)
+        # rerank search data
+        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, uuid_str_to_32_chars(project_uuid), connection_id_type_map, call_back)
 
         # reformat to list
-        sources_results = []
-        for record_id_record_map in search_results.values():
-            for record in record_id_record_map.values():
-                sources_results.append(record)
+        sources_results = [
+            record 
+            for sublist in search_results.values()
+            for record in sublist.values()
+        ]
         
         return sources_results, rerank_token_usage

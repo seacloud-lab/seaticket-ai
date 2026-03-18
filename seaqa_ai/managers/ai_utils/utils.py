@@ -3,7 +3,7 @@ from copy import deepcopy
 from seaqa_ai.config import MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
 from seaqa_ai.utils import url_to_filename, gen_attachment_hex
-from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 
@@ -19,7 +19,7 @@ def gen_completion_format(schema, name='result_parser'):
         }
     }
 
-def search_records_to_map(search_records, search_results, is_vector_search=False, attachments_hex=[]):
+def search_records_to_map(search_records, search_results, attachments_hex=[]):
     """
     func:  Deduplication and format search_records to a map:
     {
@@ -33,92 +33,34 @@ def search_records_to_map(search_records, search_results, is_vector_search=False
     i.e., search_results on other funcs
     """
     connection_id_record_id_record_map = search_results
-    candidate_key = ''
     for record in search_records:
         try:
             connection_id = int(record.get('connection_id', 'unknown'))
         except:
             connection_id = record.get('connection_id', 'unknown')
-        if record['type'] == ExtraSourceType.KNOWLEDGE_BASE.value:
-            connection_id = ExtraSourceType.KNOWLEDGE_BASE.value
-        elif record['type'] == ExtraSourceType.TICKET.value:
-            connection_id = ExtraSourceType.TICKET.value
-        if not candidate_key:
-            if '_id' in record:
-                candidate_key = '_id'
-            elif '_pk' in record:
-                candidate_key = '_pk'
-            elif 'pk' in record:
-                candidate_key = 'pk'
-            else:
-                break
-        try:
-            record_id = int(record[candidate_key])
-        except:
-            record_id = record[candidate_key]
-        if gen_attachment_hex(record['type'], connection_id, record_id) in attachments_hex:
-            continue
         if record['type'] in ExtraSourceType:
             connection_id = record['type']
-        if connection_id not in connection_id_record_id_record_map:
-            connection_id_record_id_record_map[connection_id] = {}
-        if is_vector_search and record.get('source_type') == 'chunk': # snippet
-            try:
-                record['snippets'] = connection_id_record_id_record_map[connection_id][record_id]['snippets']
-            except:
-                record['snippets'] = []
-            record['snippets'].append(record['content'])
-        elif not is_vector_search and record['type'] in SOURCES_TYPE.DOCUMENTS.value:
-            record['keyword_search_content'] = record['content']
+
+        try:
+            record_id = int(record['_id'])
+        except:
+            record_id = record['_id']
+
+        if gen_attachment_hex(record['type'], connection_id, record_id) in attachments_hex:
+            continue
+
+        connection_dict = connection_id_record_id_record_map.setdefault(connection_id, {})
+
+        if 'snippet' in record:
+            if existing_record := connection_dict.get(record_id):
+                snippets = existing_record.get('snippets', [])
+            else:
+                snippets = []
+            record['snippets'] = snippets
+            record['snippets'].append(record['snippet'])
+
         connection_id_record_id_record_map[connection_id][record_id] = record
     return connection_id_record_id_record_map
-
-def set_ai_summary(search_results, seadb_api, project_uuid, connection_id_type_map):
-    """
-    func: set ai_summary field
-
-    Args: 
-    search_results: a map of {
-        'connection_id': {
-            'record_id': record # 'record_id', i.e., _pk in seadb, _id in seaqa-indexer
-        }
-    }
-    connection_id_type_map: a map of {
-        'connection_id': 'connection_type'
-    }
-
-    search_results also present as return
-    """
-
-    for connection_id, record_id_record_map in deepcopy(search_results).items():
-        connection_type = connection_id_type_map[connection_id]
-        connection_table_name, comments_table_name = gen_seadb_table_name(connection_type, connection_id)
-        if connection_type == ConnectionType.EMAIL.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name, topic_id_field_name='thread_id', comments_topic_id_field_name='_pk', record_fields_str='_pk', comments_field_str='ai_summary')
-        else:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='ai_summary')
-        failure_to_get_ai_summary_record_ids = []
-        for record_id in record_id_record_map:
-            if record_id in seadb_record_id_record_comments_map:
-                if connection_type == ConnectionType.EMAIL.value:
-                    thread = seadb_record_id_record_comments_map[record_id].get('comments', [])
-                    if len(thread) > 0:
-                        thread = thread[0]
-                        search_results[connection_id][record_id]['ai_summary'] = thread['ai_summary']
-                        continue
-                else:
-                    search_results[connection_id][record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
-                    continue
-            failure_to_get_ai_summary_record_ids.append(record_id)
-            # remove records without ai_summary
-            del search_results[connection_id][record_id]
-            if not search_results[connection_id]:
-                # empty connection records
-                del search_results[connection_id]
-        if failure_to_get_ai_summary_record_ids:
-            logger.warning(f'Unable to retrieve ai_summary: connection_id: {connection_id}, record_ids: {failure_to_get_ai_summary_record_ids}')
-
-    return search_results
 
 def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
     """
@@ -143,7 +85,7 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
         if connection_type == ExtraSourceType.KNOWLEDGE_BASE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
             for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
         elif connection_type == ConnectionType.SITE.value:
             with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as s3_storage:
                 project_uuid_to_s3 = project_uuid.replace('-', '')
@@ -152,12 +94,12 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
                         site_id=connection_id,
                         project_uuid=project_uuid_to_s3,
                         filename=url_to_filename(record['url'])
-                    )['content']
+                    )['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
         elif connection_type == ConnectionType.SEAFILE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
             for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
         # issues
         elif connection_type == ExtraSourceType.TICKET.value:
@@ -203,16 +145,5 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
             for record_id, record in record_id_record_map.items():
                 search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
-    
-    for connection_id, record_id_record_map in search_results.items():
-        for record_id, record in record_id_record_map.items():
-            if record['type'] in SOURCES_TYPE.DOCUMENTS.value:
-                if 'keyword_search_content' in record:
-                    search_results[connection_id][record_id]['content'] = record['keyword_search_content']
-                    del search_results[connection_id][record_id]['keyword_search_content']
-                search_results[connection_id][record_id]['content'] = search_results[connection_id][record_id]['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
     return search_results
-    
-
-
