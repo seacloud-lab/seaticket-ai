@@ -288,7 +288,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         
         # get source results for records after ranked
         time_begin = time.time()
-        search_result_after_ranked = retrieve_content_of_search_results(search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
+        search_result_after_ranked = retrieve_content_of_search_results(self.app.username_resolver, search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Retrieve search records content': f'time usage: {round(time_end - time_begin, 2)} s'})
@@ -299,8 +299,16 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         if limit <= 0:
             return [], ''
 
-        connection_ids = ','.join(str(conn['id']) for conn in connections)
-        connection_id_type_map = {conn['id']: conn['type'] for conn in connections}
+        connection_ids = []
+        connection_id_type_map = {}
+
+        for conn in connections:
+            conn_id = conn['id']
+            connection_ids.append(conn_id)
+            connection_id_type_map[conn_id] = conn['type']
+
+        connection_ids = ','.join([str(connection_id) for connection_id in connection_ids])
+
         connection_id_type_map.update({
             ExtraSourceType.KNOWLEDGE_BASE.value: ExtraSourceType.KNOWLEDGE_BASE.value,
             ExtraSourceType.TICKET.value: ExtraSourceType.TICKET.value

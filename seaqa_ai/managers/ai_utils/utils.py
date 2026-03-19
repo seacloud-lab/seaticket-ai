@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 from seaqa_ai.config import MAX_DOCUMENT_CONTENT_SIZE, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
 from seaqa_ai.utils import url_to_filename, gen_attachment_hex
@@ -62,7 +61,7 @@ def search_records_to_map(search_records, search_results, attachments_hex=[]):
         connection_id_record_id_record_map[connection_id][record_id] = record
     return connection_id_record_id_record_map
 
-def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
+def retrieve_content_of_search_results(username_resolver, search_results, seadb_api, project_uuid, connection_id_type_map):
     """
     func type: output formatter
 
@@ -77,6 +76,8 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
     }
 
     search_results also present as return
+
+    The notes of this function see KNOWLEDGE_BASE as example
     """
     for connection_id, record_id_record_map in search_results.items():
         connection_type = connection_id_type_map[connection_id]
@@ -84,66 +85,174 @@ def retrieve_content_of_search_results(search_results, seadb_api, project_uuid, 
         # documents
         if connection_type == ExtraSourceType.KNOWLEDGE_BASE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
+            for record_id in list(record_id_record_map.keys()): # use list() to copy keys for avoiding iter error
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id] # --> deleted record, do not sent to AI
+                    continue
+                record_id_record_map[record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE] # --> to AI
         elif connection_type == ConnectionType.SITE.value:
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='url')
             with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as s3_storage:
                 project_uuid_to_s3 = project_uuid.replace('-', '')
-                for record_id, record in record_id_record_map.items():
-                    search_results[connection_id][record_id]['content'] = s3_storage.read_json(
+                for record_id in list(record_id_record_map.keys()):
+                    if record_id not in seadb_record_id_record_comments_map:
+                        del record_id_record_map[record_id]
+                        continue
+
+                    url = seadb_record_id_record_comments_map[record_id]['record']['url']
+                    record_id_record_map[record_id]['url'] = url
+                    record_id_record_map[record_id]['content'] = s3_storage.read_json(
                         site_id=connection_id,
                         project_uuid=project_uuid_to_s3,
-                        filename=url_to_filename(record['url'])
+                        filename=url_to_filename(url)
                     )['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
         elif connection_type == ConnectionType.SEAFILE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
+            for record_id in list(record_id_record_map.keys()):
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id]
+                    continue
+
+                record_id_record_map[record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
 
         # issues
         elif connection_type == ExtraSourceType.TICKET.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, record_fields_str='content', comments_field_str='creator, content', topic_id_field_name='_pk', comments_topic_id_field_name='ticket_id', has_deleted_field=True)
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
-                search_results[connection_id][record_id]['comments'] = [
-                    {
-                        'creator': comment['creator'],
-                        'content': comment['content']
-                    }
-                    for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, record_fields_str='creator, assignees, content, state, substate, type, tags, participants, priority', comments_field_str='creator, content', topic_id_field_name='_pk', comments_topic_id_field_name='ticket_id', has_deleted_field=True)
+
+            related_usernames = []
+            for record_id in list(record_id_record_map.keys()):
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id]
+                    continue
+
+                record = seadb_record_id_record_comments_map[record_id]['record']
+                comments = seadb_record_id_record_comments_map[record_id].get('comments', [])
+
+                related_usernames.append(record['creator'])
+                related_usernames += record['assignees']
+                related_usernames += record['participants']
+                related_usernames += [
+                    comment['creator']
+                    for comment in comments
                 ]
-                search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
-                del search_results[connection_id][record_id]['comments']
+            
+            username_nickname_map = username_resolver.emails2nicknames(list(set(related_usernames)), return_map=True)
+
+            for record_id in list(record_id_record_map.keys()):
+                record = seadb_record_id_record_comments_map[record_id]['record']
+                comments = seadb_record_id_record_comments_map[record_id].get('comments', [])
+
+                content = {
+                    'author': username_nickname_map.get(record['creator'], ''),
+                    'assignees': [
+                        username_nickname_map.get(assignee, '')
+                        for assignee in record['assignees']
+                    ],
+                    'participants': [
+                        username_nickname_map.get(participant, '')
+                        for participant in record['participants']
+                    ],
+                    'content': record['content'],
+                    'comments': [
+                        {
+                            'creator': username_nickname_map.get(comment['creator'], ''),
+                            'content': comment['content']
+                        }
+                        for comment in comments
+                    ],
+                    'state': record['state'],
+                    'substate': record['substate'],
+                    'type': record['type'],
+                    'tags': record['tags'],
+                    'priority': record['priority']
+                }
+
+                record_id_record_map[record_id]['content'] = content
+
         elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id', record_fields_str='_pk', comments_field_str='author, post_number, content')
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['comments'] = [
-                    {
-                        'author': comment['author'],
-                        'post_number': comment['post_number'],
-                        'content': comment['content']
-                    }
-                    for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
-                ]
-                search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
-                del search_results[connection_id][record_id]['comments']
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='topic_id', record_fields_str='topic_id, slug, resolved', comments_field_str='author, post_number, content')
+            for record_id in list(record_id_record_map.keys()):
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id]
+                    continue
+
+                record = seadb_record_id_record_comments_map[record_id]['record']
+                comments = seadb_record_id_record_comments_map[record_id].get('comments', [])
+
+                content = {
+                    'topic_id': record['topic_id'],
+                    'slug': record['slug'],
+                    'resolved': record['resolved'],
+                    'comments': [
+                        {
+                            'author': comment['author'],
+                            'post_number': comment['post_number'],
+                            'content': comment['content']
+                        }
+                        for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
+                    ]
+                }
+                record_id_record_map[record_id]['content'] = content
+
         elif connection_type == ConnectionType.GITHUB_ISSUE.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', record_fields_str='content', comments_field_str='author, content')
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
-                search_results[connection_id][record_id]['comments'] = [
-                    {
-                        'author': comment['author'],
-                        'content': comment['content']
-                    }
-                    for comment in seadb_record_id_record_comments_map[record_id].get('comments', [])
-                ]
-                search_results[connection_id][record_id]['content'] = deepcopy(search_results[connection_id][record_id])
-                del search_results[connection_id][record_id]['comments']
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='issue_id', record_fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url', comments_field_str='author, content')
+
+            for record_id in list(record_id_record_map.keys()):
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id]
+                    continue
+
+                record = seadb_record_id_record_comments_map[record_id]['record']
+                comments = seadb_record_id_record_comments_map[record_id].get('comments', [])
+
+                content = {
+                    'issue_id': record['issue_id'],
+                    'issue_number': record['issue_number'],
+                    'state': record['state'],
+                    'state_reason': record['state_reason'],
+                    'labels': record['labels'],
+                    'issue_type': record['issue_type'],
+                    'author': record['author'],
+                    'assignees': record['assignees'],
+                    'content': record['content'],
+                    'comments': [
+                        {
+                            'author': comment['author'],
+                            'content': comment['content']
+                        }
+                        for comment in comments
+                    ]
+                }
+                record_id_record_map[record_id]['content'] = content
+                record_id_record_map[record_id]['url'] = record['url']
+    
         elif connection_type == ConnectionType.EMAIL.value:
-            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='content')
-            for record_id, record in record_id_record_map.items():
-                search_results[connection_id][record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content']
+            seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, comments_table_name=comments_table_name, topic_id_field_name='_pk', record_fields_str='tags', comments_field_str='title, email_from, email_to, cc, content, html_content, attachments', comments_topic_id_field_name='thread_id', has_deleted_field=True)
+
+            for record_id in list(record_id_record_map.keys()):
+                if record_id not in seadb_record_id_record_comments_map:
+                    del record_id_record_map[record_id]
+                    continue
+
+                record = seadb_record_id_record_comments_map[record_id]['record']
+                comments = seadb_record_id_record_comments_map[record_id].get('comments', [])
+
+                content = {
+                    'topic_tags': record['tags'],
+                    'emails': [
+                        {
+                            'title': comment['title'],
+                            'email_from': comment['email_from'],
+                            'email_to': comment['email_to'],
+                            'cc': comment['cc'],
+                            'content': comment['content'],
+                            'html_content': comment['html_content']
+                        }
+                        for comment in comments
+                    ]
+                }
+
+                record_id_record_map[record_id]['content'] = content
 
     return search_results

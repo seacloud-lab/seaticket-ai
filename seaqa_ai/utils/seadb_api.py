@@ -31,7 +31,8 @@ def gen_seadb_table_name(connection_type, connection_id):
     elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
         comments_table_name = f'{connection_type}_replies_{connection_id}'
     elif connection_type == ConnectionType.EMAIL.value:
-        comments_table_name = f'{connection_type}_thread_{connection_id}'
+        comments_table_name = connection_table_name
+        connection_table_name = f'{connection_type}_thread_{connection_id}'
     return connection_table_name, comments_table_name
 
 
