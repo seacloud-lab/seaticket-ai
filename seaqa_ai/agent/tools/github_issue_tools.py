@@ -1,12 +1,11 @@
 """
 Agent tools specific to GitHub Issue processing.
 
-The agent follows a two-step decision flow for each new issue:
-  1. record_issue_analysis  — always called first to record findings
-  2a. suggest_resolution   — if the issue matches a known problem (pending user confirmation)
-  2b. suggest_create_ticket — if the issue is novel and should become a ticket (pending user confirmation)
-
-Only one of 2a/2b should be called per issue run.
+The agent uses this flow for each GitHub issue:
+  1. record_issue_analysis  — called after search, before handling.
+  2. suggest_modify_type    — optional, high-confidence user-facing type suggestion.
+  3a. suggest_resolution    — if the issue can be resolved with known info.
+  3b. suggest_create_ticket — if the issue should become a tracked ticket.
 """
 import logging
 from seaqa_ai.agent.tools.common_tools import BaseAgentTool
@@ -15,37 +14,81 @@ logger = logging.getLogger(__name__)
 
 
 class RecordIssueAnalysisTool(BaseAgentTool):
-    """Records the agent's analysis of a GitHub issue before taking any action."""
+    """Records structured analysis of a GitHub issue before handling actions."""
 
     tool = {
         'type': 'function',
         'function': {
             'name': 'record_issue_analysis',
             'description': (
-                'Record your analysis of the GitHub issue. '
-                'Always call this tool first before taking any other actions. '
-                'Assess whether this issue describes a known/documented problem '
-                'or is a genuinely new issue that warrants creating a ticket.'
+                'Record your structured GitHub issue analysis after search and before handling tools. '
+                'Include classification, confidence, evidence got by searches, and recommended next action.'
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'analysis': {
+                    'summary': {
                         'type': 'string',
-                        'description': (
-                            'Your analysis of the issue: what it is about, '
-                            'whether it resembles a known problem, and what action you plan to take.'
-                        )
+                        'description': 'Your analysis of the issue: what it is about, whether it resembles a known problem, and what action you plan to take.'
                     },
-                    'is_known_issue': {
+                    'classified_issue_type': {
+                        'type': 'string',
+                        'enum': ['bug report', 'feature request', 'general support question'],
+                        'description': 'The agent-classified issue type based on title/content.'
+                    },
+                    'original_issue_type': {
+                        'type': 'string',
+                        'description': 'The original issue_type value from input, used as a candidate label.'
+                    },
+                    'searches_performed': {
+                        'type': 'array',
+                        'description': 'Searches performed before this analysis.',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'tool': {
+                                    'type': 'string',
+                                    'enum': ['documents_search', 'issues_search']
+                                },
+                                'query': {
+                                    'type': 'string'
+                                },
+                                'result_count': {
+                                    'type': 'integer'
+                                },
+                                'notes': {
+                                    'type': 'string'
+                                }
+                            },
+                            'required': ['tool', 'query', 'result_count']
+                        }
+                    },
+                    'key_evidence': {
+                        'type': 'string',
+                        'description': 'Key evidence from search results that supports the decision.'
+                    },
+                    'can_answer_directly': {
                         'type': 'boolean',
-                        'description': (
-                            'True if this issue matches a known/documented problem that can be resolved '
-                            'with existing knowledge. False if it is a new problem requiring a ticket.'
-                        )
-                    }
+                        'description': 'Whether search results are sufficient to directly answer the issue.'
+                    },
+                    'recommended_action': {
+                        'type': 'string',
+                        'enum': ['suggest_modify_type', 'suggest_resolution', 'suggest_create_ticket'],
+                        'description': 'The handling action to call next.'
+                    },
+                    'rationale': {
+                        'type': 'string',
+                        'description': 'Brief reasoning that links evidence to recommended_action.'
+                    },
                 },
-                'required': ['analysis', 'is_known_issue']
+                'required': [
+                    'summary',
+                    'classified_issue_type',
+                    'searches_performed',
+                    'key_evidence',
+                    'can_answer_directly',
+                    'recommended_action'
+                ]
             }
         }
     }
@@ -53,18 +96,98 @@ class RecordIssueAnalysisTool(BaseAgentTool):
     action_type = 'analysis'
     action_status = 'completed'
 
-    def execute(self, analysis, is_known_issue=False):
+    def execute(
+        self,
+        summary,
+        classified_issue_type,
+        original_issue_type='',
+        searches_performed=None,
+        key_evidence='',
+        can_answer_directly=False,
+        recommended_action='suggest_create_ticket',
+        rationale='',
+    ):
         source_id = self.get_source_id()
         source_title = self.get_source_title()
-        verdict = 'known issue' if is_known_issue else 'new issue'
         return (
             f'Analysis recorded for GitHub issue {source_id} - {source_title}. '
-            f'Verdict: {verdict}.'
+            f'Classified as {classified_issue_type}. '
+            f'Recommended next action: {recommended_action}.'
+        )
+
+
+class SuggestModifyTypeTool(BaseAgentTool):
+    """Suggests a user-facing issue type update when confidence is high."""
+
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'suggest_modify_type',
+            'description': (
+                'Suggest that the user update how this issue is categorized '
+                '(bug report, feature request, or general support question). '
+                'Only call this when your classification confidence is high and '
+                'you can clearly explain why the current type is less suitable.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'current_issue_type': {
+                        'type': 'string',
+                        'description': 'The current issue_type label from input.'
+                    },
+                    'suggested_type': {
+                        'type': 'string',
+                        'enum': ['bug report', 'feature request', 'general support question'],
+                        'description': 'Your suggested user-facing type for this issue.'
+                    },
+                    'reason': {
+                        'type': 'string',
+                        'description': (
+                            'Explain why the current issue type is less appropriate and '
+                            'why the suggested type is a better fit. Additionally, you should clearly specify the suggested type.'
+                        )
+                    },
+                    'confidence': {
+                        'type': 'number',
+                        'minimum': 0,
+                        'maximum': 1,
+                        'description': 'Confidence score for this type suggestion, from 0 to 1.'
+                    }
+                },
+                'required': ['current_issue_type', 'suggested_type', 'reason', 'confidence']
+            }
+        }
+    }
+
+    action_type = 'suggestion'
+    action_status = 'pending'
+    suggestion_text = 'Suggest a more suitable issue type for this GitHub issue.'
+
+    def execute(self, current_issue_type, suggested_type, reason, confidence):
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+        reason = (reason or '').strip()
+        if not reason:
+            return 'Cannot create modify-type suggestion: empty reason.'
+
+        try:
+            confidence_text = f'{float(confidence):.2f}'
+        except (TypeError, ValueError):
+            confidence_text = str(confidence)
+        preview = reason[:300]
+        if len(reason) > 300:
+            preview += '...'
+
+        return (
+            f'Issue type suggestion prepared for GitHub issue {source_id} - {source_title}. '
+            f'Current: {current_issue_type}; Suggested: {suggested_type}; '
+            f'Confidence: {confidence_text}. Reason: {preview}'
         )
 
 
 class SuggestResolutionTool(BaseAgentTool):
-    """Suggests a resolution for a GitHub issue that matches a known problem.
+    """Suggests a resolution or direct reply for a GitHub issue.
 
     The suggestion is stored as pending and requires user confirmation before
     any action is taken (e.g. posting a reply on GitHub or closing the issue).
@@ -75,10 +198,9 @@ class SuggestResolutionTool(BaseAgentTool):
         'function': {
             'name': 'suggest_resolution',
             'description': (
-                'Suggest a resolution for a GitHub issue that can be addressed with existing knowledge. '
-                'Call this when the issue matches a known problem. '
-                'The resolution MUST include the URL of the related record (GitHub issue or forum topic) '
-                'so the user can refer to it. '
+                'Suggest a resolution/reply for a GitHub issue that can be answered by search evidence '
+                '(known issue, tracked request, or direct support answer). '
+                'Include supporting URLs from relevant records whenever available. '
                 'The suggestion requires user confirmation before being acted upon.'
             ),
             'parameters': {
@@ -89,8 +211,8 @@ class SuggestResolutionTool(BaseAgentTool):
                         'description': (
                             'The proposed resolution or answer to the issue. '
                             'Write it as if it were a helpful reply to the issue author. '
-                            'MUST include the URL of the related record (e.g. the duplicate GitHub issue '
-                            'or the Discourse forum topic) so the user can refer to it directly.'
+                            'For known/tracked cases, include URLs to the supporting records '
+                            '(GitHub issue, forum topic, email thread, ticket, or docs).'
                         )
                     },
                     'reasoning': {
@@ -138,7 +260,8 @@ class SuggestCreateTicketTool(BaseAgentTool):
             'name': 'suggest_create_ticket',
             'description': (
                 'Suggest creating an internal ticket from this GitHub issue. '
-                'Call this when the issue represents a new problem not covered by existing knowledge. '
+                'Call this when search evidence is insufficient to resolve directly and the issue should be tracked '
+                '(e.g. new bug, new feature request, or unresolved support problem). '
                 'The ticket creation requires user confirmation.'
             ),
             'parameters': {
@@ -182,6 +305,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
 # All GitHub issue tools for registration by GithubIssueAgentWorker
 GITHUB_ISSUE_TOOL_CLASSES = [
     RecordIssueAnalysisTool,
+    SuggestModifyTypeTool,
     SuggestResolutionTool,
     SuggestCreateTicketTool,
 ]

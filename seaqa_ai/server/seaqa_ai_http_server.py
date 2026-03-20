@@ -13,3 +13,7 @@ class SeaQAAIHttpServer(Thread):
 
     def run(self):
         self.server.run()
+
+    def stop(self):
+        """Stop HTTP server gracefully."""
+        self.server.close()

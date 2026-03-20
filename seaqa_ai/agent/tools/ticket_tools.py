@@ -46,13 +46,13 @@ class RecordTicketAnalysisTool(BaseAgentTool):
         return f'Analysis recorded for ticket #{source_id} - {source_title}.'
 
 
-class NotifyAssigneeTool(BaseAgentTool):
+class SuggestNotifyAssigneeTool(BaseAgentTool):
     """Suggests notifying the assignees of a ticket; requires user confirmation."""
 
     tool = {
         'type': 'function',
         'function': {
-            'name': 'notify_assignee',
+            'name': 'suggest_notify_assignee',
             'description': (
                 'Send a notification to the assignees of a ticket. '
                 'Use this when a ticket is approaching its due date, '
@@ -100,13 +100,13 @@ class NotifyAssigneeTool(BaseAgentTool):
         )
 
 
-class AddCommentTool(BaseAgentTool):
+class SuggestAddCommentTool(BaseAgentTool):
     """Suggests adding a comment to a ticket; requires user confirmation."""
 
     tool = {
         'type': 'function',
         'function': {
-            'name': 'add_comment',
+            'name': 'suggest_add_comment',
             'description': (
                 'Add a comment to a ticket to reply the messages in the ticket. '
                 'The comment will be marked as pending '
@@ -148,6 +148,6 @@ class AddCommentTool(BaseAgentTool):
 # All ticket-specific tools for registration by TicketAgentWorker
 TICKET_TOOL_CLASSES = [
     RecordTicketAnalysisTool,
-    NotifyAssigneeTool,
-    AddCommentTool,
+    SuggestNotifyAssigneeTool,
+    SuggestAddCommentTool,
 ]

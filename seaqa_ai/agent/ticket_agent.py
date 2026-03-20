@@ -1,39 +1,41 @@
 """
-TicketAgentWorker: processes open/changed tickets for a single project.
+TicketAgent: processes a single ticket for a project.
 
 Responsibilities:
-1. Query tickets modified since the last agent run, plus tickets due soon.
-2. For each ticket, build full context (comments, activities) and run the AI loop.
+1. Fetch the specified ticket and build full context (comments, activities).
+2. Run the AI loop.
 3. Record analysis and suggestions (notify assignee, add comment) to SeaDB.
 """
 import logging
 import json
-from datetime import datetime, timezone, timedelta
 
-from seaqa_ai import config
+from seaqa_ai.utils import now_iso
 from seaqa_ai.utils.constants import TICKET_TABLES
-from seaqa_ai.agent.base_agent_worker import BaseAgentWorker
+from seaqa_ai.agent.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
-from seaqa_ai.agent.constants import AGENT_ACTIONS_TABLE
+from seaqa_ai.agent.utils.constants import AGENT_ACTIONS_TABLE
 from seaqa_ai.agent.system_prompt import TICKET_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
 
-class TicketAgentWorker(BaseAgentWorker):
-    """Processes changed and due-soon tickets for a single project."""
-
-    _DEFAULT_NOTIFY_BEFORE_DUE_HOURS = 48
+class TicketAgent(BaseAgent):
+    """Processes a single ticket for a project."""
 
     SOURCE_TYPE = 'ticket'
 
-    @property
-    def notify_before_due_hours(self) -> int:
-        return int(
-            self.agent_settings.get(
-                'notify_before_due_hours', self._DEFAULT_NOTIFY_BEFORE_DUE_HOURS
-            )
-        )
+    def __init__(self, app, project, record_id=None, events=None):
+        """
+        Args:
+            app: the Flask app object.
+            project: dict with 'uuid' and 'settings' keys.
+            record_id: pk of the ticket to process.
+            event_types: list of event type strings that triggered this agent run.
+            events: list of event payloads that triggered this agent run.
+        """
+        super().__init__(app, project)
+        self.record_id = record_id
+        self.events = list(events) if events else []
 
     # ── Abstract method implementations ────────────────────────────
 
@@ -50,15 +52,19 @@ class TicketAgentWorker(BaseAgentWorker):
             'source_title': item.get('title', 'Untitled'),
         }
 
-    def get_items_to_process(self, since) -> list[dict]:
-        """Merge recently changed tickets with due-soon tickets (deduplicated)."""
-        changed = self._get_changed_tickets(since)
-        due_soon = self._get_due_soon_tickets(self.notify_before_due_hours)
-
-        ticket_map = {}
-        for t in changed + due_soon:
-            ticket_map[t['_pk']] = t
-        return list(ticket_map.values())[:config.AGENT_MAX_TICKETS_PER_RUN]
+    def get_item(self) -> dict | None:
+        """Return the single ticket to process, or None if not found."""
+        if self.record_id is None:
+            return None
+        sql = (
+            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
+            f"WHERE _pk = {self.record_id} "
+            f"AND (`state` != 'closed' OR `state` IS NULL) "
+            f"AND (`deleted` = False OR `deleted` IS NULL) "
+            f"LIMIT 1"
+        )
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        return results[0] if results else None
 
     def get_item_context(self, item: dict) -> dict:
         """Fetch comments, activities, and historical notifications for a ticket."""
@@ -87,7 +93,7 @@ class TicketAgentWorker(BaseAgentWorker):
         executed_notifications = self.get_executed_actions(
             source_type=self.SOURCE_TYPE,
             source_id=str(ticket_id),
-            tool_name='notify_assignee'
+            tool_name='suggest_notify_assignee'
         )
 
         return {
@@ -102,7 +108,7 @@ class TicketAgentWorker(BaseAgentWorker):
         Args:
             source_type: Type of the source (e.g., 'ticket')
             source_id: ID of the source record
-            tool_name: Optional filter by tool name (e.g., 'notify_assignee')
+            tool_name: Optional filter by tool name (e.g., 'suggest_notify_assignee')
         
         Returns:
             List of action records ordered by created_at DESC
@@ -155,6 +161,7 @@ class TicketAgentWorker(BaseAgentWorker):
         
         message_dict = {
             'ticket_id': item['_pk'],
+            'events': self.events,
             'title': item.get('title', 'Untitled'),
             'state': item.get('state', 'N/A'),
             'substate': item.get('substate', 'N/A'),
@@ -170,37 +177,3 @@ class TicketAgentWorker(BaseAgentWorker):
         }
         
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
-
-    # ── Ticket-specific queries ─────────────────────────────────────
-
-    def _get_changed_tickets(self, since) -> list[dict]:
-        """Retrieve tickets modified since ``since`` that are not closed/deleted."""
-        conditions = []
-        if since:
-            since_iso = since.isoformat()
-            conditions.append(f'`modified_time` > "{since_iso}"')
-
-        conditions.append("(`state` != 'closed' OR `state` IS NULL)")
-        conditions.append("(`deleted` = False OR `deleted` IS NULL)")
-
-        where = ' AND '.join(conditions)
-        sql = (
-            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` WHERE {where} "
-            f"ORDER BY `modified_time` DESC "
-            f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
-        )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
-
-    def _get_due_soon_tickets(self, hours: int = 48) -> list[dict]:
-        """Retrieve open tickets whose due_date falls within the next ``hours`` hours."""
-        now = datetime.now(timezone.utc)
-        threshold = (now + timedelta(hours=hours)).isoformat()
-        sql = (
-            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
-            f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
-            f"AND (`state` != 'closed' OR `state` IS NULL) "
-            f"AND (`deleted` = False OR `deleted` IS NULL) "
-            f"ORDER BY `due_date` ASC "
-            f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
-        )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])

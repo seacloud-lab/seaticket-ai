@@ -1,5 +1,10 @@
+import logging
+
 from sqlalchemy import text
 from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.db.models import Project
+
+logger = logging.getLogger('__name__')
 
 
 class SeaqaDB(object):
@@ -14,3 +19,42 @@ class SeaqaDB(object):
                 text(sql),
                 {'project_uuid': project_uuid}
             ).scalar_one_or_none()
+
+    @staticmethod
+    def is_agent_enabled(project: dict) -> bool:
+        if not isinstance(project, dict):
+            return False
+        settings = project.get('settings')
+        if not isinstance(settings, dict):
+            return False
+        agent_settings = settings.get('agent')
+        if not isinstance(agent_settings, dict):
+            return True
+        return bool(agent_settings.get('enabled', True))
+    
+    def get_project_by_uuid(self, project_uuid: str) -> dict | None:
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return Project.get_project_by_uuid(db_session, project_uuid_32)
+            except Exception as e:
+                logger.exception(f'Failed to query project {project_uuid}: {e}')
+        return None
+    
+    def get_all_projects(self, page_size: int = 50) -> list[dict]:
+        all_projects = []
+        with self.db_session_class() as db_session:
+            try:
+                page = 1
+                while True:
+                    projects, total = Project.get_all_non_deleted_projects(db_session, page=page, page_size=page_size)
+                    all_projects.extend(projects)
+                    if len(all_projects) >= total or not projects:
+                        break
+                    page += 1
+            except Exception as e:
+                logger.exception(f'Failed to get projects: {e}')
+        return all_projects
+
+    def get_enabled_projects(self) -> list[dict]:
+        return [project for project in self.get_all_projects() if self.is_agent_enabled(project)]

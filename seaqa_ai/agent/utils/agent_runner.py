@@ -148,6 +148,7 @@ class AgentRunner:
         tool_calls: list[ChatCompletionMessageToolCall],
         messages: list[dict],
     ) -> str | None:
+        self.tool_executor.thought_process.add_tool_calls_group()
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             is_final_answer = tool_name == 'final_answer'
@@ -190,7 +191,14 @@ class AgentRunner:
             logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
             try:
                 result = self.tool_executor.execute(tool_call)
-                observation = str(result).strip() if result is not None else ''
+                if result is None:
+                    observation = ''
+                elif isinstance(result, str):
+                    observation = result.strip()
+                elif isinstance(result, (dict, list)):
+                    observation = json.dumps(result, ensure_ascii=False)
+                else:
+                    observation = str(result).strip()
             except Exception as e:
                 tool_failed = True
                 logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
@@ -250,13 +258,17 @@ class AgentRunner:
         suggestion_text = metadata.get('suggestion_text', '') if action_type == 'suggestion' else ''
         content = (
             arguments.get('analysis') or
+            arguments.get('summary') or
             arguments.get('message') or
             arguments.get('comment') or
             arguments.get('resolution') or
             arguments.get('reason') or
+            arguments.get('rationale') or
             arguments.get('content') or
             ''
         )
+        if not content and isinstance(arguments, dict) and arguments:
+            content = json.dumps(arguments, ensure_ascii=False)
         self._record_action(
             tool_name=tool_name,
             arguments=arguments,

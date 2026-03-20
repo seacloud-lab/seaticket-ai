@@ -29,9 +29,12 @@ class Project(Base):
     ticket_ai_indexed_at = Column(DateTime, nullable=True)
 
     @classmethod
-    def get_all_non_deleted_projects(cls, session):
+    def get_all_non_deleted_projects(cls, session, page: int = 1, page_size: int = 50):
         try:
-            projects_query = session.query(cls.uuid, cls.settings).filter(cls.deleted == 0)
+            base_query = session.query(cls.uuid, cls.settings).filter(cls.deleted == 0)
+            total = base_query.count()
+            offset = (page - 1) * page_size
+            projects_query = base_query.offset(offset).limit(page_size)
             projects = []
             for project in projects_query:
                 try:
@@ -42,10 +45,10 @@ class Project(Base):
                     'uuid': str(project.uuid),
                     'settings': settings,
                 })
-            return projects
+            return projects, total
         except Exception as e:
             logger.exception(f'Failed to query projects: {e}')
-            return []
+            return [], 0
 
     @classmethod
     def get_project_by_uuid(cls, session, uuid: str):
