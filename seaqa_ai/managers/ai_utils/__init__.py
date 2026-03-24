@@ -341,7 +341,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keyword_search(query, project_uuid, connection_ids, extra_sources)
+        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources)
         search_results = search_records_to_map(records, {}, attachments_hex)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
