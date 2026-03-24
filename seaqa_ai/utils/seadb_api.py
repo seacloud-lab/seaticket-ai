@@ -91,7 +91,7 @@ class SeaDBAPI:
         response = requests.put(url, json=data, headers=headers, timeout=self.timeout)
         return parse_response(response)
 
-    def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, has_deleted_field=False, record_fields_str='*', comments_field_str='*', comments_topic_id_field_name=None):
+    def get_record_and_comments(self, base_id, record_ids, connection_table_name, comments_table_name=None, topic_id_field_name=None, comments_has_deleted_field=True, record_fields_str='*', comments_field_str='*', comments_topic_id_field_name=None):
         """
         return {
             'record_id': {
@@ -127,7 +127,7 @@ class SeaDBAPI:
                 str(topic_id) if not isinstance(topic_id, str) else f'"{topic_id}"'
                 for topic_id in topic_id_record_id_map
             ])
-            if not has_deleted_field:
+            if not comments_has_deleted_field:
                 comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str})')['results']
             else:
                 comments = self.query_rows(base_id, f'SELECT {comments_field_str} FROM {comments_table_name} WHERE {comments_topic_id_field_name} IN ({condition_str}) AND (`deleted` = False OR `deleted` IS NULL)')['results']

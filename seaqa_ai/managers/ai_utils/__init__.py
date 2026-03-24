@@ -8,7 +8,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.managers.ai_utils.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
 from seaqa_ai.managers.ai_utils.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
-from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
+from seaqa_ai.utils.constants import SOURCES_TYPE, ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.managers.ai_utils.utils import retrieve_content_of_search_results, search_records_to_map, gen_completion_format
@@ -249,6 +249,27 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             }
         }
         """
+        if not search_result:
+            return {}, {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0
+            }
+
+        # get rerank required data (title, ai_summary)
+        time_begin = time.time()
+        search_result = retrieve_content_of_search_results(self.app.username_resolver, search_result, self.app.seadb_api, project_uuid, connection_id_type_map)
+        time_end = time.time()
+        if isinstance(call_back, ChatCallBacker):
+            call_back('update_execution_detail', {'Retrieve search records content for reranking': f'time usage: {round(time_end - time_begin, 2)} s'})
+
+        if not search_result:
+            return {}, {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0
+            }
+
         # rank relevance
         time_begin = time.time()
         new_records = new_records = [
@@ -259,7 +280,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
-        rank_pairs = []
+        has_issues_connections = False
         for pair in ranked_record_id_connection_pairs:
             if len((after_unpack := pair.split(':'))) != 2:
                 continue
@@ -272,26 +293,27 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 record_id = int(record_id)
             except:
                 logger.warning(f'Invalid record_id: {record_id}')
+            if not has_issues_connections and connection_id_type_map.get(connection_id) in SOURCES_TYPE.ISSUES.value:
+                has_issues_connections=True
             
             conn_results = search_result.get(connection_id)
             if conn_results and record_id in conn_results:
-                rank_pairs.append({
-                    'connection_id': connection_id,
-                    'record_id': record_id
-                })
-                
                 search_result_after_ranked.setdefault(connection_id, {})[record_id] = conn_results[record_id]
 
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Rerank search records': f'time usage: {round(time_end - time_begin, 2)} s; tokens usage: {rerank_token_usage["total_tokens"]} (↑{rerank_token_usage["input_tokens"]} ↓{rerank_token_usage["output_tokens"]})'})
+
+        if not search_result_after_ranked:
+            return {}, rerank_token_usage
         
-        # get source results for records after ranked
-        time_begin = time.time()
-        search_result_after_ranked = retrieve_content_of_search_results(self.app.username_resolver, search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map)
-        time_end = time.time()
-        if isinstance(call_back, ChatCallBacker):
-            call_back('update_execution_detail', {'Retrieve search records content': f'time usage: {round(time_end - time_begin, 2)} s'})
+        # get issues content after ranked (i.e., comments data)
+        if has_issues_connections:
+            time_begin = time.time()
+            search_result_after_ranked = retrieve_content_of_search_results(self.app.username_resolver, search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map, True)
+            time_end = time.time()
+            if isinstance(call_back, ChatCallBacker):
+                call_back('update_execution_detail', {'Retrieve issue records content': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         return search_result_after_ranked, rerank_token_usage
     
@@ -319,7 +341,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids, extra_sources, context.get('username'))
+        records = self.app.seaqa_indexer_api.keyword_search(query, project_uuid, connection_ids, extra_sources)
         search_results = search_records_to_map(records, {}, attachments_hex)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
@@ -327,7 +349,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         # semantic search data
         time_begin = time.time()
-        records = self.app.seaqa_indexer_api.search(query, project_uuid, connection_ids, extra_sources, context.get('username'), is_vector_search=True)
+        query_vector = self.app.embedding_api.generate(query, context)
+        records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
         search_results = search_records_to_map(records, search_results, attachments_hex)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):

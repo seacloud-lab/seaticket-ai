@@ -20,21 +20,37 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25, is_vector_search=False):
+    def keyword_search(self, query, project_uuid, connection_ids=None, extra_sources=[], count=25):
         params = {
             'query': query,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
             'extra_sources': extra_sources,
-            'username': username,
             'count': count,
         }
-        if is_vector_search:
-            params['search_type'] = 'semantic_search'
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
         url = urljoin(self.server_url, '/search?from=seaqa-ai')
+        resp = requests.post(url, json=params, headers=headers)
+        if resp.status_code == 500:
+            raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
+        resp_json = resp.json()
+        results = resp_json.get('results', [])
+        return results
+    
+    def vector_search(self, query_vector, project_uuid, connection_ids=None, extra_sources=[], count=25):
+        params = {
+            'query_vector': query_vector,
+            'project_uuid': project_uuid,
+            'connection_ids': connection_ids,
+            'extra_sources': extra_sources,
+            'count': count,
+        }
+        payload = {'exp': int(time.time()) + 300, }
+        token = jwt.encode(payload, self.secret_key, algorithm='HS256')
+        headers = {"Authorization": "Token %s" % token}
+        url = urljoin(self.server_url, '/vector_search?from=seaqa-ai')
         resp = requests.post(url, json=params, headers=headers)
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
