@@ -283,7 +283,7 @@ class ContentRetriever:
 
         # query comments/replies
         # for email thread_id_to_comments also present as record_id_to_comments due to same topic id field
-        record_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+        record_id_to_replies = self.seadb_api.get_comments_by_topic_ids(
             base_id=self.project_uuid,
             table_name=replies_table_name,
             topic_ids=record_ids,
@@ -294,7 +294,7 @@ class ContentRetriever:
         # set content from topic and comments
         for record_id, record in record_id_record_map.items():
             record_from_seadb = record_id_to_threads[record_id]
-            comments = record_id_to_comments.get(record_id, [])
+            comments = record_id_to_replies.get(record_id, [])
 
             content = {
                 'topic_tags': record_from_seadb['tags'],
