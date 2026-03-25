@@ -5,6 +5,7 @@ from seaqa_ai.utils import url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
+from seaqa_ai.managers.ai_utils.utils.search import remap_comments_by_record_id
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class ContentRetriever:
         """
 
         for connection_id, record_id_record_map in search_results.items():
+            # get corresponding handler
             method_name = f'_get_{connection_id_type_map[connection_id]}_content'
             method = getattr(self, method_name)
             result = method(record_id_record_map, connection_id)
@@ -40,29 +42,31 @@ class ContentRetriever:
 
     # documents
     ## knowledge base
-    def _get_site_content(self, record_id_record_map, _):
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            gen_seadb_table_name(ExtraSourceType.KNOWLEDGE_BASE.value)[0],
-            record_fields_str='content'
+    def _get_knowledge_base_content(self, record_id_record_map, _):
+        results_from_seadb = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=gen_seadb_table_name(ExtraSourceType.KNOWLEDGE_BASE.value)[0],
+            pks=record_id_record_map.keys(),
+            fields_str='content'
         )
         for record_id, record in record_id_record_map.items():
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['record']['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
+            # set content from keywords search result (priority) or from seadb
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
         
         return record_id_record_map
 
     ## site
     def _get_site_content(self, record_id_record_map, connection_id):
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            gen_seadb_table_name(ConnectionType.SITE.value, connection_id)[0],
-            record_fields_str='url'
+        results_from_seadb = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=gen_seadb_table_name(ConnectionType.SITE.value, connection_id)[0],
+            pks=record_id_record_map.keys(),
+            fields_str='url'
         )
+        # set content from keywords search result (priority) or from s3
         with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as s3_storage:
             for record_id, record in record_id_record_map.items():
-                url = results_from_seadb[record_id]['record']['url']
+                url = results_from_seadb[record_id]['url']
                 record['url'] = url
                 record['content'] = (record.get('content') or s3_storage.read_json(
                     site_id=connection_id,
@@ -73,36 +77,48 @@ class ContentRetriever:
 
     ## seafile
     def _get_seafile_content(self, record_id_record_map, connection_id):
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            gen_seadb_table_name(ConnectionType.SEAFILE.value, connection_id)[0],
-            record_fields_str='content'
+        results_from_seadb = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=gen_seadb_table_name(ConnectionType.SEAFILE.value, connection_id)[0],
+            pks=record_id_record_map.keys(),
+            fields_str='content'
         )
+
+        # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['record']['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
         
         return record_id_record_map
 
     # issues
     ## ticket
     def _get_ticket_content(self, record_id_record_map, _):
-        connection_table_name, comments_table_name = gen_seadb_table_name(ExtraSourceType.TICKET.value)
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            connection_table_name,
-            comments_table_name=comments_table_name,
-            record_fields_str='creator, assignees, content, state, substate, type, tags, participants, priority',
-            comments_field_str='creator, content',
-            topic_id_field_name='_pk',
-            comments_topic_id_field_name='ticket_id'
+        topics_table_name, comments_table_name = gen_seadb_table_name(ExtraSourceType.TICKET.value)
+
+        # query topics
+        record_ids = record_id_record_map.keys()
+        record_id_to_topics = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=topics_table_name,
+            pks=record_ids,
+            fields_str='creator, assignees, content, state, substate, type, tags, participants, priority'
         )
 
+        # query comments/replies
+        # for ticket topic_id_to_comments also present as record_id_to_comments due to same topic id field
+        record_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+            base_id=self.project_uuid,
+            table_name=comments_table_name,
+            topic_ids=record_ids,
+            topic_id_field_name='ticket_id',
+            fields_str='creator, content'
+        )
+
+        # get all the usernames need to be resolved
         related_usernames = []
         for record_id in record_id_record_map:
-            record = results_from_seadb[record_id]['record']
-            comments = results_from_seadb[record_id].get('comments', [])
+            record = record_id_to_topics[record_id]
+            comments = record_id_to_comments.get(record_id, [])
 
             related_usernames.append(record['creator'])
             related_usernames += record['assignees'] or []
@@ -112,11 +128,13 @@ class ContentRetriever:
                 for comment in comments
             ]
         
+        # resolved username to nickname
         username_nickname_map = self.username_resolver.emails2nicknames(list(set(related_usernames)), return_map=True)
 
+        # set content from topic and comments
         for record_id, record in record_id_record_map.items():
-            record_from_seadb = results_from_seadb[record_id]['record']
-            comments = results_from_seadb[record_id].get('comments', [])
+            record_from_seadb = record_id_to_topics[record_id]
+            comments = record_id_to_comments.get(record_id, [])
 
             content = {
                 'author': username_nickname_map.get(record_from_seadb['creator'], ''),
@@ -148,20 +166,36 @@ class ContentRetriever:
     
     ## github_issue
     def _get_github_issue_content(self, record_id_record_map, connection_id):
-        connection_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, connection_id)
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            connection_table_name,
-            comments_table_name=comments_table_name,
-            topic_id_field_name='issue_id',
-            record_fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url',
-            comments_field_str='author, content'
+        topics_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, connection_id)
+
+        # query topics
+        record_id_to_topics = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=topics_table_name,
+            pks=record_id_record_map.keys(),
+            fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url'
         )
 
+        # query comments/replies, the result of the following steps is record_id_to_comments
+        issue_id_to_record_id = {
+            record['issue_id']: record_id
+            for record_id, record in record_id_to_topics.items()
+        }
+        issue_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+            base_id=self.project_uuid,
+            table_name=comments_table_name,
+            topic_ids=issue_id_to_record_id.keys(),
+            topic_id_field_name='issue_id',
+            fields_str='author, content',
+            has_deleted_field=False
+        )
+
+        record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
+
+        # set content from topic and comments
         for record_id, record in record_id_record_map.items():
-            record_from_seadb = results_from_seadb[record_id]['record']
-            comments = results_from_seadb[record_id].get('comments', [])
+            record_from_seadb = record_id_to_topics[record_id]
+            comments = record_id_to_comments.get(record_id, [])
 
             content = {
                 'issue_id': record_from_seadb['issue_id'],
@@ -187,21 +221,36 @@ class ContentRetriever:
 
     ## discourse_forum
     def _get_discourse_forum_content(self, record_id_record_map, connection_id):
-        connection_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.DISCOURSE_FORUM.value, connection_id)
+        topics_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.DISCOURSE_FORUM.value, connection_id)
 
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            connection_table_name,
-            comments_table_name=comments_table_name,
-            topic_id_field_name='topic_id',
-            record_fields_str='topic_id, slug, resolved',
-            comments_field_str='author, post_number, content'
+        # query topics
+        record_id_to_topics = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=topics_table_name,
+            pks=record_id_record_map.keys(),
+            fields_str='topic_id, slug, resolved'
         )
 
+        # query comments/replies, the result of the following steps is record_id_to_comments
+        topic_id_to_record_id = {
+            record['topic_id']: record_id
+            for record_id, record in record_id_to_topics.items()
+        }
+        topic_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+            base_id=self.project_uuid,
+            table_name=comments_table_name,
+            topic_ids=topic_id_to_record_id.keys(),
+            topic_id_field_name='topic_id',
+            fields_str='author, post_number, content',
+            has_deleted_field=False
+        )
+
+        record_id_to_comments = remap_comments_by_record_id(topic_id_to_record_id, topic_id_to_comments)
+
+        # set content from topic and comments
         for record_id, record in record_id_record_map.items():
-            record_from_seadb = results_from_seadb[record_id]['record']
-            comments = results_from_seadb[record_id].get('comments', [])
+            record_from_seadb = record_id_to_topics[record_id]
+            comments = record_id_to_comments.get(record_id, [])
 
             content = {
                 'topic_id': record_from_seadb['topic_id'],
@@ -221,21 +270,31 @@ class ContentRetriever:
 
     ## email
     def _get_email_content(self, record_id_record_map, connection_id):
-        connection_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.EMAIL.value, connection_id)
-        results_from_seadb = self.seadb_api.get_record_and_comments(
-            self.project_uuid,
-            record_id_record_map.keys(),
-            connection_table_name,
-            comments_table_name=comments_table_name,
-            topic_id_field_name='_pk',
-            record_fields_str='tags',
-            comments_field_str='title, email_from, email_to, cc, content, html_content, attachments', comments_topic_id_field_name='thread_id',
-            has_deleted_field=True
+        threads_table_name, replies_table_name = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, connection_id)
+
+        # query threads
+        record_ids = record_id_record_map.keys()
+        record_id_to_threads = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=threads_table_name,
+            pks=record_ids,
+            fields_str='tags'
         )
 
+        # query comments/replies
+        # for email thread_id_to_comments also present as record_id_to_comments due to same topic id field
+        record_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+            base_id=self.project_uuid,
+            table_name=replies_table_name,
+            topic_ids=record_ids,
+            topic_id_field_name='thread_id',
+            fields_str='title, email_from, email_to, cc, content, html_content, attachments'
+        )
+
+        # set content from topic and comments
         for record_id, record in record_id_record_map.items():
-            record_from_seadb = results_from_seadb[record_id]['record']
-            comments = results_from_seadb[record_id].get('comments', [])
+            record_from_seadb = record_id_to_threads[record_id]
+            comments = record_id_to_comments.get(record_id, [])
 
             content = {
                 'topic_tags': record_from_seadb['tags'],

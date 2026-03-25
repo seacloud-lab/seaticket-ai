@@ -180,11 +180,14 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     'record_id': record_id
                 }
                 candidate_keys.append(copy(new_candidate))
-                if title := candidate.get('title'):
+                title = candidate.get('title')
+                if title:
                     new_candidate['title'] = title
-                if summary := candidate.get('ai_summary'):
+                summary = candidate.get('ai_summary')
+                if summary:
                     new_candidate['summary'] = summary
-                if snippets := candidate.get('snippets'):
+                snippets = candidate.get('snippets')
+                if snippets:
                     new_candidate['snippets'] = snippets
                 candidates_text.append(new_candidate)
             
@@ -283,7 +286,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
         for pair in ranked_record_id_connection_pairs:
-            if len((after_unpack := pair.split(':'))) != 2:
+            after_unpack = pair.split(':')
+            if len(after_unpack) != 2:
                 continue
             record_id, connection_id = after_unpack
             try:
@@ -335,13 +339,13 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             ExtraSourceType.TICKET.value: ExtraSourceType.TICKET.value
         })
 
-        attachments_hex = context.get('attachments_hex', [])
+        skip_search_record_hashes = context.get('skip_search_record_hashes', [])
 
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keywords_search(query, project_uuid, connection_ids, extra_sources)
-        search_results = search_records_to_map(records, {}, attachments_hex)
+        records = self.app.seaqa_indexer_api.keyword_search(query, project_uuid, connection_ids, extra_sources)
+        search_results = search_records_to_map(records, {}, skip_search_record_hashes)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Keywords search': f'time usage: {round(time_end - time_begin, 2)} s'})
@@ -350,7 +354,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         time_begin = time.time()
         query_vector = self.app.embedding_api.generate(query, context)
         records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
-        search_results = search_records_to_map(records, search_results, attachments_hex)
+        search_results = search_records_to_map(records, search_results, skip_search_record_hashes)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})

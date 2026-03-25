@@ -3,7 +3,7 @@ import jwt
 import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils import chunk_text, gen_attachment_hex
+from seaqa_ai.utils import chunk_text, gen_record_hash
 from seaqa_ai.managers.chat_manager import StreamingChat, SyncChat
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
@@ -62,8 +62,8 @@ def get_ai_reply():
         'project_prompt': project_prompt,
         'is_external_portal': is_external_portal,
         'allowed_sources': allowed_sources,
-        'attachments_hex': [
-            gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
+        'skip_search_record_hashes': [
+            gen_record_hash(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
         ],
         'scenario': scenario,
