@@ -11,7 +11,9 @@ from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import SOURCES_TYPE, ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
-from seaqa_ai.managers.ai_utils.utils import retrieve_content_of_search_results, search_records_to_map, gen_completion_format
+from seaqa_ai.managers.ai_utils.utils import gen_completion_format
+from seaqa_ai.managers.ai_utils.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
+from seaqa_ai.managers.ai_utils.utils.search.content_retriever import ContentRetriever
 from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -258,10 +260,10 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         # get rerank required data (title, ai_summary)
         time_begin = time.time()
-        search_result = retrieve_content_of_search_results(self.app.username_resolver, search_result, self.app.seadb_api, project_uuid, connection_id_type_map)
+        search_result = get_title_and_ai_summary_of_search_results(search_result, self.app.seadb_api, project_uuid, connection_id_type_map)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
-            call_back('update_execution_detail', {'Retrieve search records content for reranking': f'time usage: {round(time_end - time_begin, 2)} s'})
+            call_back('update_execution_detail', {'Request title and ai_summary': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         if not search_result:
             return {}, {
@@ -280,7 +282,6 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         ranked_record_id_connection_pairs, rerank_token_usage = self.rank_issues_by_relevance(query, new_records, context)
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
-        has_issues_connections = False
         for pair in ranked_record_id_connection_pairs:
             if len((after_unpack := pair.split(':'))) != 2:
                 continue
@@ -293,8 +294,6 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 record_id = int(record_id)
             except:
                 logger.warning(f'Invalid record_id: {record_id}')
-            if not has_issues_connections and connection_id_type_map.get(connection_id) in SOURCES_TYPE.ISSUES.value:
-                has_issues_connections=True
             
             conn_results = search_result.get(connection_id)
             if conn_results and record_id in conn_results:
@@ -307,15 +306,15 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         if not search_result_after_ranked:
             return {}, rerank_token_usage
         
-        # get issues content after ranked (i.e., comments data)
-        if has_issues_connections:
-            time_begin = time.time()
-            search_result_after_ranked = retrieve_content_of_search_results(self.app.username_resolver, search_result_after_ranked, self.app.seadb_api, project_uuid, connection_id_type_map, True)
-            time_end = time.time()
-            if isinstance(call_back, ChatCallBacker):
-                call_back('update_execution_detail', {'Retrieve issue records content': f'time usage: {round(time_end - time_begin, 2)} s'})
+        # get content of reranked result
+        time_begin = time.time()
+        content_retriever = ContentRetriever(self.app.username_resolver, self.app.seadb_api, project_uuid)
+        search_result_with_whole_data = content_retriever.retrieve(search_result_after_ranked, connection_id_type_map)
+        time_end = time.time()
+        if isinstance(call_back, ChatCallBacker):
+            call_back('update_execution_detail', {'Requst whole data': f'time usage: {round(time_end - time_begin, 2)} s'})
 
-        return search_result_after_ranked, rerank_token_usage
+        return search_result_with_whole_data, rerank_token_usage
     
     def search(self, query, connections, extra_sources, context, limit=100, call_back=None):
         if limit <= 0:

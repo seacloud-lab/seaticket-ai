@@ -16,7 +16,7 @@ def parse_response(response):
         except:
             pass
 
-def gen_seadb_table_name(connection_type, connection_id):
+def gen_seadb_table_name(connection_type, connection_id=None):
     connection_table_name = f'{connection_type}_{connection_id}'
     comments_table_name = ''
 
