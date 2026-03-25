@@ -281,9 +281,9 @@ class ContentRetriever:
             fields_str='tags'
         )
 
-        # query comments/replies
-        # for email thread_id_to_comments also present as record_id_to_comments due to same topic id field
-        record_id_to_replies = self.seadb_api.get_comments_by_topic_ids(
+        # query emails
+        # for email thread_id_to_comments also present as record_id_to_emails due to same topic id field
+        record_id_to_emails = self.seadb_api.get_comments_by_topic_ids(
             base_id=self.project_uuid,
             table_name=replies_table_name,
             topic_ids=record_ids,
@@ -294,20 +294,20 @@ class ContentRetriever:
         # set content from topic and comments
         for record_id, record in record_id_record_map.items():
             record_from_seadb = record_id_to_threads[record_id]
-            comments = record_id_to_replies.get(record_id, [])
+            emails = record_id_to_emails.get(record_id, [])
 
             content = {
                 'topic_tags': record_from_seadb['tags'],
                 'emails': [
                     {
-                        'title': comment['title'],
-                        'email_from': comment['email_from'],
-                        'email_to': comment['email_to'],
-                        'cc': comment['cc'],
-                        'content': comment['content'],
-                        'html_content': comment['html_content']
+                        'title': email['title'],
+                        'email_from': email['email_from'],
+                        'email_to': email['email_to'],
+                        'cc': email['cc'],
+                        'content': email['content'],
+                        'html_content': email['html_content']
                     }
-                    for comment in comments
+                    for email in emails
                 ]
             }
 
