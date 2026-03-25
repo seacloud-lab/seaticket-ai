@@ -31,7 +31,7 @@ class SeaQAIndexerAPI:
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
-        url = urljoin(self.server_url, '/search?from=seaqa-ai')
+        url = urljoin(self.server_url, '/search')
         resp = requests.post(url, json=params, headers=headers)
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
@@ -50,7 +50,7 @@ class SeaQAIndexerAPI:
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
-        url = urljoin(self.server_url, '/vector_search?from=seaqa-ai')
+        url = urljoin(self.server_url, '/vector_search')
         resp = requests.post(url, json=params, headers=headers)
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)

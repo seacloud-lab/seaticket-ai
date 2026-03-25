@@ -84,6 +84,8 @@ def retrieve_content_of_search_results(username_resolver, search_results, seadb_
         connection_type = connection_id_type_map[connection_id]
         connection_table_name, comments_table_name = gen_seadb_table_name(connection_type, connection_id)
         # documents
+        # the content of documents take from the search results firstly due to content chunk in keywords indexes
+        # otherwise from s3/seadb
         if not special_content_model and connection_type == ExtraSourceType.KNOWLEDGE_BASE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='title, ai_summary, content')
             for record_id in list(record_id_record_map.keys()): # use list() to copy keys for avoiding iter error
@@ -93,7 +95,7 @@ def retrieve_content_of_search_results(username_resolver, search_results, seadb_
 
                 record_id_record_map[record_id]['title'] = seadb_record_id_record_comments_map[record_id]['record']['title']
                 record_id_record_map[record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
-                record_id_record_map[record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE] # --> to AI
+                record_id_record_map[record_id]['content'] = (record_id_record_map[record_id].get('content') or seadb_record_id_record_comments_map[record_id]['record']['content'])[:MAX_DOCUMENT_CONTENT_SIZE] # --> to AI
         elif connection_type == ConnectionType.SITE.value:
             seadb_record_id_record_comments_map = seadb_api.get_record_and_comments(project_uuid, record_id_record_map.keys(), connection_table_name, record_fields_str='title, ai_summary, url')
             if special_content_model:
@@ -102,11 +104,11 @@ def retrieve_content_of_search_results(username_resolver, search_results, seadb_
                     for record_id in list(record_id_record_map.keys()):
                         url = seadb_record_id_record_comments_map[record_id]['record']['url']
                         record_id_record_map[record_id]['url'] = url
-                        record_id_record_map[record_id]['content'] = s3_storage.read_json(
+                        record_id_record_map[record_id]['content'] = (record_id_record_map[record_id].get('content') or s3_storage.read_json(
                             site_id=connection_id,
                             project_uuid=project_uuid_to_s3,
                             filename=url_to_filename(url)
-                        )['content'][:MAX_DOCUMENT_CONTENT_SIZE]
+                        )['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
             else:
                 for record_id in list(record_id_record_map.keys()):
                     if record_id not in seadb_record_id_record_comments_map:
@@ -125,9 +127,10 @@ def retrieve_content_of_search_results(username_resolver, search_results, seadb_
 
                 record_id_record_map[record_id]['title'] = seadb_record_id_record_comments_map[record_id]['record']['title']
                 record_id_record_map[record_id]['ai_summary'] = seadb_record_id_record_comments_map[record_id]['record']['ai_summary']
-                record_id_record_map[record_id]['content'] = seadb_record_id_record_comments_map[record_id]['record']['content'][:MAX_DOCUMENT_CONTENT_SIZE]
+                record_id_record_map[record_id]['content'] = (record_id_record_map[record_id].get('content') or seadb_record_id_record_comments_map[record_id]['record']['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
 
         # issues
+        # the content of issues is thread-like with topic content and replies in a json format
         elif connection_type == ExtraSourceType.TICKET.value:
             if not special_content_model:
                 comments_table_name=None
