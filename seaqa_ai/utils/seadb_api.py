@@ -37,17 +37,15 @@ def gen_seadb_table_name(connection_type, connection_id):
 
 
 class SeaDBAPI:
-    def __init__(self, secret_key, server_url, username='', timeout=30):
+    def __init__(self, secret_key, server_url, timeout=30):
         self.timeout = timeout
         self.secret_key = secret_key
         self.server_url = server_url
-        self.username = username
 
     def gen_headers(self, base_id):
         payload = {
             'exp': int(time.time()) + 3600,
-            'base_id': base_id,
-            'username': self.username
+            'base_id': base_id
         }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Bearer %s" % token}
