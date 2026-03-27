@@ -185,7 +185,7 @@ def normalize_usernames(usernames_raw):
         return split_values
     return [value]
 
-def gen_attachment_hex(source_type, connection_id, record_id):
+def gen_record_hash(source_type, connection_id, record_id):
     if source_type in ExtraSourceType:
         return f'{source_type}-{source_type}-{record_id}'
     return f'{source_type}-{connection_id}-{record_id}'

@@ -3,7 +3,7 @@ import jwt
 import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
-from seaqa_ai.utils import chunk_text, gen_attachment_hex
+from seaqa_ai.utils import chunk_text, gen_record_hash
 from seaqa_ai.managers.chat_manager import StreamingChat, SyncChat
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
@@ -62,8 +62,8 @@ def get_ai_reply():
         'project_prompt': project_prompt,
         'is_external_portal': is_external_portal,
         'allowed_sources': allowed_sources,
-        'attachments_hex': [
-            gen_attachment_hex(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
+        'skip_search_record_hashes': [
+            gen_record_hash(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
         ],
         'scenario': scenario,
@@ -303,8 +303,8 @@ def generate_summary():
     return result, 200
 
 
-@flask_app.route('/rank-related-issues', methods=['POST'])
-def rank_issues_by_relevance():
+@flask_app.route('/rank-related-records', methods=['POST'])
+def rank_records_by_relevance():
     is_valid = check_auth_token(request)
     if not is_valid:
         return {'error_msg': 'Permission denied.'}, 403
@@ -342,7 +342,7 @@ def rank_issues_by_relevance():
     }
 
     try:
-        ranked_ids = flask_app.app.ai_utils.rank_issues_by_relevance(query_record, candidate_records, context)[0]
+        ranked_ids = flask_app.app.ai_utils.rank_records_by_relevance(query_record, candidate_records, context)[0]
         return {'ranked_ids': ranked_ids}, 200
     except Exception as e:
         logger.exception(e)

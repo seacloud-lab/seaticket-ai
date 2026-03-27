@@ -334,7 +334,8 @@ class StreamingChat(BasicChat):
                     tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
-                    if has_search_tool and (found_records := len(tool_executor.cache.get('sources_results', []))):
+                    found_records = len(tool_executor.cache.get('sources_results', []))
+                    if has_search_tool and found_records:
                         yield SSE.search_found(found_records)
 
                 # final answer

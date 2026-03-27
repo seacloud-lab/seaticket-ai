@@ -20,22 +20,18 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def keywords_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25):
-        """
-        keywords_search: Uses full-text indexing for searching (searching for the title and content of records). Generally used for searching documents (site & seafile).
-        """
+    def keyword_search(self, query, project_uuid, connection_ids=None, extra_sources=[], count=25):
         params = {
             'query': query,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
             'extra_sources': extra_sources,
-            'username': username,
             'count': count,
         }
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
-        url = urljoin(self.server_url, '/search')
+        url = urljoin(self.server_url, '/search/keyword')
         resp = requests.post(url, json=params, headers=headers)
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)
@@ -43,23 +39,18 @@ class SeaQAIndexerAPI:
         results = resp_json.get('results', [])
         return results
     
-    def vector_search(self, query, project_uuid, connection_ids=None, extra_sources=[], username='', count=25):
-        """
-        vector_search: Performs vector analysis on the "AI_SUMMARY" field of a record to find matching related records. It's typically used to find related Issues (github_issue, discourse_forum, email).
-        """
+    def vector_search(self, query_vector, project_uuid, connection_ids=None, extra_sources=[], count=25):
         params = {
-            'query': query,
+            'query_vector': query_vector,
             'project_uuid': project_uuid,
             'connection_ids': connection_ids,
             'extra_sources': extra_sources,
-            'search_type': 'semantic_search',
-            'username': username,
             'count': count,
         }
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
-        url = urljoin(self.server_url, '/search')
+        url = urljoin(self.server_url, '/search/vector')
         resp = requests.post(url, json=params, headers=headers)
         if resp.status_code == 500:
             raise Exception('search error status: %s body: %s', resp.status_code, resp.text)

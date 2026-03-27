@@ -260,7 +260,7 @@ class GithubIssueAgentWorker(BaseAgentWorker):
                 for c in candidates
             ]
 
-            result = self.app.ai_utils.rank_issues_by_relevance(
+            result = self.app.ai_utils.rank_records_by_relevance(
                 query_record=query_record,
                 candidate_records=candidate_records,
                 context=self._build_ai_stats_context(),
