@@ -268,7 +268,7 @@ class BaseAgent:
         self.last_items_processed = 0
         self.last_run_failed = False
         self.last_run_error_message = ''
-        items_processed = 0
+        run_pk = None
 
         try:
             item = self.get_item()
@@ -280,27 +280,27 @@ class BaseAgent:
                         self.last_run_error_message = 'Failed to create run record'
                         return None
                     self.process_item(item, run_pk)
-                    items_processed = 1
                 except Exception as e:
+                    self.last_run_failed = True
+                    self.last_run_error_message = str(e)[:1000]
                     logger.exception(f'Error processing item: {e}')
-
-            self.last_items_processed = items_processed
 
         except Exception as e:
             logger.exception(f'Error running agent for project {self.project_uuid}: {e}')
-            self.last_items_processed = items_processed
             self.last_run_failed = True
             self.last_run_error_message = str(e)[:1000]
         finally:
-            final_status = 'failed' if self.last_run_failed else 'completed'
-            self.finalize_run_record(
-                run_pk,
-                {
-                    'status': final_status,
-                    'finished_at': now_iso(),
-                    'items_processed': self.last_items_processed,
-                    'error_message': self.last_run_error_message,
-                },
-            )
+            self.last_items_processed = 1 if run_pk is not None and not self.last_run_failed else 0
+            if run_pk is not None:
+                final_status = 'failed' if self.last_run_failed else 'completed'
+                self.finalize_run_record(
+                    run_pk,
+                    {
+                        'status': final_status,
+                        'finished_at': now_iso(),
+                        'items_processed': self.last_items_processed,
+                        'error_message': self.last_run_error_message,
+                    },
+                )
 
         return run_pk
