@@ -147,7 +147,7 @@ class ContentRetriever:
                     username_nickname_map.get(participant, '')
                     for participant in record_from_seadb['participants'] or []
                 ],
-                'content': record_from_seadb['content'],
+                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
                 'comments': [],
                 'state': record_from_seadb['state'],
                 'substate': record_from_seadb['substate'],
@@ -211,7 +211,7 @@ class ContentRetriever:
                 'issue_type': record_from_seadb['issue_type'],
                 'author': record_from_seadb['author'],
                 'assignees': record_from_seadb['assignees'],
-                'content': record_from_seadb['content'],
+                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
                 'comments': []
             }
 
