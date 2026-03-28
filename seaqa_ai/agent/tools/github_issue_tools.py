@@ -3,7 +3,7 @@ Agent tools specific to GitHub Issue processing.
 
 The agent uses this flow for each GitHub issue:
   1. record_issue_analysis  — called after search, before handling.
-  2. suggest_modify_type    — optional, high-confidence user-facing type suggestion.
+  2. suggest_modify_type    — optional, user-facing type suggestion.
   3a. suggest_resolution    — if the issue can be resolved with known info.
   3b. suggest_create_ticket — if the issue should become a tracked ticket.
 """
@@ -22,7 +22,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
             'name': 'record_issue_analysis',
             'description': (
                 'Record your structured GitHub issue analysis after search and before handling tools. '
-                'Include classification, confidence, evidence got by searches, and recommended next action.'
+                'Include classification, evidence got by searches, and recommended next action.'
             ),
             'parameters': {
                 'type': 'object',
@@ -117,7 +117,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
 
 
 class SuggestModifyTypeTool(BaseAgentTool):
-    """Suggests a user-facing issue type update when confidence is high."""
+    """Suggests a user-facing issue type update."""
 
     tool = {
         'type': 'function',
@@ -126,8 +126,7 @@ class SuggestModifyTypeTool(BaseAgentTool):
             'description': (
                 'Suggest that the user update how this issue is categorized '
                 '(bug report, feature request, or general support question). '
-                'Only call this when your classification confidence is high and '
-                'you can clearly explain why the current type is less suitable.'
+                'Only call this when you can clearly explain why the current type is less suitable.'
             ),
             'parameters': {
                 'type': 'object',
@@ -147,15 +146,9 @@ class SuggestModifyTypeTool(BaseAgentTool):
                             'Explain why the current issue type is less appropriate and '
                             'why the suggested type is a better fit. Additionally, you should clearly specify the suggested type.'
                         )
-                    },
-                    'confidence': {
-                        'type': 'number',
-                        'minimum': 0,
-                        'maximum': 1,
-                        'description': 'Confidence score for this type suggestion, from 0 to 1.'
                     }
                 },
-                'required': ['current_issue_type', 'suggested_type', 'reason', 'confidence']
+                'required': ['current_issue_type', 'suggested_type', 'reason']
             }
         }
     }
@@ -164,17 +157,13 @@ class SuggestModifyTypeTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Suggest a more suitable issue type for this GitHub issue.'
 
-    def execute(self, current_issue_type, suggested_type, reason, confidence):
+    def execute(self, current_issue_type, suggested_type, reason):
         source_id = self.get_source_id()
         source_title = self.get_source_title()
         reason = (reason or '').strip()
         if not reason:
             return 'Cannot create modify-type suggestion: empty reason.'
 
-        try:
-            confidence_text = f'{float(confidence):.2f}'
-        except (TypeError, ValueError):
-            confidence_text = str(confidence)
         preview = reason[:300]
         if len(reason) > 300:
             preview += '...'
@@ -182,7 +171,7 @@ class SuggestModifyTypeTool(BaseAgentTool):
         return (
             f'Issue type suggestion prepared for GitHub issue {source_id} - {source_title}. '
             f'Current: {current_issue_type}; Suggested: {suggested_type}; '
-            f'Confidence: {confidence_text}. Reason: {preview}'
+            f'Reason: {preview}'
         )
 
 

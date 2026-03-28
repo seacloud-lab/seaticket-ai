@@ -96,26 +96,36 @@ class AgentTaskWorker:
             logger.warning('Unknown source_type %s, drop task', source_type)
             return
 
-        payload = data.get('payload')
-        if not isinstance(payload, dict):
-            payload = {}
+        record_id = data.get('record_id')
+        connection_id = data.get('connection_id')
+        events = data.get('events')
+        if not isinstance(events, list):
+            events = []
 
         self._work_task_handler(
             project_uuid=project_uuid,
             source_type=source_type,
-            payload=payload,
+            record_id=record_id,
+            connection_id=connection_id,
+            events=events,
         )
 
-    def _work_task_handler(self, project_uuid: str, source_type: str, payload: dict):
+    def _work_task_handler(
+        self,
+        project_uuid: str,
+        source_type: str,
+        record_id,
+        connection_id=None,
+        events=None,
+    ):
         project = self.app.seaqa_db.get_project_by_uuid(project_uuid)
         if not project:
             logger.warning('Project not found when processing agent task: %s', project_uuid)
             return
 
-        events = payload.get('events') or []
+        events = list(events) if events else []
 
         if source_type == SourceType.TICKET.value:
-            record_id = payload.get('record_id')
             try:
                 ticket_agent = TicketAgent(
                     self.app,
@@ -130,8 +140,6 @@ class AgentTaskWorker:
                 logger.exception('TicketAgent failed for project %s record %s: %s', project_uuid, record_id, e)
 
         if source_type == SourceType.GITHUB_ISSUE.value:
-            connection_id = payload.get('connection_id')
-            record_id = payload.get('record_id')
             try:
                 github_agent = GithubIssueAgent(
                     self.app,

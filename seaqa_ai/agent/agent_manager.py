@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PendingRecordState:
+class PendingTaskState:
     project_uuid: str
     source_type: str
-    payload: dict = field(default_factory=dict)
+    record_id: int
+    connection_id: int | None
     events: list = field(default_factory=list)
-    last_event_time: float = 0.0
     last_enqueue_time: float = 0.0
 
 
@@ -41,7 +41,7 @@ class AgentManager:
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.should_stop = threading.Event()
         self.worker_list = []
-        self.pending_records: dict[str, PendingRecordState] = {}
+        self.pending_tasks: dict[str, PendingTaskState] = {}
         self._check_pending_events_interval = 5
         self._retry_interval = 3
         self._no_message_timeout = 5 * 60 # 5 minutes
@@ -80,7 +80,9 @@ class AgentManager:
         self,
         project_uuid: str,
         source_type: str,
-        payload: dict,
+        record_id: int,
+        connection_id: int | None,
+        events: list | None,
     ) -> dict:
         """Add one task message into the agent task queue."""
         project_uuid = uuid_str_to_32_chars(project_uuid)
@@ -90,10 +92,21 @@ class AgentManager:
         message = {
             'project_uuid': project_uuid,
             'source_type': source_type,
-            'payload': payload,
+            'record_id': record_id,
+            'events': list(events) if events else [],
         }
+        if connection_id is not None:
+            message['connection_id'] = connection_id
+
         self.mq.lpush(AGENT_TASK_QUEUE_NAME, json.dumps(message))
-        logger.info(f'Added agent task to queue for project {project_uuid} (source={source_type} payload={payload})')
+        logger.info(
+            'Added agent task to queue for project %s (source=%s record_id=%s connection_id=%s events=%s)',
+            project_uuid,
+            source_type,
+            record_id,
+            connection_id,
+            len(message['events']),
+        )
         return message
 
     def _event_listener(self):
@@ -143,7 +156,7 @@ class AgentManager:
 
         event = data.get('event')
         if not isinstance(event, dict):
-            event = None
+            event = {}
 
         event_type = (event or {}).get('type')
         if not DataEventType.is_valid(event_type):
@@ -174,15 +187,12 @@ class AgentManager:
             logger.debug('Agent is disabled for project %s, skip event', project_uuid)
             return
 
-        payload = {'record_id': record_id}
         connection_id = data.get('connection_id')
-        if connection_id is not None:
-            payload['connection_id'] = connection_id
-
         self._register_pending_record(
             project_uuid=project_uuid,
             source_type=source_type,
-            payload=payload,
+            record_id=record_id,
+            connection_id=connection_id,
             event=event,
             now_time=now_time,
         )
@@ -191,12 +201,11 @@ class AgentManager:
         self,
         project_uuid: str,
         source_type: str,
-        payload: dict,
+        record_id: int,
+        connection_id: int | None,
         event: dict,
         now_time: float,
     ):
-        connection_id = payload.get('connection_id')
-        record_id = payload.get('record_id')
         # Debounce key is per-record: {project_uuid}:{connection_id}:{record_id}
         # For ticket (no connection_id): {project_uuid}:ticket:{record_id}
         if connection_id is not None:
@@ -204,17 +213,15 @@ class AgentManager:
         else:
             key = f'{project_uuid}:ticket:{record_id}'
 
-        state = self.pending_records.get(key)
+        state = self.pending_tasks.get(key)
         if state is None:
-            state = PendingRecordState(
+            state = PendingTaskState(
                 project_uuid=project_uuid,
                 source_type=source_type,
-                payload=payload.copy(),
-                last_event_time=now_time,
+                record_id=record_id,
+                connection_id=connection_id,
             )
-            self.pending_records[key] = state
-        else:
-            state.last_event_time = now_time
+            self.pending_tasks[key] = state
 
         state.events.append(event.copy())
 
@@ -223,29 +230,29 @@ class AgentManager:
 
     def _flush_pending_records(self, now_time: float):
         keys_to_remove = []
-        for key, state in self.pending_records.items():
+        for key, state in self.pending_tasks.items():
             if self._can_enqueue(state, now_time):
                 self._enqueue_from_state(state, now_time)
             if (state.last_enqueue_time > 0
-                    and state.last_event_time <= state.last_enqueue_time
+                    and not state.events
                     and (now_time - state.last_enqueue_time) >= self._debounce_interval):
                 keys_to_remove.append(key)
         for key in keys_to_remove:
-            self.pending_records.pop(key)
+            self.pending_tasks.pop(key)
 
-    def _can_enqueue(self, state: PendingRecordState, now_time: float) -> bool:
+    def _can_enqueue(self, state: PendingTaskState, now_time: float) -> bool:
         # Only enqueue when there is at least one new event since the last enqueue and the debounce interval has passed
-        if state.last_event_time <= state.last_enqueue_time:
+        if not state.events:
             return False
         return (now_time - state.last_enqueue_time) >= self._debounce_interval
 
-    def _enqueue_from_state(self, state: PendingRecordState, now_time: float):
-        payload = state.payload.copy()
-        payload['events'] = state.events.copy()
+    def _enqueue_from_state(self, state: PendingTaskState, now_time: float):
         self.add_to_task_queue(
             project_uuid=state.project_uuid,
             source_type=state.source_type,
-            payload=payload,
+            record_id=state.record_id,
+            connection_id=state.connection_id,
+            events=state.events,
         )
         state.events.clear()
         state.last_enqueue_time = now_time

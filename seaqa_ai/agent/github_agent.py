@@ -15,7 +15,7 @@ from seaqa_ai.db.models import Project, ProjectConnection
 from seaqa_ai.agent.base_agent import BaseAgent
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
 from seaqa_ai.managers.chat_manager.tools import DocumentsSearch, IssuesSearch
-from seaqa_ai.utils import uuid_str_to_32_chars, now_iso, gen_attachment_hex
+from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS, RELATED_RECORD_SCORE_THRESHOLD
@@ -170,10 +170,10 @@ class GithubIssueAgent(BaseAgent):
             self._search_context_cache = cached
 
         context = dict(cached)
-        context['attachments_hex'] = self._build_excluded_attachments(record_context)
+        context['skip_search_record_hashes'] = self._build_excluded_search_record_hashes(record_context)
         return context
 
-    def _build_excluded_attachments(self, record_context: dict | None = None) -> list[str]:
+    def _build_excluded_search_record_hashes(self, record_context: dict | None = None) -> list[str]:
         """Build attachment ids to exclude current processing record from search results."""
         if not isinstance(record_context, dict):
             return []
@@ -193,7 +193,7 @@ class GithubIssueAgent(BaseAgent):
             record_id = int(record_id)
         except Exception:
             pass
-        return [gen_attachment_hex(source_type, connection_id, record_id)]
+        return [gen_record_hash(source_type, connection_id, record_id)]
 
     def _get_issue_comments(self, issue: dict) -> list[dict]:
         """Fetch comments for a single issue ordered by creation time."""
