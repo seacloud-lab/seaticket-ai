@@ -135,16 +135,8 @@ class GithubIssueAgent(BaseAgent):
         """Build search context required by documents_search/issues_search tools."""
         cached = getattr(self, '_search_context_cache', None)
         if not isinstance(cached, dict):
-            settings = self.project.get('settings', {}) if isinstance(self.project, dict) else {}
-            allowed_sources = settings.get('allowed_sources', []) if isinstance(settings, dict) else []
-            if not isinstance(allowed_sources, list):
-                allowed_sources = []
-
             doc_types = ConnectionType.get_document_connection_types()
             issue_types = ConnectionType.get_issue_connection_types()
-            if allowed_sources:
-                doc_types = [t for t in doc_types if t in allowed_sources]
-                issue_types = [t for t in issue_types if t in allowed_sources]
 
             document_connections = []
             issue_connections = []
@@ -163,7 +155,6 @@ class GithubIssueAgent(BaseAgent):
             cached.update({
                 'project_uuid': uuid_str_to_32_chars(self.project_uuid),
                 'username': 'agent',
-                'allowed_sources': allowed_sources,
                 'document_connections': document_connections,
                 'issue_connections': issue_connections,
             })
