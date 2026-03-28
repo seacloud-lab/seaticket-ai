@@ -74,13 +74,11 @@ class GithubIssueAgent(BaseAgent):
         """Return the single GitHub issue to process, or None if not found."""
         if self.record_id is None:
             return None
-        seven_days_ago = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)).isoformat()
         conditions = [
             f"_pk = {self.record_id}",
             "(`state` = 'open' OR `state` IS NULL)",
             "(`deleted` = False OR `deleted` IS NULL)",
             "(`linked_ticket` = 0 OR `linked_ticket` IS NULL)",
-            f"`modified_time` >= '{seven_days_ago}'",
         ]
         where = ' AND '.join(conditions)
         sql = f"SELECT * FROM `{self._issues_table}` WHERE {where} LIMIT 1"

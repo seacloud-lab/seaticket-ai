@@ -182,6 +182,19 @@ class AgentManager:
             logger.warning('Ignore event without record_id: %s', raw_data)
             return
 
+        modified_time = data.get('modified_time')
+        if modified_time is not None:
+            try:
+                mt = datetime.fromisoformat(str(modified_time))
+                if mt.tzinfo is None:
+                    mt = mt.replace(tzinfo=timezone.utc)
+                if datetime.now(tz=timezone.utc) - mt > timedelta(days=7):
+                    logger.debug('Ignore event with modified_time older than 7 days: %s', modified_time)
+                    return
+            except (ValueError, TypeError):
+                logger.warning('Ignore event with invalid modified_time: %s', modified_time)
+                return
+
         project = self.app.seaqa_db.get_project_by_uuid(project_uuid)
         if not self.app.seaqa_db.is_agent_enabled(project):
             logger.debug('Agent is disabled for project %s, skip event', project_uuid)
