@@ -1,8 +1,9 @@
 """
-BaseAgentWorker: abstract base class for all source-type-specific agent workers.
+BaseAgent: abstract base class for all source-type-specific agent workers.
 
+Each agent instance processes exactly one source record.
 Subclasses override the abstract methods to supply:
-  - the list of items to process (tickets, github issues, etc.)
+  - the single item to process (get_item)
   - per-item context (comments, activities, etc.)
   - the LLM message describing the item
   - the tool classes to register
@@ -21,17 +22,17 @@ from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
-from seaqa_ai.agent.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
+from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
 from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
 
 
-class BaseAgentWorker:
+class BaseAgent:
     """
-    Abstract base class for agent workers.
+    Abstract base class for agents.
 
-    Manages run records in SeaDB, assembles the BaseAgent for each item,
+    Manages run records in SeaDB, assembles the agent for each item,
     and delegates source-specific logic to subclasses.
     """
 
@@ -51,8 +52,8 @@ class BaseAgentWorker:
     # ── Abstract interface ──────────────────────────────────────────
 
     @abstractmethod
-    def get_items_to_process(self, since) -> list[dict]:
-        """Return the list of source records to process in this run."""
+    def get_item(self) -> dict | None:
+        """Return the single source record to process, or None if not found."""
         raise NotImplementedError
 
     @abstractmethod
@@ -79,6 +80,14 @@ class BaseAgentWorker:
     def build_record_context(self, item: dict) -> dict:
         """Build the record_context dict (source_type, source_id, source_title) for an item."""
         raise NotImplementedError
+
+    def get_tool_registration_kwargs(self, tool_instance, record_context: dict) -> dict:
+        """Return extra kwargs used when registering a tool instance.
+
+        Subclasses can override this hook when specific tools need injected runtime
+        dependencies (e.g. app/context for search tools).
+        """
+        return {}
 
     # ── SeaDB run-record helpers ────────────────────────────────────
 
@@ -129,6 +138,39 @@ class BaseAgentWorker:
             raise Exception(f'Expected 1 PK, got {len(pks)}')
         return pks[0]
 
+    def create_run_record(self) -> int | None:
+        """Insert a new agent_runs row and return its pk."""
+        row = {
+            'status': 'running',
+            'started_at': now_iso(),
+            'items_processed': 0,
+        }
+        try:
+            res = self.seadb_api.insert_rows(self.project_uuid, AGENT_RUNS_TABLE, [row])
+            pks = res.get('pks', [])
+            if len(pks) != 1:
+                raise Exception(f'Expected 1 PK, got {len(pks)}')
+            return pks[0]
+        except Exception as e:
+            logger.exception('Failed to create run record for project %s: %s', self.project_uuid, e)
+            return None
+
+    def finalize_run_record(self, run_pk: int, updates: dict):
+        """Update an existing agent_runs row."""
+        try:
+            self.seadb_api.update_rows(
+                self.project_uuid,
+                AGENT_RUNS_TABLE,
+                [{'pk': run_pk, 'row': updates}],
+            )
+        except Exception as e:
+            logger.exception(
+                'Failed to finalize run %s for project %s: %s',
+                run_pk,
+                self.project_uuid,
+                e,
+            )
+
     # ── Tool executor ───────────────────────────────────────────────
 
     def _create_tool_executor(self, record_context: dict) -> tuple[OpenAIToolExecutor, dict]:
@@ -156,7 +198,8 @@ class BaseAgentWorker:
                     'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
                 }
 
-            tool_instance.register(tool_executor)
+            registration_kwargs = self.get_tool_registration_kwargs(tool_instance, record_context)
+            tool_instance.register(tool_executor, **(registration_kwargs or {}))
 
         return tool_executor, tool_metadata
 
@@ -206,7 +249,7 @@ class BaseAgentWorker:
             run_id=run_id,
             tool_metadata=tool_metadata,
             system_prompt=self.get_system_prompt(),
-            max_steps=config.AGENT_MAX_STEPS_PER_TICKET,
+            max_steps=config.AGENT_MAX_STEPS,
         )
 
         try:
@@ -220,36 +263,44 @@ class BaseAgentWorker:
 
     # ── Main entry point ────────────────────────────────────────────
 
-    def run(self, run_pk: int):
-        """Execute the full agent workflow.
-
-        Args:
-            run_pk: The run id (created by coordinator) to which actions are appended.
-                The coordinator is responsible for finalizing the run record.
-        """
+    def run(self) -> int | None:
+        """Execute the agent workflow for a single item."""
         self.last_items_processed = 0
         self.last_run_failed = False
         self.last_run_error_message = ''
-        items_processed = 0
+        run_pk = None
 
         try:
-            last_run_time = self.get_last_run_time()
-            all_items = self.get_items_to_process(last_run_time)
-
-            for item in all_items:
+            item = self.get_item()
+            if item is not None:
                 try:
+                    run_pk = self.create_run_record()
+                    if run_pk is None:
+                        self.last_run_failed = True
+                        self.last_run_error_message = 'Failed to create run record'
+                        return None
                     self.process_item(item, run_pk)
-                    items_processed += 1
                 except Exception as e:
+                    self.last_run_failed = True
+                    self.last_run_error_message = str(e)[:1000]
                     logger.exception(f'Error processing item: {e}')
-                    continue
-
-            self.last_items_processed = items_processed
 
         except Exception as e:
             logger.exception(f'Error running agent for project {self.project_uuid}: {e}')
-            self.last_items_processed = items_processed
             self.last_run_failed = True
             self.last_run_error_message = str(e)[:1000]
+        finally:
+            self.last_items_processed = 1 if run_pk is not None and not self.last_run_failed else 0
+            if run_pk is not None:
+                final_status = 'failed' if self.last_run_failed else 'completed'
+                self.finalize_run_record(
+                    run_pk,
+                    {
+                        'status': final_status,
+                        'finished_at': now_iso(),
+                        'items_processed': self.last_items_processed,
+                        'error_message': self.last_run_error_message,
+                    },
+                )
 
         return run_pk

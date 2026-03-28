@@ -216,7 +216,7 @@ class ContentRetriever:
                 ]
             }
             record['content'] = content
-            record['url'] = record['url']
+            record['url'] = record_from_seadb['url']
         return record_id_record_map
 
     ## discourse_forum
@@ -270,7 +270,7 @@ class ContentRetriever:
 
     ## email
     def _get_email_content(self, record_id_record_map, connection_id):
-        threads_table_name, replies_table_name = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, connection_id)
+        threads_table_name, replies_table_name = gen_seadb_table_name(ConnectionType.EMAIL.value, connection_id)
 
         # query threads
         record_ids = record_id_record_map.keys()

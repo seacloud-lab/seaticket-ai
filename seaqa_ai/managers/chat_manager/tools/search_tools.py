@@ -8,16 +8,23 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
 [
     {
         "label": "<reference_0>",
+        "type": "github_issue | discourse_forum | email | ticket | ...",
         "title": "Title",
         "content": "Search result's content",
-        
-        // ... Other useful information, e.g., url ...
+        "url": "Record URL (if available)",
+        "state": "open/closed (when available)",
+        "state_reason": "state reason for GitHub issue (when available)",
+        "resolved": true,
+        "linked_ticket": 123,
+        "linked_ticket_state": "open/closed"
+        // ... Other useful information, e.g., snippets ...
     }, {
         "label": "<reference_1>",
+        "type": "github_issue | discourse_forum | email | ticket | ...",
         "title": "Title",
         "content": "Search result's content",
-        
-        // ... Other useful information, e.g., url ...
+        "url": "Record URL (if available)"
+        // ... Other useful information, e.g., snippets ...
     }
 ]
 """
@@ -55,6 +62,19 @@ class BasicSearchTool(BasicTool):
                 doc['url'] = search_result['url']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
+            for key in (
+                'score',
+                'state',
+                'state_reason',
+                'issue_number',
+                'labels',
+                'resolved',
+                'linked_ticket',
+                'linked_ticket_state',
+                'modified_time',
+            ):
+                if key in search_result:
+                    doc[key] = search_result[key]
             to_observation.append(doc)
 
         tool_executor.cache.update({
@@ -94,7 +114,14 @@ class IssuesSearch(BasicSearchTool):
         'type': 'function',
         'function': {
             'name': 'issues_search',
-            'description': f'This is a search tool for relative issues. You can use a query (a short sentence) to find relative issues and a past solution to this problem. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+            'description': (
+                f'This is a search tool for relative issues. You can use a query (a short sentence) '
+                f'to find relative issues and past solutions. Relevance decreases from beginning to end. '
+                f'Results may include structured status fields (e.g. state/resolved/linked_ticket_state) '
+                f'when available. {_SEARCH_TOOLS_RESULT_FORMAT}. '
+                '**Note: Not every sentence can be searched for relevant results. '
+                'Regardless of whether there are results or not, you should not make random searches.**'
+            ),
             'parameters':{
                 'type': 'object',
                 'properties': {

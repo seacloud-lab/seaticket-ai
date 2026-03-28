@@ -347,30 +347,3 @@ def rank_records_by_relevance():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-
-
-@flask_app.route('/trigger-agent', methods=['POST'])
-def trigger_agent():
-    is_valid = check_auth_token(request)
-    if not is_valid:
-        return {'error_msg': 'Permission denied.'}, 403
-
-    try:
-        data = json.loads(request.data)
-    except Exception:
-        return {'error_msg': 'Bad request.'}, 400
-
-    project_uuid = data.get('project_uuid')
-    if not project_uuid:
-        return {'error_msg': 'project_uuid invalid.'}, 400
-
-    try:
-        agent_manager = flask_app.app.agent_scheduler.agent_manager
-        project = agent_manager.get_project(project_uuid)
-        if not project:
-            return {'error_msg': 'project not found.'}, 404
-        agent_manager.run(project)
-        return {'success': True}, 200
-    except Exception as e:
-        logger.exception(e)
-        return {'error_msg': 'Internal server error.'}, 500
