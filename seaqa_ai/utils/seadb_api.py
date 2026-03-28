@@ -117,7 +117,7 @@ class SeaDBAPI:
         }
 
     def get_comments_by_topic_ids(self, base_id, table_name, topic_ids, topic_id_field_name, 
-                              fields_str='*', has_deleted_field=True):
+                              fields_str='*', has_deleted_field=True, max_comments_for_each_topic=20):
         """
         return {
             topic_id: [comments]
@@ -139,6 +139,8 @@ class SeaDBAPI:
 
         if has_deleted_field:
             sql += ' AND (`deleted` = False OR `deleted` IS NULL)'
+        
+        sql += f' LIMIT 0, {max_comments_for_each_topic}'
 
         comments = self.query_rows(base_id, sql)['results']
         
