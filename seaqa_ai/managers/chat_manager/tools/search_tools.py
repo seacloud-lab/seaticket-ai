@@ -1,6 +1,7 @@
 import logging
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ExtraSourceType
+from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,9 @@ class BasicSearchTool(BasicTool):
                 doc['url'] = search_result['url']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
+                # Reduce the 'content' size when snippets provided
+                snippets_use_size = len(f"{doc['snippets']}")
+                doc['content'] = doc['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE - snippets_use_size]
             for key in (
                 'score',
                 'state',
