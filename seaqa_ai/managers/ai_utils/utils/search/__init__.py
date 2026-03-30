@@ -38,18 +38,18 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         # Retrieve or create a dictionary for the given connection_id from search_results
         connection_dict = search_results.setdefault(connection_id, {})
 
+        # Try to get an existing record by record_id from the connection dictionary
+        # If an existing record was found, use `update` method can retain the content from search results
+        existing_record = connection_dict.get(record_id)
+        if existing_record:
+            record.update(existing_record)
+
         # Check if the record contains a 'snippet' field
         if 'snippet' in record:
-            # Try to get an existing record by record_id from the connection dictionary
-            # If an existing record was found, retrieve its snippets list; otherwise start with an empty list
-            existing_record = connection_dict.get(record_id)
-            if existing_record:
-                snippets = existing_record.get('snippets', [])
-            else:
-                snippets = []
-
+            snippets = record.get('snippets', [])
+            snippets.append(record['snippet'])
             record['snippets'] = snippets
-            record['snippets'].append(record['snippet'])
+            record.pop('snippet', None) # Remove the snippet field to avoid adding repeatedly.
 
         search_results[connection_id][record_id] = record
     return search_results

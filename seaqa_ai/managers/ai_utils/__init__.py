@@ -352,12 +352,14 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         # semantic search data
         time_begin = time.time()
-        query_vector = self.app.embedding_api.generate(query, context)
-        records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
-        search_results = search_records_to_map(records, search_results, skip_search_record_hashes)
-        time_end = time.time()
-        if isinstance(call_back, ChatCallBacker):
-            call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})
+        embeddings = self.app.embedding_api.generate(query, context)
+        if len(embeddings) != 0:
+            query_vector = embeddings[0].get('embedding', [])
+            records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
+            search_results = search_records_to_map(records, search_results, skip_search_record_hashes)
+            time_end = time.time()
+            if isinstance(call_back, ChatCallBacker):
+                call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         # rerank search data
         search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, uuid_str_to_32_chars(project_uuid), connection_id_type_map, call_back)
