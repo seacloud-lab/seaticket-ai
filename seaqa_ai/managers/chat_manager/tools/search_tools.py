@@ -1,7 +1,6 @@
 import logging
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ExtraSourceType
-from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -58,27 +57,12 @@ class BasicSearchTool(BasicTool):
                 'type': search_result['type'],
                 'title': search_result['title'],
                 'content': search_result['content'],
+                'modified_time': search_result['modified_time'],
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
-                # Reduce the 'content' size when snippets provided
-                snippets_use_size = len(f"{doc['snippets']}")
-                doc['content'] = doc['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE - snippets_use_size]
-            for key in (
-                'score',
-                'state',
-                'state_reason',
-                'issue_number',
-                'labels',
-                'resolved',
-                'linked_ticket',
-                'linked_ticket_state',
-                'modified_time',
-            ):
-                if key in search_result:
-                    doc[key] = search_result[key]
             to_observation.append(doc)
 
         tool_executor.cache.update({
