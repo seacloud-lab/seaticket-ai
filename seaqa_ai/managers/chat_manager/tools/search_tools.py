@@ -57,24 +57,12 @@ class BasicSearchTool(BasicTool):
                 'type': search_result['type'],
                 'title': search_result['title'],
                 'content': search_result['content'],
+                'modified_time': search_result['modified_time'],
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
-            for key in (
-                'score',
-                'state',
-                'state_reason',
-                'issue_number',
-                'labels',
-                'resolved',
-                'linked_ticket',
-                'linked_ticket_state',
-                'modified_time',
-            ):
-                if key in search_result:
-                    doc[key] = search_result[key]
             to_observation.append(doc)
 
         tool_executor.cache.update({

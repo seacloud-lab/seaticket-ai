@@ -1,5 +1,5 @@
 import logging
-from seaqa_ai.config import MAX_DOCUMENT_CONTENT_SIZE, \
+from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
 from seaqa_ai.utils import url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
@@ -51,7 +51,7 @@ class ContentRetriever:
         )
         for record_id, record in record_id_record_map.items():
             # set content from keywords search result (priority) or from seadb
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         
         return record_id_record_map
 
@@ -72,7 +72,7 @@ class ContentRetriever:
                     site_id=connection_id,
                     project_uuid=self.project_uuid,
                     filename=url_to_filename(url)
-                )['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
+                )['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         return record_id_record_map
 
     ## seafile
@@ -86,7 +86,7 @@ class ContentRetriever:
 
         # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:MAX_DOCUMENT_CONTENT_SIZE]
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         
         return record_id_record_map
 
@@ -111,7 +111,8 @@ class ContentRetriever:
             table_name=comments_table_name,
             topic_ids=record_ids,
             topic_id_field_name='ticket_id',
-            fields_str='creator, content'
+            fields_str='creator, content',
+            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
         )
 
         # get all the usernames need to be resolved
@@ -146,14 +147,8 @@ class ContentRetriever:
                     username_nickname_map.get(participant, '')
                     for participant in record_from_seadb['participants'] or []
                 ],
-                'content': record_from_seadb['content'],
-                'comments': [
-                    {
-                        'creator': username_nickname_map.get(comment['creator'], ''),
-                        'content': comment['content']
-                    }
-                    for comment in comments
-                ],
+                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'comments': [],
                 'state': record_from_seadb['state'],
                 'substate': record_from_seadb['substate'],
                 'type': record_from_seadb['type'],
@@ -161,6 +156,18 @@ class ContentRetriever:
                 'priority': record_from_seadb['priority']
             }
 
+            total_content_size = len(content['content'])
+            for comment in comments:
+                comment_content = comment['content']
+                total_content_size += len(comment_content)
+
+                # break if exceed maximum content size
+                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
+                    break
+                content['comments'].append({
+                    'creator': username_nickname_map.get(comment['creator'], ''),
+                    'content': comment_content
+                })
             record['content'] = content
         return record_id_record_map
     
@@ -173,7 +180,7 @@ class ContentRetriever:
             base_id=self.project_uuid,
             table_name=topics_table_name,
             pks=record_id_record_map.keys(),
-            fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url'
+            fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url, linked_ticket'
         )
 
         # query comments/replies, the result of the following steps is record_id_to_comments
@@ -187,7 +194,8 @@ class ContentRetriever:
             topic_ids=issue_id_to_record_id.keys(),
             topic_id_field_name='issue_id',
             fields_str='author, content',
-            has_deleted_field=False
+            has_deleted_field=False,
+            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
         )
 
         record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
@@ -206,17 +214,26 @@ class ContentRetriever:
                 'issue_type': record_from_seadb['issue_type'],
                 'author': record_from_seadb['author'],
                 'assignees': record_from_seadb['assignees'],
-                'content': record_from_seadb['content'],
-                'comments': [
-                    {
-                        'author': comment['author'],
-                        'content': comment['content']
-                    }
-                    for comment in comments
-                ]
+                'linked_ticket': record_from_seadb['linked_ticket'],
+                'url': record_from_seadb['url'],
+                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'comments': []
             }
+
+            total_content_size = len(content['content'])
+            for comment in comments:
+                comment_content = comment['content']
+                total_content_size += len(comment_content)
+
+                # break if exceed maximum content size
+                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
+                    break
+
+                content['comments'].append({
+                    'author': comment['author'],
+                    'content': comment_content
+                })
             record['content'] = content
-            record['url'] = record_from_seadb['url']
         return record_id_record_map
 
     ## discourse_forum
@@ -242,7 +259,8 @@ class ContentRetriever:
             topic_ids=topic_id_to_record_id.keys(),
             topic_id_field_name='topic_id',
             fields_str='author, post_number, content',
-            has_deleted_field=False
+            has_deleted_field=False,
+            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
         )
 
         record_id_to_comments = remap_comments_by_record_id(topic_id_to_record_id, topic_id_to_comments)
@@ -256,15 +274,23 @@ class ContentRetriever:
                 'topic_id': record_from_seadb['topic_id'],
                 'slug': record_from_seadb['slug'],
                 'resolved': record_from_seadb['resolved'],
-                'comments': [
-                    {
-                        'author': comment['author'],
-                        'post_number': comment['post_number'],
-                        'content': comment['content']
-                    }
-                    for comment in comments
-                ]
+                'comments': []
             }
+
+            total_content_size = 0
+            for comment in comments:
+                comment_content = comment['content']
+                total_content_size += len(comment_content)
+
+                # break if exceed maximum content size
+                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
+                    break
+
+                content['comments'].append({
+                    'author': comment['author'],
+                    'post_number': comment['post_number'],
+                    'content': comment_content
+                })
             record['content'] = content
         return record_id_record_map
 
@@ -288,7 +314,8 @@ class ContentRetriever:
             table_name=replies_table_name,
             topic_ids=record_ids,
             topic_id_field_name='thread_id',
-            fields_str='title, email_from, email_to, cc, content, html_content, attachments'
+            fields_str='title, email_from, email_to, cc, content',
+            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
         )
 
         # set content from topic and comments
@@ -298,18 +325,24 @@ class ContentRetriever:
 
             content = {
                 'topic_tags': record_from_seadb['tags'],
-                'emails': [
-                    {
-                        'title': email['title'],
-                        'email_from': email['email_from'],
-                        'email_to': email['email_to'],
-                        'cc': email['cc'],
-                        'content': email['content'],
-                        'html_content': email['html_content']
-                    }
-                    for email in emails
-                ]
+                'emails': []
             }
 
+            total_content_size = 0
+            for email in emails:
+                email_content = email['content']
+                total_content_size += len(email_content)
+
+                # break if exceed maximum content size
+                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
+                    break
+
+                content['emails'].append({
+                    'title': email['title'],
+                    'email_from': email['email_from'],
+                    'email_to': email['email_to'],
+                    'cc': email['cc'],
+                    'content': email_content
+                })
             record['content'] = content
         return record_id_record_map
