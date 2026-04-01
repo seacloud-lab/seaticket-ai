@@ -22,7 +22,7 @@ from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
-from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE
+from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE, MAX_CONTENT_CHARS
 from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
@@ -126,8 +126,8 @@ class BaseAgent:
             'source_title': source_title or '',
             'action_type': action_type,
             'tool_name': tool_name or '',
-            'content': content or '',
-            'result': result or '',
+            'content': content[:MAX_CONTENT_CHARS] if content is not None else '',
+            'result': result[:MAX_CONTENT_CHARS] if result is not None else '',
             'status': action_status,
             'suggestion_text': suggestion_text or '',
             'created_at': now_iso(),

@@ -9,6 +9,7 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.ticket_agent import TicketAgent
 from seaqa_ai.agent.github_agent import GithubIssueAgent
+from seaqa_ai.agent.discourse_agent import DiscourseAgent
 from seaqa_ai.agent.utils.constants import (
     AGENT_TASK_QUEUE_NAME,
     SourceType,
@@ -153,3 +154,18 @@ class AgentTaskWorker:
                     logger.error('GithubIssueAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, github_agent.last_run_error_message)
             except Exception as e:
                 logger.exception('GithubIssueAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
+
+        if source_type == SourceType.DISCOURSE_FORUM.value:
+            try:
+                discourse_agent = DiscourseAgent(
+                    self.app,
+                    project,
+                    connection_id=connection_id,
+                    record_id=record_id,
+                    events=events,
+                )
+                discourse_agent.run()
+                if discourse_agent.last_run_failed and discourse_agent.last_run_error_message:
+                    logger.error('DiscourseAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, discourse_agent.last_run_error_message)
+            except Exception as e:
+                logger.exception('DiscourseAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
