@@ -38,20 +38,23 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         # Retrieve or create a dictionary for the given connection_id from search_results
         connection_dict = search_results.setdefault(connection_id, {})
 
-        # Try to get an existing record by record_id from the connection dictionary
-        # If an existing record was found, use `update` method can retain the content from search results
-        existing_record = connection_dict.get(record_id)
-        if existing_record:
-            record.update(existing_record)
+        # Retrieve or create a dictionary for the search record
+        record_dict = connection_dict.setdefault(record_id, {
+            'type': record['type'],
+            'connection_id': connection_id,
+            '_id': record_id,
+            'modified_time': record['modified_time']
+        })
+
+        # Check if the record contains a 'content' field
+        if 'content' in record:
+            record_dict['content'] = record['content']
 
         # Check if the record contains a 'snippet' field
         if 'snippet' in record:
-            snippets = record.get('snippets', [])
+            snippets = record_dict.setdefault('snippets', [])
             snippets.append(record['snippet'])
-            record['snippets'] = snippets
-            record.pop('snippet', None) # Remove the snippet field to avoid adding repeatedly.
 
-        search_results[connection_id][record_id] = record
     return search_results
 
 def remap_comments_by_record_id(topic_id_to_record_id, topic_id_to_comments):
