@@ -97,16 +97,19 @@ class CompletionAPI(BasicLLMAPI):
         return response
 
 class EmbeddingAPI(BasicLLMAPI):
-    def generate(self, texts, context):
-        if isinstance(texts, str):
-            texts = [texts]
+    def generate(self, text, context):
         response = litellm.embedding(
             model=self.model,
-            input=texts,
+            input=[text],
             api_base=self.base_url,
             api_key=self.api_key,
             custom_llm_provider=self.llm_type,
             timeout=self.timeout
         )
+
         self._logger_usage_from_response(response, context)
-        return response.data
+
+        if len(response.data) != 1 or not response.data[0].get('embedding'):
+            raise ConnectionError('Failure to generate embedding')
+
+        return response.data[0]['embedding']

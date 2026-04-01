@@ -250,10 +250,8 @@ def generate_embedding():
     }
 
     try:
-        embeddings = flask_app.app.embedding_api.generate(content, context)
-        if embeddings and len(embeddings) > 0:
-            return {'embedding': embeddings[0].get('embedding')}, 200
-        return {'error_msg': 'No embedding generated.'}, 400
+        embedding = flask_app.app.embedding_api.generate(content, context)
+        return {'embedding': embedding}, 200
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
