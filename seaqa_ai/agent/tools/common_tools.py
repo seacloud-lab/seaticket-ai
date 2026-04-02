@@ -40,14 +40,14 @@ class BaseAgentTool(BasicTool):
 
 
 class RecordIssueAnalysisTool(BaseAgentTool):
-    """Records structured analysis of a GitHub issue before handling actions."""
+    """Records structured analysis of the source record before handling actions."""
 
     tool = {
         'type': 'function',
         'function': {
             'name': 'record_issue_analysis',
             'description': (
-                'Record your structured GitHub issue analysis after search and before handling tools. '
+                'Record your structured source record analysis after search and before handling tools. '
                 'Include classification, evidence got by searches, and recommended next action.'
             ),
             'parameters': {
@@ -133,17 +133,18 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         recommended_action='suggest_create_ticket',
         rationale='',
     ):
+        source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
         return (
-            f'Analysis recorded for GitHub issue {source_id} - {source_title}. '
+            f'Analysis recorded for {source_type} {source_id} - {source_title}. '
             f'Classified as {classified_issue_type}. '
             f'Recommended next action: {recommended_action}.'
         )
 
 
 class SuggestResolutionTool(BaseAgentTool):
-    """Suggests a resolution or direct reply for a GitHub issue.
+    """Suggests a resolution or direct reply for a source record.
 
     The suggestion is stored as pending and requires user confirmation before
     any action is taken (e.g. posting a reply on GitHub or closing the issue).
@@ -154,7 +155,7 @@ class SuggestResolutionTool(BaseAgentTool):
         'function': {
             'name': 'suggest_resolution',
             'description': (
-                'Suggest a resolution/reply for a GitHub issue that can be answered by search evidence '
+                'Suggest a resolution/reply for a source record that can be answered by search evidence '
                 '(known issue, tracked request, or direct support answer). '
                 'Include supporting URLs from relevant records whenever available. '
                 'The suggestion requires user confirmation before being acted upon.'
@@ -183,9 +184,10 @@ class SuggestResolutionTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Propose a resolution for this GitHub issue.'
+    suggestion_text = 'Propose a resolution.'
 
     def execute(self, resolution, reasoning=None):
+        source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
 
@@ -198,7 +200,7 @@ class SuggestResolutionTool(BaseAgentTool):
             preview += '...'
 
         return (
-            f'Resolution suggestion prepared for GitHub issue {source_id} - {source_title}: {preview}'
+            f'Resolution suggestion prepared for {source_type} {source_id} - {source_title}: {preview}'
         )
 
 
