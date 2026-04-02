@@ -46,7 +46,7 @@ class AgentManager:
         self._retry_interval = 3
         self._no_message_timeout = 5 * 60 # 5 minutes
         self._debounce_interval = 10 * 60 # 10 minutes
-        self._due_soon_scan_interval = 12 * 60 * 60 # 12 hours
+        self._due_soon_scan_interval = 6 * 60 * 60 # 6 hours
 
     def start(self):
         if not self.mq:
@@ -61,13 +61,14 @@ class AgentManager:
         event_listener.start()
         self.worker_list.append(event_listener)
 
-        # due_soon_scanner = threading.Thread(
-        #     target=self._due_soon_scanner,
-        #     name='agent_due_soon_scanner',
-        #     daemon=True,
-        # )
-        # due_soon_scanner.start()
-        # self.worker_list.append(due_soon_scanner)
+        due_soon_scanner = threading.Thread(
+            target=self._due_soon_scanner,
+            name='agent_due_soon_scanner',
+            daemon=True,
+        )
+        due_soon_scanner.start()
+        self.worker_list.append(due_soon_scanner)
+
         logger.info('Agent manager started.')
 
     def stop(self):
@@ -270,55 +271,60 @@ class AgentManager:
         state.events.clear()
         state.last_enqueue_time = now_time
 
-    # def _due_soon_scanner(self):
-    #     while not self.should_stop.is_set():
-    #         try:
-    #             self._enqueue_due_soon_scan_tasks()
-    #         except Exception as e:
-    #             logger.exception('Due-soon scan failed: %s', e)
-    #         if self.should_stop.wait(self._due_soon_scan_interval):
-    #             return
+    def _due_soon_scanner(self):
+        while not self.should_stop.is_set():
+            try:
+                self._enqueue_due_soon_scan_tasks()
+            except Exception as e:
+                logger.exception('Due-soon scan failed: %s', e)
+            if self.should_stop.wait(self._due_soon_scan_interval):
+                return
 
-    # def _enqueue_due_soon_scan_tasks(self):
-    #     projects = self.app.seaqa_db.get_enabled_projects()
-    #     for project in projects:
-    #         project_uuid = project.get('uuid')
-    #         if not project_uuid:
-    #             continue
-    #         try:
-    #             tickets = self._get_due_soon_tickets(project_uuid, project)
-    #         except Exception as e:
-    #             logger.exception('Failed to get due-soon tickets for project %s: %s', project_uuid, e)
-    #             continue
-    #         for ticket in tickets:
-    #             ticket_pk = ticket.get('_pk')
-    #             if ticket_pk is None:
-    #                 continue
-    #             self.add_to_task_queue(
-    #                 project_uuid=project_uuid,
-    #                 source_type=SourceType.TICKET.value,
-    #                 trigger_type=TriggerType.DUE_SOON.value,
-    #                 payload={'record_id': ticket_pk},
-    #             )
+    def _enqueue_due_soon_scan_tasks(self):
+        projects = self.app.seaqa_db.get_enabled_projects()
+        for project in projects:
+            project_uuid = project.get('uuid')
+            if not project_uuid:
+                continue
+            try:
+                tickets = self._get_due_soon_tickets(project_uuid, project)
+            except Exception as e:
+                logger.exception('Failed to get due-soon tickets for project %s: %s', project_uuid, e)
+                continue
+            for ticket in tickets:
+                ticket_pk = ticket.get('_pk')
+                if ticket_pk is None:
+                    continue
+                self.add_to_task_queue(
+                    project_uuid=project_uuid,
+                    source_type=SourceType.TICKET.value,
+                    record_id=ticket_pk,
+                    connection_id=None,
+                    events=[{
+                        'type': DataEventType.TICKET_DUE_SOON.value,
+                        'new_value': {},
+                        'old_value': {},
+                    }],
+                )
 
-    # def _get_due_soon_tickets(self, project_uuid: str, project: dict) -> list[dict]:
-    #     """Query tickets that are due soon and have not been recently processed."""
-    #     agent_settings = project.get('settings', {}).get('agent', {})
-    #     notify_before_due_hours = int(agent_settings.get('notify_before_due_hours', 48))
-    #     min_reprocess_hours = 24
+    def _get_due_soon_tickets(self, project_uuid: str, project: dict) -> list[dict]:
+        """Query tickets that are due soon and have not been recently processed."""
+        agent_settings = project.get('settings', {}).get('agent', {})
+        notify_before_due_hours = int(agent_settings.get('notify_before_due_hours', 48))
+        min_reprocess_hours = 24
 
-    #     now = datetime.now(timezone.utc)
-    #     threshold = (now + timedelta(hours=notify_before_due_hours)).isoformat()
-    #     min_reprocess_before = (now - timedelta(hours=min_reprocess_hours)).isoformat()
+        now = datetime.now(timezone.utc)
+        threshold = (now + timedelta(hours=notify_before_due_hours)).isoformat()
+        min_reprocess_before = (now - timedelta(hours=min_reprocess_hours)).isoformat()
 
-    #     tickets_table = TICKET_TABLES.TICKETS_TABLE.value
-    #     sql = (
-    #         f"SELECT * FROM `{tickets_table}` "
-    #         f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
-    #         f"AND (`state` != 'closed' OR `state` IS NULL) "
-    #         f"AND (`deleted` = False OR `deleted` IS NULL) "
-    #         f"AND (`last_agent_processed_at` IS NULL OR `last_agent_processed_at` < '{min_reprocess_before}') "
-    #         f"ORDER BY `due_date` ASC "
-    #         f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
-    #     )
-    #     return self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+        tickets_table = TICKET_TABLES.TICKETS_TABLE.value
+        sql = (
+            f"SELECT * FROM `{tickets_table}` "
+            f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
+            f"AND (`state` != 'closed' OR `state` IS NULL) "
+            f"AND (`deleted` = False OR `deleted` IS NULL) "
+            f"AND (`last_agent_processed_at` IS NULL OR `last_agent_processed_at` < '{min_reprocess_before}') "
+            f"ORDER BY `due_date` ASC "
+            f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
+        )
+        return self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
