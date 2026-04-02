@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text, Boolean, Index, Integer, SmallInteger
 from seaqa_ai.db import Base
 from seaqa_ai.utils import localize_time
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +28,17 @@ class Project(Base):
     knowledge_base_ai_indexed_at = Column(DateTime, nullable=True)
     ticket_indexed_at = Column(DateTime, nullable=True)
     ticket_ai_indexed_at = Column(DateTime, nullable=True)
+    last_ticket_active_time = Column(DateTime, nullable=True)
 
     @classmethod
-    def get_all_non_deleted_projects(cls, session, page: int = 1, page_size: int = 50):
+    def get_all_active_projects(cls, session, page: int = 1, page_size: int = 50):
         try:
-            base_query = session.query(cls.uuid, cls.settings).filter(cls.deleted == 0)
+            now = datetime.now(timezone.utc)
+            active_threshold = now - timedelta(days=60)
+            base_query = session.query(cls.uuid, cls.settings).filter(
+                cls.deleted == 0, 
+                cls.last_ticket_active_time > active_threshold
+            )
             total = base_query.count()
             offset = (page - 1) * page_size
             projects_query = base_query.offset(offset).limit(page_size)

@@ -47,7 +47,7 @@ class SeaqaDB(object):
             try:
                 page = 1
                 while True:
-                    projects, total = Project.get_all_non_deleted_projects(db_session, page=page, page_size=page_size)
+                    projects, total = Project.get_all_active_projects(db_session, page=page, page_size=page_size)
                     all_projects.extend(projects)
                     if len(all_projects) >= total or not projects:
                         break
