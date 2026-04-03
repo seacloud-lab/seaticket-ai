@@ -294,7 +294,7 @@ def generate_summary():
         if include_vector and summary:
             embeddings = flask_app.app.embedding_api.generate(summary, context)
             if embeddings:
-                result["embedding"] = embeddings[0].get('embedding')
+                result["embeddings"] = embeddings
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
