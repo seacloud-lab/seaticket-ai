@@ -47,7 +47,7 @@ class SeaqaDB(object):
             try:
                 page = 1
                 while True:
-                    projects, total = Project.get_all_non_deleted_projects(db_session, page=page, page_size=page_size)
+                    projects, total = Project.get_all_active_projects(db_session, page=page, page_size=page_size)
                     all_projects.extend(projects)
                     if len(all_projects) >= total or not projects:
                         break
@@ -58,3 +58,10 @@ class SeaqaDB(object):
 
     def get_enabled_projects(self) -> list[dict]:
         return [project for project in self.get_all_projects() if self.is_agent_enabled(project)]
+
+    def update_project_agent_scanned_at(self, project_uuid: str) -> bool:
+        project_uuid = uuid_str_to_32_chars(project_uuid)
+        if not project_uuid:
+            return False
+        with self.db_session_class() as db_session: 
+            return Project.update_last_agent_scanned_at(db_session, project_uuid)

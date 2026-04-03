@@ -66,6 +66,25 @@ class TicketAgent(BaseAgent):
         results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
+    def on_run_finished(self, item: dict, success: bool):
+        if not success:
+            return
+        ticket_pk = item.get('_pk')
+        if ticket_pk is None:
+            return
+        self.seadb_api.update_rows(
+            self.project_uuid,
+            TICKET_TABLES.TICKETS_TABLE.value,
+            [
+                {
+                    'pk': ticket_pk,
+                    'row': {
+                        'last_agent_processed_at': now_iso(),
+                    },
+                }
+            ],
+        )
+
     def get_item_context(self, item: dict) -> dict:
         """Fetch comments, activities, and historical notifications for a ticket."""
         ticket_id = item['_pk']

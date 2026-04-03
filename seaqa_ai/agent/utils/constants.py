@@ -12,6 +12,7 @@ class DataEventType(Enum):
     TICKET_COMMENT_ADDED = 'ticket_comment_added'
     TICKET_COMMENT_UPDATED = 'ticket_comment_updated'
     TICKET_RESTORED = 'ticket_restored'
+    TICKET_DUE_SOON = 'ticket_due_soon'
     GITHUB_ISSUE_ADDED  = 'github_issue_added'
     GITHUB_ISSUE_UPDATED = 'github_issue_updated'
     GITHUB_ISSUE_CLOSED = 'github_issue_closed'

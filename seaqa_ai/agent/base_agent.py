@@ -261,6 +261,10 @@ class BaseAgent:
             )
             raise
 
+    def on_run_finished(self, item: dict, success: bool):
+        """Hook called after the item run is finalized."""
+        return
+
     # ── Main entry point ────────────────────────────────────────────
 
     def run(self) -> int | None:
@@ -269,6 +273,7 @@ class BaseAgent:
         self.last_run_failed = False
         self.last_run_error_message = ''
         run_pk = None
+        item = None
 
         try:
             item = self.get_item()
@@ -302,5 +307,15 @@ class BaseAgent:
                         'error_message': self.last_run_error_message,
                     },
                 )
+            if item is not None:
+                try:
+                    self.on_run_finished(item, success=not self.last_run_failed)
+                except Exception as e:
+                    logger.exception(
+                        'Post-run hook failed for project %s record_id=%s: %s',
+                        self.project_uuid,
+                        item.get('_pk'),
+                        e,
+                    )
 
         return run_pk
