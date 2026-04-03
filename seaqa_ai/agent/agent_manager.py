@@ -107,7 +107,7 @@ class AgentManager:
             source_type,
             record_id,
             connection_id,
-            len(message['events']),
+            message['events'],
         )
         return message
 
