@@ -46,7 +46,8 @@ class AgentManager:
         self._retry_interval = 3
         self._no_message_timeout = 5 * 60 # 5 minutes
         self._debounce_interval = 10 * 60 # 10 minutes
-        self._due_soon_scan_interval = 6 * 60 * 60 # 6 hours
+        self._due_soon_scan_interval = 1 * 60 * 60 # 1 hour
+        self._min_scan_interval_hours = 24 # skip project if scanned within last 24 hours
 
     def start(self):
         if not self.mq:
@@ -282,10 +283,23 @@ class AgentManager:
 
     def _enqueue_due_soon_scan_tasks(self):
         projects = self.app.seaqa_db.get_enabled_projects()
+        now = datetime.now(timezone.utc)
         for project in projects:
             project_uuid = project.get('uuid')
             if not project_uuid:
                 continue
+
+            last_scanned_at = project.get('last_agent_scanned_at')
+            if last_scanned_at is not None:
+                if last_scanned_at.tzinfo is None:
+                    last_scanned_at = last_scanned_at.replace(tzinfo=timezone.utc)
+                if (now - last_scanned_at) < timedelta(hours=self._min_scan_interval_hours):
+                    logger.debug(
+                        'Skipping due-soon scan for project %s (last scanned %s ago)',
+                        project_uuid, now - last_scanned_at,
+                    )
+                    continue
+
             try:
                 tickets = self._get_due_soon_tickets(project_uuid, project)
             except Exception as e:
@@ -306,6 +320,7 @@ class AgentManager:
                         'old_value': {},
                     }],
                 )
+            self.app.seaqa_db.update_project_agent_scanned_at(project_uuid)
 
     def _get_due_soon_tickets(self, project_uuid: str, project: dict) -> list[dict]:
         """Query tickets that are due soon and have not been recently processed."""

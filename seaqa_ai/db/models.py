@@ -29,13 +29,14 @@ class Project(Base):
     ticket_indexed_at = Column(DateTime, nullable=True)
     ticket_ai_indexed_at = Column(DateTime, nullable=True)
     last_ticket_active_time = Column(DateTime, nullable=True)
+    last_agent_scanned_at = Column(DateTime, nullable=True)
 
     @classmethod
     def get_all_active_projects(cls, session, page: int = 1, page_size: int = 50):
         try:
             now = datetime.now(timezone.utc)
             active_threshold = now - timedelta(days=60)
-            base_query = session.query(cls.uuid, cls.settings).filter(
+            base_query = session.query(cls.uuid, cls.settings, cls.last_agent_scanned_at).filter(
                 cls.deleted == 0, 
                 cls.last_ticket_active_time > active_threshold
             )
@@ -51,6 +52,7 @@ class Project(Base):
                 projects.append({
                     'uuid': str(project.uuid),
                     'settings': settings,
+                    'last_agent_scanned_at': project.last_agent_scanned_at,
                 })
             return projects, total
         except Exception as e:
@@ -101,6 +103,19 @@ class Project(Base):
             logger.exception(f'Failed to query project metadata for uuid {uuid}: {e}')
             return {'name': None, 'workspace_id': None}
 
+    @classmethod
+    def update_last_agent_scanned_at(cls, session, uuid: str) -> bool:
+        try:
+            session.query(cls).filter(cls.uuid == uuid).update(
+                {cls.last_agent_scanned_at: datetime.now(timezone.utc)},
+                synchronize_session=False,
+            )
+            session.commit()
+            return True
+        except Exception as e:
+            logger.exception(f'Failed to update last_agent_scanned_at for uuid {uuid}: {e}')
+            session.rollback()
+            return False
 
 class Workspace(Base):
     __tablename__ = 'workspaces'
