@@ -18,13 +18,12 @@ from abc import abstractmethod
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, Workspace
-from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars
+from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars, build_system_prompt
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE, MAX_CONTENT_CHARS
 from seaqa_ai.utils.constants import AIScenario
-
 logger = logging.getLogger(__name__)
 
 
@@ -224,6 +223,11 @@ class BaseAgent:
             'project_uuid': self.project_uuid,
             'scenario': AIScenario.AGENT.value,
         }
+
+    def _build_system_prompt(self, base_prompt: str) -> str:
+        """Merge project-level prompt from project settings with base prompt."""
+        project_prompt = (self.project.get('settings') or {}).get('prompt', '')
+        return build_system_prompt(base_prompt, project_prompt)
 
     # ── Per-item processing ─────────────────────────────────────────
 

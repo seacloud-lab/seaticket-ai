@@ -30,7 +30,7 @@ class DiscourseAgent(ConnectionAgent):
         self._topics_table, self._replies_table = gen_seadb_table_name(ConnectionType.DISCOURSE_FORUM.value, self.connection_id)
 
     def get_system_prompt(self) -> str:
-        return DISCOURSE_SYSTEM_PROMPT
+        return self._build_system_prompt(DISCOURSE_SYSTEM_PROMPT)
 
     def get_tool_classes(self) -> list:
         return DISCOURSE_TOOL_CLASSES + self.SEARCH_TOOL_CLASSES

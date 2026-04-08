@@ -40,7 +40,7 @@ class TicketAgent(BaseAgent):
     # ── Abstract method implementations ────────────────────────────
 
     def get_system_prompt(self) -> str:
-        return TICKET_SYSTEM_PROMPT
+        return self._build_system_prompt(TICKET_SYSTEM_PROMPT)
 
     def get_tool_classes(self) -> list:
         return TICKET_TOOL_CLASSES

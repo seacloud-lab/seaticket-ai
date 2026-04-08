@@ -33,7 +33,7 @@ class GithubIssueAgent(ConnectionAgent):
     # ── Abstract method implementations ────────────────────────────
 
     def get_system_prompt(self) -> str:
-        return GITHUB_ISSUE_SYSTEM_PROMPT
+        return self._build_system_prompt(GITHUB_ISSUE_SYSTEM_PROMPT)
 
     def get_tool_classes(self) -> list:
         return GITHUB_ISSUE_TOOL_CLASSES + self.SEARCH_TOOL_CLASSES
