@@ -8,7 +8,7 @@ from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMe
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
-from seaqa_ai.utils import parse_json, uuid_str_to_32_chars, remove_reference_markers
+from seaqa_ai.utils import parse_json, uuid_str_to_32_chars, remove_reference_markers, build_system_prompt
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
@@ -58,22 +58,6 @@ class BasicChat(object):
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
-    def _build_system_prompt(self, base_prompt, project_prompt):
-        """
-        Merge project-level prompt with base system prompt.
-        If project_prompt is provided, it will be prepended to the base prompt
-        to provide project-specific context for all conversations.
-        """
-        if not project_prompt or not project_prompt.strip():
-            return base_prompt
-        
-        return f"""Project Context:
-{project_prompt}
-
----------------
-
-{base_prompt}"""
-    
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
         self._register_tools(tool_executor, context)
@@ -90,7 +74,7 @@ class SyncChat(BasicChat):
         llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
         context=kwargs.get('context')
         
-        system_prompt = self._build_system_prompt(SYSTEM_PROMPT, project_prompt)
+        system_prompt = build_system_prompt(SYSTEM_PROMPT, project_prompt)
         
         if session_uuid and not config.DISABLE_CONTEXT:
             try:
@@ -200,7 +184,7 @@ class StreamingChat(BasicChat):
             llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
             yield SSE.status('Preparing', 'Initializing user input')
             
-            system_prompt = self._build_system_prompt(SYSTEM_PROMPT, project_prompt)
+            system_prompt = build_system_prompt(SYSTEM_PROMPT, project_prompt)
             
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
