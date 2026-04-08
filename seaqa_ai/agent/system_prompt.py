@@ -52,8 +52,8 @@ _SEARCH_RULES = """Run searches based on your classification:
      If document results cannot fully answer the question, then use issues_search."""
 
 _SEARCH_LIMITS = """Search limits:
-   - documents_search: at most 2 calls per {item_name}.
-   - issues_search: at most 2 calls per {item_name}.
+   - documents_search: at most 4 calls per {item_name}.
+   - issues_search: at most 4 calls per {item_name}.
    - You may rewrite query between retries.
    - Avoid random or redundant searches."""
 
@@ -138,7 +138,7 @@ The topic is provided as a JSON object with the following fields:
 - recent_replies: array of recent replies with author, modified_time, content"""
 
 
-GITHUB_ISSUE_SYSTEM_PROMPT = f"""You are an autonomous agent that triages incoming GitHub Issues for a project.
+GITHUB_ISSUE_SYSTEM_PROMPT = f"""You are an autonomous agent that processes incoming GitHub Issues for a project.
 
 {_TRIAGE_WORKFLOW_INTRO}
 
@@ -171,7 +171,7 @@ GITHUB_ISSUE_SYSTEM_PROMPT = f"""You are an autonomous agent that triages incomi
 """
 
 
-DISCOURSE_SYSTEM_PROMPT = f"""You are an autonomous agent that triages incoming Discourse topics for a project.
+DISCOURSE_SYSTEM_PROMPT = f"""You are an autonomous agent that processes incoming Discourse topics for a project.
 
 {_TRIAGE_WORKFLOW_INTRO}
 

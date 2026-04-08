@@ -55,7 +55,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 'properties': {
                     'summary': {
                         'type': 'string',
-                        'description': 'Your analysis of the issue: what it is about, whether it resembles a known problem, and what action you plan to take.'
+                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, and what action you plan to take.'
                     },
                     'classified_issue_type': {
                         'type': 'string',
@@ -250,6 +250,43 @@ class SuggestCreateTicketTool(BaseAgentTool):
             f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
             f'Reason: {preview}'
         )
+
+
+class ThinkTool(BasicTool):
+    """No-op tool that gives the model a structured space to reason.
+
+    The model calls this tool to pause and think before deciding the next
+    action. Inspired by Anthropic's "think" tool pattern (https://www.anthropic.com/engineering/claude-think-tool).
+    """
+
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'think',
+            'description': (
+                'Use this tool to think about the current situation. It will not obtain '
+                'new information or change anything, but just append the thought '
+                'to the log. Use it when complex reasoning or analysis of tool '
+                'results is needed before deciding next steps.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'thought': {
+                        'type': 'string',
+                        'description': 'Your detailed reasoning or analysis.',
+                    }
+                },
+                'required': ['thought'],
+            },
+        },
+    }
+
+    action_type = 'thought'
+    action_status = 'completed'
+
+    def execute(self, thought: str = ''):
+        return ''
 
 
 class FinalAnswerTool(BasicTool):

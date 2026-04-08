@@ -14,7 +14,7 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 from seaqa_ai.utils.llm_api import CompletionAPI
-from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 
@@ -71,11 +71,19 @@ class AgentRunner:
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
 
+        think_tool = ThinkTool()
+        think_tool.register(tool_executor)
+        self.tool_metadata[think_tool.tool.get('function', {}).get('name')] = {
+            'action_type': think_tool.action_type,
+            'action_status': think_tool.action_status,
+        }
+
     def run(self, task: str) -> str:
         """Drive the reasoning loop until final_answer is called or max_steps reached."""
         messages = self._build_initial_messages(task)
 
         for step in range(self.max_steps):
+            self._force_think_step(messages, step)
             message = self._request_llm_message(messages, step, use_tools=True)
             assistant_message = self._build_assistant_message(message)
             messages.append(assistant_message)
@@ -126,6 +134,74 @@ class AgentRunner:
                     content=f'LLM error: {e}',
                 )
             raise
+
+    def _force_think_step(self, messages: list[dict], step: int):
+        think_tool = self._get_registered_tool_by_name('think')
+        if not think_tool:
+            logger.warning('Think tool is not registered; skipping forced think step.')
+            return
+
+        think_messages = messages + [{
+            'role': 'system',
+            'content': (
+                'Before taking the next regular action, you must call the think tool exactly once. '
+                'Use it to analyze the latest context, verify applicable rules, and plan the next step. '
+                'Do not call any other tool in this response.'
+            ),
+        }]
+
+        try:
+            response = self.llm_client.completion(
+                messages=think_messages,
+                context=self.ai_stats_context,
+                tools=[think_tool],
+                tool_choice={
+                    'type': 'function',
+                    'function': {
+                        'name': 'think',
+                    },
+                },
+            )
+            message = response.choices[0].message
+        except Exception as e:
+            logger.exception(f'Forced think call failed at step {step}: {e}')
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name='think',
+                    arguments={},
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
+                    content=f'Forced think error: {e}',
+                )
+            raise
+
+        assistant_message = self._build_assistant_message(message)
+        messages.append(assistant_message)
+
+        if not message.tool_calls:
+            logger.warning(f'Forced think step {step} returned no tool call.')
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name='think',
+                    arguments={},
+                    result='No think tool call returned.',
+                    action_type='error',
+                    action_status='failed',
+                    content='Forced think step did not produce a think tool call.',
+                )
+            return
+
+        final_result = self._process_tool_calls(message.tool_calls, messages)
+        if final_result is not None:
+            logger.warning(f'Forced think step {step} unexpectedly returned a final result: {final_result}')
+
+    def _get_registered_tool_by_name(self, tool_name: str) -> dict | None:
+        for tool in self.tool_executor.get():
+            function = tool.get('function', {})
+            if function.get('name') == tool_name:
+                return tool
+        return None
 
     def _build_assistant_message(self, message: Message) -> dict:
         msg_dict = {'role': 'assistant', 'content': message.content or ''}
@@ -257,6 +333,7 @@ class AgentRunner:
         action_status = metadata.get('action_status', 'completed')
         suggestion_text = metadata.get('suggestion_text', '') if action_type == 'suggestion' else ''
         content = (
+            arguments.get('thought') or
             arguments.get('analysis') or
             arguments.get('summary') or
             arguments.get('message') or
