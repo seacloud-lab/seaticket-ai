@@ -174,10 +174,10 @@ SEADB_SERVER_URL = configs.get('SEADB_SERVER_URL', 'http://seadb:8888')
 SEADB_SERVER_ACCESS_TOKEN = configs.get('SEADB_SERVER_ACCESS_TOKEN', '')
 
 # S3
-S3_HOST = configs.get('S3_HOST')
-S3_WEB_CRAWL_BUCKET = configs.get('S3_WEB_CRAWL_BUCKET')
-S3_KEY_ID = configs.get('S3_KEY_ID')
-S3_SECRET_KEY = configs.get('S3_SECRET_KEY')
+S3_HOST = configs.get('S3_HOST', '')
+S3_WEB_CRAWL_BUCKET = configs.get('S3_WEB_CRAWL_BUCKET', '')
+S3_KEY_ID = configs.get('S3_KEY_ID', '')
+S3_SECRET_KEY = configs.get('S3_SECRET_KEY', '')
 
 SQLALCHEMY_DATABASE_URI = "mysql+pymysql://%s:%s@%s:%s/%s?charset=utf8" % \
                           (MYSQL_USER, quote_plus(MYSQL_PASSWORD), MYSQL_HOST, MYSQL_PORT, MYSQL_DB)
