@@ -43,7 +43,7 @@ def _check_type(func):
                     result = result.lower() in ('true', '1')
                 else:
                     result = bool(result)
-            else:
+            elif need_type in (str, list, dict):
                 result = need_type(result)
         return result
     return wrapper
