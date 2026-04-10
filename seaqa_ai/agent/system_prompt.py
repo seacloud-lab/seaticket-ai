@@ -38,6 +38,34 @@ The ticket is provided as a JSON object with the following fields:
 """
 
 
+# Phase guidance used by forced think steps in AgentRunner
+PHASE_GUIDANCE_FOR_THINK = {
+    'analysis': (
+        'You are in the ANALYSIS phase. Before the next action, call the think tool to:\n'
+        '- Summarize what you learned from the latest search results.\n'
+        '- Identify remaining knowledge gaps that require further search.\n'
+        '- Decide whether to search again or call record_issue_analysis to finalize.'
+    ),
+    'handling': (
+        'You are in the HANDLING phase. Before the next action, call the think tool to:\n'
+        '- Review the recorded analysis and available evidence.\n'
+        '- Determine which handling action (suggest_resolution, suggest_create_ticket, etc.) fits best.\n'
+    ),
+}
+
+FORCED_RECORD_ISSUE_ANALYSIS_PROMPT = (
+    'Analysis loop reached max steps without calling record_issue_analysis.\n'
+    'Now call record_issue_analysis immediately with the best available evidence.\n'
+    'Fill all required fields. If some detail is uncertain, be explicit and use conservative defaults.'
+)
+
+FORCED_FINAL_ANSWER_PROMPT = (
+    'Handling loop reached max steps without calling final_answer.\n'
+    'Now call final_answer immediately.\n'
+    'Provide a concise summary of what was done and any remaining uncertainty.'
+)
+
+
 # Common prompt fragments for triage agents
 _TRIAGE_WORKFLOW_INTRO = """Your workflow has two phases: ANALYSIS and HANDLING."""
 

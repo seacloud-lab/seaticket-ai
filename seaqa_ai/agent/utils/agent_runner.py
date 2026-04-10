@@ -14,6 +14,11 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 from seaqa_ai.utils.llm_api import CompletionAPI
+from seaqa_ai.agent.system_prompt import (
+    PHASE_GUIDANCE_FOR_THINK,
+    FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
+    FORCED_FINAL_ANSWER_PROMPT,
+)
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
@@ -31,6 +36,9 @@ class AgentRunner:
     - Supports 'pending' status for actions requiring user confirmation
     """
 
+    ANALYSIS_TERMINATORS = ('record_ticket_analysis', 'record_issue_analysis')
+    HANDLING_TERMINATOR = 'final_answer'
+
     def __init__(
         self,
         tool_executor: OpenAIToolExecutor,
@@ -41,7 +49,8 @@ class AgentRunner:
         run_id=None,
         tool_metadata=None,
         system_prompt=None,
-        max_steps=10,
+        max_analysis_steps=10,
+        max_handling_steps=10,
     ):
         """
         Args:
@@ -56,7 +65,8 @@ class AgentRunner:
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
             system_prompt: system message injected at the start of each reasoning loop.
-            max_steps: maximum number of LLM calls before giving up.
+            max_analysis_steps: maximum steps for the analysis loop.
+            max_handling_steps: maximum steps for the handling loop.
         """
         self.tool_executor = tool_executor
         self.llm_client = llm_client
@@ -66,7 +76,8 @@ class AgentRunner:
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
         self.system_prompt = system_prompt or ''
-        self.max_steps = max_steps
+        self.max_analysis_steps = max_analysis_steps
+        self.max_handling_steps = max_handling_steps
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
@@ -79,52 +90,102 @@ class AgentRunner:
         }
 
     def run(self, task: str) -> str:
-        """Drive the reasoning loop until final_answer is called or max_steps reached."""
+        """Drive the two-phase reasoning loop: analysis then handling."""
         messages = self._build_initial_messages(task)
 
-        for step in range(self.max_steps):
-            self._force_think_step(messages, step)
-            message = self._request_llm_message(messages, step, use_tools=True)
+        self._run_analysis_loop(messages)
+
+        self._run_handling_loop(messages)
+
+    def _run_analysis_loop(self, messages: list[dict]) -> None:
+        self._run_loop(
+            messages=messages,
+            phase='analysis',
+            max_steps=self.max_analysis_steps,
+            terminators=self.ANALYSIS_TERMINATORS,
+            force_fallback=self._force_record_analysis,
+        )
+
+    def _run_handling_loop(self, messages: list[dict]) -> None:
+        self._run_loop(
+            messages=messages,
+            phase='handling',
+            max_steps=self.max_handling_steps,
+            terminators=(self.HANDLING_TERMINATOR,),
+            force_fallback=self._force_final_answer,
+        )
+
+    def _run_loop(
+        self,
+        messages: list[dict],
+        phase: str,
+        max_steps: int,
+        terminators: tuple[str, ...],
+        force_fallback,
+    ) -> None:
+        for step in range(max_steps):
+            self._force_think_step(messages, step, phase=phase)
+            message = self._request_llm_message_for_phase(messages, step, phase=phase)
+            if message is None:
+                logger.warning(f'{phase} step {step} LLM call failed, continuing to next step.')
+                continue
+
             tool_call = self._validate_single_tool_call(message.tool_calls, step)
             assistant_message = self._build_assistant_message(message, tool_call=tool_call)
             messages.append(assistant_message)
 
             if not tool_call:
-                return message.content or ''
+                logger.warning(f'{phase} step {step} returned no tool call.')
+                continue
 
-            final_result = self._process_tool_call(tool_call, messages)
-            if final_result is not None:
-                return final_result
+            tool_name = tool_call.function.name
+            logger.debug(f'Processing tool call {tool_name} at step {step}')
+            self._process_tool_call(tool_call, messages)
 
-        logger.warning(f'Agent reached max steps ({self.max_steps})')
-        final_message = self._request_llm_message(
-            messages=messages,
-            step=self.max_steps,
-            use_tools=False,
+            if tool_name in terminators:
+                logger.debug(f'{phase} loop completed at step {step} via {tool_name}.')
+                return
+
+        logger.warning(
+            f'{phase} loop reached max steps ({max_steps}) '
+            f'without calling any of {terminators}.'
         )
-        return final_message.content or ''
+        force_fallback(messages)
 
-    def _build_initial_messages(self, task: str) -> list[dict]:
-        return [
-            {'role': 'system', 'content': self.system_prompt},
-            {'role': 'user', 'content': task},
-        ]
+    def _request_llm_message_for_phase(
+        self,
+        messages: list[dict],
+        step: int,
+        phase: str,
+        use_tools: bool = True,
+    ) -> Message:
+        """Request an LLM message with phase-specific tools."""
+        total_chars = 0
+        for i, m in enumerate(messages):
+            content_len = len(str(m.get('content') or ''))
+            logger.debug('[AgentRunner] step=%d msg[%d] role=%s content_chars=%d', step, i, m.get('role'), content_len)
+            total_chars += content_len
+        logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
 
-    def _request_llm_message(self, messages: list[dict], step: int, use_tools: bool = True) -> Message:
         try:
             request_kwargs = {
                 'messages': messages,
                 'context': self.ai_stats_context,
             }
             if use_tools:
+                if phase == 'analysis':
+                    tools = self._get_analysis_tools()
+                else:
+                    tools = self._get_handling_tools()
+
                 request_kwargs.update({
-                    'tools': self._get_regular_tools(),
+                    'tools': tools,
                     'tool_choice': 'auto',
                 })
             response = self.llm_client.completion(**request_kwargs)
             return response.choices[0].message
         except Exception as e:
-            logger.exception(f'LLM call failed at step {step}: {e}')
+            logger.exception(f'LLM call failed at {phase} step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=None,
@@ -132,78 +193,126 @@ class AgentRunner:
                     result=str(e),
                     action_type='error',
                     action_status='failed',
-                    content=f'LLM error: {e}',
+                    content=f'LLM error in {phase} phase: {e}',
                 )
-            raise
+            return None
 
-    def _force_think_step(self, messages: list[dict], step: int):
-        think_tool = self._get_registered_tool_by_name('think')
-        if not think_tool:
-            logger.warning('Think tool is not registered; skipping forced think step.')
+    def _build_initial_messages(self, task: str) -> list[dict]:
+        return [
+            {'role': 'system', 'content': self.system_prompt},
+            {'role': 'user', 'content': task},
+        ]
+
+    def _force_think_step(self, messages: list[dict], step: int, phase: str):
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name='think',
+            step=step,
+            system_content=PHASE_GUIDANCE_FOR_THINK.get(phase),
+        )
+
+    def _force_record_analysis(self, messages: list[dict]) -> None:
+        source_type = self.record_context.get('source_type', '')
+        if source_type == 'ticket':
+            tool_name = 'record_ticket_analysis'
+        else:
+            tool_name = 'record_issue_analysis'
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name=tool_name,
+            step=self.max_analysis_steps,
+            system_content=FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
+        )
+    
+    def _force_final_answer(self, messages: list[dict]):
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name=self.HANDLING_TERMINATOR,
+            step=self.max_handling_steps,
+            system_content=FORCED_FINAL_ANSWER_PROMPT,
+        )
+
+    def _force_single_tool_call(
+        self,
+        messages: list[dict],
+        tool_name: str,
+        step: int,
+        system_content: str,
+    ):
+        tool = self._get_registered_tool_by_name(tool_name)
+        if not tool:
+            logger.warning(f'{tool_name} tool is not registered; skipping forced tool call.')
             return
 
-        think_messages = messages + [{
+        forced_messages = messages + [{
             'role': 'system',
-            'content': (
-                'Before taking the next regular action, you must call the think tool exactly once. '
-                'Use it to analyze the latest context, verify applicable rules, and plan the next step. '
-                'Do not call any other tool in this response.'
-            ),
+            'content': system_content,
         }]
 
         try:
             response = self.llm_client.completion(
-                messages=think_messages,
+                messages=forced_messages,
                 context=self.ai_stats_context,
-                tools=[think_tool],
+                tools=[tool],
                 tool_choice={
                     'type': 'function',
                     'function': {
-                        'name': 'think',
+                        'name': tool_name,
                     },
                 },
             )
             message = response.choices[0].message
         except Exception as e:
-            logger.exception(f'Forced think call failed at step {step}: {e}')
+            logger.exception(f'Forced {tool_name} call failed at step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name='think',
+                    tool_name=tool_name,
                     arguments={},
                     result=str(e),
                     action_type='error',
                     action_status='failed',
-                    content=f'Forced think error: {e}',
+                    content=str(e),
                 )
-            raise
+            return
 
         tool_call = self._validate_single_tool_call(message.tool_calls, step)
         assistant_message = self._build_assistant_message(message, tool_call=tool_call)
         messages.append(assistant_message)
 
         if not tool_call:
-            logger.warning(f'Forced think step {step} returned no tool call.')
+            logger.warning(f'Forced {tool_name} step {step} returned no tool call.')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name='think',
+                    tool_name=tool_name,
                     arguments={},
-                    result='No think tool call returned.',
+                    result="No tool call returned.",
                     action_type='error',
                     action_status='failed',
-                    content='Forced think step did not produce a think tool call.',
+                    content="Forced tool call did not produce a tool call.",
                 )
             return
 
-        final_result = self._process_tool_call(tool_call, messages)
-        if final_result is not None:
-            logger.warning(f'Forced think step {step} unexpectedly returned a final result: {final_result}')
+        self._process_tool_call(tool_call, messages)
 
-    def _get_regular_tools(self) -> list[dict]:
-        """Return tools exposed to the regular step, excluding think."""
+
+    def _get_analysis_tools(self) -> list[dict]:
+        excluded_prefixes = ('suggest_',)
+        excluded_names = (self.HANDLING_TERMINATOR, 'think')
         return [
             tool
             for tool in self.tool_executor.get()
-            if tool.get('function', {}).get('name') != 'think'
+            if not tool.get('function', {}).get('name', '').startswith(excluded_prefixes)
+            and tool.get('function', {}).get('name') not in excluded_names
+        ]
+
+    def _get_handling_tools(self) -> list[dict]:
+        excluded_suffixes = ('_search',)
+        excluded_names = self.ANALYSIS_TERMINATORS + ('think',)
+        return [
+            tool
+            for tool in self.tool_executor.get()
+            if not tool.get('function', {}).get('name', '').endswith(excluded_suffixes)
+            and tool.get('function', {}).get('name') not in excluded_names
         ]
 
     def _validate_single_tool_call(
