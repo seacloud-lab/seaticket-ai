@@ -85,13 +85,14 @@ class AgentRunner:
         for step in range(self.max_steps):
             self._force_think_step(messages, step)
             message = self._request_llm_message(messages, step, use_tools=True)
-            assistant_message = self._build_assistant_message(message)
+            tool_call = self._validate_single_tool_call(message.tool_calls, step)
+            assistant_message = self._build_assistant_message(message, tool_call=tool_call)
             messages.append(assistant_message)
 
-            if not message.tool_calls:
+            if not tool_call:
                 return message.content or ''
 
-            final_result = self._process_tool_calls(message.tool_calls, messages)
+            final_result = self._process_tool_call(tool_call, messages)
             if final_result is not None:
                 return final_result
 
@@ -117,7 +118,7 @@ class AgentRunner:
             }
             if use_tools:
                 request_kwargs.update({
-                    'tools': self.tool_executor.get(),
+                    'tools': self._get_regular_tools(),
                     'tool_choice': 'auto',
                 })
             response = self.llm_client.completion(**request_kwargs)
@@ -176,10 +177,11 @@ class AgentRunner:
                 )
             raise
 
-        assistant_message = self._build_assistant_message(message)
+        tool_call = self._validate_single_tool_call(message.tool_calls, step)
+        assistant_message = self._build_assistant_message(message, tool_call=tool_call)
         messages.append(assistant_message)
 
-        if not message.tool_calls:
+        if not tool_call:
             logger.warning(f'Forced think step {step} returned no tool call.')
             if self.action_recorder and self.run_id:
                 self._record_action(
@@ -192,9 +194,37 @@ class AgentRunner:
                 )
             return
 
-        final_result = self._process_tool_calls(message.tool_calls, messages)
+        final_result = self._process_tool_call(tool_call, messages)
         if final_result is not None:
             logger.warning(f'Forced think step {step} unexpectedly returned a final result: {final_result}')
+
+    def _get_regular_tools(self) -> list[dict]:
+        """Return tools exposed to the regular step, excluding think."""
+        return [
+            tool
+            for tool in self.tool_executor.get()
+            if tool.get('function', {}).get('name') != 'think'
+        ]
+
+    def _validate_single_tool_call(
+        self,
+        tool_calls: list[ChatCompletionMessageToolCall] | None,
+        step: int,
+    ) -> ChatCompletionMessageToolCall | None:
+        """Keep only one tool call per step and warn when model returns more."""
+        if not tool_calls:
+            return None
+        if len(tool_calls) == 1:
+            return tool_calls[0]
+
+        tool_names = [tc.function.name for tc in tool_calls]
+        logger.warning(
+            'Agent step %s returned %s tool calls; keeping only the first one. tool_names=%s',
+            step,
+            len(tool_calls),
+            tool_names,
+        )
+        return tool_calls[0]
 
     def _get_registered_tool_by_name(self, tool_name: str) -> dict | None:
         for tool in self.tool_executor.get():
@@ -203,108 +233,108 @@ class AgentRunner:
                 return tool
         return None
 
-    def _build_assistant_message(self, message: Message) -> dict:
+    def _build_assistant_message(
+        self,
+        message: Message,
+        tool_call: ChatCompletionMessageToolCall | None = None,
+    ) -> dict:
         msg_dict = {'role': 'assistant', 'content': message.content or ''}
-        if message.tool_calls:
-            msg_dict['tool_calls'] = [
-                {
-                    'id': tc.id,
-                    'type': 'function',
-                    'function': {
-                        'name': tc.function.name,
-                        'arguments': tc.function.arguments,
-                    }
+        if tool_call:
+            msg_dict['tool_calls'] = [{
+                'id': tool_call.id,
+                'type': 'function',
+                'function': {
+                    'name': tool_call.function.name,
+                    'arguments': tool_call.function.arguments,
                 }
-                for tc in message.tool_calls
-            ]
+            }]
         return msg_dict
 
-    def _process_tool_calls(
+    def _process_tool_call(
         self,
-        tool_calls: list[ChatCompletionMessageToolCall],
+        tool_call: ChatCompletionMessageToolCall,
         messages: list[dict],
     ) -> str | None:
         self.tool_executor.thought_process.add_tool_calls_group()
-        for tool_call in tool_calls:
-            tool_name = tool_call.function.name
-            is_final_answer = tool_name == 'final_answer'
-            tool_failed = False
+        tool_name = tool_call.function.name
+        is_final_answer = tool_name == 'final_answer'
+        tool_failed = False
 
-            try:
-                raw_arguments = tool_call.function.arguments
-                parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
-                if not isinstance(parsed_arguments, dict):
-                    raise TypeError('Tool arguments must be a JSON object.')
-                arguments = parsed_arguments
-            except (json.JSONDecodeError, TypeError) as e:
-                tool_failed = True
-                arguments = {}
-                logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
-                observation = json.dumps({
-                    'status': 'error',
-                    'tool_name': tool_name,
-                    'error_type': type(e).__name__,
-                    'error_message': str(e),
-                }, ensure_ascii=False)
-                if self.action_recorder and self.run_id:
-                    self._record_action(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                        result=str(e),
-                        action_type='error',
-                        action_status='failed',
-                    )
-                logger.debug(f'Observation: {observation}')
-                if is_final_answer:
-                    return observation
-                messages.append({
-                    'role': 'tool',
-                    'tool_call_id': tool_call.id,
-                    'content': observation,
-                })
-                continue
-
-            logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
-            try:
-                result = self.tool_executor.execute(tool_call)
-                if result is None:
-                    observation = ''
-                elif isinstance(result, str):
-                    observation = result.strip()
-                elif isinstance(result, (dict, list)):
-                    observation = json.dumps(result, ensure_ascii=False)
-                else:
-                    observation = str(result).strip()
-            except Exception as e:
-                tool_failed = True
-                logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
-                observation = json.dumps({
-                    'status': 'error',
-                    'tool_name': tool_name,
-                    'error_type': type(e).__name__,
-                    'error_message': str(e),
-                }, ensure_ascii=False)
-                if self.action_recorder and self.run_id:
-                    self._record_action(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                        result=str(e),
-                        action_type='error',
-                        action_status='failed',
-                    )
+        try:
+            raw_arguments = tool_call.function.arguments
+            parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
+            if not isinstance(parsed_arguments, dict):
+                raise TypeError('Tool arguments must be a JSON object.')
+            arguments = parsed_arguments
+        except (json.JSONDecodeError, TypeError) as e:
+            tool_failed = True
+            arguments = {}
+            logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
+            observation = json.dumps({
+                'status': 'error',
+                'tool_name': tool_name,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+            }, ensure_ascii=False)
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
+                )
             logger.debug(f'Observation: {observation}')
-
-            if not tool_failed:
-                self._record_tool_action(tool_name, arguments, observation, is_final_answer)
-
             if is_final_answer:
                 return observation
-
             messages.append({
                 'role': 'tool',
                 'tool_call_id': tool_call.id,
                 'content': observation,
             })
+            return None
+
+        logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
+        try:
+            result = self.tool_executor.execute(tool_call)
+            if result is None:
+                observation = ''
+            elif isinstance(result, str):
+                observation = result.strip()
+            elif isinstance(result, (dict, list)):
+                observation = json.dumps(result, ensure_ascii=False)
+            else:
+                observation = str(result).strip()
+        except Exception as e:
+            tool_failed = True
+            logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
+            observation = json.dumps({
+                'status': 'error',
+                'tool_name': tool_name,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+            }, ensure_ascii=False)
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
+                )
+        logger.debug(f'Observation: {observation}')
+
+        if not tool_failed:
+            self._record_tool_action(tool_name, arguments, observation, is_final_answer)
+
+        if is_final_answer:
+            return observation
+
+        messages.append({
+            'role': 'tool',
+            'tool_call_id': tool_call.id,
+            'content': observation,
+        })
 
     def _record_tool_action(
         self,
