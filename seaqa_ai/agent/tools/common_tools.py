@@ -66,53 +66,15 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                         'type': 'string',
                         'description': 'The original issue_type value from input, used as a candidate label.'
                     },
-                    'searches_performed': {
-                        'type': 'array',
-                        'description': 'Searches performed before this analysis.',
-                        'items': {
-                            'type': 'object',
-                            'properties': {
-                                'tool': {
-                                    'type': 'string',
-                                    'enum': ['documents_search', 'issues_search']
-                                },
-                                'query': {
-                                    'type': 'string'
-                                },
-                                'result_count': {
-                                    'type': 'integer'
-                                },
-                                'notes': {
-                                    'type': 'string'
-                                }
-                            },
-                            'required': ['tool', 'query', 'result_count']
-                        }
-                    },
-                    'key_evidence': {
-                        'type': 'string',
-                        'description': 'Key evidence from search results that supports the decision.'
-                    },
-                    'can_answer_directly': {
-                        'type': 'boolean',
-                        'description': 'Whether search results are sufficient to directly answer the issue.'
-                    },
                     'recommended_action': {
                         'type': 'string',
                         'enum': ['suggest_modify_type', 'suggest_resolution', 'suggest_create_ticket'],
                         'description': 'The handling action to call next.'
                     },
-                    'rationale': {
-                        'type': 'string',
-                        'description': 'Brief reasoning that links evidence to recommended_action.'
-                    },
                 },
                 'required': [
                     'summary',
                     'classified_issue_type',
-                    'searches_performed',
-                    'key_evidence',
-                    'can_answer_directly',
                     'recommended_action'
                 ]
             }
@@ -126,13 +88,10 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         self,
         summary,
         classified_issue_type,
-        original_issue_type='',
-        searches_performed=None,
-        key_evidence='',
-        can_answer_directly=False,
+        original_issue_type='',        
         recommended_action='suggest_create_ticket',
-        rationale='',
     ):
+
         source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
