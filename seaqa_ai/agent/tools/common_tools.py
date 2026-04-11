@@ -55,7 +55,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 'properties': {
                     'summary': {
                         'type': 'string',
-                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, and what action you plan to take.'
+                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take.'
                     },
                     'classified_issue_type': {
                         'type': 'string',
@@ -259,10 +259,6 @@ class FinalAnswerTool(BasicTool):
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'answer': {
-                        'type': 'string',
-                        'description': 'The final answer or summary of actions taken.'
-                    },
                     'summary': {
                         'type': 'string',
                         'description': 'A brief summary of what was done.'
@@ -275,5 +271,5 @@ class FinalAnswerTool(BasicTool):
     action_type = 'summary'
     action_status = 'completed'
 
-    def execute(self, answer='', summary=''):
-        return answer or summary or ''
+    def execute(self, summary=''):
+        return summary or ''

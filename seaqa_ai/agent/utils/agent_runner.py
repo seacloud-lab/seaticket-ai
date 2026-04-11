@@ -204,11 +204,18 @@ class AgentRunner:
         ]
 
     def _force_think_step(self, messages: list[dict], step: int, phase: str):
+        source_type = self.record_context.get('source_type', '')
+        if phase == 'analysis' and source_type == 'ticket':
+            guidance_key = 'ticket_analysis'
+        elif phase == 'analysis' and source_type != 'ticket':
+            guidance_key ='issue_analysis'
+        else:
+            guidance_key = phase
         self._force_single_tool_call(
             messages=messages,
             tool_name='think',
             step=step,
-            system_content=PHASE_GUIDANCE_FOR_THINK.get(phase),
+            system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
         )
 
     def _force_record_analysis(self, messages: list[dict]) -> None:
