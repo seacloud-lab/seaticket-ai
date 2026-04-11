@@ -216,7 +216,7 @@ class ContentRetriever:
                 'assignees': record_from_seadb['assignees'],
                 'linked_ticket': record_from_seadb['linked_ticket'],
                 'url': record_from_seadb['url'],
-                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'content': (record_from_seadb['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE],
                 'comments': []
             }
 
