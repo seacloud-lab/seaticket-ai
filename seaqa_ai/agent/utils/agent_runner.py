@@ -22,6 +22,7 @@ from seaqa_ai.agent.system_prompt import (
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
+from seaqa_ai.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ class AgentRunner:
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
-        system_prompt=None,
+        analysis_system_prompt=None,
+        handling_system_prompt=None,
         max_analysis_steps=10,
         max_handling_steps=10,
     ):
@@ -64,7 +66,8 @@ class AgentRunner:
                              suggestion_text) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
-            system_prompt: system message injected at the start of each reasoning loop.
+            analysis_system_prompt: system message for the analysis phase.
+            handling_system_prompt: system message for the handling phase.
             max_analysis_steps: maximum steps for the analysis loop.
             max_handling_steps: maximum steps for the handling loop.
         """
@@ -75,7 +78,8 @@ class AgentRunner:
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
-        self.system_prompt = system_prompt or ''
+        self.analysis_system_prompt = analysis_system_prompt
+        self.handling_system_prompt = handling_system_prompt
         self.max_analysis_steps = max_analysis_steps
         self.max_handling_steps = max_handling_steps
 
@@ -94,8 +98,8 @@ class AgentRunner:
         messages = self._build_initial_messages(task)
 
         self._run_analysis_loop(messages)
-
-        self._run_handling_loop(messages)
+        handling_messages = self._build_handling_messages(task, messages)
+        self._run_handling_loop(handling_messages)
 
     def _run_analysis_loop(self, messages: list[dict]) -> None:
         self._run_loop(
@@ -152,6 +156,94 @@ class AgentRunner:
         )
         force_fallback(messages)
 
+    def _build_handling_messages(self, task: str, analysis_messages: list[dict]) -> list[dict]:
+        search_results = self._extract_successful_search_results(analysis_messages)
+        analysis_result = self._extract_analysis_result(analysis_messages)
+
+        handling_task_content = self._build_handling_task_content(
+            original_task=task,
+            search_results=search_results,
+            analysis_result=analysis_result,
+        )
+
+        return [
+            {'role': 'system', 'content': self.handling_system_prompt},
+            {'role': 'user', 'content': handling_task_content},
+        ]
+
+    def _extract_successful_search_results(self, messages: list[dict]) -> list[dict]:
+        search_results = []
+
+        for i, msg in enumerate(messages):
+            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+                continue
+
+            for tool_call in msg['tool_calls']:
+                tool_name = tool_call.get('function', {}).get('name', '')
+                if not tool_name.endswith('_search'):
+                    continue
+
+                tool_call_id = tool_call.get('id')
+                for next_msg in messages[i + 1:]:
+                    if (next_msg.get('role') == 'tool' and
+                            next_msg.get('tool_call_id') == tool_call_id):
+                        content = next_msg.get('content', '')
+                        if not self._is_search_failed(content):
+                            search_results.append({
+                                'tool_name': tool_name,
+                                'content': content,
+                            })
+                        break
+
+        return search_results
+
+    def _is_search_failed(self, content: str) -> bool:
+        try:
+            result = json.loads(content)
+            if isinstance(result, dict):
+                return result.get('status') == 'error'
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return False
+
+    def _extract_analysis_result(self, messages: list[dict]) -> dict:
+        for msg in reversed(messages):
+            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+                continue
+
+            for tool_call in msg['tool_calls']:
+                tool_name = tool_call.get('function', {}).get('name', '')
+                if tool_name in self.ANALYSIS_TERMINATORS:
+                    args_str = tool_call.get('function', {}).get('arguments', '{}')
+                    try:
+                        return json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
+                    except (json.JSONDecodeError, TypeError):
+                        return {}
+        return {}
+
+    def _build_handling_task_content(self,original_task: str, search_results: list[dict], analysis_result: dict) -> str:
+        try:
+            task_dict = json.loads(original_task) if isinstance(original_task, str) else {}
+            if not isinstance(task_dict, dict):
+                task_dict = {'raw': original_task}
+        except (json.JSONDecodeError, TypeError):
+            task_dict = {'raw': original_task}
+
+        if search_results:
+            task_dict['search_results'] = [
+                {
+                    'tool_name': sr['tool_name'],
+                    'content': parse_json(sr['content']),
+                }
+                for sr in search_results
+            ]
+
+        if analysis_result:
+            task_dict['analysis_summary'] = analysis_result
+
+        return json.dumps(task_dict, ensure_ascii=False, indent=2)
+
+
     def _request_llm_message_for_phase(
         self,
         messages: list[dict],
@@ -199,7 +291,7 @@ class AgentRunner:
 
     def _build_initial_messages(self, task: str) -> list[dict]:
         return [
-            {'role': 'system', 'content': self.system_prompt},
+            {'role': 'system', 'content': self.analysis_system_prompt},
             {'role': 'user', 'content': task},
         ]
 

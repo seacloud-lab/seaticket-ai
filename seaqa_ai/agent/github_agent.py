@@ -15,7 +15,10 @@ from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS
-from seaqa_ai.agent.system_prompt import GITHUB_ISSUE_SYSTEM_PROMPT
+from seaqa_ai.agent.system_prompt import (
+    GITHUB_ISSUE_ANALYSIS_SYSTEM_PROMPT,
+    GITHUB_ISSUE_HANDLING_SYSTEM_PROMPT,
+)
 from seaqa_ai.agent.utils.constants import SourceType
 
 logger = logging.getLogger(__name__)
@@ -32,8 +35,11 @@ class GithubIssueAgent(ConnectionAgent):
 
     # ── Abstract method implementations ────────────────────────────
 
-    def get_system_prompt(self) -> str:
-        return self._build_system_prompt(GITHUB_ISSUE_SYSTEM_PROMPT)
+    def get_analysis_system_prompt(self) -> str:
+        return self._build_system_prompt(GITHUB_ISSUE_ANALYSIS_SYSTEM_PROMPT)
+
+    def get_handling_system_prompt(self) -> str:
+        return self._build_system_prompt(GITHUB_ISSUE_HANDLING_SYSTEM_PROMPT)
 
     def get_tool_classes(self) -> list:
         return GITHUB_ISSUE_TOOL_CLASSES + self.SEARCH_TOOL_CLASSES

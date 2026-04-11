@@ -14,7 +14,10 @@ from seaqa_ai.utils.constants import TICKET_TABLES
 from seaqa_ai.agent.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import AGENT_ACTIONS_TABLE
-from seaqa_ai.agent.system_prompt import TICKET_SYSTEM_PROMPT
+from seaqa_ai.agent.system_prompt import (
+    TICKET_ANALYSIS_SYSTEM_PROMPT,
+    TICKET_HANDLING_SYSTEM_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +42,11 @@ class TicketAgent(BaseAgent):
 
     # ── Abstract method implementations ────────────────────────────
 
-    def get_system_prompt(self) -> str:
-        return self._build_system_prompt(TICKET_SYSTEM_PROMPT)
+    def get_analysis_system_prompt(self) -> str:
+        return self._build_system_prompt(TICKET_ANALYSIS_SYSTEM_PROMPT)
+
+    def get_handling_system_prompt(self) -> str:
+        return self._build_system_prompt(TICKET_HANDLING_SYSTEM_PROMPT)
 
     def get_tool_classes(self) -> list:
         return TICKET_TOOL_CLASSES
