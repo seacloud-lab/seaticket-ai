@@ -14,9 +14,15 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 from seaqa_ai.utils.llm_api import CompletionAPI
+from seaqa_ai.agent.system_prompt import (
+    PHASE_GUIDANCE_FOR_THINK,
+    FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
+    FORCED_FINAL_ANSWER_PROMPT,
+)
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
+from seaqa_ai.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,9 @@ class AgentRunner:
     - Supports 'pending' status for actions requiring user confirmation
     """
 
+    ANALYSIS_TERMINATORS = ('record_ticket_analysis', 'record_issue_analysis')
+    HANDLING_TERMINATOR = 'final_answer'
+
     def __init__(
         self,
         tool_executor: OpenAIToolExecutor,
@@ -40,8 +49,10 @@ class AgentRunner:
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
-        system_prompt=None,
-        max_steps=10,
+        analysis_system_prompt=None,
+        handling_system_prompt=None,
+        max_analysis_steps=10,
+        max_handling_steps=10,
     ):
         """
         Args:
@@ -55,8 +66,10 @@ class AgentRunner:
                              suggestion_text) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
-            system_prompt: system message injected at the start of each reasoning loop.
-            max_steps: maximum number of LLM calls before giving up.
+            analysis_system_prompt: system message for the analysis phase.
+            handling_system_prompt: system message for the handling phase.
+            max_analysis_steps: maximum steps for the analysis loop.
+            max_handling_steps: maximum steps for the handling loop.
         """
         self.tool_executor = tool_executor
         self.llm_client = llm_client
@@ -65,8 +78,10 @@ class AgentRunner:
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
-        self.system_prompt = system_prompt or ''
-        self.max_steps = max_steps
+        self.analysis_system_prompt = analysis_system_prompt
+        self.handling_system_prompt = handling_system_prompt
+        self.max_analysis_steps = max_analysis_steps
+        self.max_handling_steps = max_handling_steps
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
@@ -79,51 +94,190 @@ class AgentRunner:
         }
 
     def run(self, task: str) -> str:
-        """Drive the reasoning loop until final_answer is called or max_steps reached."""
+        """Drive the two-phase reasoning loop: analysis then handling."""
         messages = self._build_initial_messages(task)
 
-        for step in range(self.max_steps):
-            self._force_think_step(messages, step)
-            message = self._request_llm_message(messages, step, use_tools=True)
-            assistant_message = self._build_assistant_message(message)
+        self._run_analysis_loop(messages)
+        handling_messages = self._build_handling_messages(task, messages)
+        self._run_handling_loop(handling_messages)
+
+    def _run_analysis_loop(self, messages: list[dict]) -> None:
+        self._run_loop(
+            messages=messages,
+            phase='analysis',
+            max_steps=self.max_analysis_steps,
+            terminators=self.ANALYSIS_TERMINATORS,
+            force_fallback=self._force_record_analysis,
+        )
+
+    def _run_handling_loop(self, messages: list[dict]) -> None:
+        self._run_loop(
+            messages=messages,
+            phase='handling',
+            max_steps=self.max_handling_steps,
+            terminators=(self.HANDLING_TERMINATOR,),
+            force_fallback=self._force_final_answer,
+        )
+
+    def _run_loop(
+        self,
+        messages: list[dict],
+        phase: str,
+        max_steps: int,
+        terminators: tuple[str, ...],
+        force_fallback,
+    ) -> None:
+        for step in range(max_steps):
+            self._force_think_step(messages, step, phase=phase)
+            message = self._request_llm_message_for_phase(messages, step, phase=phase)
+            if message is None:
+                logger.warning(f'{phase} step {step} LLM call failed, continuing to next step.')
+                continue
+
+            tool_call = self._validate_single_tool_call(message.tool_calls, step)
+            assistant_message = self._build_assistant_message(message, tool_call=tool_call)
             messages.append(assistant_message)
 
-            if not message.tool_calls:
-                return message.content or ''
+            if not tool_call:
+                logger.warning(f'{phase} step {step} returned no tool call.')
+                continue
 
-            final_result = self._process_tool_calls(message.tool_calls, messages)
-            if final_result is not None:
-                return final_result
+            tool_name = tool_call.function.name
+            logger.debug(f'Processing tool call {tool_name} at step {step}')
+            self._process_tool_call(tool_call, messages)
 
-        logger.warning(f'Agent reached max steps ({self.max_steps})')
-        final_message = self._request_llm_message(
-            messages=messages,
-            step=self.max_steps,
-            use_tools=False,
+            if tool_name in terminators:
+                logger.debug(f'{phase} loop completed at step {step} via {tool_name}.')
+                return
+
+        logger.warning(
+            f'{phase} loop reached max steps ({max_steps}) '
+            f'without calling any of {terminators}.'
         )
-        return final_message.content or ''
+        force_fallback(messages)
 
-    def _build_initial_messages(self, task: str) -> list[dict]:
+    def _build_handling_messages(self, task: str, analysis_messages: list[dict]) -> list[dict]:
+        search_results = self._extract_successful_search_results(analysis_messages)
+        analysis_result = self._extract_analysis_result(analysis_messages)
+
+        handling_task_content = self._build_handling_task_content(
+            original_task=task,
+            search_results=search_results,
+            analysis_result=analysis_result,
+        )
+
         return [
-            {'role': 'system', 'content': self.system_prompt},
-            {'role': 'user', 'content': task},
+            {'role': 'system', 'content': self.handling_system_prompt},
+            {'role': 'user', 'content': handling_task_content},
         ]
 
-    def _request_llm_message(self, messages: list[dict], step: int, use_tools: bool = True) -> Message:
+    def _extract_successful_search_results(self, messages: list[dict]) -> list[dict]:
+        search_results = []
+
+        for i, msg in enumerate(messages):
+            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+                continue
+
+            for tool_call in msg['tool_calls']:
+                tool_name = tool_call.get('function', {}).get('name', '')
+                if not tool_name.endswith('_search'):
+                    continue
+
+                tool_call_id = tool_call.get('id')
+                for next_msg in messages[i + 1:]:
+                    if (next_msg.get('role') == 'tool' and
+                            next_msg.get('tool_call_id') == tool_call_id):
+                        content = next_msg.get('content', '')
+                        if not self._is_search_failed(content):
+                            search_results.append({
+                                'tool_name': tool_name,
+                                'content': content,
+                            })
+                        break
+
+        return search_results
+
+    def _is_search_failed(self, content: str) -> bool:
+        try:
+            result = json.loads(content)
+            if isinstance(result, dict):
+                return result.get('status') == 'error'
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return False
+
+    def _extract_analysis_result(self, messages: list[dict]) -> dict:
+        for msg in reversed(messages):
+            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+                continue
+
+            for tool_call in msg['tool_calls']:
+                tool_name = tool_call.get('function', {}).get('name', '')
+                if tool_name in self.ANALYSIS_TERMINATORS:
+                    args_str = tool_call.get('function', {}).get('arguments', '{}')
+                    try:
+                        return json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
+                    except (json.JSONDecodeError, TypeError):
+                        return {}
+        return {}
+
+    def _build_handling_task_content(self,original_task: str, search_results: list[dict], analysis_result: dict) -> str:
+        try:
+            task_dict = json.loads(original_task) if isinstance(original_task, str) else {}
+            if not isinstance(task_dict, dict):
+                task_dict = {'raw': original_task}
+        except (json.JSONDecodeError, TypeError):
+            task_dict = {'raw': original_task}
+
+        if search_results:
+            task_dict['search_results'] = [
+                {
+                    'tool_name': sr['tool_name'],
+                    'content': parse_json(sr['content']),
+                }
+                for sr in search_results
+            ]
+
+        if analysis_result:
+            task_dict['analysis_summary'] = analysis_result
+
+        return json.dumps(task_dict, ensure_ascii=False, indent=2)
+
+
+    def _request_llm_message_for_phase(
+        self,
+        messages: list[dict],
+        step: int,
+        phase: str,
+        use_tools: bool = True,
+    ) -> Message:
+        """Request an LLM message with phase-specific tools."""
+        total_chars = 0
+        for i, m in enumerate(messages):
+            content_len = len(str(m.get('content') or ''))
+            logger.debug('[AgentRunner] step=%d msg[%d] role=%s content_chars=%d', step, i, m.get('role'), content_len)
+            total_chars += content_len
+        logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
+
         try:
             request_kwargs = {
                 'messages': messages,
                 'context': self.ai_stats_context,
             }
             if use_tools:
+                if phase == 'analysis':
+                    tools = self._get_analysis_tools()
+                else:
+                    tools = self._get_handling_tools()
+
                 request_kwargs.update({
-                    'tools': self.tool_executor.get(),
+                    'tools': tools,
                     'tool_choice': 'auto',
                 })
             response = self.llm_client.completion(**request_kwargs)
             return response.choices[0].message
         except Exception as e:
-            logger.exception(f'LLM call failed at step {step}: {e}')
+            logger.exception(f'LLM call failed at {phase} step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=None,
@@ -131,70 +285,154 @@ class AgentRunner:
                     result=str(e),
                     action_type='error',
                     action_status='failed',
-                    content=f'LLM error: {e}',
+                    content=f'LLM error in {phase} phase: {e}',
                 )
-            raise
+            return None
 
-    def _force_think_step(self, messages: list[dict], step: int):
-        think_tool = self._get_registered_tool_by_name('think')
-        if not think_tool:
-            logger.warning('Think tool is not registered; skipping forced think step.')
+    def _build_initial_messages(self, task: str) -> list[dict]:
+        return [
+            {'role': 'system', 'content': self.analysis_system_prompt},
+            {'role': 'user', 'content': task},
+        ]
+
+    def _force_think_step(self, messages: list[dict], step: int, phase: str):
+        source_type = self.record_context.get('source_type', '')
+        if phase == 'analysis' and source_type == 'ticket':
+            guidance_key = 'ticket_analysis'
+        elif phase == 'analysis' and source_type != 'ticket':
+            guidance_key ='issue_analysis'
+        else:
+            guidance_key = phase
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name='think',
+            step=step,
+            system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
+        )
+
+    def _force_record_analysis(self, messages: list[dict]) -> None:
+        source_type = self.record_context.get('source_type', '')
+        if source_type == 'ticket':
+            tool_name = 'record_ticket_analysis'
+        else:
+            tool_name = 'record_issue_analysis'
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name=tool_name,
+            step=self.max_analysis_steps,
+            system_content=FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
+        )
+    
+    def _force_final_answer(self, messages: list[dict]):
+        self._force_single_tool_call(
+            messages=messages,
+            tool_name=self.HANDLING_TERMINATOR,
+            step=self.max_handling_steps,
+            system_content=FORCED_FINAL_ANSWER_PROMPT,
+        )
+
+    def _force_single_tool_call(
+        self,
+        messages: list[dict],
+        tool_name: str,
+        step: int,
+        system_content: str,
+    ):
+        tool = self._get_registered_tool_by_name(tool_name)
+        if not tool:
+            logger.warning(f'{tool_name} tool is not registered; skipping forced tool call.')
             return
 
-        think_messages = messages + [{
+        forced_messages = messages + [{
             'role': 'system',
-            'content': (
-                'Before taking the next regular action, you must call the think tool exactly once. '
-                'Use it to analyze the latest context, verify applicable rules, and plan the next step. '
-                'Do not call any other tool in this response.'
-            ),
+            'content': system_content,
         }]
 
         try:
             response = self.llm_client.completion(
-                messages=think_messages,
+                messages=forced_messages,
                 context=self.ai_stats_context,
-                tools=[think_tool],
+                tools=[tool],
                 tool_choice={
                     'type': 'function',
                     'function': {
-                        'name': 'think',
+                        'name': tool_name,
                     },
                 },
             )
             message = response.choices[0].message
         except Exception as e:
-            logger.exception(f'Forced think call failed at step {step}: {e}')
+            logger.exception(f'Forced {tool_name} call failed at step {step}: {e}')
             if self.action_recorder and self.run_id:
                 self._record_action(
-                    tool_name='think',
+                    tool_name=tool_name,
                     arguments={},
                     result=str(e),
                     action_type='error',
                     action_status='failed',
-                    content=f'Forced think error: {e}',
-                )
-            raise
-
-        assistant_message = self._build_assistant_message(message)
-        messages.append(assistant_message)
-
-        if not message.tool_calls:
-            logger.warning(f'Forced think step {step} returned no tool call.')
-            if self.action_recorder and self.run_id:
-                self._record_action(
-                    tool_name='think',
-                    arguments={},
-                    result='No think tool call returned.',
-                    action_type='error',
-                    action_status='failed',
-                    content='Forced think step did not produce a think tool call.',
+                    content=str(e),
                 )
             return
 
-        final_result = self._process_tool_calls(message.tool_calls, messages)
-        if final_result is not None:
-            logger.warning(f'Forced think step {step} unexpectedly returned a final result: {final_result}')
+        tool_call = self._validate_single_tool_call(message.tool_calls, step)
+        assistant_message = self._build_assistant_message(message, tool_call=tool_call)
+        messages.append(assistant_message)
+
+        if not tool_call:
+            logger.warning(f'Forced {tool_name} step {step} returned no tool call.')
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name,
+                    arguments={},
+                    result="No tool call returned.",
+                    action_type='error',
+                    action_status='failed',
+                    content="Forced tool call did not produce a tool call.",
+                )
+            return
+
+        self._process_tool_call(tool_call, messages)
+
+
+    def _get_analysis_tools(self) -> list[dict]:
+        excluded_prefixes = ('suggest_',)
+        excluded_names = (self.HANDLING_TERMINATOR, 'think')
+        return [
+            tool
+            for tool in self.tool_executor.get()
+            if not tool.get('function', {}).get('name', '').startswith(excluded_prefixes)
+            and tool.get('function', {}).get('name') not in excluded_names
+        ]
+
+    def _get_handling_tools(self) -> list[dict]:
+        excluded_suffixes = ('_search',)
+        excluded_names = self.ANALYSIS_TERMINATORS + ('think',)
+        return [
+            tool
+            for tool in self.tool_executor.get()
+            if not tool.get('function', {}).get('name', '').endswith(excluded_suffixes)
+            and tool.get('function', {}).get('name') not in excluded_names
+        ]
+
+    def _validate_single_tool_call(
+        self,
+        tool_calls: list[ChatCompletionMessageToolCall] | None,
+        step: int,
+    ) -> ChatCompletionMessageToolCall | None:
+        """Keep only one tool call per step and warn when model returns more."""
+        if not tool_calls:
+            return None
+        if len(tool_calls) == 1:
+            return tool_calls[0]
+
+        tool_names = [tc.function.name for tc in tool_calls]
+        logger.warning(
+            'Agent step %s returned %s tool calls; keeping only the first one. tool_names=%s',
+            step,
+            len(tool_calls),
+            tool_names,
+        )
+        return tool_calls[0]
 
     def _get_registered_tool_by_name(self, tool_name: str) -> dict | None:
         for tool in self.tool_executor.get():
@@ -203,108 +441,108 @@ class AgentRunner:
                 return tool
         return None
 
-    def _build_assistant_message(self, message: Message) -> dict:
+    def _build_assistant_message(
+        self,
+        message: Message,
+        tool_call: ChatCompletionMessageToolCall | None = None,
+    ) -> dict:
         msg_dict = {'role': 'assistant', 'content': message.content or ''}
-        if message.tool_calls:
-            msg_dict['tool_calls'] = [
-                {
-                    'id': tc.id,
-                    'type': 'function',
-                    'function': {
-                        'name': tc.function.name,
-                        'arguments': tc.function.arguments,
-                    }
+        if tool_call:
+            msg_dict['tool_calls'] = [{
+                'id': tool_call.id,
+                'type': 'function',
+                'function': {
+                    'name': tool_call.function.name,
+                    'arguments': tool_call.function.arguments,
                 }
-                for tc in message.tool_calls
-            ]
+            }]
         return msg_dict
 
-    def _process_tool_calls(
+    def _process_tool_call(
         self,
-        tool_calls: list[ChatCompletionMessageToolCall],
+        tool_call: ChatCompletionMessageToolCall,
         messages: list[dict],
     ) -> str | None:
         self.tool_executor.thought_process.add_tool_calls_group()
-        for tool_call in tool_calls:
-            tool_name = tool_call.function.name
-            is_final_answer = tool_name == 'final_answer'
-            tool_failed = False
+        tool_name = tool_call.function.name
+        is_final_answer = tool_name == 'final_answer'
+        tool_failed = False
 
-            try:
-                raw_arguments = tool_call.function.arguments
-                parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
-                if not isinstance(parsed_arguments, dict):
-                    raise TypeError('Tool arguments must be a JSON object.')
-                arguments = parsed_arguments
-            except (json.JSONDecodeError, TypeError) as e:
-                tool_failed = True
-                arguments = {}
-                logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
-                observation = json.dumps({
-                    'status': 'error',
-                    'tool_name': tool_name,
-                    'error_type': type(e).__name__,
-                    'error_message': str(e),
-                }, ensure_ascii=False)
-                if self.action_recorder and self.run_id:
-                    self._record_action(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                        result=str(e),
-                        action_type='error',
-                        action_status='failed',
-                    )
-                logger.debug(f'Observation: {observation}')
-                if is_final_answer:
-                    return observation
-                messages.append({
-                    'role': 'tool',
-                    'tool_call_id': tool_call.id,
-                    'content': observation,
-                })
-                continue
-
-            logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
-            try:
-                result = self.tool_executor.execute(tool_call)
-                if result is None:
-                    observation = ''
-                elif isinstance(result, str):
-                    observation = result.strip()
-                elif isinstance(result, (dict, list)):
-                    observation = json.dumps(result, ensure_ascii=False)
-                else:
-                    observation = str(result).strip()
-            except Exception as e:
-                tool_failed = True
-                logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
-                observation = json.dumps({
-                    'status': 'error',
-                    'tool_name': tool_name,
-                    'error_type': type(e).__name__,
-                    'error_message': str(e),
-                }, ensure_ascii=False)
-                if self.action_recorder and self.run_id:
-                    self._record_action(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                        result=str(e),
-                        action_type='error',
-                        action_status='failed',
-                    )
+        try:
+            raw_arguments = tool_call.function.arguments
+            parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
+            if not isinstance(parsed_arguments, dict):
+                raise TypeError('Tool arguments must be a JSON object.')
+            arguments = parsed_arguments
+        except (json.JSONDecodeError, TypeError) as e:
+            tool_failed = True
+            arguments = {}
+            logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
+            observation = json.dumps({
+                'status': 'error',
+                'tool_name': tool_name,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+            }, ensure_ascii=False)
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
+                )
             logger.debug(f'Observation: {observation}')
-
-            if not tool_failed:
-                self._record_tool_action(tool_name, arguments, observation, is_final_answer)
-
             if is_final_answer:
                 return observation
-
             messages.append({
                 'role': 'tool',
                 'tool_call_id': tool_call.id,
                 'content': observation,
             })
+            return None
+
+        logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
+        try:
+            result = self.tool_executor.execute(tool_call)
+            if result is None:
+                observation = ''
+            elif isinstance(result, str):
+                observation = result.strip()
+            elif isinstance(result, (dict, list)):
+                observation = json.dumps(result, ensure_ascii=False)
+            else:
+                observation = str(result).strip()
+        except Exception as e:
+            tool_failed = True
+            logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
+            observation = json.dumps({
+                'status': 'error',
+                'tool_name': tool_name,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+            }, ensure_ascii=False)
+            if self.action_recorder and self.run_id:
+                self._record_action(
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=str(e),
+                    action_type='error',
+                    action_status='failed',
+                )
+        logger.debug(f'Observation: {observation}')
+
+        if not tool_failed:
+            self._record_tool_action(tool_name, arguments, observation, is_final_answer)
+
+        if is_final_answer:
+            return observation
+
+        messages.append({
+            'role': 'tool',
+            'tool_call_id': tool_call.id,
+            'content': observation,
+        })
 
     def _record_tool_action(
         self,

@@ -70,9 +70,10 @@ class BaseAgent:
         """Return the list of tool classes to register for this source type."""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_system_prompt(self) -> str:
-        """Return the system prompt for the LLM reasoning loop."""
+    def get_analysis_system_prompt(self) -> str:
+        raise NotImplementedError
+
+    def get_handling_system_prompt(self) -> str:
         raise NotImplementedError
 
     @abstractmethod
@@ -252,12 +253,14 @@ class BaseAgent:
             action_recorder=self.create_action_record,
             run_id=run_id,
             tool_metadata=tool_metadata,
-            system_prompt=self.get_system_prompt(),
-            max_steps=config.AGENT_MAX_STEPS,
+            analysis_system_prompt=self.get_analysis_system_prompt(),
+            handling_system_prompt=self.get_handling_system_prompt(),
+            max_analysis_steps=config.AGENT_MAX_ANALYSIS_STEPS,
+            max_handling_steps=config.AGENT_MAX_HANDLING_STEPS,
         )
 
         try:
-            return agent_runner.run(item_message)
+            agent_runner.run(item_message)
         except Exception as e:
             logger.exception(
                 f'Agent failed for {record_context.get("source_type")} '
