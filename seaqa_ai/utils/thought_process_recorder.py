@@ -11,6 +11,23 @@ class ThoughtProcessRecorder(object):
         self.context = []
         self.final_answer = {}
 
+    def _sum_token_usage(self, total_usage, token_usage):
+        return {
+            'input_tokens': total_usage.get('input_tokens', 0) + token_usage.get('input_tokens', 0),
+            'output_tokens': total_usage.get('output_tokens', 0) + token_usage.get('output_tokens', 0),
+            'total_tokens': total_usage.get('total_tokens', 0) + token_usage.get('total_tokens', 0),
+        }
+
+    def _sum_retry_tokens_usage(self, retries):
+        retry_tokens_usage = {
+            'input_tokens': 0,
+            'output_tokens': 0,
+            'total_tokens': 0
+        }
+        for retry in retries or []:
+            retry_tokens_usage = self._sum_token_usage(retry_tokens_usage, retry.get('token_usage', {}))
+        return retry_tokens_usage
+
     def set_task(self, system_prompt, user_raw_input, user_message, attachments):
         self.task = {
             'system_prompt': system_prompt,
@@ -24,6 +41,8 @@ class ThoughtProcessRecorder(object):
     def add_tool_calls_group(self):
         self.actions.append({
             'tool_calls': [],
+            'completion_retry': [],
+            'tool_retry': [],
             'token_usage': {
                 'input_tokens': 0,
                 'output_tokens': 0,
@@ -52,22 +71,34 @@ class ThoughtProcessRecorder(object):
             'message': error['message']
         }
 
+    def set_last_group_completion_retry(self, retries):
+        self.actions[-1]['completion_retry'] = retries or []
+
+    def append_last_group_tool_retry(self, errors):
+        if not errors:
+            return
+        self.actions[-1]['tool_retry'].extend(errors)
+
     def add_tool_call(self, tool_name, arguments, execution_detail, result=None):
-        self.actions[-1]['tool_calls'].append({
+        tool_call = {
             'name': tool_name,
             'arguments': {key: object_to_json_str(value) for key, value in arguments.items()}
-        })
+        }
+
+        self.actions[-1]['tool_calls'].append(tool_call)
         if execution_detail:
             self.actions[-1]['tool_calls'][-1]['execution_detail'] = execution_detail
         self.actions[-1]['result'] += object_to_json_str(result) + '\n'
-    
-    def set_final_answer(self, result, reach_max_steps=False, token_usage={}, time_usage=0):
+
+    def set_final_answer(self, result, reach_max_steps=False, token_usage={}, time_usage=0, retry=None):
         self.final_answer = {
             'result': result,
             'reach_max_steps': reach_max_steps,
             'token_usage': token_usage,
             'time_usage': time_usage
         }
+        if retry:
+            self.final_answer['retry'] = retry
 
     def _filter_empty_actions(self):
         new_action = []
@@ -107,12 +138,14 @@ class ThoughtProcessRecorder(object):
         actions_total_time_usage = 0
 
         for action in self.actions:
-            actions_total_tokens_usage = {
-                'input_tokens': actions_total_tokens_usage.get('input_tokens', 0) + action['token_usage'].get('input_tokens', 0),
-                'output_tokens': actions_total_tokens_usage.get('output_tokens', 0) + action['token_usage'].get('output_tokens', 0),
-                'total_tokens': actions_total_tokens_usage.get('total_tokens', 0) + action['token_usage'].get('total_tokens', 0),
-            }
+            actions_total_tokens_usage = self._sum_token_usage(actions_total_tokens_usage, action.get('token_usage', {}))
+            actions_total_tokens_usage = self._sum_token_usage(actions_total_tokens_usage, self._sum_retry_tokens_usage(action.get('completion_retry', [])))
             actions_total_time_usage += action.get('time_usage', 0)
+
+        final_answer_tokens_usage = self._sum_token_usage(
+            self.final_answer.get('token_usage', {}),
+            self._sum_retry_tokens_usage(self.final_answer.get('retry', []))
+        )
         
         results ={
             'actions': self.actions,
@@ -121,18 +154,18 @@ class ThoughtProcessRecorder(object):
                 'token_usage': {
                     'input_tokens': {
                         'action_steps': actions_total_tokens_usage.get('input_tokens', 0),
-                        'answer_generation': self.final_answer['token_usage'].get('input_tokens', 0),
-                        'total': self.final_answer['token_usage'].get('input_tokens', 0) + actions_total_tokens_usage.get('input_tokens', 0)
+                        'answer_generation': final_answer_tokens_usage.get('input_tokens', 0),
+                        'total': final_answer_tokens_usage.get('input_tokens', 0) + actions_total_tokens_usage.get('input_tokens', 0)
                     },
                     'output_tokens': {
                         'action_steps': actions_total_tokens_usage.get('output_tokens', 0),
-                        'answer_generation': self.final_answer['token_usage'].get('output_tokens', 0),
-                        'total': self.final_answer['token_usage'].get('output_tokens', 0) + actions_total_tokens_usage.get('output_tokens', 0)
+                        'answer_generation': final_answer_tokens_usage.get('output_tokens', 0),
+                        'total': final_answer_tokens_usage.get('output_tokens', 0) + actions_total_tokens_usage.get('output_tokens', 0)
                     },
                     'total_tokens': {
                         'action_steps': actions_total_tokens_usage.get('total_tokens', 0),
-                        'answer_generation': self.final_answer['token_usage'].get('total_tokens', 0),
-                        'total': self.final_answer['token_usage'].get('total_tokens', 0) + actions_total_tokens_usage.get('total_tokens', 0)
+                        'answer_generation': final_answer_tokens_usage.get('total_tokens', 0),
+                        'total': final_answer_tokens_usage.get('total_tokens', 0) + actions_total_tokens_usage.get('total_tokens', 0)
                     }
                 },
                 'time_usage': {

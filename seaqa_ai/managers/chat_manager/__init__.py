@@ -1,6 +1,7 @@
 import logging
 import json
 import time
+from collections import deque
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
@@ -66,6 +67,69 @@ class BasicChat(object):
     def run(self, model, tool_executor, message, attachments, **kwargs):
         raise NotImplementedError()
 
+    def _build_completion_retry_entry(self, step_number, current_retry, reason, time_usage, token_usage=None, error=None):
+        entry = {
+            'step': step_number,
+            'retry': current_retry,
+            'reason': reason,
+            'token_usage': token_usage or {},
+            'time_usage': time_usage
+        }
+        if error is not None:
+            entry['error'] = error
+        return entry
+
+    def _get_response_token_usage(self, response):
+        try:
+            return {
+                'input_tokens': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens,
+            }
+        except Exception:
+            return {}
+
+    def _execute_tool_with_retry(self, tool_executor, tool_call, call_backer_factory, memory):
+        tool_name = tool_call['function']['name']
+        arguments = tool_call['function']['arguments']
+        if isinstance(arguments, str):
+            arguments = parse_json(arguments)
+
+        retry_errors = []
+        last_call_backer = None
+        for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
+            call_backer = call_backer_factory()
+            last_call_backer = call_backer
+            try:
+                tool_output = tool_executor.execute(tool_call, call_backer)
+                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
+                memory += {
+                    'role': 'tool',
+                    'tool_call_id': tool_call['id'],
+                    'content': json.dumps(tool_output)
+                }
+                return
+            except Exception as e:
+                logger.exception(f'Execute tool call failure: {e}')
+                error_message = f'{type(e).__name__}: {repr(e)}'
+                retry_errors.append(error_message)
+                if current_retry < config.TOOL_CALL_MAX_RETRIES:
+                    continue
+
+                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, last_call_backer.execution_detail)
+                tool_executor.thought_process.set_last_group_error({
+                    'type': 'ToolRetryExceeded',
+                    'message': retry_errors[-1]
+                })
+                memory += {
+                    'role': 'tool',
+                    'tool_call_id': tool_call['id'],
+                    'content': retry_errors[-1]
+                }
+                return
+
 class SyncChat(BasicChat):
     def run(self, model, tool_executor, message, attachments, **kwargs):
         context = kwargs.get('context', {})
@@ -98,12 +162,34 @@ class SyncChat(BasicChat):
         current_step = 0
         while current_step < config.MAX_STEPS:
             current_step += 1
-            time_begin = time.time()
-            response = llm_client.completion(
-                messages=memory,
-                context=context,
-                tools=tool_executor.get() if current_step < config.MAX_STEPS else None
-            )
+            response = None
+            completion_retries = []
+            for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
+                time_begin = time.time()
+                response_token_usage = {}
+                try:
+                    response = llm_client.completion(
+                        messages=memory,
+                        context=context,
+                        tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
+                        num_retries=1
+                    )
+                    response_token_usage = self._get_response_token_usage(response)
+                    break
+                except Exception as e:
+                    time_usage = time.time() - time_begin
+                    completion_retries.append(self._build_completion_retry_entry(
+                        current_step,
+                        current_retry,
+                        'completion_error',
+                        time_usage,
+                        token_usage=response_token_usage,
+                        error=repr(e)
+                    ))
+                    logger.exception(f'Completion failure at step {current_step}: {e}')
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        continue
+                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
 
             try:
                 llm_message = response.choices[0].message
@@ -117,49 +203,23 @@ class SyncChat(BasicChat):
                     'tool_calls': llm_message.tool_calls
                 }
                 tool_executor.thought_process.add_tool_calls_group()
+                if completion_retries:
+                    tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
                 for tool_call in llm_message.tool_calls:
-                    tool_name = tool_call['function']['name']
-                    arguments = tool_call['function']['arguments']
-                    if isinstance(arguments, str):
-                        arguments = parse_json(arguments)
-                    call_backer = ChatCallBacker()
-                    try:
-                        tool_output = tool_executor.execute(tool_call, call_backer)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': json.dumps(tool_output)
-                        }
-                    except Exception as e:
-                        logger.exception(f'Execute tool call failure: {e}')
-                        error_type = type(e).__name__
-                        error_message = repr(e)
-                        tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
-                        tool_executor.thought_process.set_last_group_error({
-                            'type': error_type,
-                            'message': error_message
-                        })
-                        memory += {
-                            'role': 'tool',
-                            'tool_call_id': tool_call['id'],
-                            'content': f'{error_type}: {error_message}'
-                        }
-                tool_executor.thought_process.update_last_group_tokens_usage({
-                    'input_tokens': response.usage.prompt_tokens,
-                    'output_tokens': response.usage.completion_tokens,
-                    'total_tokens': response.usage.total_tokens,
-                })
+                    self._execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+                tool_executor.thought_process.update_last_group_tokens_usage(self._get_response_token_usage(response))
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
             # final answer
             else:
                 content = llm_message.content
-                tool_executor.thought_process.set_final_answer(content, current_step >= config.MAX_STEPS, {
-                    'input_tokens': response.usage.prompt_tokens,
-                    'output_tokens': response.usage.completion_tokens,
-                    'total_tokens': response.usage.total_tokens,
-                }, time.time() - time_begin)
+                tool_executor.thought_process.set_final_answer(
+                    content,
+                    current_step >= config.MAX_STEPS,
+                    self._get_response_token_usage(response),
+                    time.time() - time_begin,
+                    retry=completion_retries if completion_retries else None
+                )
 
                 # filter invalid references
                 answer, sources = get_answer_and_sources(tool_executor, content)
@@ -176,6 +236,60 @@ class SyncChat(BasicChat):
         raise AssertionError('Invalid AI responses led to unexpected steps.')
 
 class StreamingChat(BasicChat):
+    def _safe_model_dump(self, chunk):
+        if hasattr(chunk, 'model_dump'):
+            try:
+                return chunk.model_dump(exclude_none=True)
+            except Exception:
+                pass
+        if hasattr(chunk, 'dict'):
+            try:
+                return chunk.dict(exclude_none=True)
+            except Exception:
+                pass
+        return repr(chunk)
+
+    def _ensure_tool_call_slot(self, tool_calls, tool_call_index, tool_call_id=None):
+        if tool_call_index is None:
+            tool_call_index = len(tool_calls)
+
+        while len(tool_calls) <= tool_call_index:
+            tool_calls.append({
+                'id': f'call_{len(tool_calls)}',
+                'type': 'function',
+                'function': {
+                    'name': '',
+                    'arguments': ''
+                }
+            })
+
+        if tool_call_id:
+            tool_calls[tool_call_index]['id'] = tool_call_id
+
+        return tool_call_index
+
+    def _collect_delta_content(self, delta_content):
+        if isinstance(delta_content, str):
+            return delta_content
+        if not isinstance(delta_content, list):
+            return ''
+
+        content_parts = []
+        for part in delta_content:
+            if isinstance(part, dict):
+                text = part.get('text')
+                if isinstance(text, str):
+                    content_parts.append(text)
+                    continue
+                if isinstance(part.get('type'), str) and part['type'] == 'text':
+                    text = part.get('content')
+                    if isinstance(text, str):
+                        content_parts.append(text)
+            elif hasattr(part, 'text') and isinstance(part.text, str):
+                content_parts.append(part.text)
+
+        return ''.join(content_parts)
+
     def run(self, model, tool_executor, message, attachments, **kwargs):
         try:
             context = kwargs.get('context', {})
@@ -206,76 +320,161 @@ class StreamingChat(BasicChat):
             }
 
             current_step = 0
+            current_retry = 0
+            completion_retries = []
             while current_step < config.MAX_STEPS:
-                yield SSE.status('LLM Reasoning')
-                current_step += 1
+                step_number = current_step + 1
+                detail = f'step {step_number}'
+                if current_retry:
+                    detail += f', retry {current_retry}'
+                yield SSE.status('LLM Reasoning', detail)
                 time_begin = time.time()
-                response = llm_client.completion(
-                    messages=memory,
-                    context=context,
-                    tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                    stream=True,
-                    stream_options={
-                        "include_usage": True
-                    }
-                )
+                token_usage = {}
+                try:
+                    response = llm_client.completion(
+                        messages=memory,
+                        context=context,
+                        tools=tool_executor.get() if step_number < config.MAX_STEPS else None,
+                        stream=True,
+                        stream_options={
+                            "include_usage": True
+                        },
+                        num_retries=1
+                    )
+                except Exception as e:
+                    time_usage = time.time() - time_begin
+                    completion_retries.append(self._build_completion_retry_entry(
+                        step_number,
+                        current_retry,
+                        'completion_error',
+                        time_usage,
+                        token_usage=token_usage,
+                        error=repr(e)
+                    ))
+                    logger.exception(f'Streaming completion failure at step {step_number}: {e}')
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        current_retry += 1
+                        continue
+                    tool_executor.thought_process.set_final_answer('', step_number >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    raise
 
                 tool_calls = []
                 content = ""
                 current_tool_index = -1
-                token_usage = {}
                 has_yield_answering_status = False
+                recent_chunks = deque(maxlen=5)
 
-                for chunk in response:
-                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                        for tool_call in chunk.tool_calls:
-                            if tool_call.type == 'function':
-                                tool_calls.append({
-                                    'id': tool_call.id,
-                                    'type': 'function',
-                                    'function': {
-                                        'name': tool_call.function.name,
-                                        'arguments': tool_call.function.arguments
-                                    }
-                                })
-                    elif hasattr(chunk, 'choices') and chunk.choices:
-                        delta = chunk.choices[0].delta
-                        
-                        if hasattr(delta, 'tool_calls') and delta.tool_calls:
-                            for tool_call_delta in delta.tool_calls:
-                                if tool_call_delta.index is not None and tool_call_delta.index > current_tool_index:
-                                    current_tool_index = tool_call_delta.index
+                try:
+                    for chunk in response:
+                        recent_chunks.append(self._safe_model_dump(chunk))
+                        if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                            for tool_call in chunk.tool_calls:
+                                if tool_call.type == 'function':
                                     tool_calls.append({
-                                        'id': tool_call_delta.id or f"call_{tool_call_delta.index}",
+                                        'id': tool_call.id,
                                         'type': 'function',
                                         'function': {
-                                            'name': '',
-                                            'arguments': ''
+                                            'name': tool_call.function.name,
+                                            'arguments': tool_call.function.arguments
                                         }
                                     })
-                                
-                                if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
-                                    if tool_call_delta.function.name:
-                                        tool_calls[current_tool_index]['function']['name'] = tool_call_delta.function.name
-                                    if tool_call_delta.function.arguments:
-                                        tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
+                        elif hasattr(chunk, 'choices') and chunk.choices:
+                            choice = chunk.choices[0]
+                            delta = choice.delta
+                            
+                            if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                                for tool_call_delta in delta.tool_calls:
+                                    tool_call_index = tool_call_delta.index
+                                    current_tool_index = self._ensure_tool_call_slot(tool_calls, tool_call_index, tool_call_delta.id)
+                                    
+                                    if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
+                                        if tool_call_delta.function.name:
+                                            tool_calls[current_tool_index]['function']['name'] = tool_call_delta.function.name
+                                        if tool_call_delta.function.arguments:
+                                            tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
 
-                        elif hasattr(delta, 'content') and delta.content:
-                            if not has_yield_answering_status:
-                                yield SSE.status('Answering')
-                                has_yield_answering_status = True
-                            yield SSE.answer(delta.content)
-                            content += delta.content
-                    if hasattr(chunk, 'usage'):
-                        token_usage = {
-                            'input_tokens': chunk.usage.prompt_tokens,
-                            'output_tokens': chunk.usage.completion_tokens,
-                            'total_tokens': chunk.usage.total_tokens,
-                        }
-                        llm_client.logger_usage(token_usage, context)
+                            if hasattr(delta, 'function_call') and delta.function_call:
+                                current_tool_index = self._ensure_tool_call_slot(tool_calls, current_tool_index if current_tool_index >= 0 else 0)
+                                if delta.function_call.name:
+                                    tool_calls[current_tool_index]['function']['name'] = delta.function_call.name
+                                if delta.function_call.arguments:
+                                    tool_calls[current_tool_index]['function']['arguments'] += delta.function_call.arguments
 
+                            delta_content = self._collect_delta_content(getattr(delta, 'content', None))
+                            if delta_content:
+                                if not has_yield_answering_status:
+                                    yield SSE.status('Answering')
+                                    has_yield_answering_status = True
+                                yield SSE.answer(delta_content)
+                                content += delta_content
+                        if hasattr(chunk, 'usage'):
+                            token_usage = {
+                                'input_tokens': chunk.usage.prompt_tokens,
+                                'output_tokens': chunk.usage.completion_tokens,
+                                'total_tokens': chunk.usage.total_tokens,
+                            }
+                            llm_client.logger_usage(token_usage, context)
+                except Exception as e:
+                    if tool_calls or content:
+                        raise AssertionError('Cannot deal with invalid response')
+                    time_usage = time.time() - time_begin
+                    completion_retries.append(self._build_completion_retry_entry(
+                        step_number,
+                        current_retry,
+                        'completion_error',
+                        time_usage,
+                        token_usage=token_usage,
+                        error=repr(e)
+                    ))
+                    logger.exception(f'Streaming completion chunk failure at step {step_number}: {e}')
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        current_retry += 1
+                        continue
+                    tool_executor.thought_process.set_final_answer('', step_number >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    raise
+
+                if not tool_calls and not content:
+                    time_usage = time.time() - time_begin
+                    completion_retries.append({
+                        **self._build_completion_retry_entry(
+                            step_number,
+                            current_retry,
+                            'empty_visible_output',
+                            time_usage,
+                            token_usage=token_usage,
+                            error='Invalid response from LLM, at least one of keys tool_calls or content must be visible'
+                        )
+                    })
+                    if token_usage:
+                        logger.warning(
+                            'Streaming completion returned usage without visible output. model=%s session_uuid=%s project_uuid=%s step=%s retry=%s max_retries=%s recent_chunks=%s',
+                            model,
+                            session_uuid,
+                            context.get('project_uuid'),
+                            step_number,
+                            current_retry,
+                            config.COMPLETION_MAX_RETRIES,
+                            json.dumps(list(recent_chunks), ensure_ascii=True, default=str)
+                        )
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        current_retry += 1
+                        continue
+                    tool_executor.thought_process.set_final_answer(
+                        '',
+                        step_number >= config.MAX_STEPS,
+                        token_usage,
+                        time_usage,
+                        retry=completion_retries
+                    )
+                    raise AssertionError(
+                        'Streaming completion returned no visible output after retries. '
+                        f'step={step_number} retries={current_retry}/{config.COMPLETION_MAX_RETRIES} '
+                    )
+
+                current_retry = 0
                 # action step
                 if tool_calls:
+                    current_step = step_number
                     has_search_tool = False
 
                     yield SSE.status('Calling tools', tool_calls)
@@ -284,39 +483,16 @@ class StreamingChat(BasicChat):
                         'tool_calls': tool_calls
                     }
                     tool_executor.thought_process.add_tool_calls_group()
+                    if completion_retries:
+                        tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
                     for tool_call in tool_calls:
                         tool_name = tool_call['function']['name']
-                        arguments = tool_call['function']['arguments']
-
-                        call_backer = ChatCallBacker()
                         if tool_name in ('documents_search', 'issues_search'):
                             has_search_tool = True
-                        if isinstance(arguments, str):
-                            arguments = parse_json(arguments)
-                        try:
-                            tool_output = tool_executor.execute(tool_call, call_backer)
-                            tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
-                            memory += {
-                                'role': 'tool',
-                                'tool_call_id': tool_call['id'],
-                                'content': json.dumps(tool_output)
-                            }
-                        except Exception as e:
-                            logger.exception(f'Execute tool call failure: {e}')
-                            error_type = type(e).__name__
-                            error_message = repr(e)
-                            tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
-                            tool_executor.thought_process.set_last_group_error({
-                                'type': error_type,
-                                'message': error_message
-                            })
-                            memory += {
-                                'role': 'tool',
-                                'tool_call_id': tool_call['id'],
-                                'content': f'{error_type}: {error_message}'
-                            }
+                        self._execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
                     tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
+                    completion_retries = []
 
                     found_records = len(tool_executor.cache.get('sources_results', []))
                     if has_search_tool and found_records:
@@ -324,7 +500,15 @@ class StreamingChat(BasicChat):
 
                 # final answer
                 else:
-                    tool_executor.thought_process.set_final_answer(content, current_step >= config.MAX_STEPS, token_usage, time.time() - time_begin)
+                    current_step = step_number
+                    tool_executor.thought_process.set_final_answer(
+                        content,
+                        current_step >= config.MAX_STEPS,
+                        token_usage,
+                        time.time() - time_begin,
+                        retry=completion_retries if completion_retries else None
+                    )
+                    completion_retries = []
 
                     # filter invalid references
                     answer, sources = get_answer_and_sources(tool_executor, content)
@@ -339,5 +523,10 @@ class StreamingChat(BasicChat):
                     break
         except Exception as e:
             logger.exception(f'Streaming run AI failure: {e}')
-            yield SSE.error(repr(e))
+            error_msg = repr(e)
+            try:
+                thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
+                yield SSE.results('There is an issue with the AI server or web server (LLM or internal server error), please try again later', [], thought_process)
+            except:
+                yield SSE.error(error_msg)
             yield SSE.done()

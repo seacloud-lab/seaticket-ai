@@ -140,6 +140,10 @@ CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 ## Max steps
 MAX_STEPS = configs.get('MAX_STEPS', 5)
 assert MAX_STEPS > 0, "MAX_STEPS must larger than 0"
+COMPLETION_MAX_RETRIES = configs.get('COMPLETION_MAX_RETRIES', 2)
+assert COMPLETION_MAX_RETRIES >= 0, "COMPLETION_MAX_RETRIES must larger than or equal to 0"
+TOOL_CALL_MAX_RETRIES = configs.get('TOOL_CALL_MAX_RETRIES', 2)
+assert TOOL_CALL_MAX_RETRIES >= 0, "TOOL_CALL_MAX_RETRIES must larger than or equal to 0"
 
 ## Thought process
 THOUGHT_PROCESS_CONFIGS = configs.get('THOUGHT_PROCESS', {})
