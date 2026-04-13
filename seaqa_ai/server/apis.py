@@ -211,7 +211,7 @@ def generate_chunks_embedding():
     try:
 
         chunks = chunk_text(content)
-        embeddings = flask_app.app.embedding_api.generate(chunks, context)
+        embeddings = flask_app.app.embedding_api.batch_generate(chunks, context)
         if embeddings and len(embeddings) > 0:
             return {'chunks': chunks, 'embeddings': embeddings}, 200
         return {'error_msg': 'No embedding generated.'}, 400
