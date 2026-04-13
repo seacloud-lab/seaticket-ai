@@ -33,12 +33,10 @@ class TicketAgent(BaseAgent):
             app: the Flask app object.
             project: dict with 'uuid' and 'settings' keys.
             record_id: pk of the ticket to process.
-            event_types: list of event type strings that triggered this agent run.
             events: list of event payloads that triggered this agent run.
         """
-        super().__init__(app, project)
+        super().__init__(app, project, events)
         self.record_id = record_id
-        self.events = list(events) if events else []
 
     # ── Abstract method implementations ────────────────────────────
 

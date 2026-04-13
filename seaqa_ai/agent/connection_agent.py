@@ -19,10 +19,9 @@ class ConnectionAgent(BaseAgent):
     SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
 
     def __init__(self, app, project, connection_id: int, record_id=None, events=None):
-        super().__init__(app, project)
+        super().__init__(app, project, events)
         self.connection_id = connection_id
         self.record_id = record_id
-        self.events = list(events) if events else []
 
     # ── BaseAgent hook implementations ─────────────────────────────
 

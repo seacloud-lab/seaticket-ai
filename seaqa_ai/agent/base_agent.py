@@ -12,6 +12,7 @@ Subclasses override the abstract methods to supply:
 The run() method handles all SeaDB bookkeeping (run records, action records)
 and the LLM reasoning loop invocation, so subclasses only implement domain logic.
 """
+import json
 import logging
 from abc import abstractmethod
 
@@ -35,7 +36,7 @@ class BaseAgent:
     and delegates source-specific logic to subclasses.
     """
 
-    def __init__(self, app, project):
+    def __init__(self, app, project, events=None):
         self.app = app
         self.seadb_api = app.seadb_api
         self.project = project
@@ -47,6 +48,7 @@ class BaseAgent:
         self.last_items_processed = 0
         self.last_run_failed = False
         self.last_run_error_message = ''
+        self.events: list = list(events) if events else []
 
     # ── Abstract interface ──────────────────────────────────────────
 
@@ -144,6 +146,7 @@ class BaseAgent:
             'status': 'running',
             'started_at': now_iso(),
             'items_processed': 0,
+            'events': json.dumps(self.events) if self.events else '[]',
         }
         try:
             res = self.seadb_api.insert_rows(self.project_uuid, AGENT_RUNS_TABLE, [row])
