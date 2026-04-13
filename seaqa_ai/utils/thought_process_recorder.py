@@ -53,9 +53,13 @@ class ThoughtProcessRecorder(object):
         })
 
     def set_last_group_time_usage(self, time_usage):
+        if not self.actions:
+            return
         self.actions[-1]['time_usage'] = time_usage
     
     def update_last_group_tokens_usage(self, tokens_usage={}, replace=False):
+        if not self.actions:
+            return
         if replace:
             self.actions[-1]['token_usage']['input_tokens'] = tokens_usage.get('input_tokens', 0)
             self.actions[-1]['token_usage']['output_tokens'] = tokens_usage.get('output_tokens', 0)
@@ -66,20 +70,28 @@ class ThoughtProcessRecorder(object):
             self.actions[-1]['token_usage']['total_tokens'] += tokens_usage.get('total_tokens', 0)
     
     def set_last_group_error(self, error):
+        if not self.actions:
+            return
         self.actions[-1]['error'] = {
             'type': error['type'],
             'message': error['message']
         }
 
     def set_last_group_completion_retry(self, retries):
+        if not self.actions:
+            return
         self.actions[-1]['completion_retry'] = retries or []
 
     def append_last_group_tool_retry(self, errors):
+        if not self.actions:
+            return
         if not errors:
             return
         self.actions[-1]['tool_retry'].extend(errors)
 
     def add_tool_call(self, tool_name, arguments, execution_detail, result=None):
+        if not self.actions:
+            return
         tool_call = {
             'name': tool_name,
             'arguments': {key: object_to_json_str(value) for key, value in arguments.items()}

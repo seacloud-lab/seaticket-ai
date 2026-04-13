@@ -463,7 +463,6 @@ class AgentRunner:
         tool_call: ChatCompletionMessageToolCall,
         messages: list[dict],
     ) -> str | None:
-        self.tool_executor.thought_process.add_tool_calls_group()
         tool_name = tool_call.function.name
         is_final_answer = tool_name == 'final_answer'
         tool_failed = False
