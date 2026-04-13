@@ -113,3 +113,17 @@ class EmbeddingAPI(BasicLLMAPI):
             raise ConnectionError('Failure to generate embedding')
 
         return response.data[0]['embedding']
+
+    def batch_generate(self, texts, context):
+        response = litellm.embedding(
+            model=self.model,
+            input=texts,
+            api_base=self.base_url,
+            api_key=self.api_key,
+            custom_llm_provider=self.llm_type,
+            timeout=self.timeout
+        )
+
+        self._logger_usage_from_response(response, context)
+
+        return response.data
