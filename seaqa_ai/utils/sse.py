@@ -7,17 +7,6 @@ class SSE:
 
     @staticmethod
     def status(status, detail=None):
-        if status == 'Calling tools' and detail:
-            tool_call_names = ''
-            for tool_call in detail:
-                if isinstance(tool_call, dict):
-                    tool_call_names += tool_call['function']['name'] + ', '
-                else:
-                    tool_call_names = tool_call + ', '
-            if tool_call_names:
-                detail = tool_call_names[:-2]
-            else:
-                detail = None
         return SSE.data({
             'status': {
                 'type': status,

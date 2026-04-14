@@ -201,3 +201,9 @@ def gen_record_hash(source_type, connection_id, record_id):
     if source_type in ExtraSourceType:
         return f'{source_type}-{source_type}-{record_id}'
     return f'{source_type}-{connection_id}-{record_id}'
+
+def remove_sources_content_and_snippets(sources):
+    for source in sources:
+        source.pop('content', None)
+        source.pop('snippets', None)
+    return sources

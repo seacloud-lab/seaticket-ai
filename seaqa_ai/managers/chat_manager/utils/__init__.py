@@ -1,25 +1,10 @@
 import logging
 import re
 from copy import deepcopy
-from seaqa_ai.config import THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 
 logger = logging.getLogger(__name__)
-
-def remove_sources_content_and_snippets(sources):
-    for source in sources:
-        source.pop('content', None)
-        source.pop('snippets', None)
-    return sources
-
-def filter_tool_calls_content(tool_name, results):
-    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (
-            'documents_search', 
-            'issues_search'
-        ):
-        return remove_sources_content_and_snippets(deepcopy(results))
-    return results
 
 def combine_attachments_to_message(attachments, message):
     document_attachments = []

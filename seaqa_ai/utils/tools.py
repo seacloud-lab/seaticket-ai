@@ -1,7 +1,17 @@
 import json
 import inspect
+from copy import deepcopy
+from seaqa_ai.config import THOUGHT_PROCESS_RECORD_TOOL_DETAILS
+from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
+def filter_tool_calls_content(tool_name, results):
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (
+            'documents_search', 
+            'issues_search'
+        ):
+        return remove_sources_content_and_snippets(deepcopy(results))
+    return results
 
 class BasicTool(object):
     tool = {}
