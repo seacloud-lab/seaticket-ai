@@ -119,6 +119,7 @@ class BaseAgent:
         result,
         action_status,
         suggestion_text='',
+        statistics='',
     ):
         """Insert a new agent_actions row. Returns _pk."""
         row = {
@@ -132,6 +133,7 @@ class BaseAgent:
             'result': result[:MAX_CONTENT_CHARS] if result is not None else '',
             'status': action_status,
             'suggestion_text': suggestion_text or '',
+            'statistics': statistics or '',
             'created_at': now_iso(),
         }
         res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
