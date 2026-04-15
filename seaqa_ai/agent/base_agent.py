@@ -201,6 +201,7 @@ class BaseAgent:
                     'action_type': getattr(tool_instance, 'action_type', 'tool_call'),
                     'action_status': getattr(tool_instance, 'action_status', 'completed'),
                     'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
+                    'get_suggestion_text': getattr(tool_instance, 'get_suggestion_text', None),
                 }
 
             registration_kwargs = self.get_tool_registration_kwargs(tool_instance, record_context)
