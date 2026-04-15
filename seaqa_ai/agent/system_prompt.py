@@ -313,3 +313,70 @@ Rules:
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 """
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL AGENT PROMPTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+_EMAIL_INTRO = """You are an autonomous agent that processes incoming email threads for a project."""
+
+_EMAIL_INPUT_FORMAT = """## Input Format
+
+The email thread is provided as a JSON object with the following fields:
+- source_id: unique identifier for this thread
+- events: list of structured event objects, each with type, old_value, and new_value
+- title: email thread subject
+- thread_id: internal thread identifier
+- unread: whether the thread is currently unread
+- modified_time: last modification time of the thread
+- linked_ticket: ticket link if any
+- latest_external_email: the latest email in the thread that was not sent by the project side
+- recent_emails: array of recent emails with email_from, email_to, cc, modified_time, is_sender, content"""
+
+EMAIL_ANALYSIS_SYSTEM_PROMPT = f"""{_EMAIL_INTRO}
+
+You are in the ANALYSIS phase. Your task is to classify the thread and gather search evidence.
+
+1. {_CLASSIFICATION_TYPES.format(item_type="email thread")}
+
+2. {_SEARCH_RULES}
+
+3. {_SEARCH_LIMITS.format(item_name="email thread")}
+
+4. {_RECORD_ANALYSIS}
+
+Rules:
+- ONE tool call per step. Never call multiple tools in the same step.
+- Do NOT call record_issue_analysis before finishing required searches.
+- record_issue_analysis MUST be your final tool call in this phase.
+- Focus on the latest actionable external email when deciding what the customer needs.
+
+{_EMAIL_INPUT_FORMAT}
+"""
+
+EMAIL_HANDLING_SYSTEM_PROMPT = f"""{_EMAIL_INTRO}
+
+You are in the HANDLING phase. The analysis has been completed and is provided in the input.
+
+The input JSON now includes:
+- All original thread fields
+- search_results: evidence gathered from searches (if any)
+- analysis_summary: the recorded analysis including classification and recommended action
+
+Based on the analysis, suggest the appropriate next action:
+
+1. {_HANDLING_ACTIONS}
+
+{_DECISION_RULES.format(item_name="email thread")}
+
+2. {_FINAL_ANSWER}
+
+Rules:
+- ONE tool call per step. Never call multiple tools in the same step.
+- Call either suggest_resolution OR suggest_create_ticket, never both.
+- final_answer MUST be the last call. Do NOT call any tool after final_answer.
+- When using suggest_resolution, write it as a concise, helpful reply email to the sender.
+- When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
+- URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
+"""
