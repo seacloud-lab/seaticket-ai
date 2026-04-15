@@ -314,7 +314,6 @@ class AgentRunner:
             tool_name='think',
             step=step,
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
-            max_tokens=2000,
         )
 
     def _force_record_analysis(self, messages: list[dict]) -> None:
@@ -344,7 +343,6 @@ class AgentRunner:
         tool_name: str,
         step: int,
         system_content: str,
-        max_tokens: int | None = None,
     ):
         tool = self._get_registered_tool_by_name(tool_name)
         if not tool:
@@ -367,9 +365,6 @@ class AgentRunner:
                 },
             },
         }
-        if max_tokens is not None:
-            completion_kwargs['max_tokens'] = max_tokens
-
         step_start = time.monotonic()
         try:
             response = self.llm_client.completion(**completion_kwargs)
