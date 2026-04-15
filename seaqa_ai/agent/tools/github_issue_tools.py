@@ -59,6 +59,13 @@ class SuggestModifyTypeTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Suggest a more suitable issue type for this GitHub issue.'
 
+    def get_suggestion_text(self, **kwargs):
+        current = kwargs.get('current_issue_type', '')
+        suggested = kwargs.get('suggested_type', '')
+        if current and suggested:
+            return f'Suggest changing the type from {current} to {suggested} for this GitHub issue.'
+        return self.suggestion_text
+
     def execute(self, current_issue_type, suggested_type, reason):
         source_id = self.get_source_id()
         source_title = self.get_source_title()

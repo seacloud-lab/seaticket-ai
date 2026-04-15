@@ -38,6 +38,10 @@ class BaseAgentTool(BasicTool):
         """Return the human-readable title of the source record."""
         return (self.record_context or {}).get('source_title', 'Untitled')
 
+    def get_suggestion_text(self, **kwargs):
+        """Return the suggestion_text for this tool, optionally using call arguments."""
+        return getattr(self, 'suggestion_text', '')
+
 
 class RecordIssueAnalysisTool(BaseAgentTool):
     """Records structured analysis of the source record before handling actions."""

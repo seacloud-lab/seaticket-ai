@@ -629,7 +629,14 @@ class AgentRunner:
         metadata = self.tool_metadata.get(tool_name, {})
         action_type = metadata.get('action_type', 'tool_call')
         action_status = metadata.get('action_status', 'completed')
-        suggestion_text = metadata.get('suggestion_text', '') if action_type == 'suggestion' else ''
+        if action_type == 'suggestion':
+            getter = metadata.get('get_suggestion_text')
+            if callable(getter):
+                suggestion_text = getter(**arguments)
+            else:
+                suggestion_text = metadata.get('suggestion_text', '')
+        else:
+            suggestion_text = ''
         content = (
             arguments.get('thought') or
             arguments.get('analysis') or
