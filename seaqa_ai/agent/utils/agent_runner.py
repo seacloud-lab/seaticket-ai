@@ -314,6 +314,7 @@ class AgentRunner:
             tool_name='think',
             step=step,
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
+            max_tokens=2000,
         )
 
     def _force_record_analysis(self, messages: list[dict]) -> None:
@@ -343,6 +344,7 @@ class AgentRunner:
         tool_name: str,
         step: int,
         system_content: str,
+        max_tokens: int | None = None,
     ):
         tool = self._get_registered_tool_by_name(tool_name)
         if not tool:
@@ -354,19 +356,23 @@ class AgentRunner:
             'content': system_content,
         }]
 
+        completion_kwargs = {
+            'messages': forced_messages,
+            'context': self.ai_stats_context,
+            'tools': [tool],
+            'tool_choice': {
+                'type': 'function',
+                'function': {
+                    'name': tool_name,
+                },
+            },
+        }
+        if max_tokens is not None:
+            completion_kwargs['max_tokens'] = max_tokens
+
         step_start = time.monotonic()
         try:
-            response = self.llm_client.completion(
-                messages=forced_messages,
-                context=self.ai_stats_context,
-                tools=[tool],
-                tool_choice={
-                    'type': 'function',
-                    'function': {
-                        'name': tool_name,
-                    },
-                },
-            )
+            response = self.llm_client.completion(**completion_kwargs)
             message = response.choices[0].message
             usage = self._extract_usage(response)
         except Exception as e:

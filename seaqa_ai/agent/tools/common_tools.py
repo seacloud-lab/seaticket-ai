@@ -230,14 +230,19 @@ class ThinkTool(BasicTool):
                 'Use this tool to think about the current situation. It will not obtain '
                 'new information or change anything, but just append the thought '
                 'to the log. Use it when complex reasoning or analysis of tool '
-                'results is needed before deciding next steps.'
+                'results is needed before deciding next steps. '
+                'Keep your thought concise: at most 3-8 bullet points or a short paragraph (under 1000 words). '
+                'Do NOT repeat raw data or search results verbatim.'
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'thought': {
                         'type': 'string',
-                        'description': 'Your detailed reasoning or analysis.',
+                        'description': (
+                            'Your concise reasoning or analysis in under 1000 words. '
+                            'Use short bullet points. Do not copy-paste raw data.'
+                        ),
                     }
                 },
                 'required': ['thought'],

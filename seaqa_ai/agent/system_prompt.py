@@ -66,23 +66,31 @@ Rules:
 
 
 # Phase guidance used by forced think steps in AgentRunner
+_THINK_LENGTH_CONSTRAINT = (
+    '\n\nIMPORTANT: Keep the thought concise — use 3-8 short bullet points (under 1000 words total). '
+    'Do NOT copy-paste raw ticket content, search results, or comment text. Summarize key points only.'
+)
+
 PHASE_GUIDANCE_FOR_THINK = {
     'ticket_analysis': (
         'You are in the ANALYSIS phase. Before the next action, call the think tool to:\n'
         '- Review the ticket details: state, priority, assignees, due date, and recent activities.\n'
         '- Identify any process issues (e.g., approaching deadline, missing assignee, etc.).\n'
         '- Decide what actions are needed, then call record_ticket_analysis to finalize.'
+        + _THINK_LENGTH_CONSTRAINT
     ),
     'issue_analysis': (
         'You are in the ANALYSIS phase. Before the next action, call the think tool to:\n'
         '- Summarize what you learned from the latest search results.\n'
         '- Identify remaining knowledge gaps that require further search.\n'
         '- Decide whether to search again or call record_issue_analysis to finalize.'
+        + _THINK_LENGTH_CONSTRAINT
     ),
     'handling': (
         'You are in the HANDLING phase. Before the next action, call the think tool to:\n'
         '- Review the recorded analysis and available evidence.\n'
-        '- Determine which handling action (suggest_resolution, suggest_create_ticket, etc.) fits best.\n'
+        '- Determine which handling action (suggest_resolution, suggest_create_ticket, etc.) fits best.'
+        + _THINK_LENGTH_CONSTRAINT
     ),
 }
 
