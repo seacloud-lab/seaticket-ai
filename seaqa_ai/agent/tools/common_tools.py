@@ -232,7 +232,8 @@ class ThinkTool(BasicTool):
                 'to the log. Use it when complex reasoning or analysis of tool '
                 'results is needed before deciding next steps. '
                 'Keep your thought concise: at most 3-8 bullet points or a short paragraph (under 1000 words). '
-                'Do NOT repeat raw data or search results verbatim.'
+                'Do NOT repeat raw data or search results verbatim. '
+                'Do NOT think too much or for too long time.'
             ),
             'parameters': {
                 'type': 'object',
