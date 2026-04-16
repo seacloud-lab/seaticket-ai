@@ -236,6 +236,69 @@ class ContentRetriever:
             record['content'] = content
         return record_id_record_map
 
+
+    def _get_github_pr_content(self, record_id_record_map, connection_id):
+        topics_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, connection_id)
+
+        # query topics
+        record_id_to_topics = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=topics_table_name,
+            pks=record_id_record_map.keys(),
+            fields_str='pr_id, content, pr_number, state, labels, author, url, linked_ticket'
+        )
+
+        # query comments/replies, the result of the following steps is record_id_to_comments
+        issue_id_to_record_id = {
+            record['issue_id']: record_id
+            for record_id, record in record_id_to_topics.items()
+        }
+        issue_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+            base_id=self.project_uuid,
+            table_name=comments_table_name,
+            topic_ids=issue_id_to_record_id.keys(),
+            topic_id_field_name='issue_id',
+            fields_str='author, content',
+            has_deleted_field=False,
+            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
+        )
+
+        record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
+
+        # set content from topic and comments
+        for record_id, record in record_id_record_map.items():
+            record_from_seadb = record_id_to_topics[record_id]
+            comments = record_id_to_comments.get(record_id, [])
+
+            content = {
+                'pr_id': record_from_seadb['pr_id'],
+                'pr_number': record_from_seadb['pr_number'],
+                'state': record_from_seadb['state'],
+                'labels': record_from_seadb['labels'],
+                'author': record_from_seadb['author'],
+                'linked_ticket': record_from_seadb['linked_ticket'],
+                'url': record_from_seadb['url'],
+                'content': (record_from_seadb['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'comments': []
+            }
+
+            total_content_size = len(content['content'])
+            for comment in comments:
+                comment_content = comment['content']
+                total_content_size += len(comment_content)
+
+                # break if exceed maximum content size
+                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
+                    break
+
+                content['comments'].append({
+                    'author': comment['author'],
+                    'content': comment_content
+                })
+            record['content'] = content
+        return record_id_record_map
+
+
     ## discourse_forum
     def _get_discourse_forum_content(self, record_id_record_map, connection_id):
         topics_table_name, comments_table_name = gen_seadb_table_name(ConnectionType.DISCOURSE_FORUM.value, connection_id)

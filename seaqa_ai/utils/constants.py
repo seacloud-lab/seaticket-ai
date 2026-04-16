@@ -17,6 +17,7 @@ class ConnectionType(Enum):
     DISCOURSE_FORUM = 'discourse_forum'
     SITE = 'site'
     SEAFILE = 'seafile'
+    GITHUB_PR = 'github_pr'
 
     @classmethod
     def is_valid(cls, value):
