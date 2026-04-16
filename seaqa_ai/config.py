@@ -77,7 +77,7 @@ class _ConfigParser(object):
 def check_llm_validated(model):
     if not isinstance(model, dict) or model.get('disable', False):
         return False
-    if model.get('type') in ('proxy', 'other', 'hosted_vllm'):
+    if model.get('type') in ('other', 'hosted_vllm'):
         required_fields = ('model', 'url')
     else:
         required_fields = ('model', 'key')
