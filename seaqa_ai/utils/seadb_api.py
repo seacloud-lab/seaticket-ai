@@ -28,6 +28,8 @@ def gen_seadb_table_name(connection_type, connection_id=None):
     
     if connection_type == ConnectionType.GITHUB_ISSUE.value:
         comments_table_name = f'{connection_type}_comments_{connection_id}'
+    elif connection_type == ConnectionType.GITHUB_PR.value:
+        comments_table_name = f'{connection_type}_comments_{connection_id}'
     elif connection_type == ConnectionType.DISCOURSE_FORUM.value:
         comments_table_name = f'{connection_type}_replies_{connection_id}'
     elif connection_type == ConnectionType.EMAIL.value:

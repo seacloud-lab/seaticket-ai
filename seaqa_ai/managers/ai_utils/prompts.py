@@ -99,6 +99,7 @@ Candidate Records:
 
 GENERATE_SUMMAEY_PROMPTS_MAP = {
     'github_issue': "You are a GitHub issue analysis expert. Read the issue's title and body, then craft a single-sentence summary describing the core problem. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
+    'github_pr': "You are a GitHub pull request analysis expert. Read the PR's title and body, then craft a single-sentence summary describing the core problem. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
     'discourse_forum': "You are a Discourse forum post analysis expert. Read the post's title and body, then craft a single-sentence summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
     'email': "You are a email analysis expert. Read the email's title and body, then craft a single-sentence summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
     'ticket': "You are a ticket analysis expert. Read the ticket's title and body, then craft a single-sentence summary describing the core topic or request. Keep it concise (no more than 100 characters) and return only that sentence without extra commentary or formatting.",
