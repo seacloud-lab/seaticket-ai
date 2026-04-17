@@ -25,10 +25,6 @@ class BasicLLMAPI:
         self.timeout = timeout
         if llm_type == 'other':
             llm_type = 'hosted_vllm'
-        elif llm_type == 'proxy':
-            llm_type = None
-            if not api_key:
-                api_key = 'not-keys-needed'
         self.llm_type = llm_type
         self.model = f'{llm_type}/{model}' if llm_type else model
         self.model_id = model
