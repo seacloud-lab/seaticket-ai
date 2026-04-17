@@ -327,6 +327,7 @@ The email thread is provided as a JSON object with the following fields:
 - source_id: unique identifier for this thread
 - events: list of structured event objects, each with type, old_value, and new_value
 - title: email thread subject
+- first_email: the first email in this thread, representing the thread's main content
 - thread_id: internal thread identifier
 - unread: whether the thread is currently unread
 - modified_time: last modification time of the thread

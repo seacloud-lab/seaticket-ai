@@ -69,6 +69,9 @@ class EmailAgent(ConnectionAgent):
         latest_external_email_cc = ''
         latest_external_email_content = ''
         latest_external_email_time = item.get('modified_time', 'N/A')
+        
+        first_email = emails[0] if emails else {}
+        first_email_content = (first_email.get('content') or '').strip()[:MAX_COMMENT_CHARS]
 
         for email in emails[-10:]:
             content = (email.get('content') or '').strip()[:MAX_COMMENT_CHARS]
@@ -98,6 +101,12 @@ class EmailAgent(ConnectionAgent):
             'source_id': source_id,
             'events': self.events,
             'title': item.get('title', 'Untitled'),
+            'first_email': {
+                'email_from': first_email.get('email_from', ''),
+                'email_to': first_email.get('email_to', ''),
+                'content': first_email_content,
+                'modified_time': first_email.get('modified_time', 'N/A'),
+            },
             'thread_id': item.get('_pk', 'N/A'),
             'unread': item.get('unread', False),
             'modified_time': item.get('modified_time', 'N/A'),
