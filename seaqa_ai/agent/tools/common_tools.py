@@ -63,7 +63,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                     },
                     'classified_issue_type': {
                         'type': 'string',
-                        'enum': ['bug report', 'feature request', 'general support question'],
+                        'enum': ['Bug', 'Feature', 'Question'],
                         'description': 'The agent-classified issue type based on title/content.'
                     },
                     'original_issue_type': {

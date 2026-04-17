@@ -27,7 +27,7 @@ class SuggestModifyTypeTool(BaseAgentTool):
             'name': 'suggest_modify_type',
             'description': (
                 'Suggest that the user update how this issue is categorized '
-                '(bug report, feature request, or general support question). '
+                '(Bug, Feature, or Question). '
                 'Only call this when you can clearly explain why the current type is less suitable.'
             ),
             'parameters': {
@@ -39,7 +39,7 @@ class SuggestModifyTypeTool(BaseAgentTool):
                     },
                     'suggested_type': {
                         'type': 'string',
-                        'enum': ['bug report', 'feature request', 'general support question'],
+                        'enum': ['Bug', 'Feature', 'Question'],
                         'description': 'Your suggested user-facing type for this issue.'
                     },
                     'reason': {
@@ -63,12 +63,11 @@ class SuggestModifyTypeTool(BaseAgentTool):
         current = kwargs.get('current_issue_type', '')
         suggested = kwargs.get('suggested_type', '')
         if current:
-            current = current.lower()
-            if current == 'null':
-                return f'Suggest changing the type to {suggested} for this GitHub issue.'
-            return f'Suggest changing the type from {current} to {suggested} for this GitHub issue.'
+            if current == 'null' or current == 'Null' or current == 'NULL' or current == 'None' or current == 'none' or current == 'NONE':
+                return f'Suggest changing the type to "{suggested}" for this GitHub issue.'
+            return f'Suggest changing the type from "{current}" to "{suggested}" for this GitHub issue.'
         else:
-            return f'Suggest changing the type to {suggested} for this GitHub issue.'
+            return f'Suggest changing the type to "{suggested}" for this GitHub issue.'
 
     def execute(self, current_issue_type, suggested_type, reason):
         source_id = self.get_source_id()

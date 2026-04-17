@@ -111,13 +111,13 @@ FORCED_FINAL_ANSWER_PROMPT = (
 _TRIAGE_WORKFLOW_INTRO = """Your workflow has two phases: ANALYSIS and HANDLING."""
 
 _CLASSIFICATION_TYPES = """Classify the {item_type} type from title/content into one of:
-   - bug report
-   - feature request
-   - general support question"""
+   - Bug
+   - Feature
+   - Question"""
 
 _SEARCH_RULES = """Run searches based on your classification:
-   - If bug report or feature request: use issues_search.
-   - If general support question: first use documents_search.
+   - If Bug or Feature: use issues_search.
+   - If Question: first use documents_search.
      If document results cannot fully answer the question, then use issues_search."""
 
 _SEARCH_LIMITS = """Search limits:
@@ -134,13 +134,13 @@ _HANDLING_ACTIONS = """Call exactly one of:
    - suggest_create_ticket"""
 
 _DECISION_RULES = """Decision rules:
-- For bug report:
+- For Bug:
   - If search evidence shows a clear duplicate / known tracked case, call suggest_resolution.
   - Otherwise, call suggest_create_ticket.
-- For feature request:
+- For Feature:
   - If the same request is already tracked, call suggest_resolution.
   - If it is a new request, call suggest_create_ticket.
-- For general support question:
+- For Question:
   - If search evidence can directly answer the {item_name}, call suggest_resolution.
   - Otherwise, call suggest_create_ticket."""
 
@@ -165,7 +165,7 @@ _GITHUB_ISSUE_INTRO = """You are an autonomous agent that processes incoming Git
 _GITHUB_ISSUE_TYPE_HANDLING = """Treat input field "issue_type" as a candidate label only.
    - Do NOT rely on it blindly.
    - Your own classification must come from issue content.
-   - If classification is uncertain, default to "general support question" for routing."""
+   - If classification is uncertain, default to "Question" for routing."""
 
 _GITHUB_SUGGEST_MODIFY_TYPE = """Optionally call suggest_modify_type ONLY when all conditions are met:
    - Your classification has high confidence.
