@@ -376,6 +376,7 @@ Rules:
 - Call either suggest_resolution OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution, write it as a detailed, helpful reply email to the sender.
+- The reply email should follow standard email format with appropriate greeting, body, and closing.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 """
