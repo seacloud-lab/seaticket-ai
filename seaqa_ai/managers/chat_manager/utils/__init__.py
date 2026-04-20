@@ -25,7 +25,7 @@ def combine_attachments_to_message(attachments, message):
 
     return final_message + message
 
-def remove_attachments_content(attachments):
+def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
     for attachment in new_attachments:
         attachment.pop('content', None)
