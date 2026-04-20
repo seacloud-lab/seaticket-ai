@@ -48,7 +48,6 @@ class EmailAgent(ConnectionAgent):
             f"_pk = {self.record_id}",
             "(`deleted` = False OR `deleted` IS NULL)",
             "(`linked_ticket` = 0 OR `linked_ticket` IS NULL)",
-            "(`unread` = True OR `unread` IS NULL)",
         ]
         where = ' AND '.join(conditions)
         sql = f"SELECT * FROM `{self._threads_table}` WHERE {where} LIMIT 1"
