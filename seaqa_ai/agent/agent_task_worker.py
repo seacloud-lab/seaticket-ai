@@ -10,6 +10,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.ticket_agent import TicketAgent
 from seaqa_ai.agent.github_agent import GithubIssueAgent
 from seaqa_ai.agent.discourse_agent import DiscourseAgent
+from seaqa_ai.agent.email_agent import EmailAgent
 from seaqa_ai.agent.utils.constants import (
     AGENT_TASK_QUEUE_NAME,
     SourceType,
@@ -169,3 +170,18 @@ class AgentTaskWorker:
                     logger.error('DiscourseAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, discourse_agent.last_run_error_message)
             except Exception as e:
                 logger.exception('DiscourseAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
+
+        if source_type == SourceType.EMAIL.value:
+            try:
+                email_agent = EmailAgent(
+                    self.app,
+                    project,
+                    connection_id=connection_id,
+                    record_id=record_id,
+                    events=events,
+                )
+                email_agent.run()
+                if email_agent.last_run_failed and email_agent.last_run_error_message:
+                    logger.error('EmailAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, email_agent.last_run_error_message)
+            except Exception as e:
+                logger.exception('EmailAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
