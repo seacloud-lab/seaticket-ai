@@ -16,7 +16,7 @@ from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, Issu
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
 from seaqa_ai.managers.chat_manager.utils import get_answer_and_sources, combine_attachments_to_message, \
-    remove_attachments_content
+    strip_content_details_from_attachments
 from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ class SyncChat(BasicChat):
             memory = OpenAIMemory(system_prompt)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
-        tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, remove_attachments_content(attachments))
+        tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, strip_content_details_from_attachments(attachments))
         tool_executor.thought_process.context = memory.context_thought_process
 
         memory += {
@@ -196,7 +196,7 @@ class StreamingChat(BasicChat):
                 memory = OpenAIMemory(system_prompt)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, remove_attachments_content(attachments))
+            tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, strip_content_details_from_attachments(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 
             memory += {
