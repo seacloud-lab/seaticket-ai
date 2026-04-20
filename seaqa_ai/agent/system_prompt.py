@@ -332,7 +332,7 @@ The email thread is provided as a JSON object with the following fields:
 - unread: whether the thread is currently unread
 - modified_time: last modification time of the thread
 - linked_ticket: ticket link if any
-- latest_external_email: the latest email in the thread that was not sent by the project side
+- latest_email: the latest email in the thread that was not sent by the project side
 - recent_emails: array of recent emails with email_from, email_to, cc, modified_time, is_sender, content"""
 
 EMAIL_ANALYSIS_SYSTEM_PROMPT = f"""{_EMAIL_INTRO}
@@ -351,7 +351,6 @@ Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
 - Do NOT call record_issue_analysis before finishing required searches.
 - record_issue_analysis MUST be your final tool call in this phase.
-- Focus on the latest actionable external email when deciding what the customer needs.
 
 {_EMAIL_INPUT_FORMAT}
 """

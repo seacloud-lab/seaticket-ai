@@ -64,11 +64,11 @@ class EmailAgent(ConnectionAgent):
 
         emails = item_context.get('emails', [])
         formatted_emails = []
-        latest_external_email_from = ''
-        latest_external_email_to = ''
-        latest_external_email_cc = ''
-        latest_external_email_content = ''
-        latest_external_email_time = item.get('modified_time', 'N/A')
+        latest_email_from = ''
+        latest_email_to = ''
+        latest_email_cc = ''
+        latest_email_content = ''
+        latest_email_time = item.get('modified_time', 'N/A')
         
         first_email = emails[0] if emails else {}
         first_email_content = (first_email.get('content') or '').strip()[:MAX_COMMENT_CHARS]
@@ -91,11 +91,11 @@ class EmailAgent(ConnectionAgent):
             })
 
             if not is_sender:
-                latest_external_email_from = email_from
-                latest_external_email_to = email_to
-                latest_external_email_cc = cc
-                latest_external_email_content = content
-                latest_external_email_time = modified_time
+                latest_email_from = email_from
+                latest_email_to = email_to
+                latest_email_cc = cc
+                latest_email_content = content
+                latest_email_time = modified_time
 
         message_dict = {
             'source_id': source_id,
@@ -111,12 +111,12 @@ class EmailAgent(ConnectionAgent):
             'unread': item.get('unread', False),
             'modified_time': item.get('modified_time', 'N/A'),
             'linked_ticket': item.get('linked_ticket', 'N/A'),
-            'latest_external_email': {
-                'email_from': latest_external_email_from,
-                'email_to': latest_external_email_to,
-                'cc': latest_external_email_cc,
-                'modified_time': latest_external_email_time,
-                'content': latest_external_email_content,
+            'latest_email': {
+                'email_from': latest_email_from,
+                'email_to': latest_email_to,
+                'cc': latest_email_cc,
+                'modified_time': latest_email_time,
+                'content': latest_email_content,
             },
             'recent_emails': formatted_emails,
         }
