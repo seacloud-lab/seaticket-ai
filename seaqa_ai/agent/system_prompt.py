@@ -325,9 +325,9 @@ _EMAIL_INPUT_FORMAT = """## Input Format
 
 The email thread is provided as a JSON object with the following fields:
 - source_id: unique identifier for this thread
-- events: list of structured event objects, each with type, old_value, and new_value
+- events: list of structured event objects, each with type, old_value, and new_value to describe the changes since the last agent run.
 - title: email thread subject
-- first_email: the first email in this thread, representing the thread's main content
+- first_email: the first email in this thread. The first_email.content field requires particular attention, as it serves as the opening message of the entire thread and sets the thematic foundation for the whole discussion.
 - thread_id: internal thread identifier
 - unread: whether the thread is currently unread
 - modified_time: last modification time of the thread
@@ -375,7 +375,7 @@ Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
 - Call either suggest_resolution OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
-- When using suggest_resolution, write it as a concise, helpful reply email to the sender.
+- When using suggest_resolution, write it as a detailed, helpful reply email to the sender.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 """
