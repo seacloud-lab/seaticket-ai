@@ -330,7 +330,7 @@ class ContentRetriever:
 
             total_content_size = 0
             for email in emails:
-                email_content = email['content']
+                email_content = email['content'] or ""
                 total_content_size += len(email_content)
 
                 # break if exceed maximum content size
