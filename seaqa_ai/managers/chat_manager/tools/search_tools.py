@@ -92,8 +92,9 @@ class DocumentsSearch(BasicSearchTool):
     }
 
     def execute(self, query, context, app, tool_executor, call_back):
-        valid_doc_extra = set(ExtraSourceType.get_document_extra_source_types())
-        extra_sources = [s for s in context.get('extra_sources', []) if s in valid_doc_extra]
+        extra_sources = ExtraSourceType.get_document_extra_source_types()
+        if context.get('extra_sources') is not None:
+            extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
         return self._search(query, context['document_connections'], extra_sources, context, app, tool_executor, call_back)
 class IssuesSearch(BasicSearchTool):
     tool = {
@@ -122,6 +123,7 @@ class IssuesSearch(BasicSearchTool):
     }
 
     def execute(self, query, context, app, tool_executor, call_back):
-        valid_issue_extra = set(ExtraSourceType.get_issue_extra_source_types())
-        extra_sources = [s for s in context.get('extra_sources', []) if s in valid_issue_extra]
+        extra_sources = ExtraSourceType.get_issue_extra_source_types()
+        if context.get('extra_sources') is not None:
+            extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
         return self._search(query, context['issue_connections'], extra_sources, context, app, tool_executor, call_back)

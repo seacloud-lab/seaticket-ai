@@ -52,8 +52,8 @@ def get_ai_reply():
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
     is_external_portal = data.get('is_external_portal', False) is True
-    connection_ids = data.get('connection_ids', []) or []
-    extra_sources = data.get('extra_sources', []) or []
+    connection_ids = data.get('connection_ids')
+    extra_sources = data.get('extra_sources')
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
         'username': username,

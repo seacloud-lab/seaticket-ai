@@ -37,28 +37,34 @@ class BasicChat(object):
 
     def _register_tools(self, tool_executor, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])
-        connection_ids = context.get('connection_ids', []) or []
+        connection_ids = context.get('connection_ids')
 
         doc_types = set(ConnectionType.get_document_connection_types())
         issue_types = set(ConnectionType.get_issue_connection_types())
 
         document_connections = []
         issue_connections = []
-        if connection_ids:
+        if connection_ids is not None:
+            if connection_ids:
+                with self.db_session_class() as db_session:
+                    connections = ProjectConnection.get_connections_by_ids(
+                        db_session, project_uuid, connection_ids
+                    )
+                for conn in connections:
+                    if conn['type'] in doc_types:
+                        document_connections.append(conn)
+                    elif conn['type'] in issue_types:
+                        issue_connections.append(conn)
+            context.update({
+                'document_connections': document_connections,
+                'issue_connections': issue_connections,
+            })
+        else:
             with self.db_session_class() as db_session:
-                connections = ProjectConnection.get_connections_by_ids(
-                    db_session, project_uuid, connection_ids
-                )
-            for conn in connections:
-                if conn['type'] in doc_types:
-                    document_connections.append(conn)
-                elif conn['type'] in issue_types:
-                    issue_connections.append(conn)
-
-        context.update({
-            'document_connections': document_connections,
-            'issue_connections': issue_connections,
-        })
+                context.update({
+                    'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
+                    'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
+                })
 
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
