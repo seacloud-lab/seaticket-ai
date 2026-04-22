@@ -23,7 +23,7 @@ from seaqa_ai.agent.system_prompt import (
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
-from seaqa_ai.utils import parse_json
+from seaqa_ai.utils import parse_json, repair_over_escaped_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -521,7 +521,7 @@ class AgentRunner:
             parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
             if not isinstance(parsed_arguments, dict):
                 raise TypeError('Tool arguments must be a JSON object.')
-            arguments = parsed_arguments
+            arguments = repair_over_escaped_arguments(parsed_arguments, tool_name)
         except (json.JSONDecodeError, TypeError) as e:
             tool_failed = True
             arguments = {}
