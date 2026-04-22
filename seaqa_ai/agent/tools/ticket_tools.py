@@ -29,7 +29,7 @@ class RecordTicketAnalysisTool(BaseAgentTool):
                 'properties': {
                     'analysis': {
                         'type': 'string',
-                        'description': 'Your detailed analysis of the ticket: current state, issues found, and what action you plan to take.'
+                        'description': 'Your detailed analysis of the ticket: current state, issues found, and what action you plan to take. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
                     }
                 },
                 'required': ['analysis']
