@@ -192,7 +192,8 @@ The issue is provided as a JSON object with the following fields:
 - url: link to the issue
 - linked_ticket: ticket link if any
 - content: main issue description
-- recent_comments: array of recent comments with author, created_time, content"""
+- recent_comments: array of recent comments with author, created_time, content.
+  A comment may carry is_new_comment: true — these are the newly arrived comment(s) that triggered this run. When any comment is marked this way, treat them as the primary subject of the handling opinion; the issue body and older comments are context only."""
 
 GITHUB_ISSUE_ANALYSIS_SYSTEM_PROMPT = f"""{_GITHUB_ISSUE_INTRO}
 
@@ -241,6 +242,8 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
+- If any comment in recent_comments has is_new_comment: true, your handling opinion must focus on those new comments specifically, not the whole issue history.
+- When is_new_comment: true is present, prefer suggest_resolution (written as a direct reply to those new comment authors); do NOT call suggest_modify_type; only call suggest_create_ticket if a new comment clearly raises an independent new problem that is not covered by the existing issue.
 {_GITHUB_SUGGEST_MODIFY_TYPE_RULE}
 """
 
