@@ -122,4 +122,14 @@ class EmbeddingAPI(BasicLLMAPI):
 
         self._logger_usage_from_response(response, context)
 
-        return response.data
+        if len(response.data) != len(texts):
+            raise ConnectionError('Failure to generate embedding')
+
+        embeddings = []
+        for item in sorted(response.data, key=lambda x: x.get('index', 0)):
+            embedding = item.get('embedding')
+            if not embedding:
+                raise ConnectionError('Failure to generate embedding')
+            embeddings.append(embedding)
+
+        return embeddings
