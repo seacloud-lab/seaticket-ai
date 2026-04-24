@@ -170,6 +170,13 @@ class AgentManager:
             logger.warning('Ignore unknown source_type: %s', source_type)
             return
 
+        if self._is_noop_event(source_type, event):
+            logger.warning(
+                'Ignore no-op event (source=%s type=%s) for record %s',
+                source_type, event_type, data.get('record_id'),
+            )
+            return
+
         project_uuid = data.get('project_uuid')
         if not project_uuid:
             logger.warning('Ignore event without project_uuid: %s', raw_data)
@@ -211,6 +218,31 @@ class AgentManager:
             event=event,
             now_time=now_time,
         )
+
+    def _is_noop_event(self, source_type: str, event: dict) -> bool:
+        """Return True for events that carry no signal worth enqueuing an agent run.
+
+        Currently covers github_issue_comment_added events whose new_value.comments
+        are all authored by '*[bot]' accounts (GitHub App convention).
+
+        Events that mix bot and human authors in a single new_value.comments list
+        are NOT filtered here; they are forwarded so that GithubIssueAgent can
+        apply per-comment filtering downstream.
+        """
+        if source_type != SourceType.GITHUB_ISSUE.value:
+            return False
+        if event.get('type') != DataEventType.GITHUB_ISSUE_COMMENT_ADDED.value:
+            return False
+        comments = ((event.get('new_value') or {}).get('comments') or [])
+        if not comments:
+            return False
+        for c in comments:
+            if not isinstance(c, dict):
+                return False
+            author = str(c.get('author') or '').strip().lower()
+            if not author.endswith('[bot]'):
+                return False
+        return True
 
     def _register_pending_record(
         self,
