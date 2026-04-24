@@ -80,16 +80,16 @@ class OpenAIToolExecutor(BasicToolExecutor):
         name = function['name']
         params = json.loads(function.get('arguments', '{}'))
         constant_kwargs = self.tools[name]['constant_kwargs']
-        avaliables_params = inspect.signature(self.tools[name]['func']).parameters
+        available_params = inspect.signature(self.tools[name]['func']).parameters
         params.update({
             k: v
-            for k, v in constant_kwargs.items() if k in avaliables_params and k not in params
+            for k, v in constant_kwargs.items() if k in available_params and k not in params
         })
 
-        if 'tool_executor' in avaliables_params and 'tool_executor' not in params:
+        if 'tool_executor' in available_params and 'tool_executor' not in params:
             params.update({'tool_executor': self})
         
-        if 'call_back' in avaliables_params and 'call_back' not in params:
+        if 'call_back' in available_params and 'call_back' not in params:
             params.update({'call_back': call_back})
         
         return self.tools[name]['func'](**params)

@@ -353,7 +353,7 @@ def batch_generate_embeddings():
         return {'error_msg': 'Bad request.'}, 400
 
     username = data.get('username', '')
-    contents = data.get('content')
+    contents = data.get('contents')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.UNKNOWN.value)
 
