@@ -69,22 +69,24 @@ class DiscourseAgent(ConnectionAgent):
         replies = item_context.get('replies', [])
         topic_content = ''
         topic_author = 'N/A'
-        formatted_replies = []
+        recent_replies: list[dict] = []
+        new_replies: list[dict] = []
         new_reply_post_numbers = self._collect_new_reply_post_numbers()
+
         if replies:
             first_post = replies[0]
             topic_author = first_post.get('author', 'N/A')
             topic_content = (first_post.get('content') or '').strip()[:MAX_CONTENT_CHARS]
 
-            for r in replies[1:][-10:]:
-                entry = {
-                    'author': r.get('author', '?'),
-                    'modified_time': r.get('modified_time', '?'),
-                    'content': (r.get('content') or '').strip()[:MAX_COMMENT_CHARS],
-                }
-                if new_reply_post_numbers and r.get('post_number') in new_reply_post_numbers:
-                    entry['is_new_reply'] = True
-                formatted_replies.append(entry)
+            subsequent_replies = replies[1:]
+            recent_replies = [self._format_reply_entry(r) for r in subsequent_replies[-10:]]
+
+            if new_reply_post_numbers:
+                new_replies = [
+                    self._format_reply_entry(r)
+                    for r in subsequent_replies
+                    if r.get('post_number') in new_reply_post_numbers
+                ]
 
         message_dict = {
             'source_id': source_id,
@@ -99,10 +101,19 @@ class DiscourseAgent(ConnectionAgent):
             'url': self._build_topic_url(item),
             'linked_ticket': item.get('linked_ticket', 'N/A'),
             'content': topic_content[:MAX_CONTENT_CHARS] if topic_content else '',
-            'recent_replies': formatted_replies,
+            'recent_replies': recent_replies,
+            'new_replies': new_replies,
         }
 
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
+
+    @staticmethod
+    def _format_reply_entry(r: dict) -> dict:
+        return {
+            'author': r.get('author', '?'),
+            'modified_time': r.get('modified_time', '?'),
+            'content': (r.get('content') or '').strip()[:MAX_COMMENT_CHARS],
+        }
 
     # ── Discourse-specific helpers ──────────────────────────────────
 

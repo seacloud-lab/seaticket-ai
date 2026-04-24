@@ -192,8 +192,8 @@ The issue is provided as a JSON object with the following fields:
 - url: link to the issue
 - linked_ticket: ticket link if any
 - content: main issue description
-- recent_comments: array of recent comments with author, created_time, content.
-  A comment may carry is_new_comment: true — these are the newly arrived comment(s) that triggered this run. When any comment is marked this way, treat them as the primary subject of the handling opinion; the issue body and older comments are context only."""
+- recent_comments: array of recent comments with author, created_time, content. These provide the recent conversation context on this issue.
+- new_comments: array of comments that newly arrived and triggered this run, using the same entry shape as recent_comments. May be empty. When non-empty, these are the comments the handling opinion MUST address; recent_comments and the issue body serve as context only."""
 
 GITHUB_ISSUE_ANALYSIS_SYSTEM_PROMPT = f"""{_GITHUB_ISSUE_INTRO}
 
@@ -242,8 +242,8 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
-- If any comment in recent_comments has is_new_comment: true, your handling opinion must focus on those new comments specifically, not the whole issue history.
-- When is_new_comment: true is present, prefer suggest_resolution (written as a direct reply to those new comment authors); do NOT call suggest_modify_type; only call suggest_create_ticket if a new comment clearly raises an independent new problem that is not covered by the existing issue.
+- If new_comments is non-empty, your handling opinion MUST directly answer the comment(s) in new_comments — do not produce a generic summary of the whole issue. Treat recent_comments and the issue body as background context only.
+- When new_comments is non-empty, prefer suggest_resolution written as a direct reply to the authors of those new comments; do NOT call suggest_modify_type; only call suggest_create_ticket if a new comment clearly raises an independent new problem that is not covered by the existing issue.
 {_GITHUB_SUGGEST_MODIFY_TYPE_RULE}
 """
 
@@ -270,8 +270,8 @@ The topic is provided as a JSON object with the following fields:
 - url: link to the current topic page
 - linked_ticket: ticket link if any
 - content: topic body content (first post)
-- recent_replies: array of recent replies with author, modified_time, content.
-  A reply may carry is_new_reply: true — these are the newly arrived reply/replies that triggered this run. When any reply is marked this way, treat them as the primary subject of the handling opinion; the topic body and older replies are context only."""
+- recent_replies: array of recent replies with author, modified_time, content. These provide the recent conversation context on this topic.
+- new_replies: array of replies that newly arrived and triggered this run, using the same entry shape as recent_replies. May be empty. When non-empty, these are the replies the handling opinion must address; recent_replies and the topic body serve as context only."""
 
 DISCOURSE_ANALYSIS_SYSTEM_PROMPT = f"""{_DISCOURSE_INTRO}
 
@@ -316,8 +316,8 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
-- If any reply in recent_replies has is_new_reply: true, your handling opinion must focus on those new replies specifically, not the whole topic history.
-- When is_new_reply: true is present, prefer suggest_resolution (written as a direct reply to those new reply authors); only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
+- If new_replies is non-empty, your handling opinion MUST directly answer the reply/replies in new_replies — do not produce a generic summary of the whole topic. Treat recent_replies and the topic body as background context only.
+- When new_replies is non-empty, prefer suggest_resolution written as a direct reply to the authors of those new replies; only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
 """
 
 

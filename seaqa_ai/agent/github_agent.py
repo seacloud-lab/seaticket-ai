@@ -73,20 +73,16 @@ class GithubIssueAgent(ConnectionAgent):
         """Build the user message describing the GitHub issue for LLM analysis (JSON format)."""
         source_id = f'{self.connection_id}_{item["_pk"]}'
         issue_content = (item.get('content') or '').strip()
-        new_comment_ids = self._collect_new_comment_ids()
         comments = item_context.get('comments', [])
-        formatted_comments = []
-        if comments:
-            for c in comments[-10:]:
-                comment_content = (c.get('content') or '').strip()[:MAX_COMMENT_CHARS]
-                entry = {
-                    'author': c.get('author', '?'),
-                    'created_time': c.get('created_time', '?'),
-                    'content': comment_content,
-                }
-                if new_comment_ids and c.get('comment_id') in new_comment_ids:
-                    entry['is_new_comment'] = True
-                formatted_comments.append(entry)
+        new_comment_ids = self._collect_new_comment_ids()
+
+        recent_comments = [self._format_comment_entry(c) for c in comments[-10:]]
+
+        new_comments = [
+            self._format_comment_entry(c)
+            for c in comments
+            if new_comment_ids and c.get('comment_id') in new_comment_ids
+        ] if new_comment_ids else []
 
         message_dict = {
             'source_id': source_id,
@@ -101,10 +97,19 @@ class GithubIssueAgent(ConnectionAgent):
             'url': item.get('url', 'N/A'),
             'linked_ticket': item.get('linked_ticket', 'N/A'),
             'content': issue_content[:MAX_CONTENT_CHARS] if issue_content else '',
-            'recent_comments': formatted_comments,
+            'recent_comments': recent_comments,
+            'new_comments': new_comments,
         }
 
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
+
+    @staticmethod
+    def _format_comment_entry(c: dict) -> dict:
+        return {
+            'author': c.get('author', '?'),
+            'created_time': c.get('created_time', '?'),
+            'content': (c.get('content') or '').strip()[:MAX_COMMENT_CHARS],
+        }
 
     # ── GitHub-specific helpers ─────────────────────────────────────
 
@@ -116,11 +121,7 @@ class GithubIssueAgent(ConnectionAgent):
         )
 
     def _collect_new_comment_ids(self) -> set:
-        """Return the set of comment_ids that should be marked is_new_comment=True.
-
-        Any comment whose author login ends with '[bot]' (GitHub App convention)
-        is filtered out.
-        """
+        """Any comment whose author login ends with '[bot]' (GitHub App convention) is filtered out."""
         if not self._is_comment_only_trigger():
             return set()
 
