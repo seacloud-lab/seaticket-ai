@@ -101,19 +101,59 @@ class SyncChat(BasicChat):
         while current_step < config.MAX_STEPS:
             current_step += 1
             response = None
+            llm_message = None
             completion_retries = []
             for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
+                response = None
+                llm_message = None
                 time_begin = time.time()
                 response_token_usage = {}
                 try:
+                    completion_kwargs = {
+                        'messages': memory,
+                        'context': context,
+                        'num_retries': 1
+                    }
+
+                    if current_step < config.MAX_STEPS:
+                        completion_kwargs['tools'] = tool_executor.get()
+                    else:
+                        completion_kwargs['tool_choice'] = 'none'
+
                     response = llm_client.completion(
-                        messages=memory,
-                        context=context,
-                        tools=tool_executor.get() if current_step < config.MAX_STEPS else None,
-                        num_retries=1
+                        **completion_kwargs
                     )
                     response_token_usage = BasicCompletionUtils.get_response_token_usage(response)
+                    llm_message = response.choices[0].message
+                    if llm_message.tool_calls and current_step >= config.MAX_STEPS:
+                        time_usage = time.time() - time_begin
+                        completion_retries.append(BasicCompletionUtils.build_completion_retry_entry(
+                            current_step,
+                            current_retry,
+                            'tool_calls_at_max_steps',
+                            time_usage,
+                            token_usage=response_token_usage,
+                            error='Invalid response: cannot return tool_calls at max steps'
+                        ))
+                        logger.warning(
+                            'Sync completion returned tool_calls at max steps. model=%s session_uuid=%s project_uuid=%s step=%s retry=%s max_retries=%s max_steps=%s tool_calls=%s',
+                            model,
+                            session_uuid,
+                            context.get('project_uuid'),
+                            current_step,
+                            current_retry,
+                            config.COMPLETION_MAX_RETRIES,
+                            config.MAX_STEPS,
+                            json.dumps(llm_message.tool_calls, ensure_ascii=True, default=str)
+                        )
+                        if current_retry < config.COMPLETION_MAX_RETRIES:
+                            time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                            continue
+                        tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
+                        raise AssertionError('Invalid response: cannot return tool_calls at max steps')
                     break
+                except AssertionError:
+                    raise
                 except Exception as e:
                     time_usage = time.time() - time_begin
                     completion_retries.append(BasicCompletionUtils.build_completion_retry_entry(
@@ -130,9 +170,7 @@ class SyncChat(BasicChat):
                         continue
                     tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
 
-            try:
-                llm_message = response.choices[0].message
-            except:
+            if llm_message is None:
                 raise AssertionError('Invalid AI responses')
 
             # action step
@@ -208,39 +246,46 @@ class StreamingChat(BasicChat):
             current_retry = 0
             completion_retries = []
             while current_step < config.MAX_STEPS:
-                detail = f'step {current_step + 1}'
+                current_step += 1
+                detail = f'step {current_step}'
                 if current_retry:
                     detail += f', retrying {current_retry}'
                 yield SSE.status('LLM Reasoning', detail)
                 time_begin = time.time()
                 token_usage = {}
                 try:
-                    response = llm_client.completion(
-                        messages=memory,
-                        context=context,
-                        tools=tool_executor.get() if current_step + 1 < config.MAX_STEPS else None,
-                        stream=True,
-                        stream_options={
+                    completion_kwargs = {
+                        'messages': memory,
+                        'context': context,
+                        'stream': True,
+                        'stream_options': {
                             "include_usage": True
                         },
-                        num_retries=1
-                    )
+                        'num_retries': 1
+                    }
+                    if current_step < config.MAX_STEPS:
+                        completion_kwargs['tools'] = tool_executor.get()
+                    else:
+                        completion_kwargs['tool_choice'] = 'none'
+
+                    response = llm_client.completion(**completion_kwargs)
                 except Exception as e:
                     time_usage = time.time() - time_begin
                     completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
-                        current_step + 1,
+                        current_step,
                         current_retry,
                         'completion_error',
                         time_usage,
                         token_usage=token_usage,
                         error=repr(e)
                     ))
-                    logger.exception(f'Streaming completion failure at step {current_step + 1}: {e}')
+                    logger.exception(f'Streaming completion failure at step {current_step}: {e}')
                     if current_retry < config.COMPLETION_MAX_RETRIES:
                         current_retry += 1
+                        current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer('', current_step + 1 >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
                     raise
 
                 tool_calls = []
@@ -304,26 +349,27 @@ class StreamingChat(BasicChat):
                         raise AssertionError('Cannot deal with invalid response')
                     time_usage = time.time() - time_begin
                     completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
-                        current_step + 1,
+                        current_step,
                         current_retry,
                         'completion_error',
                         time_usage,
                         token_usage=token_usage,
                         error=repr(e)
                     ))
-                    logger.exception(f'Streaming completion chunk failure at step {current_step + 1}: {e}')
+                    logger.exception(f'Streaming completion chunk failure at step {current_step}: {e}')
                     if current_retry < config.COMPLETION_MAX_RETRIES:
                         current_retry += 1
+                        current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer('', current_step + 1 >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
                     raise
 
                 if not tool_calls and not content:
                     time_usage = time.time() - time_begin
                     completion_retries.append({
                         **StreamingCompletionUtils.build_completion_retry_entry(
-                            current_step + 1,
+                            current_step,
                             current_retry,
                             'empty_visible_output',
                             time_usage,
@@ -337,31 +383,60 @@ class StreamingChat(BasicChat):
                             model,
                             session_uuid,
                             context.get('project_uuid'),
-                            current_step + 1,
+                            current_step,
                             current_retry,
                             config.COMPLETION_MAX_RETRIES,
                             json.dumps(list(recent_chunks), ensure_ascii=True, default=str)
                         )
                     if current_retry < config.COMPLETION_MAX_RETRIES:
                         current_retry += 1
+                        current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
                     tool_executor.thought_process.set_final_answer(
                         '',
-                        current_step + 1 >= config.MAX_STEPS,
+                        current_step >= config.MAX_STEPS,
                         token_usage,
                         time_usage,
                         retry=completion_retries
                     )
                     raise AssertionError(
                         'Streaming completion returned no visible output after retries. '
-                        f'step={current_step + 1} retries={current_retry}/{config.COMPLETION_MAX_RETRIES} '
+                        f'step={current_step} retries={current_retry}/{config.COMPLETION_MAX_RETRIES} '
                     )
 
-                current_retry = 0
-                current_step += 1
                 # action step
                 if tool_calls:
+                    if current_step >= config.MAX_STEPS:
+                        time_usage = time.time() - time_begin
+                        completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
+                            current_step,
+                            current_retry,
+                            'tool_calls_at_max_steps',
+                            time_usage,
+                            token_usage=token_usage,
+                            error='Invalid response: cannot return tool_calls at max steps'
+                        ))
+                        logger.warning(
+                            'Streaming completion returned tool_calls at max steps. model=%s session_uuid=%s project_uuid=%s step=%s retry=%s max_retries=%s max_steps=%s tool_calls=%s recent_chunks=%s',
+                            model,
+                            session_uuid,
+                            context.get('project_uuid'),
+                            current_step,
+                            current_retry,
+                            config.COMPLETION_MAX_RETRIES,
+                            config.MAX_STEPS,
+                            json.dumps(tool_calls, ensure_ascii=True, default=str),
+                            json.dumps(list(recent_chunks), ensure_ascii=True, default=str)
+                        )
+                        if current_retry < config.COMPLETION_MAX_RETRIES:
+                            current_retry += 1
+                            current_step -= 1
+                            time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                            continue
+                        tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                        raise AssertionError('Invalid response: cannot return tool_calls at max steps')
+                    current_retry = 0
                     has_search_tool = False
 
                     memory += {
@@ -394,6 +469,7 @@ class StreamingChat(BasicChat):
 
                 # final answer
                 else:
+                    current_retry = 0
                     tool_executor.thought_process.set_final_answer(
                         content,
                         current_step >= config.MAX_STEPS,
