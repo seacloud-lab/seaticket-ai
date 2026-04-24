@@ -13,12 +13,16 @@ from seaqa_ai.agent.tools.discourse_tools import DISCOURSE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
-from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, MAX_COMMENT_CHARS
+from seaqa_ai.agent.utils.constants import (
+    MAX_CONTENT_CHARS,
+    MAX_COMMENT_CHARS,
+    SourceType,
+    DataEventType,
+)
 from seaqa_ai.agent.system_prompt import (
     DISCOURSE_ANALYSIS_SYSTEM_PROMPT,
     DISCOURSE_HANDLING_SYSTEM_PROMPT,
 )
-from seaqa_ai.agent.utils.constants import SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -66,17 +70,21 @@ class DiscourseAgent(ConnectionAgent):
         topic_content = ''
         topic_author = 'N/A'
         formatted_replies = []
+        new_reply_post_numbers = self._collect_new_reply_post_numbers()
         if replies:
             first_post = replies[0]
             topic_author = first_post.get('author', 'N/A')
             topic_content = (first_post.get('content') or '').strip()[:MAX_CONTENT_CHARS]
 
             for r in replies[1:][-10:]:
-                formatted_replies.append({
+                entry = {
                     'author': r.get('author', '?'),
                     'modified_time': r.get('modified_time', '?'),
                     'content': (r.get('content') or '').strip()[:MAX_COMMENT_CHARS],
-                })
+                }
+                if new_reply_post_numbers and r.get('post_number') in new_reply_post_numbers:
+                    entry['is_new_reply'] = True
+                formatted_replies.append(entry)
 
         message_dict = {
             'source_id': source_id,
@@ -97,6 +105,33 @@ class DiscourseAgent(ConnectionAgent):
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
 
     # ── Discourse-specific helpers ──────────────────────────────────
+
+    def _is_reply_only_trigger(self) -> bool:
+        event_types = {e.get('type') for e in (self.events or []) if isinstance(e, dict)}
+        return (
+            DataEventType.DISCOURSE_TOPIC_REPLY_ADDED.value in event_types
+            and DataEventType.DISCOURSE_TOPIC_ADDED.value not in event_types
+        )
+
+    def _collect_new_reply_post_numbers(self) -> set:
+        if not self._is_reply_only_trigger():
+            return set()
+
+        new_reply_post_numbers = set()
+        for e in (self.events or []):
+            if not isinstance(e, dict):
+                continue
+            if e.get('type') != DataEventType.DISCOURSE_TOPIC_REPLY_ADDED.value:
+                continue
+            replies = ((e.get('new_value') or {}).get('replies') or [])
+            for r in replies:
+                if not isinstance(r, dict):
+                    continue
+                post_number = r.get('post_number')
+                if post_number is None:
+                    continue
+                new_reply_post_numbers.add(post_number)
+        return new_reply_post_numbers
 
     def _build_topic_url(self, item: dict) -> str:
         slug = item.get('slug')

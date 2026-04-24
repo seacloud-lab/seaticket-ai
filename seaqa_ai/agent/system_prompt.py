@@ -270,7 +270,8 @@ The topic is provided as a JSON object with the following fields:
 - url: link to the current topic page
 - linked_ticket: ticket link if any
 - content: topic body content (first post)
-- recent_replies: array of recent replies with author, modified_time, content"""
+- recent_replies: array of recent replies with author, modified_time, content.
+  A reply may carry is_new_reply: true — these are the newly arrived reply/replies that triggered this run. When any reply is marked this way, treat them as the primary subject of the handling opinion; the topic body and older replies are context only."""
 
 DISCOURSE_ANALYSIS_SYSTEM_PROMPT = f"""{_DISCOURSE_INTRO}
 
@@ -315,6 +316,8 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
+- If any reply in recent_replies has is_new_reply: true, your handling opinion must focus on those new replies specifically, not the whole topic history.
+- When is_new_reply: true is present, prefer suggest_resolution (written as a direct reply to those new reply authors); only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
 """
 
 

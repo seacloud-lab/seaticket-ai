@@ -223,9 +223,7 @@ class AgentManager:
         """Return True for events that carry no signal worth enqueuing an agent run.
 
         Currently covers github_issue_comment_added events whose new_value.comments
-        are all authored by '*[bot]' accounts (GitHub App convention). This avoids
-        a self-loop where the agent's own reply, once synced back from GitHub by
-        the indexer, would trigger another agent run.
+        are all authored by '*[bot]' accounts (GitHub App convention).
 
         Events that mix bot and human authors in a single new_value.comments list
         are NOT filtered here; they are forwarded so that GithubIssueAgent can

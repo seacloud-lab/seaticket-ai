@@ -118,16 +118,8 @@ class GithubIssueAgent(ConnectionAgent):
     def _collect_new_comment_ids(self) -> set:
         """Return the set of comment_ids that should be marked is_new_comment=True.
 
-        Only meaningful when the current run is triggered purely by
-        github_issue_comment_added events (i.e. not accompanied by
-        github_issue_added): in that case we want the LLM to focus handling
-        on the newly arrived comment(s) rather than on the whole issue.
-
-        Self-loop protection: any comment whose author login ends with '[bot]'
-        is filtered out. GitHub Apps (including the one used by this agent to
-        post replies back, as well as dependabot / github-actions / etc.) are
-        rendered by the GitHub API as '<app-slug>[bot]', so replying to them
-        is almost always a mistake.
+        Any comment whose author login ends with '[bot]' (GitHub App convention)
+        is filtered out.
         """
         if not self._is_comment_only_trigger():
             return set()
