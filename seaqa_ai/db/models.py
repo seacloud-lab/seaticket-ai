@@ -212,6 +212,26 @@ class ProjectConnection(Base):
             logger.exception(f'Failed to query connection ids for project {project_uuid}: {e}')
             return []
 
+    @classmethod
+    def get_connections_by_ids(cls, session, project_uuid: str, connection_ids: list) -> list[dict]:
+        """Query active connections for a project filtered by specific IDs."""
+        if not connection_ids:
+            return []
+        try:
+            connections_query = session.query(cls.id, cls.type, cls.name).filter(
+                cls.project_uuid == project_uuid,
+                cls.id.in_(connection_ids),
+                cls.deleted == 0,
+                cls.is_active == 1,
+            )
+            return [
+                {'id': conn[0], 'type': conn[1], 'name': conn[2]}
+                for conn in connections_query
+            ]
+        except Exception as e:
+            logger.exception(f'Failed to query connections by ids for project {project_uuid}: {e}')
+            return []
+
 class ProfileProfile(Base):
     __tablename__ = 'profile_profile'
 
