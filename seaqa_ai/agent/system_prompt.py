@@ -338,7 +338,8 @@ The email thread is provided as a JSON object with the following fields:
 - unread: whether the thread is currently unread
 - modified_time: last modification time of the thread
 - linked_ticket: ticket link if any
-- recent_emails: array of recent emails with email_from, email_to, cc, modified_time, is_sender, content"""
+- recent_emails: array of recent emails with email_from, email_to, cc, modified_time, is_sender, content. These provide the recent conversation context on this thread.
+- new_emails: array of emails that newly arrived and triggered this run, using the same entry shape as recent_emails. May be empty. When non-empty, these are the emails the handling opinion MUST address; recent_emails and first_email serve as context only."""
 
 EMAIL_ANALYSIS_SYSTEM_PROMPT = f"""{_EMAIL_INTRO}
 
@@ -385,4 +386,6 @@ Rules:
 - The reply email should follow standard email format with appropriate greeting, body, and closing.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
+- If new_emails is non-empty, your handling opinion MUST directly answer the email(s) in new_emails — do not produce a generic summary of the whole thread. Treat recent_emails and first_email as background context only.
+- When new_emails is non-empty, prefer suggest_resolution written as a direct reply to the senders of those new emails; only call suggest_create_ticket if a new email clearly raises an independent new problem that is not covered by the existing thread.
 """
