@@ -14,7 +14,7 @@ from seaqa_ai.agent.system_prompt import (
     EMAIL_ANALYSIS_SYSTEM_PROMPT,
     EMAIL_HANDLING_SYSTEM_PROMPT,
 )
-from seaqa_ai.agent.utils.constants import MAX_COMMENT_CHARS, SourceType
+from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, SourceType, DataEventType
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 
@@ -62,27 +62,22 @@ class EmailAgent(ConnectionAgent):
         source_id = f'{self.connection_id}_{item["_pk"]}'
 
         emails = item_context.get('emails', [])
-        formatted_emails = []
-        
+        recent_emails = []
+        new_emails = []
+        new_email_message_ids = self._collect_new_email_message_ids()
+
         first_email = emails[0] if emails else {}
-        first_email_content = (first_email.get('content') or '').strip()[:MAX_COMMENT_CHARS]
+        first_email_content = (first_email.get('content') or '').strip()[:MAX_CONTENT_CHARS]
 
         for email in emails[-10:]:
-            content = (email.get('content') or '').strip()[:MAX_COMMENT_CHARS]
-            is_sender = bool(email.get('is_sender'))
-            email_from = email.get('email_from', '')
-            email_to = email.get('email_to', '')
-            cc = email.get('cc', '')
-            modified_time = email.get('modified_time', 'N/A')
+            recent_emails.append(self._format_email_entry(email))
 
-            formatted_emails.append({
-                'email_from': email_from,
-                'email_to': email_to,
-                'cc': cc,
-                'modified_time': modified_time,
-                'is_sender': is_sender,
-                'content': content,
-            })
+        if new_email_message_ids:
+            new_emails = [
+                self._format_email_entry(email)
+                for email in emails
+                if email.get('message_id') in new_email_message_ids
+            ]
 
         message_dict = {
             'source_id': source_id,
@@ -98,10 +93,49 @@ class EmailAgent(ConnectionAgent):
             'unread': item.get('unread', False),
             'modified_time': item.get('modified_time', 'N/A'),
             'linked_ticket': item.get('linked_ticket', 'N/A'),
-            'recent_emails': formatted_emails,
+            'recent_emails': recent_emails,
+            'new_emails': new_emails,
         }
 
         return json.dumps(message_dict, ensure_ascii=False, indent=2)
+
+    @staticmethod
+    def _format_email_entry(email: dict) -> dict:
+        return {
+            'email_from': email.get('email_from', ''),
+            'email_to': email.get('email_to', ''),
+            'cc': email.get('cc', ''),
+            'modified_time': email.get('modified_time', 'N/A'),
+            'is_sender': bool(email.get('is_sender')),
+            'content': (email.get('content') or '').strip()[:MAX_CONTENT_CHARS],
+        }
+
+    def _is_message_only_trigger(self) -> bool:
+        event_types = {e.get('type') for e in (self.events or []) if isinstance(e, dict)}
+        return (
+            DataEventType.EMAIL_MESSAGE_ADDED.value in event_types
+            and DataEventType.EMAIL_THREAD_ADDED.value not in event_types
+        )
+
+    def _collect_new_email_message_ids(self) -> set:
+        if not self._is_message_only_trigger():
+            return set()
+
+        new_email_message_ids = set()
+        for e in (self.events or []):
+            if not isinstance(e, dict):
+                continue
+            if e.get('type') != DataEventType.EMAIL_MESSAGE_ADDED.value:
+                continue
+            emails = ((e.get('new_value') or {}).get('emails') or [])
+            for email in emails:
+                if not isinstance(email, dict):
+                    continue
+                message_id = email.get('message_id')
+                if message_id is None:
+                    continue
+                new_email_message_ids.add(message_id)
+        return new_email_message_ids
 
     def _get_thread_emails(self, thread: dict) -> list[dict]:
         thread_id = thread.get('_pk')
