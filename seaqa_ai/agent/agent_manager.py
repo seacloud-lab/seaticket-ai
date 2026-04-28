@@ -30,6 +30,7 @@ class PendingTaskState:
     connection_id: int | None
     events: list = field(default_factory=list)
     last_enqueue_time: float = 0.0
+    not_before: float = 0.0  # Earliest time this record can be enqueued (for ticket delay)
 
 
 class AgentManager:
@@ -48,6 +49,7 @@ class AgentManager:
         self._debounce_interval = 10 * 60 # 10 minutes
         self._due_soon_scan_interval = 1 * 60 * 60 # 1 hour
         self._min_scan_interval_hours = 24 # skip project if scanned within last 24 hours
+        self._ticket_delay_seconds = 5 * 60 # 5 minutes delay for ticket events before first enqueue
 
     def start(self):
         if not self.mq:
@@ -262,11 +264,14 @@ class AgentManager:
 
         state = self.pending_tasks.get(key)
         if state is None:
+            # For tickets, delay first enqueue to allow absorbing consecutive edits (e.g., modify then close)
+            not_before = now_time + self._ticket_delay_seconds if source_type == SourceType.TICKET.value else 0.0
             state = PendingTaskState(
                 project_uuid=project_uuid,
                 source_type=source_type,
                 record_id=record_id,
                 connection_id=connection_id,
+                not_before=not_before,
             )
             self.pending_tasks[key] = state
 
@@ -290,6 +295,8 @@ class AgentManager:
     def _can_enqueue(self, state: PendingTaskState, now_time: float) -> bool:
         # Only enqueue when there is at least one new event since the last enqueue and the debounce interval has passed
         if not state.events:
+            return False
+        if now_time < state.not_before:
             return False
         return (now_time - state.last_enqueue_time) >= self._debounce_interval
 
