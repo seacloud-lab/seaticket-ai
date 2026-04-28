@@ -7,15 +7,17 @@ class OpenAIMemory:
     """
     SeaQA - AI History Memory (ask mode), iterable
     """
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
+    def __init__(self, system_prompts):
+        if isinstance(system_prompts, str):
+            system_prompts = [{
+                'role': 'system',
+                'content': system_prompts
+            }]
+        self.system_prompts = [dict(prompt) for prompt in system_prompts]
         self.reset_steps()
 
     def reset_steps(self):
-        self.steps = [{
-            'role': 'system',
-            'content': self.system_prompt
-        }]
+        self.steps = [dict(prompt) for prompt in self.system_prompts]
 
     @property
     def context_thought_process(self):
@@ -80,8 +82,8 @@ class OpenAIMemory:
                 }
             yield new_step
 
-def build_memory_from_db(db_session_class, system_prompt, session_uuid, window_limit, valid_time, message_model):
-    memory = OpenAIMemory(system_prompt)
+def build_memory_from_db(db_session_class, system_prompts, session_uuid, window_limit, valid_time, message_model):
+    memory = OpenAIMemory(system_prompts)
     if not session_uuid:
         return memory
 
@@ -117,4 +119,3 @@ def build_memory_from_db(db_session_class, system_prompt, session_uuid, window_l
             memory += record.to_dict()
 
     return memory
-

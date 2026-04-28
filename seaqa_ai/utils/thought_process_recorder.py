@@ -28,9 +28,12 @@ class ThoughtProcessRecorder(object):
             retry_tokens_usage = self._sum_token_usage(retry_tokens_usage, retry.get('token_usage', {}))
         return retry_tokens_usage
 
-    def set_task(self, system_prompt, user_raw_input, user_message, attachments):
+    def set_task(self, system_prompts_messages, user_raw_input, user_message, attachments):
         self.task = {
-            'system_prompt': system_prompt,
+            'system_prompts': [
+                system_prompt_message['content']
+                for system_prompt_message in system_prompts_messages
+            ],
             'user_input': {
                 'raw': user_raw_input,
                 'message': user_message,
@@ -188,10 +191,10 @@ class ThoughtProcessRecorder(object):
             }
         }
 
-        if config.THOUGHT_PROCESS_ENABLE_RECORD_TASKS and (config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPT or config.THOUGHT_PROCESS_RECORD_USER_INPUT):
+        if config.THOUGHT_PROCESS_ENABLE_RECORD_TASKS and (config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS or config.THOUGHT_PROCESS_RECORD_USER_INPUT):
             results['task'] = self.task
-            if not config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPT:
-                del results['task']['system_prompt']
+            if not config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS:
+                del results['task']['system_prompts']
             if not config.THOUGHT_PROCESS_RECORD_USER_INPUT:
                 del results['task']['user_input']
             elif not config.THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:

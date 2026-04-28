@@ -1,10 +1,70 @@
 import logging
 import re
 from copy import deepcopy
+from seaqa_ai.managers.chat_manager.system_prompts import (
+    CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES,
+    CHAT_CONTENT_GENERATION_RULES,
+    CHAT_CORE_PROMPT,
+    CHAT_GLOBAL_TOOL_RULES,
+    CHAT_OUTPUT_FORMAT_RULES,
+    CHAT_SEARCH_TOOLS_EXAMPLES,
+    CHAT_SEARCH_POLICY,
+    CHAT_SEARCH_REFERENCE_RULES,
+)
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 
 logger = logging.getLogger(__name__)
+
+def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
+    tool_prompt_sections = [
+        CHAT_GLOBAL_TOOL_RULES,
+        CHAT_SEARCH_POLICY,
+        CHAT_SEARCH_REFERENCE_RULES,
+    ]
+
+    if not skip_tool_examples:
+        tool_prompt_sections.append(CHAT_SEARCH_TOOLS_EXAMPLES)
+
+    if not is_external_portal:
+        tool_prompt_sections.append(CHAT_CONTENT_GENERATION_RULES)
+        if not skip_tool_examples:
+            tool_prompt_sections.append(CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES)
+
+    return '\n\n'.join(tool_prompt_sections)
+
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
+    tool_prompt = build_chat_tool_prompt(
+        is_external_portal=is_external_portal,
+        skip_tool_examples=skip_tool_examples,
+    )
+
+    prompts = [
+        {
+            'role': 'system',
+            'content': CHAT_CORE_PROMPT,
+        },
+        {
+            'role': 'system',
+            'content': tool_prompt,
+        },
+        {
+            'role': 'system',
+            'content': CHAT_OUTPUT_FORMAT_RULES,
+        },
+    ]
+
+    if project_prompt and project_prompt.strip():
+        prompts.append({
+            'role': 'system',
+            'content': (
+                'Project-specific context and preferences:\n'
+                f'{project_prompt}\n\n'
+                'Use this context only when it does not conflict with higher-priority system rules.'
+            )
+        })
+
+    return prompts
 
 def combine_attachments_to_message(attachments, message):
     document_attachments = []

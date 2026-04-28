@@ -5,7 +5,7 @@ from collections import deque
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
-from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, build_system_prompt
+from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
@@ -14,9 +14,9 @@ from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionU
 from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
-from seaqa_ai.managers.chat_manager.system_prompt import SYSTEM_PROMPT
+from seaqa_ai.managers.chat_manager.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.managers.chat_manager.utils import get_answer_and_sources, combine_attachments_to_message, \
-    strip_content_details_from_attachments
+    strip_content_details_from_attachments, build_chat_system_prompts
 from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -90,20 +90,23 @@ class SyncChat(BasicChat):
         llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
         context=kwargs.get('context')
         
-        system_prompt = build_system_prompt(SYSTEM_PROMPT, project_prompt)
+        system_prompts = build_chat_system_prompts(
+            project_prompt=project_prompt,
+            is_external_portal=context.get('is_external_portal', False),
+        )
         
         if session_uuid and not config.DISABLE_CONTEXT:
             try:
                 message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
-                memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
+                memory = build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
             except Exception as e:
                 logger.warning(f'Failure to build context: {e}')
-                memory = OpenAIMemory(system_prompt)
+                memory = OpenAIMemory(system_prompts)
         else:
-            memory = OpenAIMemory(system_prompt)
+            memory = OpenAIMemory(system_prompts)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
-        tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, strip_content_details_from_attachments(attachments))
+        tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
         tool_executor.thought_process.context = memory.context_thought_process
 
         memory += {
@@ -112,6 +115,7 @@ class SyncChat(BasicChat):
         }
 
         current_step = 0
+        has_inserter_max_step_prompt = False
         while current_step < config.MAX_STEPS:
             current_step += 1
             response = None
@@ -132,7 +136,14 @@ class SyncChat(BasicChat):
                     if current_step < config.MAX_STEPS:
                         completion_kwargs['tools'] = tool_executor.get()
                     else:
+                        if not has_inserter_max_step_prompt:
+                            memory += {
+                                'role': 'system',
+                                'content': MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
+                            }
+                            has_inserter_max_step_prompt = True
                         completion_kwargs['tool_choice'] = 'none'
+                    completion_kwargs['messages'] = memory
 
                     response = llm_client.completion(
                         **completion_kwargs
@@ -235,20 +246,23 @@ class StreamingChat(BasicChat):
             llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
             yield SSE.status('Preparing', 'Initializing user input')
             
-            system_prompt = build_system_prompt(SYSTEM_PROMPT, project_prompt)
+            system_prompts = build_chat_system_prompts(
+                project_prompt=project_prompt,
+                is_external_portal=context.get('is_external_portal', False),
+            )
             
             if session_uuid and not config.DISABLE_CONTEXT:
                 try:
                     message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
-                    memory = build_memory_from_db(self.db_session_class, system_prompt, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
+                    memory = build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
                 except Exception as e:
                     logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(system_prompt)
+                    memory = OpenAIMemory(system_prompts)
             else:
-                memory = OpenAIMemory(system_prompt)
+                memory = OpenAIMemory(system_prompts)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            tool_executor.thought_process.set_task(system_prompt, user_raw_message, message, strip_content_details_from_attachments(attachments))
+            tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 
             memory += {
@@ -259,6 +273,7 @@ class StreamingChat(BasicChat):
             current_step = 0
             current_retry = 0
             completion_retries = []
+            has_inserter_max_step_prompt = False
             while current_step < config.MAX_STEPS:
                 current_step += 1
                 detail = f'step {current_step}'
@@ -269,7 +284,6 @@ class StreamingChat(BasicChat):
                 token_usage = {}
                 try:
                     completion_kwargs = {
-                        'messages': memory,
                         'context': context,
                         'stream': True,
                         'stream_options': {
@@ -280,8 +294,15 @@ class StreamingChat(BasicChat):
                     if current_step < config.MAX_STEPS:
                         completion_kwargs['tools'] = tool_executor.get()
                     else:
+                        if not has_inserter_max_step_prompt:
+                            memory += {
+                                'role': 'system',
+                                'content': MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
+                            }
+                            has_inserter_max_step_prompt = True
                         completion_kwargs['tool_choice'] = 'none'
 
+                    completion_kwargs['messages'] = memory
                     response = llm_client.completion(**completion_kwargs)
                 except Exception as e:
                     time_usage = time.time() - time_begin
