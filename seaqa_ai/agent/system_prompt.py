@@ -302,7 +302,30 @@ The input JSON now includes:
 - search_results: evidence gathered from searches (if any)
 - analysis_summary: the recorded analysis including classification and recommended action
 
-Based on the analysis, suggest the appropriate next action:
+## Participant roles in a Discourse topic
+
+A Discourse topic is a multi-party conversation. Participants fall into roles:
+- "asker": the topic author. They opened the topic with a question / problem / request.
+- "responder": anyone else replying in the topic. This includes community staff / maintainers AND other community members. The input does NOT explicitly mark who is staff, so you must infer from the content and tone of each reply:
+  - A reply that explains, instructs, gives a workaround, points to docs, or otherwise tries to resolve the asker's problem is a "responder-answering" reply. In an established project forum, such replies are most likely from staff / maintainers.
+  - A reply that asks a follow-up question, reports the same problem, or seeks clarification is a "user-style" reply, even if the author is not the original asker.
+
+## Skip rule (IMPORTANT)
+
+You should NOT generate a public-facing reply when the conversation is already being handled by community staff / maintainers. Concretely:
+
+- Look at `new_replies`. Identify its LAST entry (the most recent one) — this is the trigger for the current run.
+- Decide the role of that last reply:
+  - If its author opened the topic → role = "asker".
+  - Else if it reads as a "responder-answering" reply (explains / instructs / resolves) → role = "staff_like".
+  - Else (another user asking / clarifying) → role = "other_user".
+- Decision:
+  - If role = "staff_like" AND that reply is plausibly addressing the asker's question (not raising a brand-new unrelated problem) → SKIP. Do NOT call suggest_resolution or suggest_create_ticket. Go straight to final_answer and explain that a community responder appears to already be handling the topic, so no agent reply is needed.
+  - Otherwise (role = "asker" or "other_user", i.e. the latest message is still a question / follow-up that needs an answer) → proceed normally with the handling actions below.
+
+When in doubt about whether a reply is "staff_like" vs "other_user", lean toward NOT skipping (i.e. still produce a suggestion), because missing a useful answer is worse than producing one that humans can discard.
+
+## Handling actions (only when not skipping)
 
 1. {_HANDLING_ACTIONS}
 
@@ -316,8 +339,9 @@ Rules:
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
-- If new_replies is non-empty, your handling opinion MUST directly answer the reply/replies in new_replies — do not produce a generic summary of the whole topic. Treat recent_replies and the topic body as background context only.
-- When new_replies is non-empty, prefer suggest_resolution written as a direct reply to the authors of those new replies; only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
+- If new_replies is non-empty AND the skip rule above does not apply, your handling opinion MUST directly answer the reply/replies in new_replies — do not produce a generic summary of the whole topic. Treat recent_replies and the topic body as background context only.
+- When new_replies is non-empty AND not skipped, prefer suggest_resolution written as a direct reply to the asker (or to whoever raised the latest question); only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
+- When the skip rule applies, your final_answer MUST clearly state: which reply triggered the skip, who its author is, and why it looks like a community responder is already handling the question.
 """
 
 
