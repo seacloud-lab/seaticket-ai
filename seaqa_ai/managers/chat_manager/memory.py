@@ -1,6 +1,6 @@
 from sqlalchemy import desc
 from datetime import datetime, timedelta
-from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT_RAW, THOUGHT_PROCESS_RECORD_USER_INPUT
+from seaqa_ai.config import RUN_TRACE_RECORD_USER_INPUT_RAW, RUN_TRACE_RECORD_USER_INPUT
 from seaqa_ai.managers.chat_manager.utils import combine_attachments_to_message, retrieve_origin_reference_format
 
 class OpenAIMemory:
@@ -20,7 +20,7 @@ class OpenAIMemory:
         self.steps = [dict(prompt) for prompt in self.system_prompts]
 
     @property
-    def context_thought_process(self):
+    def context_run_trace(self):
         results = []
 
         for step in self.steps[1:]:
@@ -52,12 +52,12 @@ class OpenAIMemory:
                     'date': step['created_at'],
                     'assistant_response': []
                 }
-                if THOUGHT_PROCESS_RECORD_USER_INPUT:
+                if RUN_TRACE_RECORD_USER_INPUT:
                     result_of_a_step['user_input'] = {
                         'attachments': step['attachments'],
                         'message': step['content']
                     }
-                    if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+                    if RUN_TRACE_RECORD_USER_INPUT_RAW:
                         result_of_a_step['user_input']['raw'] = combine_attachments_to_message(step['attachments'], step['content'])
                 results.append(result_of_a_step)
         return results

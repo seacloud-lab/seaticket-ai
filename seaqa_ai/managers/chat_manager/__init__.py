@@ -106,8 +106,9 @@ class SyncChat(BasicChat):
             memory = OpenAIMemory(system_prompts)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
-        tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
-        tool_executor.thought_process.context = memory.context_thought_process
+
+        tool_executor.run_trace.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
+        tool_executor.run_trace.context = memory.context_run_trace
 
         memory += {
             'role': 'user', 
@@ -174,7 +175,7 @@ class SyncChat(BasicChat):
                         if current_retry < config.COMPLETION_MAX_RETRIES:
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
-                        tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
+                        tool_executor.run_trace.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
                         raise AssertionError('Invalid response: cannot return tool_calls at max steps')
                     break
                 except AssertionError:
@@ -193,7 +194,7 @@ class SyncChat(BasicChat):
                     if current_retry < config.COMPLETION_MAX_RETRIES:
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
+                    tool_executor.run_trace.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
 
             if llm_message is None:
                 raise AssertionError('Invalid AI responses')
@@ -204,18 +205,18 @@ class SyncChat(BasicChat):
                     'role': 'assistant',
                     'tool_calls': llm_message.tool_calls
                 }
-                tool_executor.thought_process.add_tool_calls_group()
+                tool_executor.run_trace.add_tool_calls_group()
                 if completion_retries:
-                    tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
+                    tool_executor.run_trace.set_last_group_completion_retry(completion_retries)
                 for tool_call in llm_message.tool_calls:
                     BasicCompletionUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
-                tool_executor.thought_process.update_last_group_tokens_usage(BasicCompletionUtils.get_response_token_usage(response))
-                tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
+                tool_executor.run_trace.update_last_group_tokens_usage(BasicCompletionUtils.get_response_token_usage(response))
+                tool_executor.run_trace.set_last_group_time_usage(time.time() - time_begin)
 
             # final answer
             else:
                 content = llm_message.content
-                tool_executor.thought_process.set_final_answer(
+                tool_executor.run_trace.set_final_answer(
                     content,
                     current_step >= config.MAX_STEPS,
                     BasicCompletionUtils.get_response_token_usage(response),
@@ -230,9 +231,11 @@ class SyncChat(BasicChat):
                     answer = remove_reference_markers(answer)
                     sources = []
 
+                run_trace = {} if context.get('is_external_portal') else tool_executor.run_trace.details
                 return {
                     'answer': answer,
-                    'thought_process': {} if context.get('is_external_portal') else tool_executor.thought_process.details,
+                    'run_trace': run_trace,
+                    'thought_process': run_trace,
                     'sources': remove_sources_content_and_snippets(sources)
                 }
         raise AssertionError('Invalid AI responses led to unexpected steps.')
@@ -262,8 +265,9 @@ class StreamingChat(BasicChat):
                 memory = OpenAIMemory(system_prompts)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
-            tool_executor.thought_process.context = memory.context_thought_process
+
+            tool_executor.run_trace.set_task(build_chat_system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
+            tool_executor.run_trace.context = memory.context_run_trace
 
             memory += {
                 'role': 'user', 
@@ -320,7 +324,7 @@ class StreamingChat(BasicChat):
                         current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    tool_executor.run_trace.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
                     raise
 
                 tool_calls = []
@@ -397,7 +401,7 @@ class StreamingChat(BasicChat):
                         current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                    tool_executor.run_trace.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
                     raise
 
                 if not tool_calls and not content:
@@ -428,7 +432,7 @@ class StreamingChat(BasicChat):
                         current_step -= 1
                         time.sleep(config.COMPLETION_RETRY_INTERVAL)
                         continue
-                    tool_executor.thought_process.set_final_answer(
+                    tool_executor.run_trace.set_final_answer(
                         '',
                         current_step >= config.MAX_STEPS,
                         token_usage,
@@ -469,7 +473,7 @@ class StreamingChat(BasicChat):
                             current_step -= 1
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
-                        tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
+                        tool_executor.run_trace.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)
                         raise AssertionError('Invalid response: cannot return tool_calls at max steps')
                     current_retry = 0
                     has_search_tool = False
@@ -478,9 +482,9 @@ class StreamingChat(BasicChat):
                         'role': 'assistant',
                         'tool_calls': tool_calls
                     }
-                    tool_executor.thought_process.add_tool_calls_group()
+                    tool_executor.run_trace.add_tool_calls_group()
                     if completion_retries:
-                        tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
+                        tool_executor.run_trace.set_last_group_completion_retry(completion_retries)
                     tool_calls_num = len(tool_calls)
                     for tool_call_id, tool_call in enumerate(tool_calls):
                         tool_name = tool_call['function']['name']
@@ -494,8 +498,8 @@ class StreamingChat(BasicChat):
                             tool_call_id,
                             tool_calls_num,
                         )
-                    tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
-                    tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
+                    tool_executor.run_trace.update_last_group_tokens_usage(token_usage)
+                    tool_executor.run_trace.set_last_group_time_usage(time.time() - time_begin)
                     completion_retries = []
 
                     found_records = len(tool_executor.cache.get('sources_results', []))
@@ -505,7 +509,7 @@ class StreamingChat(BasicChat):
                 # final answer
                 else:
                     current_retry = 0
-                    tool_executor.thought_process.set_final_answer(
+                    tool_executor.run_trace.set_final_answer(
                         content,
                         current_step >= config.MAX_STEPS,
                         token_usage,
@@ -521,16 +525,16 @@ class StreamingChat(BasicChat):
                         answer = remove_reference_markers(answer)
                         sources = []
 
-                    thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
-                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), thought_process)
+                    run_trace = {} if context.get('is_external_portal') else tool_executor.run_trace.details
+                    yield SSE.results(answer, remove_sources_content_and_snippets(sources), run_trace)
                     yield SSE.done()
                     break
         except Exception as e:
             logger.exception(f'Streaming run AI failure: {e}')
             error_msg = repr(e)
             try:
-                thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
-                yield SSE.results('There is an issue with the AI server or web server (LLM or internal server error), please try again later', [], thought_process)
+                run_trace = {} if context.get('is_external_portal') else tool_executor.run_trace.details
+                yield SSE.results('There is an issue with the AI server or web server (LLM or internal server error), please try again later', [], run_trace)
             except:
                 yield SSE.error(error_msg)
             yield SSE.done()

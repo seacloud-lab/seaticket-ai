@@ -48,7 +48,7 @@ class BasicSearchTool(BasicTool):
 
         current_search_results, rerank_token_usage = app.ai_utils.search(query, connections, extra_sources, context, limit, call_back)
 
-        tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
+        tool_executor.run_trace.update_last_group_tokens_usage(rerank_token_usage)
 
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):

@@ -44,8 +44,8 @@ class BasicCompletionUtils:
         for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
             try:
                 tool_output = tool_executor.execute(tool_call, call_backer)
-                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
+                tool_executor.run_trace.append_last_group_tool_retry(retry_errors)
+                tool_executor.run_trace.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                 memory += {
                     'role': 'tool',
                     'tool_call_id': tool_call['id'],
@@ -60,9 +60,9 @@ class BasicCompletionUtils:
                     time.sleep(config.TOOL_CALL_RETRY_INTERVAL)
                     continue
 
-                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
-                tool_executor.thought_process.set_last_group_error({
+                tool_executor.run_trace.append_last_group_tool_retry(retry_errors)
+                tool_executor.run_trace.add_tool_call(tool_name, arguments, call_backer.execution_detail)
+                tool_executor.run_trace.set_last_group_error({
                     'type': 'ToolRetryExceeded',
                     'message': retry_errors[-1]
                 })
@@ -149,8 +149,8 @@ class StreamingCompletionUtils(BasicCompletionUtils):
             yield SSE.status('Calling tools', detail)
             try:
                 tool_output = tool_executor.execute(tool_call, call_backer)
-                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
+                tool_executor.run_trace.append_last_group_tool_retry(retry_errors)
+                tool_executor.run_trace.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                 memory += {
                     'role': 'tool',
                     'tool_call_id': tool_call['id'],
@@ -165,9 +165,9 @@ class StreamingCompletionUtils(BasicCompletionUtils):
                     time.sleep(config.TOOL_CALL_RETRY_INTERVAL)
                     continue
 
-                tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail)
-                tool_executor.thought_process.set_last_group_error({
+                tool_executor.run_trace.append_last_group_tool_retry(retry_errors)
+                tool_executor.run_trace.add_tool_call(tool_name, arguments, call_backer.execution_detail)
+                tool_executor.run_trace.set_last_group_error({
                     'type': 'ToolRetryExceeded',
                     'message': retry_errors[-1]
                 })

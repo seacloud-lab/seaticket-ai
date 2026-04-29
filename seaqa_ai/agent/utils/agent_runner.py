@@ -96,6 +96,17 @@ class AgentRunner:
 
     def run(self, task: str) -> str:
         """Drive the two-phase reasoning loop: analysis then handling."""
+        self.tool_executor.run_trace.set_task(
+            {
+                'analysis': self.analysis_system_prompt,
+                'handling': self.handling_system_prompt,
+            },
+            task,
+            task,
+            {
+                'record_context': self.record_context,
+            }
+        )
         messages = self._build_initial_messages(task)
 
         self._run_analysis_loop(messages)
@@ -261,6 +272,8 @@ class AgentRunner:
             total_chars += content_len
         logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
 
+        tools = []
+        tool_choice = None
         request_kwargs = {
             'messages': messages,
             'context': self.ai_stats_context,
@@ -270,19 +283,49 @@ class AgentRunner:
                 tools = self._get_analysis_tools()
             else:
                 tools = self._get_handling_tools()
+            tool_choice = 'auto'
 
             request_kwargs.update({
                 'tools': tools,
-                'tool_choice': 'auto',
+                'tool_choice': tool_choice,
             })
 
         llm_start = time.monotonic()
+        call_id = self.tool_executor.run_trace.add_llm_call(
+            phase=phase,
+            step=step,
+            messages=messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            metadata={
+                'message_count': len(messages),
+                'total_chars': total_chars,
+                'estimated_tokens': total_chars // 4,
+            }
+        )
         try:
             response = self.llm_client.completion(**request_kwargs)
-            return response.choices[0].message, self._extract_usage(response)
+            message = response.choices[0].message
+            usage = self._extract_usage(response)
+            self.tool_executor.run_trace.set_llm_call_response(
+                call_id,
+                response=self._build_llm_response_trace(message),
+                token_usage=usage,
+                time_usage=time.monotonic() - llm_start,
+            )
+            return message, usage
         except Exception as e:
             duration_ms = int((time.monotonic() - llm_start) * 1000)
             logger.exception(f'LLM call failed at {phase} step {step}: {e}')
+            self.tool_executor.run_trace.set_llm_call_response(
+                call_id,
+                token_usage={},
+                time_usage=time.monotonic() - llm_start,
+                error={
+                    'type': type(e).__name__,
+                    'message': str(e),
+                }
+            )
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=None,
@@ -313,6 +356,7 @@ class AgentRunner:
             messages=messages,
             tool_name='think',
             step=step,
+            phase=phase,
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
         )
 
@@ -326,6 +370,7 @@ class AgentRunner:
             messages=messages,
             tool_name=tool_name,
             step=self.max_analysis_steps,
+            phase='analysis',
             system_content=FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
         )
     
@@ -334,6 +379,7 @@ class AgentRunner:
             messages=messages,
             tool_name=self.HANDLING_TERMINATOR,
             step=self.max_handling_steps,
+            phase='handling',
             system_content=FORCED_FINAL_ANSWER_PROMPT,
         )
 
@@ -342,6 +388,7 @@ class AgentRunner:
         messages: list[dict],
         tool_name: str,
         step: int,
+        phase: str,
         system_content: str,
     ):
         tool = self._get_registered_tool_by_name(tool_name)
@@ -366,13 +413,41 @@ class AgentRunner:
             },
         }
         step_start = time.monotonic()
+        call_id = self.tool_executor.run_trace.add_llm_call(
+            phase=phase,
+            step=step,
+            messages=forced_messages,
+            tools=[tool],
+            tool_choice=completion_kwargs['tool_choice'],
+            metadata={
+                'forced': True,
+                'forced_tool_name': tool_name,
+                'message_count': len(forced_messages),
+                'total_chars': sum(len(str(m.get('content') or '')) for m in forced_messages),
+            }
+        )
         try:
             response = self.llm_client.completion(**completion_kwargs)
             message = response.choices[0].message
             usage = self._extract_usage(response)
+            self.tool_executor.run_trace.set_llm_call_response(
+                call_id,
+                response=self._build_llm_response_trace(message),
+                token_usage=usage,
+                time_usage=time.monotonic() - step_start,
+            )
         except Exception as e:
             duration_ms = int((time.monotonic() - step_start) * 1000)
             logger.exception(f'Forced {tool_name} call failed at step {step}: {e}')
+            self.tool_executor.run_trace.set_llm_call_response(
+                call_id,
+                token_usage={},
+                time_usage=time.monotonic() - step_start,
+                error={
+                    'type': type(e).__name__,
+                    'message': str(e),
+                }
+            )
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=tool_name,
@@ -472,6 +547,23 @@ class AgentRunner:
         return msg_dict
 
     @staticmethod
+    def _build_llm_response_trace(message: Message | None) -> dict | None:
+        if message is None:
+            return None
+        msg_dict = {'role': 'assistant', 'content': message.content or ''}
+        tool_calls = getattr(message, 'tool_calls', None)
+        if tool_calls:
+            msg_dict['tool_calls'] = [{
+                'id': getattr(tool_call, 'id', ''),
+                'type': getattr(tool_call, 'type', 'function'),
+                'function': {
+                    'name': getattr(tool_call.function, 'name', ''),
+                    'arguments': getattr(tool_call.function, 'arguments', ''),
+                }
+            } for tool_call in tool_calls]
+        return msg_dict
+
+    @staticmethod
     def _extract_usage(response) -> dict:
         try:
             usage = response.usage
@@ -553,7 +645,7 @@ class AgentRunner:
             return None
 
         logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
-        self.tool_executor.thought_process.add_tool_calls_group()
+        self.tool_executor.run_trace.add_tool_calls_group()
         try:
             result = self.tool_executor.execute(tool_call)
             if result is None:
@@ -585,8 +677,8 @@ class AgentRunner:
                 )
         finally:
             tool_token_usage = {}
-            if self.tool_executor.thought_process.actions:
-                last_group = self.tool_executor.thought_process.actions.pop()
+            if self.tool_executor.run_trace.actions:
+                last_group = self.tool_executor.run_trace.actions.pop()
                 tool_token_usage = last_group.get('token_usage', {})
         logger.debug(f'Observation: {observation}')
 
@@ -595,6 +687,13 @@ class AgentRunner:
             self._record_tool_action(tool_name, arguments, observation, is_final_answer, statistics=statistics)
 
         if is_final_answer:
+            summary = arguments.get('summary') or arguments.get('answer') or observation
+            self.tool_executor.run_trace.set_final_answer(
+                summary,
+                False,
+                usage or {},
+                time.monotonic() - step_start if step_start is not None else 0,
+            )
             return observation
 
         messages.append({

@@ -34,12 +34,13 @@ class SSE:
             })
     
     @staticmethod
-    def results(answer, sources, thought_process):
+    def results(answer, sources, run_trace):
         return SSE.data({
             'results': {
                 'answer': answer,
                 'sources': sources,
-                'thought_process': thought_process
+                'run_trace': run_trace,
+                'thought_process': run_trace
             }
         })
     

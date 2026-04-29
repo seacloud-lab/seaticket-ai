@@ -1,12 +1,15 @@
 import logging
+import json
 from seaqa_ai import config
 from seaqa_ai.utils import object_to_json_str
 
 logger = logging.getLogger(__name__)
 
-class ThoughtProcessRecorder(object):
+
+class RunTraceRecorder(object):
     def __init__(self):
         self.task = {}
+        self.llm_calls = []
         self.actions = []
         self.context = []
         self.final_answer = {}
@@ -41,6 +44,46 @@ class ThoughtProcessRecorder(object):
             }
         }
 
+    def _to_trace_value(self, value):
+        try:
+            return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+        except Exception:
+            return str(value)
+
+    def _get_tool_names(self, tools):
+        tool_names = []
+        for tool in tools or []:
+            name = tool.get('function', {}).get('name') if isinstance(tool, dict) else None
+            if name:
+                tool_names.append(name)
+        return tool_names
+
+    def add_llm_call(self, phase, step, messages, tools=None, tool_choice=None, metadata=None):
+        self.llm_calls.append({
+            'phase': phase,
+            'step': step,
+            'request': {
+                'messages': self._to_trace_value(messages),
+                'tools': self._to_trace_value(tools or []),
+                'tool_names': self._get_tool_names(tools),
+                'tool_choice': self._to_trace_value(tool_choice)
+            },
+            'response': None,
+            'token_usage': {},
+            'time_usage': 0,
+            'metadata': self._to_trace_value(metadata or {})
+        })
+        return len(self.llm_calls) - 1
+
+    def set_llm_call_response(self, call_id, response=None, token_usage=None, time_usage=0, error=None):
+        if call_id is None or call_id >= len(self.llm_calls):
+            return
+        self.llm_calls[call_id]['response'] = self._to_trace_value(response)
+        self.llm_calls[call_id]['token_usage'] = token_usage or {}
+        self.llm_calls[call_id]['time_usage'] = time_usage
+        if error is not None:
+            self.llm_calls[call_id]['error'] = self._to_trace_value(error)
+
     def add_tool_calls_group(self):
         self.actions.append({
             'tool_calls': [],
@@ -59,7 +102,7 @@ class ThoughtProcessRecorder(object):
         if not self.actions:
             return
         self.actions[-1]['time_usage'] = time_usage
-    
+
     def update_last_group_tokens_usage(self, tokens_usage={}, replace=False):
         if not self.actions:
             return
@@ -71,7 +114,7 @@ class ThoughtProcessRecorder(object):
             self.actions[-1]['token_usage']['input_tokens'] += tokens_usage.get('input_tokens', 0)
             self.actions[-1]['token_usage']['output_tokens'] += tokens_usage.get('output_tokens', 0)
             self.actions[-1]['token_usage']['total_tokens'] += tokens_usage.get('total_tokens', 0)
-    
+
     def set_last_group_error(self, error):
         if not self.actions:
             return
@@ -161,8 +204,10 @@ class ThoughtProcessRecorder(object):
             self.final_answer.get('token_usage', {}),
             self._sum_retry_tokens_usage(self.final_answer.get('retry', []))
         )
-        
-        results ={
+        final_answer_time_usage = self.final_answer.get('time_usage', 0)
+
+        results = {
+            'llm_calls': self.llm_calls,
             'actions': self.actions,
             'final_answer': self.final_answer,
             'static': {
@@ -185,21 +230,21 @@ class ThoughtProcessRecorder(object):
                 },
                 'time_usage': {
                     'action_steps': actions_total_time_usage,
-                    'answer_generation': self.final_answer['time_usage'],
-                    'total': self.final_answer['time_usage'] + actions_total_time_usage
+                    'answer_generation': final_answer_time_usage,
+                    'total': final_answer_time_usage + actions_total_time_usage
                 }
             }
         }
 
-        if config.THOUGHT_PROCESS_ENABLE_RECORD_TASKS and (config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS or config.THOUGHT_PROCESS_RECORD_USER_INPUT):
+        if config.RUN_TRACE_ENABLE_RECORD_TASKS and (config.RUN_TRACE_RECORD_SYSTEM_PROMPT or config.RUN_TRACE_RECORD_USER_INPUT):
             results['task'] = self.task
-            if not config.THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS:
-                del results['task']['system_prompts']
-            if not config.THOUGHT_PROCESS_RECORD_USER_INPUT:
+            if not config.RUN_TRACE_RECORD_SYSTEM_PROMPT:
+                del results['task']['system_prompt']
+            if not config.RUN_TRACE_RECORD_USER_INPUT:
                 del results['task']['user_input']
-            elif not config.THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+            elif not config.RUN_TRACE_RECORD_USER_INPUT_RAW:
                 del results['task']['user_input']['raw']
-        if config.THOUGHT_PROCESS_RECORD_CONTEXT and self.context:
+        if config.RUN_TRACE_RECORD_CONTEXT and self.context:
             results['context'] = self.context
 
         return results
