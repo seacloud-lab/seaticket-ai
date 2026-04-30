@@ -27,6 +27,7 @@ from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
+from seaqa_ai.agent.utils.agent_trace_recorder import AgentTraceRecorder
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class AgentRunner:
         analysis_phase: PhaseSpec | None = None,
         handling_phase: PhaseSpec | None = None,
         search_enabled: bool = True,
+        trace_enabled=False,
     ):
         """
         Args:
@@ -118,6 +120,7 @@ class AgentRunner:
         )
         self.search_enabled = search_enabled
         self.event_summary = ''
+        self.trace_recorder = AgentTraceRecorder(enabled=trace_enabled)
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
@@ -173,7 +176,7 @@ class AgentRunner:
 
             tool_name = tool_call.function.name
             logger.debug(f'Processing tool call {tool_name} at step {step}')
-            self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage)
+            self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage, phase=spec.name, step=step, prompt_messages=messages)
 
             if tool_name == spec.terminator_tool:
                 logger.debug(f'{spec.name} loop completed at step {step} via {tool_name}.')
@@ -308,6 +311,14 @@ class AgentRunner:
             duration_ms = int((time.monotonic() - llm_start) * 1000)
             logger.exception(f'LLM call failed at {phase} step {step}: {e}')
             if self.action_recorder and self.run_id:
+                details = self.trace_recorder.build_details(
+                    phase=phase,
+                    step=step,
+                    status='failed',
+                    forced=False,
+                    error=e,
+                    prompt=messages,
+                )
                 self._record_action(
                     tool_name=None,
                     arguments={},
@@ -316,6 +327,7 @@ class AgentRunner:
                     action_status='failed',
                     content=f'LLM error in {phase} phase: {e}',
                     statistics=json.dumps({'duration_ms': duration_ms}),
+                    details=details,
                 )
             return None, {}
 
@@ -337,6 +349,7 @@ class AgentRunner:
             messages=messages,
             tool_name='think',
             step=step,
+            phase=phase,
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
         )
 
@@ -345,6 +358,7 @@ class AgentRunner:
             messages=messages,
             tool_name=self.PRELUDE_TOOL,
             step=0,
+            phase='prelude',
             system_content=FORCED_RECORD_EVENT_SUMMARY_PROMPT,
         )
         self.event_summary = (args.get('summary') or '').strip()
@@ -355,6 +369,7 @@ class AgentRunner:
             messages=messages,
             tool_name=spec.terminator_tool,
             step=spec.max_steps,
+            phase=spec.name,
             system_content=spec.forced_prompt,
         )
 
@@ -363,6 +378,7 @@ class AgentRunner:
         messages: list[dict],
         tool_name: str,
         step: int,
+        phase: str,
         system_content: str,
     ) -> dict:
         tool = self._get_registered_tool_by_name(tool_name)
@@ -395,6 +411,15 @@ class AgentRunner:
             duration_ms = int((time.monotonic() - step_start) * 1000)
             logger.exception(f'Forced {tool_name} call failed at step {step}: {e}')
             if self.action_recorder and self.run_id:
+                details = self.trace_recorder.build_details(
+                    phase=phase,
+                    step=step,
+                    tool_name=tool_name,
+                    status='failed',
+                    forced=True,
+                    error=e,
+                    prompt=forced_messages,
+                )
                 self._record_action(
                     tool_name=tool_name,
                     arguments={},
@@ -403,6 +428,7 @@ class AgentRunner:
                     action_status='failed',
                     content=str(e),
                     statistics=json.dumps({'duration_ms': duration_ms}),
+                    details=details,
                 )
             return {}
 
@@ -414,6 +440,15 @@ class AgentRunner:
             logger.warning(f'Forced {tool_name} step {step} returned no tool call.')
             if self.action_recorder and self.run_id:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
+                details = self.trace_recorder.build_details(
+                    phase=phase,
+                    step=step,
+                    tool_name=tool_name,
+                    status='failed',
+                    forced=True,
+                    error={'type': 'ForcedToolCallError', 'message': 'No tool call returned.'},
+                    prompt=forced_messages,
+                )
                 self._record_action(
                     tool_name=tool_name,
                     arguments={},
@@ -422,11 +457,12 @@ class AgentRunner:
                     action_status='failed',
                     content="Forced tool call did not produce a tool call.",
                     statistics=json.dumps({'duration_ms': duration_ms, **usage}),
+                    details=details,
                 )
             return {}
 
         arguments = self._parse_tool_arguments(tool_call.function.arguments)
-        self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage)
+        self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage, phase=phase, step=step, forced=True, prompt_messages=forced_messages)
         return arguments
 
     @staticmethod
@@ -436,7 +472,6 @@ class AgentRunner:
         except (json.JSONDecodeError, TypeError):
             return {}
         return parsed_arguments if isinstance(parsed_arguments, dict) else {}
-
 
     def _get_analysis_tools(self) -> list[dict]:
         excluded_prefixes = ('suggest_',)
@@ -548,10 +583,15 @@ class AgentRunner:
         messages: list[dict],
         step_start: float | None = None,
         usage: dict | None = None,
+        phase: str | None = None,
+        step: int | None = None,
+        forced: bool = False,
+        prompt_messages: list[dict] | None = None,
     ) -> str | None:
         tool_name = tool_call.function.name
         is_final_answer = tool_name == 'final_answer'
         tool_failed = False
+        usage = usage or {}
 
         try:
             raw_arguments = tool_call.function.arguments
@@ -569,6 +609,18 @@ class AgentRunner:
                 'error_type': type(e).__name__,
                 'error_message': str(e),
             }, ensure_ascii=False)
+            details = self.trace_recorder.build_details(
+                phase=phase,
+                step=step,
+                tool_name=tool_name,
+                raw_arguments=raw_arguments,
+                arguments=arguments,
+                observation=observation,
+                status='failed',
+                forced=forced,
+                error=e,
+                prompt=prompt_messages,
+            )
             if self.action_recorder and self.run_id:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
                 self._record_action(
@@ -578,6 +630,7 @@ class AgentRunner:
                     action_type='error',
                     action_status='failed',
                     statistics=json.dumps({'duration_ms': duration_ms, **usage}),
+                    details=details,
                 )
             logger.debug(f'Observation: {observation}')
             if is_final_answer:
@@ -610,6 +663,18 @@ class AgentRunner:
                 'error_type': type(e).__name__,
                 'error_message': str(e),
             }, ensure_ascii=False)
+            details = self.trace_recorder.build_details(
+                phase=phase,
+                step=step,
+                tool_name=tool_name,
+                raw_arguments=tool_call.function.arguments,
+                arguments=arguments,
+                observation=observation,
+                status='failed',
+                forced=forced,
+                error=e,
+                prompt=prompt_messages,
+            )
             if self.action_recorder and self.run_id:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
                 self._record_action(
@@ -619,6 +684,7 @@ class AgentRunner:
                     action_type='error',
                     action_status='failed',
                     statistics=json.dumps({'duration_ms': duration_ms, **usage}),
+                    details=details,
                 )
         finally:
             tool_token_usage = {}
@@ -629,7 +695,18 @@ class AgentRunner:
 
         if not tool_failed:
             statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
-            self._record_tool_action(tool_name, arguments, observation, is_final_answer, statistics=statistics)
+            details = self.trace_recorder.build_details(
+                phase=phase,
+                step=step,
+                tool_name=tool_name,
+                raw_arguments=tool_call.function.arguments,
+                arguments=arguments,
+                observation=observation,
+                status='completed',
+                forced=forced,
+                prompt=prompt_messages,
+            )
+            self._record_tool_action(tool_name, arguments, observation, is_final_answer, statistics=statistics, details=details)
 
         if is_final_answer:
             return observation
@@ -647,6 +724,7 @@ class AgentRunner:
         observation: str,
         is_final_answer: bool,
         statistics: str | None = None,
+        details: str | None = None,
     ):
         if not (self.action_recorder and self.run_id):
             return
@@ -661,6 +739,7 @@ class AgentRunner:
                 action_status='completed',
                 content=summary,
                 statistics=statistics,
+                details=details,
             )
             return
 
@@ -707,6 +786,7 @@ class AgentRunner:
             suggestion_text=suggestion_text,
             sources=sources,
             statistics=statistics,
+            details=details,
         )
 
     def _record_action(
@@ -720,24 +800,29 @@ class AgentRunner:
         suggestion_text=None,
         sources=None,
         statistics=None,
+        details=None,
     ):
         """Record an action to SeaDB via the action_recorder callback."""
         if not self.action_recorder:
             return
+        action_data = {
+            'run_id': self.run_id,
+            'source_type': self.record_context.get('source_type'),
+            'source_id': self.record_context.get('source_id'),
+            'source_title': self.record_context.get('source_title'),
+            'action_type': action_type,
+            'tool_name': tool_name,
+            'content': content or '',
+            'result': result,
+            'action_status': action_status,
+            'suggestion_text': suggestion_text or '',
+            'sources': sources or [],
+            'statistics': statistics,
+        }
+        if details is not None:
+            action_data['details'] = details
+            
         try:
-            self.action_recorder(
-                run_id=self.run_id,
-                source_type=self.record_context.get('source_type'),
-                source_id=self.record_context.get('source_id'),
-                source_title=self.record_context.get('source_title'),
-                action_type=action_type,
-                tool_name=tool_name,
-                content=content or '',
-                result=result,
-                action_status=action_status,
-                suggestion_text=suggestion_text or '',
-                sources=sources or [],
-                statistics=statistics,
-            )
+            self.action_recorder(**action_data)
         except Exception as e:
             logger.exception(f'Failed to record action: {e}')
