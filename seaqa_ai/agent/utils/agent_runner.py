@@ -16,11 +16,12 @@ import logging
 import time
 from seaqa_ai.utils.llm_api import CompletionAPI
 from seaqa_ai.agent.system_prompt import (
+    FORCED_RECORD_EVENTS_SUMMARY_PROMPT,
     PHASE_GUIDANCE_FOR_THINK,
     FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
     FORCED_FINAL_ANSWER_PROMPT,
 )
-from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool, RecordEventsSummaryTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.utils import parse_json
@@ -38,6 +39,7 @@ class AgentRunner:
     - Supports 'pending' status for actions requiring user confirmation
     """
 
+    PRELUDE_TOOL = 'record_events_summary'
     ANALYSIS_TERMINATORS = ('record_ticket_analysis', 'record_issue_analysis')
     HANDLING_TERMINATOR = 'final_answer'
 
@@ -83,9 +85,18 @@ class AgentRunner:
         self.handling_system_prompt = handling_system_prompt
         self.max_analysis_steps = max_analysis_steps
         self.max_handling_steps = max_handling_steps
+        self.event_summary = ''
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
+
+        record_events_summary_tool = RecordEventsSummaryTool()
+        record_events_summary_tool.set_record_context(self.record_context)
+        record_events_summary_tool.register(tool_executor)
+        self.tool_metadata[record_events_summary_tool.tool.get('function', {}).get('name')] = {
+            'action_type': record_events_summary_tool.action_type,
+            'action_status': record_events_summary_tool.action_status,
+        }
 
         think_tool = ThinkTool()
         think_tool.register(tool_executor)
@@ -96,8 +107,10 @@ class AgentRunner:
 
     def run(self, task: str) -> str:
         """Drive the two-phase reasoning loop: analysis then handling."""
+        self.event_summary = ''
         messages = self._build_initial_messages(task)
 
+        self._record_events_summary(messages)
         self._run_analysis_loop(messages)
         handling_messages = self._build_handling_messages(task, messages)
         self._run_handling_loop(handling_messages)
@@ -159,11 +172,13 @@ class AgentRunner:
         force_fallback(messages)
 
     def _build_handling_messages(self, task: str, analysis_messages: list[dict]) -> list[dict]:
+        event_summary = self.event_summary
         search_results = self._extract_successful_search_results(analysis_messages)
         analysis_result = self._extract_analysis_result(analysis_messages)
 
         handling_task_content = self._build_handling_task_content(
             original_task=task,
+            event_summary=event_summary,
             search_results=search_results,
             analysis_result=analysis_result,
         )
@@ -217,19 +232,19 @@ class AgentRunner:
                 tool_name = tool_call.get('function', {}).get('name', '')
                 if tool_name in self.ANALYSIS_TERMINATORS:
                     args_str = tool_call.get('function', {}).get('arguments', '{}')
-                    try:
-                        return json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
-                    except (json.JSONDecodeError, TypeError):
-                        return {}
+                    return self._parse_tool_arguments(args_str)
         return {}
 
-    def _build_handling_task_content(self,original_task: str, search_results: list[dict], analysis_result: dict) -> str:
+    def _build_handling_task_content(self, original_task: str, event_summary: str, search_results: list[dict], analysis_result: dict) -> str:
         try:
             task_dict = json.loads(original_task) if isinstance(original_task, str) else {}
             if not isinstance(task_dict, dict):
                 task_dict = {'raw': original_task}
         except (json.JSONDecodeError, TypeError):
             task_dict = {'raw': original_task}
+
+        if event_summary:
+            task_dict['events_summary'] = event_summary
 
         if search_results:
             task_dict['search_results'] = [
@@ -316,6 +331,15 @@ class AgentRunner:
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
         )
 
+    def _record_events_summary(self, messages: list[dict]) -> None:
+        args = self._force_single_tool_call(
+            messages=messages,
+            tool_name=self.PRELUDE_TOOL,
+            step=0,
+            system_content=FORCED_RECORD_EVENTS_SUMMARY_PROMPT,
+        )
+        self.event_summary = (args.get('summary') or '').strip()
+
     def _force_record_analysis(self, messages: list[dict]) -> None:
         source_type = self.record_context.get('source_type', '')
         if source_type == 'ticket':
@@ -343,11 +367,11 @@ class AgentRunner:
         tool_name: str,
         step: int,
         system_content: str,
-    ):
+    ) -> dict:
         tool = self._get_registered_tool_by_name(tool_name)
         if not tool:
             logger.warning(f'{tool_name} tool is not registered; skipping forced tool call.')
-            return
+            return {}
 
         forced_messages = messages + [{
             'role': 'system',
@@ -383,7 +407,7 @@ class AgentRunner:
                     content=str(e),
                     statistics=json.dumps({'duration_ms': duration_ms}),
                 )
-            return
+            return {}
 
         tool_call = self._validate_single_tool_call(message.tool_calls, step)
         assistant_message = self._build_assistant_message(message, tool_call=tool_call)
@@ -402,14 +426,24 @@ class AgentRunner:
                     content="Forced tool call did not produce a tool call.",
                     statistics=json.dumps({'duration_ms': duration_ms, **usage}),
                 )
-            return
+            return {}
 
+        arguments = self._parse_tool_arguments(tool_call.function.arguments)
         self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage)
+        return arguments
+
+    @staticmethod
+    def _parse_tool_arguments(raw_arguments) -> dict:
+        try:
+            parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return parsed_arguments if isinstance(parsed_arguments, dict) else {}
 
 
     def _get_analysis_tools(self) -> list[dict]:
         excluded_prefixes = ('suggest_',)
-        excluded_names = (self.HANDLING_TERMINATOR, 'think')
+        excluded_names = (self.PRELUDE_TOOL, self.HANDLING_TERMINATOR, 'think')
         return [
             tool
             for tool in self.tool_executor.get()
@@ -419,7 +453,7 @@ class AgentRunner:
 
     def _get_handling_tools(self) -> list[dict]:
         excluded_suffixes = ('_search',)
-        excluded_names = self.ANALYSIS_TERMINATORS + ('think',)
+        excluded_names = self.ANALYSIS_TERMINATORS + (self.PRELUDE_TOOL, 'think',)
         return [
             tool
             for tool in self.tool_executor.get()

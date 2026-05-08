@@ -3,6 +3,7 @@ Common agent tools shared across source types.
 
 Provides:
 - BaseAgentTool: base class for tools that need record context
+- RecordEventsSummaryTool: records a concise summary of trigger events
 - FinalAnswerTool: signals the reasoning loop is complete
 - SuggestResolutionTool: suggest a user-facing resolution
 - SuggestCreateTicketTool: suggest creating an internal ticket
@@ -41,6 +42,51 @@ class BaseAgentTool(BasicTool):
     def get_suggestion_text(self, **kwargs):
         """Return the suggestion_text for this tool, optionally using call arguments."""
         return getattr(self, 'suggestion_text', '')
+
+
+class RecordEventsSummaryTool(BaseAgentTool):
+    """Records a concise summary of the trigger events for this run."""
+
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'record_events_summary',
+            'description': (
+                'Record a concise summary of the trigger events for this run. '
+                'Summarize only the input events that triggered this run: what type of event, what changed. '
+                'Be concise and avoid repeating the full record content.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'summary': {
+                        'type': 'string',
+                        'description': (
+                            'A concise summary of the trigger events and their likely impact on this run. '
+                            'Mention the most important changes only.'
+                        ),
+                    }
+                },
+                'required': ['summary'],
+            },
+        },
+    }
+
+    action_type = 'events'
+    action_status = 'completed'
+
+    def execute(self, summary):
+        source_type = self.get_source_type()
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+
+        summary = (summary or '').strip()
+        if not summary:
+            return 'Cannot record event summary: empty summary.'
+
+        return (
+            f'Event summary recorded for {source_type} {source_id} - {source_title}: {summary}'
+        )
 
 
 class RecordIssueAnalysisTool(BaseAgentTool):

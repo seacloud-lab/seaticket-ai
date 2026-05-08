@@ -31,12 +31,14 @@ TICKET_ANALYSIS_SYSTEM_PROMPT = f"""{_TICKET_INTRO}
 You are in the ANALYSIS phase. Your task is to analyze the ticket and record your findings.
 
 For the ticket provided in JSON format, follow these steps strictly in order, ONE tool call per step:
-1. Review the ticket details: state, priority, assignees, due date, and recent activities.
-2. Identify any process issues (e.g., approaching deadline, missing assignee, long inactivity).
-3. Call record_ticket_analysis to record your findings about the ticket's current state, any issues, and what action you plan to take.
+1. Call record_events_summary to summarize the input events that triggered this run.
+2. Review the ticket details: state, priority, assignees, due date, and recent activities.
+3. Identify any process issues (e.g., approaching deadline, missing assignee, long inactivity).
+4. Call record_ticket_analysis to record your findings about the ticket's current state, any issues, and what action you plan to take.
 
 Rules:
 - Call only ONE tool per step. Never call multiple tools in the same step.
+- record_events_summary MUST be your first tool call in this phase, and it should be called exactly once.
 - record_ticket_analysis MUST be your final tool call in this phase.
 
 {_TICKET_INPUT_FORMAT}
@@ -48,6 +50,7 @@ You are in the HANDLING phase. The analysis has been completed and is provided i
 
 The input JSON now includes:
 - All original ticket fields
+- events_summary: concise summary of the trigger events which contains the most important changes and the latest signal.
 - analysis_summary: the recorded analysis from the previous phase
 
 Based on the analysis, follow these steps strictly in order, ONE tool call per step:
@@ -93,6 +96,12 @@ PHASE_GUIDANCE_FOR_THINK = {
         + _THINK_LENGTH_CONSTRAINT
     ),
 }
+
+FORCED_RECORD_EVENTS_SUMMARY_PROMPT = (
+    'Before doing any analysis, call record_events_summary immediately.\n'
+    'Summarize only the input events that triggered this run: what type of event, what changed.\n'
+    'Be concise and avoid repeating the full record content.'
+)
 
 FORCED_RECORD_ISSUE_ANALYSIS_PROMPT = (
     'Analysis loop reached max steps without calling record_issue_analysis.\n'
@@ -199,18 +208,21 @@ GITHUB_ISSUE_ANALYSIS_SYSTEM_PROMPT = f"""{_GITHUB_ISSUE_INTRO}
 
 You are in the ANALYSIS phase. Your task is to classify the issue and gather search evidence.
 
-1. {_CLASSIFICATION_TYPES.format(item_type="issue")}
+1. Call record_events_summary to summarize the input events that triggered this run.
 
-2. {_GITHUB_ISSUE_TYPE_HANDLING}
+2. {_CLASSIFICATION_TYPES.format(item_type="issue")}
 
-3. {_SEARCH_RULES}
+3. {_GITHUB_ISSUE_TYPE_HANDLING}
 
-4. {_SEARCH_LIMITS.format(item_name="issue")}
+4. {_SEARCH_RULES}
 
-5. {_RECORD_ANALYSIS}
+5. {_SEARCH_LIMITS.format(item_name="issue")}
+
+6. {_RECORD_ANALYSIS}
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
+- record_events_summary MUST be your first tool call in this phase, and it should be called exactly once.
 - Do NOT call record_issue_analysis before finishing required searches.
 - record_issue_analysis MUST be your final tool call in this phase.
 
@@ -223,6 +235,7 @@ You are in the HANDLING phase. The analysis has been completed and is provided i
 
 The input JSON now includes:
 - All original issue fields
+- events_summary: concise summary of the trigger events which contains the most important changes and the latest signal.
 - search_results: evidence gathered from searches (if any)
 - analysis_summary: the recorded analysis including classification and recommended action
 
@@ -277,16 +290,19 @@ DISCOURSE_ANALYSIS_SYSTEM_PROMPT = f"""{_DISCOURSE_INTRO}
 
 You are in the ANALYSIS phase. Your task is to classify the topic and gather search evidence.
 
-1. {_CLASSIFICATION_TYPES.format(item_type="topic")}
+1. Call record_events_summary to summarize the input events that triggered this run.
 
-2. {_SEARCH_RULES}
+2. {_CLASSIFICATION_TYPES.format(item_type="topic")}
 
-3. {_SEARCH_LIMITS.format(item_name="topic")}
+3. {_SEARCH_RULES}
 
-4. {_RECORD_ANALYSIS}
+4. {_SEARCH_LIMITS.format(item_name="topic")}
+
+5. {_RECORD_ANALYSIS}
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
+- record_events_summary MUST be your first tool call in this phase, and it should be called exactly once.
 - Do NOT call record_issue_analysis before finishing required searches.
 - record_issue_analysis MUST be your final tool call in this phase.
 
@@ -299,6 +315,7 @@ You are in the HANDLING phase. The analysis has been completed and is provided i
 
 The input JSON now includes:
 - All original topic fields
+- events_summary: concise summary of the trigger events which contains the most important changes and the latest signal.
 - search_results: evidence gathered from searches (if any)
 - analysis_summary: the recorded analysis including classification and recommended action
 
@@ -369,16 +386,19 @@ EMAIL_ANALYSIS_SYSTEM_PROMPT = f"""{_EMAIL_INTRO}
 
 You are in the ANALYSIS phase. Your task is to classify the thread and gather search evidence.
 
-1. {_CLASSIFICATION_TYPES.format(item_type="email thread")}
+1. Call record_events_summary to summarize the input events that triggered this run.
 
-2. {_SEARCH_RULES}
+2. {_CLASSIFICATION_TYPES.format(item_type="email thread")}
 
-3. {_SEARCH_LIMITS.format(item_name="email thread")}
+3. {_SEARCH_RULES}
 
-4. {_RECORD_ANALYSIS}
+4. {_SEARCH_LIMITS.format(item_name="email thread")}
+
+5. {_RECORD_ANALYSIS}
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
+- record_events_summary MUST be your first tool call in this phase, and it should be called exactly once.
 - Do NOT call record_issue_analysis before finishing required searches.
 - record_issue_analysis MUST be your final tool call in this phase.
 
@@ -391,6 +411,7 @@ You are in the HANDLING phase. The analysis has been completed and is provided i
 
 The input JSON now includes:
 - All original thread fields
+- events_summary: concise summary of the trigger events which contains the most important changes and the latest signal.
 - search_results: evidence gathered from searches (if any)
 - analysis_summary: the recorded analysis including classification and recommended action
 
