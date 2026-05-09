@@ -105,7 +105,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 'properties': {
                     'summary': {
                         'type': 'string',
-                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
+                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Cite search evidence with returned labels like <reference_0> whenever applicable. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
                     },
                     'classified_issue_type': {
                         'type': 'string',

@@ -105,9 +105,17 @@ class BaseAgent:
         result,
         action_status,
         suggestion_text='',
+        sources=None,
         statistics='',
     ):
         """Insert a new agent_actions row. Returns _pk."""
+        if isinstance(sources, list):
+            sources_payload = json.dumps(sources, ensure_ascii=False)
+        elif isinstance(sources, str):
+            sources_payload = sources
+        else:
+            sources_payload = '[]'
+
         row = {
             'run_id': run_id,
             'source_type': source_type or '',
@@ -119,6 +127,7 @@ class BaseAgent:
             'result': result[:MAX_CONTENT_CHARS] if result is not None else '',
             'status': action_status,
             'suggestion_text': suggestion_text or '',
+            'sources': sources_payload,
             'statistics': statistics or '',
             'created_at': now_iso(),
         }

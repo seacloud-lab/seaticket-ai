@@ -139,7 +139,9 @@ _SEARCH_LIMITS = """Search limits:
    - Avoid random or redundant searches."""
 
 _RECORD_ANALYSIS = """After finishing searches, call record_issue_analysis to record your detailed analysis.
-   This call MUST happen after all searches and before any handling tool."""
+   This call MUST happen after all searches and before any handling tool.
+   In the analysis summary, cite evidence with the exact labels returned by search tools (for example: <reference_0>, <reference_1>).
+   Place citations immediately after the supported statement, and do not invent labels that were not returned by tools."""
 
 _HANDLING_ACTIONS = """Call exactly one of:
    - suggest_resolution, OR

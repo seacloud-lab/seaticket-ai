@@ -14,6 +14,7 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
+from copy import deepcopy
 from seaqa_ai.utils.llm_api import CompletionAPI
 from seaqa_ai.agent.system_prompt import (
     FORCED_RECORD_EVENTS_SUMMARY_PROMPT,
@@ -24,7 +25,7 @@ from seaqa_ai.agent.system_prompt import (
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool, RecordEventsSummaryTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
-from seaqa_ai.utils import parse_json
+from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class AgentRunner:
                             (e.g. username, org_id, project_uuid).
             action_recorder: callable(run_id, source_type, source_id, source_title,
                              action_type, tool_name, content, result, action_status,
-                             suggestion_text, statistics) -> int
+                             suggestion_text, sources, statistics) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
             analysis_system_prompt: system message for the analysis phase.
@@ -686,6 +687,14 @@ class AgentRunner:
         )
         if not content and isinstance(arguments, dict) and arguments:
             content = json.dumps(arguments, ensure_ascii=False)
+        sources = []
+        if action_type == 'analysis' and content:
+            try:
+                content, sources = get_answer_and_sources(self.tool_executor, content)
+                sources = remove_sources_content_and_snippets(sources)
+            except Exception as e:
+                logger.warning('Failed to parse analysis references, keep raw content. tool=%s error=%s', tool_name, e)
+                sources = []
         self._record_action(
             tool_name=tool_name,
             arguments=arguments,
@@ -694,6 +703,7 @@ class AgentRunner:
             action_status=action_status,
             content=content,
             suggestion_text=suggestion_text,
+            sources=sources,
             statistics=statistics,
         )
 
@@ -706,6 +716,7 @@ class AgentRunner:
         action_status,
         content=None,
         suggestion_text=None,
+        sources=None,
         statistics=None,
     ):
         """Record an action to SeaDB via the action_recorder callback."""
@@ -723,6 +734,7 @@ class AgentRunner:
                 result=result,
                 action_status=action_status,
                 suggestion_text=suggestion_text or '',
+                sources=sources or [],
                 statistics=statistics,
             )
         except Exception as e:
