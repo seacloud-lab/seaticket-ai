@@ -55,7 +55,11 @@ class DiscourseAgent(ConnectionAgent):
             "(`linked_ticket` = 0 OR `linked_ticket` IS NULL)",
         ]
         where = ' AND '.join(conditions)
-        sql = f"SELECT * FROM `{self._topics_table}` WHERE {where} LIMIT 1"
+        sql = (
+            f"SELECT `_pk`, `title`, `topic_id`, `resolved`, "
+            f"`created_time`, `modified_time`, `linked_ticket`, `slug` "
+            f"FROM `{self._topics_table}` WHERE {where} LIMIT 1"
+        )
         results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
@@ -95,7 +99,6 @@ class DiscourseAgent(ConnectionAgent):
             'topic_id': item.get('topic_id', 'N/A'),
             'resolved': item.get('resolved', False),
             'author': topic_author,
-            'views': item.get('views', 0),
             'created_time': item.get('created_time', 'N/A'),
             'modified_time': item.get('modified_time', 'N/A'),
             'url': self._build_topic_url(item),
@@ -180,7 +183,8 @@ class DiscourseAgent(ConnectionAgent):
             return []
 
         sql = (
-            f"SELECT * FROM `{self._replies_table}` "
+            f"SELECT `post_number`, `author`, `modified_time`, `content` "
+            f"FROM `{self._replies_table}` "
             f"WHERE `topic_id` = {topic_id} "
             f"ORDER BY `post_number` ASC"
         )

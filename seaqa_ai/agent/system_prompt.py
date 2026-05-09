@@ -16,8 +16,11 @@ The ticket is provided as a JSON object with the following fields:
 - title: ticket title
 - state: current state
 - substate: sub-state if applicable
+- type: ticket type
+- tags: list of tags
 - priority: priority level
 - assignees: list of assigned team members
+- participants: list of participants
 - created_time: when created
 - last_modified: last modification time
 - due_date: deadline if set
@@ -277,7 +280,6 @@ The topic is provided as a JSON object with the following fields:
 - topic_id: Discourse topic number
 - resolved: whether the topic is resolved
 - author: who created it
-- views: number of views
 - created_time: when created
 - modified_time: last modification time
 - url: link to the current topic page

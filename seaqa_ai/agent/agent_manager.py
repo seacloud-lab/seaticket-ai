@@ -373,7 +373,7 @@ class AgentManager:
 
         tickets_table = TICKET_TABLES.TICKETS_TABLE.value
         sql = (
-            f"SELECT * FROM `{tickets_table}` "
+            f"SELECT `_pk` FROM `{tickets_table}` "
             f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "

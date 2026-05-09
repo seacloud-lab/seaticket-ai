@@ -59,7 +59,12 @@ class GithubIssueAgent(ConnectionAgent):
             "(`linked_ticket` = 0 OR `linked_ticket` IS NULL)",
         ]
         where = ' AND '.join(conditions)
-        sql = f"SELECT * FROM `{self._issues_table}` WHERE {where} LIMIT 1"
+        sql = (
+            f"SELECT `_pk`, `issue_id`, `title`, `content`, `issue_number`, "
+            f"`state`, `author`, `labels`, `issue_type`, `created_time`, "
+            f"`url`, `linked_ticket` "
+            f"FROM `{self._issues_table}` WHERE {where} LIMIT 1"
+        )
         results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
@@ -152,7 +157,8 @@ class GithubIssueAgent(ConnectionAgent):
             return []
 
         sql = (
-            f"SELECT * FROM `{self._comments_table}` "
+            f"SELECT `comment_id`, `author`, `created_time`, `content` "
+            f"FROM `{self._comments_table}` "
             f"WHERE `issue_id` = {issue_id} "
             f"ORDER BY `created_time` ASC"
         )
