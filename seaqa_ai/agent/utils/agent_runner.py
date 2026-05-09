@@ -678,7 +678,7 @@ class AgentRunner:
             arguments.get('summary') or
             arguments.get('message') or
             arguments.get('comment') or
-            arguments.get('resolution') or
+            arguments.get('reply') or
             arguments.get('reason') or
             arguments.get('rationale') or
             arguments.get('content') or

@@ -95,7 +95,7 @@ PHASE_GUIDANCE_FOR_THINK = {
     'handling': (
         'You are in the HANDLING phase. Before the next action, call the think tool to:\n'
         '- Review the recorded analysis and available evidence.\n'
-        '- Determine which handling action (suggest_resolution, suggest_create_ticket, etc.) fits best.'
+        '- Determine which handling action (suggest_reply, suggest_create_ticket, etc.) fits best.'
         + _THINK_LENGTH_CONSTRAINT
     ),
 }
@@ -144,18 +144,18 @@ _RECORD_ANALYSIS = """After finishing searches, call record_issue_analysis to re
    Place citations immediately after the supported statement, and do not invent labels that were not returned by tools."""
 
 _HANDLING_ACTIONS = """Call exactly one of:
-   - suggest_resolution, OR
+   - suggest_reply, OR
    - suggest_create_ticket"""
 
 _DECISION_RULES = """Decision rules:
 - For Bug:
-  - If search evidence shows a clear duplicate / known tracked case, call suggest_resolution.
+  - If search evidence shows a clear duplicate / known tracked case, call suggest_reply.
   - Otherwise, call suggest_create_ticket.
 - For Feature:
-  - If the same request is already tracked, call suggest_resolution.
+  - If the same request is already tracked, call suggest_reply.
   - If it is a new request, call suggest_create_ticket.
 - For Question:
-  - If search evidence can directly answer the {item_name}, call suggest_resolution.
+  - If search evidence can directly answer the {item_name}, call suggest_reply.
   - Otherwise, call suggest_create_ticket."""
 
 _FINAL_ANSWER = """Call final_answer to summarize what you did. This MUST be the last tool call."""
@@ -164,10 +164,10 @@ _COMMON_RULES = """Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
 - Do NOT call record_issue_analysis before finishing required searches.
 - record_issue_analysis MUST be called before {handling_tools}.
-- Call either suggest_resolution OR suggest_create_ticket, never both.
+- Call either suggest_reply OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
 - Be concise and actionable.
-- When using suggest_resolution for known/tracked cases, include supporting URLs from search results.
+- When using suggest_reply for known/tracked cases, include supporting URLs from search results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply."""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -256,12 +256,12 @@ Based on the analysis, suggest the appropriate next action:
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
-- Call either suggest_resolution OR suggest_create_ticket, never both.
+- Call either suggest_reply OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
-- When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
+- When using suggest_reply for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 - If new_comments is non-empty, your handling opinion MUST directly answer the comment(s) in new_comments — do not produce a generic summary of the whole issue. Treat recent_comments and the issue body as background context only.
-- When new_comments is non-empty, prefer suggest_resolution written as a direct reply to the authors of those new comments; do NOT call suggest_modify_type; only call suggest_create_ticket if a new comment clearly raises an independent new problem that is not covered by the existing issue.
+- When new_comments is non-empty, prefer suggest_reply written as a direct reply to the authors of those new comments; do NOT call suggest_modify_type; only call suggest_create_ticket if a new comment clearly raises an independent new problem that is not covered by the existing issue.
 {_GITHUB_SUGGEST_MODIFY_TYPE_RULE}
 """
 
@@ -341,7 +341,7 @@ You should NOT generate a public-facing reply when the conversation is already b
   - Else if it reads as a "responder-answering" reply (explains / instructs / resolves) → role = "staff_like".
   - Else (another user asking / clarifying) → role = "other_user".
 - Decision:
-  - If role = "staff_like" AND that reply is plausibly addressing the asker's question (not raising a brand-new unrelated problem) → SKIP. Do NOT call suggest_resolution or suggest_create_ticket. Go straight to final_answer and explain that a community responder appears to already be handling the topic, so no agent reply is needed.
+  - If role = "staff_like" AND that reply is plausibly addressing the asker's question (not raising a brand-new unrelated problem) → SKIP. Do NOT call suggest_reply or suggest_create_ticket. Go straight to final_answer and explain that a community responder appears to already be handling the topic, so no agent reply is needed.
   - Otherwise (role = "asker" or "other_user", i.e. the latest message is still a question / follow-up that needs an answer) → proceed normally with the handling actions below.
 
 When in doubt about whether a reply is "staff_like" vs "other_user", lean toward NOT skipping (i.e. still produce a suggestion), because missing a useful answer is worse than producing one that humans can discard.
@@ -356,12 +356,12 @@ When in doubt about whether a reply is "staff_like" vs "other_user", lean toward
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
-- Call either suggest_resolution OR suggest_create_ticket, never both.
+- Call either suggest_reply OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
-- When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
+- When using suggest_reply for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 - If new_replies is non-empty AND the skip rule above does not apply, your handling opinion MUST directly answer the reply/replies in new_replies — do not produce a generic summary of the whole topic. Treat recent_replies and the topic body as background context only.
-- When new_replies is non-empty AND not skipped, prefer suggest_resolution written as a direct reply to the asker (or to whoever raised the latest question); only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
+- When new_replies is non-empty AND not skipped, prefer suggest_reply written as a direct reply to the asker (or to whoever raised the latest question); only call suggest_create_ticket if a new reply clearly raises an independent new problem that is not covered by the existing topic.
 - When the skip rule applies, your final_answer MUST clearly state: which reply triggered the skip, who its author is, and why it looks like a community responder is already handling the question.
 """
 
@@ -429,12 +429,12 @@ Based on the analysis, suggest the appropriate next action:
 
 Rules:
 - ONE tool call per step. Never call multiple tools in the same step.
-- Call either suggest_resolution OR suggest_create_ticket, never both.
+- Call either suggest_reply OR suggest_create_ticket, never both.
 - final_answer MUST be the last call. Do NOT call any tool after final_answer.
-- When using suggest_resolution, write it as a detailed, helpful reply email to the sender.
+- When using suggest_reply, write it as a detailed, helpful reply email to the sender.
 - The reply email should follow standard email format with appropriate greeting, body, and closing.
-- When using suggest_resolution for known/tracked cases, include supporting URLs from search_results.
+- When using suggest_reply for known/tracked cases, include supporting URLs from search_results.
 - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
 - If new_emails is non-empty, your handling opinion MUST directly answer the email(s) in new_emails — do not produce a generic summary of the whole thread. Treat recent_emails and first_email as background context only.
-- When new_emails is non-empty, prefer suggest_resolution written as a direct reply to the senders of those new emails; only call suggest_create_ticket if a new email clearly raises an independent new problem that is not covered by the existing thread.
+- When new_emails is non-empty, prefer suggest_reply written as a direct reply to the senders of those new emails; only call suggest_create_ticket if a new email clearly raises an independent new problem that is not covered by the existing thread.
 """
