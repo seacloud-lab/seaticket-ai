@@ -50,7 +50,10 @@ class EmailAgent(ConnectionAgent):
             "(`linked_ticket` = 0 OR `linked_ticket` IS NULL)",
         ]
         where = ' AND '.join(conditions)
-        sql = f"SELECT * FROM `{self._threads_table}` WHERE {where} LIMIT 1"
+        sql = (
+            f"SELECT `_pk`, `title`, `unread`, `modified_time`, `linked_ticket` "
+            f"FROM `{self._threads_table}` WHERE {where} LIMIT 1"
+        )
         results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
@@ -143,7 +146,9 @@ class EmailAgent(ConnectionAgent):
             return []
 
         sql = (
-            f"SELECT * FROM `{self._emails_table}` "
+            f"SELECT `message_id`, `email_from`, `email_to`, `cc`, "
+            f"`modified_time`, `is_sender`, `content` "
+            f"FROM `{self._emails_table}` "
             f"WHERE `thread_id` = {thread_id} "
             f"ORDER BY `modified_time` ASC"
         )

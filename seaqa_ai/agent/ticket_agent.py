@@ -61,7 +61,9 @@ class TicketAgent(BaseAgent):
         if self.record_id is None:
             return None
         sql = (
-            f"SELECT * FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
+            f"SELECT `_pk`, `title`, `state`, `substate`, `type`, `tags`, `priority`, "
+            f"`assignees`, `participants`, `created_time`, `modified_time`, `due_date`, `content` "
+            f"FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
             f"WHERE _pk = {self.record_id} "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
@@ -94,7 +96,8 @@ class TicketAgent(BaseAgent):
         ticket_id = item['_pk']
 
         comments_sql = (
-            f"SELECT * FROM `{TICKET_TABLES.TICKET_COMMENTS_TABLE.value}` "
+            f"SELECT `creator`, `created_time`, `content` "
+            f"FROM `{TICKET_TABLES.TICKET_COMMENTS_TABLE.value}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"ORDER BY `_pk` ASC LIMIT 100"
@@ -104,7 +107,8 @@ class TicketAgent(BaseAgent):
         ).get('results', [])
 
         activities_sql = (
-            f"SELECT * FROM `{TICKET_TABLES.TICKET_ACTIVITIES_TABLE.value}` "
+            f"SELECT `activity_type`, `created_time`, `detail` "
+            f"FROM `{TICKET_TABLES.TICKET_ACTIVITIES_TABLE.value}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"ORDER BY `created_time` ASC LIMIT 100"
         )
@@ -145,7 +149,11 @@ class TicketAgent(BaseAgent):
             conditions.append(f"`tool_name` = '{tool_name}'")
         
         where = ' AND '.join(conditions)
-        sql = f"SELECT * FROM `{AGENT_ACTIONS_TABLE}` WHERE {where} ORDER BY `created_at` DESC LIMIT 10"
+        sql = (
+            f"SELECT `content`, `executed_at`, `created_at` "
+            f"FROM `{AGENT_ACTIONS_TABLE}` WHERE {where} "
+            f"ORDER BY `created_at` DESC LIMIT 10"
+        )
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
 
     def build_item_message(self, item: dict, item_context: dict) -> str:
@@ -188,8 +196,11 @@ class TicketAgent(BaseAgent):
             'title': item.get('title', 'Untitled'),
             'state': item.get('state', 'N/A'),
             'substate': item.get('substate', 'N/A'),
+            'type': item.get('type', 'N/A'),
+            'tags': item.get('tags', []),
             'priority': item.get('priority', 'N/A'),
             'assignees': self.username_resolver.emails2nicknames(item.get('assignees')),
+            'participants': self.username_resolver.emails2nicknames(item.get('participants')),
             'created_time': item.get('created_time', 'N/A'),
             'last_modified': item.get('modified_time', 'N/A'),
             'due_date': item.get('due_date', 'N/A'),

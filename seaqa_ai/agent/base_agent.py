@@ -93,20 +93,6 @@ class BaseAgent:
 
     # ── SeaDB run-record helpers ────────────────────────────────────
 
-    def get_last_run_time(self):
-        """Return the started_at datetime of the most recently completed run, or None."""
-        sql = (
-            f"SELECT * FROM `{AGENT_RUNS_TABLE}` "
-            f"WHERE `status` = 'completed' "
-            f"ORDER BY `started_at` DESC LIMIT 1"
-        )
-        result = self.seadb_api.query_rows(self.project_uuid, sql)
-        rows = result.get('results', [])
-        if rows:
-            return parse_datetime(rows[0]['started_at'])
-        return None
-
-
     def create_action_record(
         self,
         run_id,
