@@ -24,19 +24,39 @@ class AIUtils:
         self.db_session_class = init_db_session_class(SQLALCHEMY_DATABASE_URI)
         self.seaqa_db = SeaqaDB(self.db_session_class)
 
+    def _get_project_target_language(self, project_uuid):
+        lang = 'en'
+        if not project_uuid:
+            return LANGUAGE.get(lang, 'English')
+
+        try:
+            project_settings = self.seaqa_db.get_project_settings_by_project_uuid(project_uuid)
+            settings = json.loads(project_settings) if project_settings else {}
+            lang = settings.get('lang') or lang
+        except Exception as e:
+            logger.warning(
+                "Failed to load/parse project settings, fallback to default language. error: %s", e)
+
+        return LANGUAGE.get(lang, 'English')
+
     def gen_ticket_from_record(self, record_detail, context):
         """
         Generate a ticket with a title and description based on the input title and body content.
         """
         try:
+            context = context or {}
+            target_lang = self._get_project_target_language(context.get('project_uuid'))
+            lang_instruction = (
+                f"Output language requirement: You must write the generated ticket in {target_lang}."
+            )
             messages = [
                 {
                     "role": "system",
-                    "content": AI_UTILS_PROMPTS_MAP['generate_ticket']
+                    "content": f"{AI_UTILS_PROMPTS_MAP['generate_ticket']}\n\n{lang_instruction}"
                 },
                 {
                     "role": "user",
-                    "content": UserContentPrompts.generate_ticket(record_detail)
+                    "content": UserContentPrompts.generate_ticket(record_detail, target_lang)
                 }
             ]
 
@@ -67,14 +87,19 @@ class AIUtils:
         Generate a knowledge base record (kb_title, kb_content) from a ticket.
         """
         try:
+            context = context or {}
+            target_lang = self._get_project_target_language(context.get('project_uuid'))
+            lang_instruction = (
+                f"Output language requirement: You must write the generated knowledge base record in {target_lang}."
+            )
             messages = [
                 {
                     'role': 'system',
-                    'content': AI_UTILS_PROMPTS_MAP['generate_kb_record_from_ticket']
+                    'content': f"{AI_UTILS_PROMPTS_MAP['generate_kb_record_from_ticket']}\n\n{lang_instruction}"
                 },
                 {
                     'role': 'user',
-                    'content': UserContentPrompts.generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments)
+                    'content': UserContentPrompts.generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments, target_lang)
                 }
             ]
 
@@ -105,17 +130,8 @@ class AIUtils:
 
     def generate_summary(self, connection_type, project_uuid,  content, context):
         try:
-            project_settings = self.seaqa_db.get_project_settings_by_project_uuid(project_uuid)
-            settings = json.loads(project_settings) if project_settings else {}
-            lang = settings.get('lang')
-        except Exception as e:
-            logger.warning(
-                "Failed to load/parse project settings, fallback to default language. error: %s", e)
-            lang = 'en'
-
-        try:
             system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
-            target_lang = LANGUAGE.get(lang, 'English')
+            target_lang = self._get_project_target_language(project_uuid)
             lang_instruction = (
                 f"Output language requirement: You must write the summary in {target_lang}. "
             )

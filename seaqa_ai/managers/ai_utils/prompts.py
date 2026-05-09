@@ -1,12 +1,12 @@
 AI_UTILS_PROMPTS_MAP = {
-    'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information. Your generated content should always be in English.",
-    'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record.",
+    'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information. Always follow the explicit output language requirement provided in the prompt.",
+    'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record. Always follow the explicit output language requirement provided in the prompt.",
     'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
 }
 
 class UserContentPrompts:
     @staticmethod
-    def generate_ticket(record_detail):
+    def generate_ticket(record_detail, target_lang='English'):
         return f"""Based on the provided ticket information, please generate a concise and informative ticket.
 
 {record_detail}
@@ -14,7 +14,7 @@ class UserContentPrompts:
 **Instructions:**
 1. Generate a new, clear, and concise title for the ticket.
 2. Create a detailed description that summarizes the key points from the body content.
-3. The output language must be consistent with the input language.
+3. The output language must be {target_lang}.
 4. Return the result in JSON format with "title" and "description" keys.
 
 **Example Output:**
@@ -24,7 +24,7 @@ class UserContentPrompts:
 }}"""
 
     @staticmethod
-    def generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments=None):
+    def generate_kb_record_from_ticket(ticket_title, ticket_content, ticket_comments=None, target_lang='English'):
         comments_lines = []
         for c in (ticket_comments or [])[:50]:
             if not isinstance(c, dict):
@@ -51,7 +51,7 @@ Ticket Comments:
 {comments_text}
 
 **Requirements:**
-1. The output language must be consistent with the input language.
+1. The output language must be {target_lang}.
 2. kb_title should be concise and suitable as a KB record title.
 3. kb_content should be a clean, structured article in plain text/markdown.
 4. If comments provide important clarifications, root cause, workaround, or resolution, incorporate them.
