@@ -1,5 +1,5 @@
 AI_UTILS_PROMPTS_MAP = {
-    'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information.",
+    'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information. Your generated content should always be in English.",
     'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record.",
     'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
 }
