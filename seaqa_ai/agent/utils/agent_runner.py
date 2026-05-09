@@ -142,7 +142,7 @@ class AgentRunner:
         force_fallback,
     ) -> None:
         for step in range(max_steps):
-            # self._force_think_step(messages, step, phase=phase)
+            self._force_think_step(messages, step, phase=phase)
             step_start = time.monotonic()
             message, usage = self._request_llm_message_for_phase(messages, step, phase=phase)
             if message is None:
