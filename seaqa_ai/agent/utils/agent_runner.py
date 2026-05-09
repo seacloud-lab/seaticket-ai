@@ -14,7 +14,6 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
-from copy import deepcopy
 from seaqa_ai.utils.llm_api import CompletionAPI
 from seaqa_ai.agent.system_prompt import (
     FORCED_RECORD_EVENTS_SUMMARY_PROMPT,

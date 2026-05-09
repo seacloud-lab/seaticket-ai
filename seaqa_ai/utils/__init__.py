@@ -186,7 +186,7 @@ def clean_markdown_references(content, sources):
     for i in reversed(range(sources_len)):
         if f'[Reference {i + 1}]' not in result:
             for j in range(i + 1, len(sources)):
-                content = content.replace(f'[Reference {j + 1}]', f'[Reference {j}]')
+                result = result.replace(f'[Reference {j + 1}]', f'[Reference {j}]')
             del sources[i]
 
     return result, sources
