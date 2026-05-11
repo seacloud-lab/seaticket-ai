@@ -5,7 +5,7 @@ Provides:
 - BaseAgentTool: base class for tools that need record context
 - RecordEventsSummaryTool: records a concise summary of trigger events
 - FinalAnswerTool: signals the reasoning loop is complete
-- SuggestResolutionTool: suggest a user-facing resolution
+- SuggestReplyTool: suggest a user-facing reply
 - SuggestCreateTicketTool: suggest creating an internal ticket
 """
 import logging
@@ -105,7 +105,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 'properties': {
                     'summary': {
                         'type': 'string',
-                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
+                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Cite search evidence with returned labels like <reference_0> whenever applicable. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
                     },
                     'classified_issue_type': {
                         'type': 'string',
@@ -118,7 +118,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                     },
                     'recommended_action': {
                         'type': 'string',
-                        'enum': ['suggest_modify_type', 'suggest_resolution', 'suggest_create_ticket'],
+                        'enum': ['suggest_modify_type', 'suggest_reply', 'suggest_create_ticket'],
                         'description': 'The handling action to call next.'
                     },
                 },
@@ -152,8 +152,8 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         )
 
 
-class SuggestResolutionTool(BaseAgentTool):
-    """Suggests a resolution or direct reply for a source record.
+class SuggestReplyTool(BaseAgentTool):
+    """Suggests a direct reply.
 
     The suggestion is stored as pending and requires user confirmation before
     any action is taken (e.g. posting a reply on GitHub or closing the issue).
@@ -162,9 +162,9 @@ class SuggestResolutionTool(BaseAgentTool):
     tool = {
         'type': 'function',
         'function': {
-            'name': 'suggest_resolution',
+            'name': 'suggest_reply',
             'description': (
-                'Suggest a resolution/reply for a source record that can be answered by search evidence '
+                'Suggest a reply for a source record that can be answered by search evidence '
                 '(known issue, tracked request, or direct support answer). '
                 'Include supporting URLs from relevant records whenever available. '
                 'The suggestion requires user confirmation before being acted upon.'
@@ -172,10 +172,10 @@ class SuggestResolutionTool(BaseAgentTool):
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'resolution': {
+                    'reply': {
                         'type': 'string',
                         'description': (
-                            'The proposed resolution or answer to the issue. '
+                            'The proposed reply or answer to the issue. '
                             'Write it as if it were a helpful reply to the issue author. '
                             'For known/tracked cases, include URLs to the supporting records '
                             '(GitHub issue, forum topic, email thread, ticket, or docs).'
@@ -186,30 +186,30 @@ class SuggestResolutionTool(BaseAgentTool):
                         'description': 'Brief explanation of why this issue is considered a known problem.'
                     }
                 },
-                'required': ['resolution']
+                'required': ['reply']
             }
         }
     }
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Propose a resolution.'
+    suggestion_text = 'Send a reply.'
 
-    def execute(self, resolution, reasoning=None):
+    def execute(self, reply, reasoning=None):
         source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
 
-        resolution = (resolution or '').strip()
-        if not resolution:
-            return 'Cannot create resolution suggestion: empty resolution content.'
+        reply = (reply or '').strip()
+        if not reply:
+            return 'Cannot create reply suggestion: empty reply content.'
 
-        preview = resolution[:300]
-        if len(resolution) > 300:
+        preview = reply[:300]
+        if len(reply) > 300:
             preview += '...'
 
         return (
-            f'Resolution suggestion prepared for {source_type} {source_id} - {source_title}: {preview}'
+            f'Reply suggestion prepared for {source_type} {source_id} - {source_title}: {preview}'
         )
 
 

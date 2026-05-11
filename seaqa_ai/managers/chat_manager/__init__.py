@@ -5,7 +5,7 @@ from collections import deque
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
-from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets
+from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, get_answer_and_sources
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
@@ -15,7 +15,7 @@ from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMe
 from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.managers.chat_manager.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
-from seaqa_ai.managers.chat_manager.utils import get_answer_and_sources, combine_attachments_to_message, \
+from seaqa_ai.managers.chat_manager.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts
 from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
 
