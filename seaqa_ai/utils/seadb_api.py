@@ -6,6 +6,7 @@ from seaqa_ai.utils import uuid_str_to_36_chars
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, TICKET_TABLES
 
 logger = logging.getLogger(__name__)
+SEADB_COMPONENT_USERNAME = 'seaqa-ai'
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
@@ -38,15 +39,17 @@ def gen_seadb_table_name(connection_type, connection_id=None):
 
 
 class SeaDBAPI:
-    def __init__(self, secret_key, server_url, timeout=30):
+    def __init__(self, secret_key, server_url, timeout=30, username=SEADB_COMPONENT_USERNAME):
         self.timeout = timeout
         self.secret_key = secret_key
         self.server_url = server_url
+        self.username = username
 
     def gen_headers(self, base_id):
         payload = {
             'exp': int(time.time()) + 3600,
-            'base_id': base_id
+            'base_id': base_id,
+            'username': self.username,
         }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Bearer %s" % token}
