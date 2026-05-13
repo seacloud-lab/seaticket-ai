@@ -1,6 +1,6 @@
 import logging
 from copy import deepcopy
-from seaqa_ai.managers.chat_manager.system_prompts import (
+from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES,
     CHAT_CONTENT_GENERATION_RULES,
     CHAT_CORE_PROMPT,

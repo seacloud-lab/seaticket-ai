@@ -1,6 +1,7 @@
 import logging
 import json
 import time
+from abc import abstractmethod
 from collections import deque
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
@@ -11,13 +12,12 @@ from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionUtils
-from seaqa_ai.managers.chat_manager.memory import build_memory_from_db, OpenAIMemory
-from seaqa_ai.managers.chat_manager.tools import TestTool, DocumentsSearch, IssuesSearch
-from seaqa_ai.managers.chat_manager.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
-from seaqa_ai.managers.chat_manager.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
-from seaqa_ai.managers.chat_manager.utils import combine_attachments_to_message, \
-    strip_content_details_from_attachments, build_chat_system_prompts
-from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
+from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, OpenAIMemory
+from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
+from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
+from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
+from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, strip_content_details_from_attachments, build_chat_system_prompts
+from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,15 @@ class BasicChat(object):
             KnowledgeBaseEntryCreator(),
         )
         self.test_tool = TestTool()
+
+    def _prepare_chat_memory(self, system_prompts, session_uuid, context):
+        if session_uuid and not config.DISABLE_CONTEXT:
+            try:
+                message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
+                return build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
+            except Exception as e:
+                logger.warning(f'Failure to build context: {e}')
+        return OpenAIMemory(system_prompts)
 
     def _register_tools(self, tool_executor, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])
@@ -79,8 +88,9 @@ class BasicChat(object):
         self._register_tools(tool_executor, context)
         return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
+    @abstractmethod
     def run(self, model, tool_executor, message, attachments, **kwargs):
-        raise NotImplementedError()
+        raise NotImplementedError(tool_executor, message, attachments, kwargs)
 
 class SyncChat(BasicChat):
     def run(self, model, tool_executor, message, attachments, **kwargs):
@@ -94,16 +104,7 @@ class SyncChat(BasicChat):
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
         )
-        
-        if session_uuid and not config.DISABLE_CONTEXT:
-            try:
-                message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
-                memory = build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
-            except Exception as e:
-                logger.warning(f'Failure to build context: {e}')
-                memory = OpenAIMemory(system_prompts)
-        else:
-            memory = OpenAIMemory(system_prompts)
+        memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
         tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
@@ -127,23 +128,9 @@ class SyncChat(BasicChat):
                 time_begin = time.time()
                 response_token_usage = {}
                 try:
-                    completion_kwargs = {
-                        'messages': memory,
-                        'context': context,
-                        'num_retries': 1
-                    }
-
-                    if current_step < config.MAX_STEPS:
-                        completion_kwargs['tools'] = tool_executor.get()
-                    else:
-                        if not has_inserter_max_step_prompt:
-                            memory += {
-                                'role': 'system',
-                                'content': MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
-                            }
-                            has_inserter_max_step_prompt = True
-                        completion_kwargs['tool_choice'] = 'none'
-                    completion_kwargs['messages'] = memory
+                    completion_kwargs, has_inserter_max_step_prompt = BasicCompletionUtils.build_completion_kwargs(
+                        memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
+                    )
 
                     response = llm_client.completion(
                         **completion_kwargs
@@ -250,16 +237,7 @@ class StreamingChat(BasicChat):
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
             )
-            
-            if session_uuid and not config.DISABLE_CONTEXT:
-                try:
-                    message_model = PortalChatMessages if context.get('is_external_portal') else ChatMessages
-                    memory = build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
-                except Exception as e:
-                    logger.warning(f'Failure to build context: {e}')
-                    memory = OpenAIMemory(system_prompts)
-            else:
-                memory = OpenAIMemory(system_prompts)
+            memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
             user_raw_message = combine_attachments_to_message(attachments, message)
             tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
@@ -283,26 +261,9 @@ class StreamingChat(BasicChat):
                 time_begin = time.time()
                 token_usage = {}
                 try:
-                    completion_kwargs = {
-                        'context': context,
-                        'stream': True,
-                        'stream_options': {
-                            "include_usage": True
-                        },
-                        'num_retries': 1
-                    }
-                    if current_step < config.MAX_STEPS:
-                        completion_kwargs['tools'] = tool_executor.get()
-                    else:
-                        if not has_inserter_max_step_prompt:
-                            memory += {
-                                'role': 'system',
-                                'content': MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
-                            }
-                            has_inserter_max_step_prompt = True
-                        completion_kwargs['tool_choice'] = 'none'
-
-                    completion_kwargs['messages'] = memory
+                    completion_kwargs, has_inserter_max_step_prompt = StreamingCompletionUtils.build_completion_kwargs(
+                        memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
+                    )
                     response = llm_client.completion(**completion_kwargs)
                 except Exception as e:
                     time_usage = time.time() - time_begin

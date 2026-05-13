@@ -1,5 +1,6 @@
 import json
 import inspect
+from abc import abstractmethod
 from copy import deepcopy
 from seaqa_ai.config import THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import remove_sources_content_and_snippets
@@ -19,11 +20,15 @@ class BasicTool(object):
     def register(self, tool_executor, **constant_kwargs):
         tool_executor.register(self.execute, self.tool, **constant_kwargs)
 
+    @abstractmethod
     def execute(self, *args, **kwargs):
-        raise NotImplementedError()
+        raise NotImplementedError(args, kwargs)
     
 class InvalidToolException(Exception):
     pass
+
+from .search_tools import DocumentsSearch, IssuesSearch
+from .test_tool import TestTool
 
 class BasicToolExecutor(object):
     def __init__(self):
@@ -31,8 +36,9 @@ class BasicToolExecutor(object):
         self.thought_process = ThoughtProcessRecorder()
         self.clean()
 
+    @abstractmethod
     def register(self, func, tool_info, **constant_kwargs):
-        raise NotImplementedError()
+        raise NotImplementedError(func, tool_info, constant_kwargs)
     
     def registers(self, funcs, tool_infos, constant_kwargs_s=[]):
         if len(funcs) != len(tool_infos):
@@ -45,8 +51,9 @@ class BasicToolExecutor(object):
                 constant_kwargs = {}
             self.register(funcs[i], tool_infos[i], **constant_kwargs)
     
+    @abstractmethod
     def clean(self, *args, **kwargs):
-        raise NotImplementedError()
+        raise NotImplementedError(args, kwargs)
 
 class OpenAIToolExecutor(BasicToolExecutor):
     tools = {}

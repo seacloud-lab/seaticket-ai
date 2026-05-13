@@ -1,8 +1,5 @@
 from seaqa_ai.utils.tools import BasicTool
 
-# import subdir modules for convenience
-from seaqa_ai.managers.chat_manager.tools.search_tools import DocumentsSearch, IssuesSearch
-
 class TestTool(BasicTool):
     tool = {
         'type': 'function',

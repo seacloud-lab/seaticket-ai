@@ -8,7 +8,7 @@ DiscourseAgent: processes a single Discourse topic for one connection.
 import json
 import logging
 from seaqa_ai.db.models import ProjectConnection
-from seaqa_ai.agent.connection_agent import ConnectionAgent
+from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.discourse_tools import DISCOURSE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
@@ -16,7 +16,7 @@ from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
-    SourceType,
+    AgentSourceType,
     DataEventType,
 )
 from seaqa_ai.agent.system_prompt import (
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class DiscourseAgent(ConnectionAgent):
     """Processes a Discourse topic for a single Discourse connection within a project."""
 
-    SOURCE_TYPE = SourceType.DISCOURSE_FORUM.value
+    SOURCE_TYPE = AgentSourceType.DISCOURSE_FORUM.value
 
     def __init__(self, app, project, connection_id: int, record_id=None, events=None):
         super().__init__(app, project, connection_id, record_id, events)

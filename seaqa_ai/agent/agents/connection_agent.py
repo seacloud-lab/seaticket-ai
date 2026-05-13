@@ -2,8 +2,8 @@
 ConnectionAgent: intermediate base class for connection-backed agents.
 """
 from seaqa_ai.db.models import ProjectConnection
-from seaqa_ai.agent.base_agent import BaseAgent
-from seaqa_ai.managers.chat_manager.tools import DocumentsSearch, IssuesSearch
+from seaqa_ai.agent.agents.base_agent import BaseAgent
+from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
 

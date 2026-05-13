@@ -19,8 +19,8 @@ from abc import abstractmethod
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, Workspace
-from seaqa_ai.utils import parse_datetime, now_iso, uuid_str_to_32_chars, build_system_prompt
-from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, CompletionAPI
+from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
+from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE, MAX_CONTENT_CHARS
@@ -72,9 +72,11 @@ class BaseAgent:
         """Return the list of tool classes to register for this source type."""
         raise NotImplementedError
 
+    @abstractmethod
     def get_analysis_system_prompt(self) -> str:
         raise NotImplementedError
 
+    @abstractmethod
     def get_handling_system_prompt(self) -> str:
         raise NotImplementedError
 

@@ -4,10 +4,10 @@ import json
 from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
 from seaqa_ai.utils import chunk_text, gen_record_hash
-from seaqa_ai.managers.chat_manager import StreamingChat, SyncChat
+from seaqa_ai.services.chat_service import StreamingChat, SyncChat
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
-from seaqa_ai.managers.chat_manager import SyncChat, StreamingChat
+from seaqa_ai.services.chat_service import SyncChat, StreamingChat
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)

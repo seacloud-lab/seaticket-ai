@@ -8,16 +8,14 @@ GithubIssueAgent: processes a single GitHub issue for one connection.
 import logging
 import json
 
-from seaqa_ai.db.models import ProjectConnection
-from seaqa_ai.agent.connection_agent import ConnectionAgent
+from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
-from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
-    SourceType,
+    AgentSourceType,
     DataEventType,
 )
 from seaqa_ai.agent.system_prompt import (
@@ -31,7 +29,7 @@ logger = logging.getLogger(__name__)
 class GithubIssueAgent(ConnectionAgent):
     """Processes a GitHub issue for a single GitHub connection within a project."""
 
-    SOURCE_TYPE = SourceType.GITHUB_ISSUE.value
+    SOURCE_TYPE = AgentSourceType.GITHUB_ISSUE.value
 
     def __init__(self, app, project, connection_id: int, record_id=None, events=None):
         super().__init__(app, project, connection_id, record_id, events)

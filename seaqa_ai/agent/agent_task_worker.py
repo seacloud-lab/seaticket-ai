@@ -7,13 +7,13 @@ from redis.exceptions import ConnectionError as NoMQAvailable, ResponseError, Ti
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.agent.ticket_agent import TicketAgent
-from seaqa_ai.agent.github_agent import GithubIssueAgent
-from seaqa_ai.agent.discourse_agent import DiscourseAgent
-from seaqa_ai.agent.email_agent import EmailAgent
+from seaqa_ai.agent.agents.ticket_agent import TicketAgent
+from seaqa_ai.agent.agents.github_agent import GithubIssueAgent
+from seaqa_ai.agent.agents.discourse_agent import DiscourseAgent
+from seaqa_ai.agent.agents.email_agent import EmailAgent
 from seaqa_ai.agent.utils.constants import (
     AGENT_TASK_QUEUE_NAME,
-    SourceType,
+    AgentSourceType,
 )
 from seaqa_ai.utils import uuid_str_to_32_chars
 
@@ -94,7 +94,7 @@ class AgentTaskWorker:
         project_uuid = uuid_str_to_32_chars(project_uuid)
 
         source_type = str(data.get('source_type') or '').strip()
-        if not SourceType.is_valid(source_type):
+        if not AgentSourceType.is_valid(source_type):
             logger.warning('Unknown source_type %s, drop task', source_type)
             return
 
@@ -127,7 +127,7 @@ class AgentTaskWorker:
 
         events = list(events) if events else []
 
-        if source_type == SourceType.TICKET.value:
+        if source_type == AgentSourceType.TICKET.value:
             try:
                 ticket_agent = TicketAgent(
                     self.app,
@@ -141,7 +141,7 @@ class AgentTaskWorker:
             except Exception as e:
                 logger.exception('TicketAgent failed for project %s record %s: %s', project_uuid, record_id, e)
 
-        if source_type == SourceType.GITHUB_ISSUE.value:
+        if source_type == AgentSourceType.GITHUB_ISSUE.value:
             try:
                 github_agent = GithubIssueAgent(
                     self.app,
@@ -156,7 +156,7 @@ class AgentTaskWorker:
             except Exception as e:
                 logger.exception('GithubIssueAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
 
-        if source_type == SourceType.DISCOURSE_FORUM.value:
+        if source_type == AgentSourceType.DISCOURSE_FORUM.value:
             try:
                 discourse_agent = DiscourseAgent(
                     self.app,
@@ -171,7 +171,7 @@ class AgentTaskWorker:
             except Exception as e:
                 logger.exception('DiscourseAgent failed for project %s connection %s record %s: %s', project_uuid, connection_id, record_id, e)
 
-        if source_type == SourceType.EMAIL.value:
+        if source_type == AgentSourceType.EMAIL.value:
             try:
                 email_agent = EmailAgent(
                     self.app,

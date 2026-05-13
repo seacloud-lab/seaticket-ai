@@ -301,7 +301,6 @@ class AgentRunner:
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=None,
-                    arguments={},
                     result=str(e),
                     action_type='error',
                     action_status='failed',
@@ -400,7 +399,6 @@ class AgentRunner:
             if self.action_recorder and self.run_id:
                 self._record_action(
                     tool_name=tool_name,
-                    arguments={},
                     result=str(e),
                     action_type='error',
                     action_status='failed',
@@ -419,7 +417,6 @@ class AgentRunner:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
                 self._record_action(
                     tool_name=tool_name,
-                    arguments={},
                     result="No tool call returned.",
                     action_type='error',
                     action_status='failed',
@@ -570,7 +567,6 @@ class AgentRunner:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
                 self._record_action(
                     tool_name=tool_name,
-                    arguments=arguments,
                     result=str(e),
                     action_type='error',
                     action_status='failed',
@@ -611,7 +607,6 @@ class AgentRunner:
                 duration_ms = int((time.monotonic() - step_start) * 1000)
                 self._record_action(
                     tool_name=tool_name,
-                    arguments=arguments,
                     result=str(e),
                     action_type='error',
                     action_status='failed',
@@ -652,7 +647,6 @@ class AgentRunner:
             summary = arguments.get('summary') or arguments.get('answer') or observation
             self._record_action(
                 tool_name='final_answer',
-                arguments=arguments,
                 result=None,
                 action_type='summary',
                 action_status='completed',
@@ -696,7 +690,6 @@ class AgentRunner:
                 sources = []
         self._record_action(
             tool_name=tool_name,
-            arguments=arguments,
             result=observation,
             action_type=action_type,
             action_status=action_status,
@@ -709,7 +702,6 @@ class AgentRunner:
     def _record_action(
         self,
         tool_name,
-        arguments,
         result,
         action_type,
         action_status,
