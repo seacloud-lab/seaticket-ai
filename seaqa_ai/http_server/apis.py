@@ -54,6 +54,9 @@ def get_ai_reply():
     connection_ids = data.get('connection_ids')
     extra_sources = data.get('extra_sources')
     scenario = data.get('scenario', AIScenario.CHAT.value)
+    images = data.get('images', []) or []
+    if not isinstance(images, list):
+        return {'error_msg': 'images invalid.'}, 400
     context = {
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
@@ -79,7 +82,7 @@ def get_ai_reply():
     if stream:
         chat_service = StreamingChat(flask_app.app)
         return Response(
-            stream_with_context(chat_service(message, attachments, context, llm_model)),
+            stream_with_context(chat_service(message, attachments, context, llm_model, images=images)),
                 content_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -89,7 +92,7 @@ def get_ai_reply():
     else:
         chat_service = SyncChat(flask_app.app)
         try:
-            return chat_service(message, attachments, context, llm_model), 200
+            return chat_service(message, attachments, context, llm_model, images=images), 200
         except Exception as e:
             logger.exception(e)
             return {'error_msg': 'Internet server error.'}, 500

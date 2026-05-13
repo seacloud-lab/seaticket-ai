@@ -84,6 +84,27 @@ def combine_attachments_to_message(attachments, message):
 
     return final_message + message
 
+def build_user_message_content(attachments, message, images):
+    text = combine_attachments_to_message(attachments, message)
+    valid_images = [
+        img for img in (images or [])
+        if isinstance(img, dict) and img.get('mime_type') and img.get('data')
+    ]
+    if not valid_images:
+        return text
+    return [
+        {'type': 'text', 'text': text},
+        *[
+            {
+                'type': 'image_url',
+                'image_url': {
+                    'url': f"data:{img['mime_type']};base64,{img['data']}"
+                }
+            }
+            for img in valid_images
+        ],
+    ]
+
 def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
     for attachment in new_attachments:
