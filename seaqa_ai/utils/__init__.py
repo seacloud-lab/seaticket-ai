@@ -254,7 +254,7 @@ def normalize_usernames(usernames_raw):
     return [value]
 
 def gen_record_hash(source_type, connection_id, record_id):
-    if source_type in ExtraSourceType:
+    if ExtraSourceType.is_valid(source_type):
         return f'{source_type}-{source_type}-{record_id}'
     return f'{source_type}-{connection_id}-{record_id}'
 

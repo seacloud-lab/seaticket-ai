@@ -35,7 +35,6 @@ class BasicSearchTool(BasicTool):
 
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
-        # Get current task search history
         sources_results = tool_executor.cache.get('sources_results', [])
         existed_search_records_num = len(sources_results)
 
@@ -69,7 +68,6 @@ class BasicSearchTool(BasicTool):
             'sources_results': sources_results + current_search_results
         })
 
-        # Format the retrieved documents for readability
         return to_observation
 
 class DocumentsSearch(BasicSearchTool):

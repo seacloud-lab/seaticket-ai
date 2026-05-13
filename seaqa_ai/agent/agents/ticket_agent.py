@@ -11,7 +11,7 @@ import json
 
 from seaqa_ai.utils import now_iso
 from seaqa_ai.utils.constants import TICKET_TABLES
-from seaqa_ai.agent.base_agent import BaseAgent
+from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import AGENT_ACTIONS_TABLE
 from seaqa_ai.agent.system_prompt import (

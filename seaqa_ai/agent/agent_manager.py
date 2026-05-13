@@ -16,7 +16,7 @@ from seaqa_ai.agent.utils.constants import (
     AGENT_TASK_QUEUE_NAME,
     DATA_EVENTS_CHANNEL,
     DataEventType,
-    SourceType,
+    AgentSourceType,
 )
 
 logger = logging.getLogger(__name__)
@@ -168,7 +168,7 @@ class AgentManager:
             return
 
         source_type = data.get('source_type')
-        if not SourceType.is_valid(source_type):
+        if not AgentSourceType.is_valid(source_type):
             logger.warning('Ignore unknown source_type: %s', source_type)
             return
 
@@ -231,7 +231,7 @@ class AgentManager:
         are NOT filtered here; they are forwarded so that GithubIssueAgent can
         apply per-comment filtering downstream.
         """
-        if source_type != SourceType.GITHUB_ISSUE.value:
+        if source_type != AgentSourceType.GITHUB_ISSUE.value:
             return False
         if event.get('type') != DataEventType.GITHUB_ISSUE_COMMENT_ADDED.value:
             return False
@@ -265,7 +265,7 @@ class AgentManager:
         state = self.pending_tasks.get(key)
         if state is None:
             # For tickets, delay first enqueue to allow absorbing consecutive edits (e.g., modify then close)
-            not_before = now_time + self._ticket_delay_seconds if source_type == SourceType.TICKET.value else 0.0
+            not_before = now_time + self._ticket_delay_seconds if source_type == AgentSourceType.TICKET.value else 0.0
             state = PendingTaskState(
                 project_uuid=project_uuid,
                 source_type=source_type,
@@ -350,7 +350,7 @@ class AgentManager:
                     continue
                 self.add_to_task_queue(
                     project_uuid=project_uuid,
-                    source_type=SourceType.TICKET.value,
+                    source_type=AgentSourceType.TICKET.value,
                     record_id=ticket_pk,
                     connection_id=None,
                     events=[{

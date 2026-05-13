@@ -9,6 +9,25 @@ logger = logging.getLogger(__name__)
 
 class BasicCompletionUtils:
     @classmethod
+    def build_completion_kwargs(cls, memory, context, tool_executor, current_step, has_inserter_max_step_prompt, max_steps_disabled_prompt):
+        completion_kwargs = {
+            'context': context,
+            'num_retries': 1
+        }
+        if current_step < config.MAX_STEPS:
+            completion_kwargs['tools'] = tool_executor.get()
+        else:
+            if not has_inserter_max_step_prompt:
+                memory += {
+                    'role': 'system',
+                    'content': max_steps_disabled_prompt
+                }
+                has_inserter_max_step_prompt = True
+            completion_kwargs['tool_choice'] = 'none'
+        completion_kwargs['messages'] = memory
+        return completion_kwargs, has_inserter_max_step_prompt
+
+    @classmethod
     def build_completion_retry_entry(cls, step_number, current_retry, reason, time_usage, token_usage=None, error=None):
         entry = {
             'step': step_number,
@@ -74,6 +93,15 @@ class BasicCompletionUtils:
                 return
 
 class StreamingCompletionUtils(BasicCompletionUtils):
+    @classmethod
+    def build_completion_kwargs(cls, memory, context, tool_executor, current_step, has_inserter_max_step_prompt, max_steps_disabled_prompt):
+        completion_kwargs, has_inserter_max_step_prompt = super().build_completion_kwargs(
+            memory, context, tool_executor, current_step, has_inserter_max_step_prompt, max_steps_disabled_prompt
+        )
+        completion_kwargs['stream'] = True
+        completion_kwargs['stream_options'] = {"include_usage": True}
+        return completion_kwargs, has_inserter_max_step_prompt
+
     @classmethod
     def safe_model_dump(cls, chunk):
         if hasattr(chunk, 'model_dump'):

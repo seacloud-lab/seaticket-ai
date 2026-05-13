@@ -1,6 +1,6 @@
 from threading import Thread
 from waitress import create_server
-from seaqa_ai.server.apis import flask_app
+from seaqa_ai.http_server.apis import flask_app
 
 
 class SeaQAAIHttpServer(Thread):

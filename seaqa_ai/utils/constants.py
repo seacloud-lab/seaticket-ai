@@ -41,6 +41,10 @@ class ExtraSourceType(Enum):
     TICKET = 'ticket'
 
     @classmethod
+    def is_valid(cls, value):
+        return value in {item.value for item in cls}
+
+    @classmethod
     def get_document_extra_source_types(cls):
         return [
             item.value

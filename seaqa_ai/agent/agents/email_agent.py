@@ -8,13 +8,13 @@ EmailAgent: processes a single email thread for one connection.
 import json
 import logging
 
-from seaqa_ai.agent.connection_agent import ConnectionAgent
+from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.email_tools import EMAIL_TOOL_CLASSES
 from seaqa_ai.agent.system_prompt import (
     EMAIL_ANALYSIS_SYSTEM_PROMPT,
     EMAIL_HANDLING_SYSTEM_PROMPT,
 )
-from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, SourceType, DataEventType
+from seaqa_ai.agent.utils.constants import MAX_CONTENT_CHARS, AgentSourceType, DataEventType
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class EmailAgent(ConnectionAgent):
     """Processes an email thread for a single email connection within a project."""
 
-    SOURCE_TYPE = SourceType.EMAIL.value
+    SOURCE_TYPE = AgentSourceType.EMAIL.value
 
     def __init__(self, app, project, connection_id: int, record_id=None, events=None):
         super().__init__(app, project, connection_id, record_id, events)

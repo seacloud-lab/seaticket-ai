@@ -5,16 +5,16 @@ import time
 from copy import copy
 from seaqa_ai.config import AI_UTILS_TIER, SQLALCHEMY_DATABASE_URI
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.managers.ai_utils.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
-from seaqa_ai.managers.ai_utils.schemas import SCHEMAS_MAP
+from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
+from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import SOURCES_TYPE, ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
-from seaqa_ai.managers.ai_utils.utils import gen_completion_format
-from seaqa_ai.managers.ai_utils.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
-from seaqa_ai.managers.ai_utils.utils.search.content_retriever import ContentRetriever
-from seaqa_ai.managers.chat_manager.utils.callbacker import ChatCallBacker
+from seaqa_ai.services.ai_services.utils import gen_completion_format
+from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
+from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
+from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     record_id = int(record_id)
                 except:
                     pass
-                if candidate.get('type') in ExtraSourceType:
+                if ExtraSourceType.is_valid(candidate.get('type')):
                     connection_id = candidate.get('type')
                 else:
                     connection_id = candidate.get('connection_id', 'unknown')

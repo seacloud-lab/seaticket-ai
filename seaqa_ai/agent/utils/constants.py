@@ -1,4 +1,5 @@
 from enum import Enum
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
 AGENT_TASK_QUEUE_NAME = 'agent_task'
 
@@ -28,11 +29,11 @@ class DataEventType(Enum):
     def is_valid(cls, value):
         return value in {item.value for item in cls}
 
-class SourceType(Enum):
-    TICKET = 'ticket'
-    GITHUB_ISSUE = 'github_issue'
-    DISCOURSE_FORUM = 'discourse_forum'
-    EMAIL = 'email'
+class AgentSourceType(Enum):
+    TICKET = ExtraSourceType.TICKET.value
+    GITHUB_ISSUE = ConnectionType.GITHUB_ISSUE.value
+    DISCOURSE_FORUM = ConnectionType.DISCOURSE_FORUM.value
+    EMAIL = ConnectionType.EMAIL.value
 
     @classmethod
     def is_valid(cls, value):

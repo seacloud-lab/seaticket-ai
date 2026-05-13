@@ -5,7 +5,7 @@ from seaqa_ai.utils import url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
-from seaqa_ai.managers.ai_utils.utils.search import remap_comments_by_record_id
+from seaqa_ai.services.ai_services.utils.search import remap_comments_by_record_id
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 import logging
 
-from seaqa_ai.server.seaqa_ai_http_server import SeaQAAIHttpServer
-from seaqa_ai.data_logging.data_logging import DataLogging
-from seaqa_ai.managers.ai_utils import AIUtils
+from seaqa_ai.http_server.seaqa_ai_http_server import SeaQAAIHttpServer
+from seaqa_ai.utils.data_logging import DataLogging
+from seaqa_ai.services.ai_services import AIUtils
 from seaqa_ai.utils.llm_api import EmbeddingAPI
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.seadb_api import SeaDBAPI
