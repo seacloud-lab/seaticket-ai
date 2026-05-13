@@ -183,7 +183,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                     record_id = int(record_id)
                 except:
                     pass
-                if candidate.get('type') in ExtraSourceType:
+                if ExtraSourceType.is_valid(candidate.get('type')):
                     connection_id = candidate.get('type')
                 else:
                     connection_id = candidate.get('connection_id', 'unknown')

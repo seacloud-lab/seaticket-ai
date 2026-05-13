@@ -22,7 +22,7 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             connection_id = int(record.get('connection_id', 'unknown'))
         except:
             connection_id = record.get('connection_id', 'unknown')
-        if record['type'] in ExtraSourceType:
+        if ExtraSourceType.is_valid(record['type']):
             connection_id = record['type']
 
         try:
