@@ -45,16 +45,22 @@ def now_iso():
     return localize_time(datetime.now(timezone.utc)).isoformat()
 
 def build_system_prompt(base_prompt: str, project_prompt: str = '') -> str:
-    """Merge project-level prompt with a base system prompt."""
+    """Merge project-level prompt with a base system prompt.
+
+    The project_prompt is wrapped in a <project_context> element and prepended
+    to the base_prompt so project-level framing is read before the rest of the
+    instructions.
+    """
     if not project_prompt or not project_prompt.strip():
         return base_prompt
 
-    return f"""Project Context:
-{project_prompt}
+    project_block = (
+        '<project_context priority="high">\n'
+        f'{project_prompt.strip()}\n'
+        '</project_context>\n'
+    )
 
----------------
-
-{base_prompt}"""
+    return f"{project_block}\n{base_prompt}"
 
 def parse_datetime(dt_str):
     if not dt_str:

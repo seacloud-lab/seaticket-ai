@@ -12,12 +12,12 @@ import json
 from seaqa_ai.utils import now_iso
 from seaqa_ai.utils.constants import TICKET_TABLES
 from seaqa_ai.agent.agents.base_agent import BaseAgent
-from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
-from seaqa_ai.agent.utils.constants import AGENT_ACTIONS_TABLE
-from seaqa_ai.agent.system_prompt import (
-    TICKET_ANALYSIS_SYSTEM_PROMPT,
-    TICKET_HANDLING_SYSTEM_PROMPT,
+from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
+from seaqa_ai.agent.utils.constants import (
+    AGENT_ACTIONS_TABLE,
+    MAX_CONTENT_CHARS,
 )
+import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -27,27 +27,23 @@ class TicketAgent(BaseAgent):
 
     SOURCE_TYPE = 'ticket'
 
-    def __init__(self, app, project, record_id=None, events=None):
+    EVENT_TYPE_PROMPTS = ticket_prompts.PROMPTS
+
+    SOURCE_TOOL_CLASSES = TICKET_TOOL_CLASSES
+    ANALYSIS_TERMINATOR_TOOL = RecordTicketAnalysisTool
+
+    def __init__(self, app, project, record_id=None, event=None):
         """
         Args:
             app: the Flask app object.
             project: dict with 'uuid' and 'settings' keys.
             record_id: pk of the ticket to process.
-            events: list of event payloads that triggered this agent run.
+            event: normalized event payload.
         """
-        super().__init__(app, project, events)
+        super().__init__(app, project, event)
         self.record_id = record_id
 
     # ── Abstract method implementations ────────────────────────────
-
-    def get_analysis_system_prompt(self) -> str:
-        return self._build_system_prompt(TICKET_ANALYSIS_SYSTEM_PROMPT)
-
-    def get_handling_system_prompt(self) -> str:
-        return self._build_system_prompt(TICKET_HANDLING_SYSTEM_PROMPT)
-
-    def get_tool_classes(self) -> list:
-        return TICKET_TOOL_CLASSES
 
     def build_record_context(self, item: dict) -> dict:
         return {
@@ -156,9 +152,7 @@ class TicketAgent(BaseAgent):
         )
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
 
-    def build_item_message(self, item: dict, item_context: dict) -> str:
-        """Build the user message describing the ticket for LLM analysis (JSON format)."""
-        
+    def build_record_payload(self, item: dict, item_context: dict) -> dict:
         comments = item_context.get('comments', [])
         formatted_comments = []
         if comments:
@@ -192,7 +186,6 @@ class TicketAgent(BaseAgent):
         
         message_dict = {
             'ticket_id': item['_pk'],
-            'events': self.events,
             'title': item.get('title', 'Untitled'),
             'state': item.get('state', 'N/A'),
             'substate': item.get('substate', 'N/A'),
@@ -209,5 +202,5 @@ class TicketAgent(BaseAgent):
             'recent_activities': formatted_activities,
             'previous_notifications': formatted_notifications,
         }
-        
-        return json.dumps(message_dict, ensure_ascii=False, indent=2)
+        return message_dict
+

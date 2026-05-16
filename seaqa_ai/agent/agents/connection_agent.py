@@ -3,6 +3,7 @@ ConnectionAgent: intermediate base class for connection-backed agents.
 """
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
+from seaqa_ai.agent.tools.common_tools import RecordIssueAnalysisTool
 from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
@@ -12,14 +13,21 @@ class ConnectionAgent(BaseAgent):
     """
     Intermediate base for agents that process a single record from a
     project connection (e.g. GitHub Issue, Discourse Forum, Email Thread).
+
+    Adds search-tool injection on top of BaseAgent's tool assembly:
+    search tools (DocumentsSearch, IssuesSearch) are appended via
+    get_tool_classes() when SEARCH_ENABLED is True for this agent.
     """
 
     SOURCE_TYPE: str = ''
-    SEARCH_TOOL_NAMES: set = {'documents_search', 'issues_search'}
-    SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
+    SEARCH_ENABLED = True
+    ANALYSIS_TERMINATOR_TOOL = RecordIssueAnalysisTool
 
-    def __init__(self, app, project, connection_id: int, record_id=None, events=None):
-        super().__init__(app, project, events)
+    _SEARCH_TOOL_NAMES: set = {'documents_search', 'issues_search'}
+    _SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
+
+    def __init__(self, app, project, connection_id: int, record_id=None, event=None):
+        super().__init__(app, project, event)
         self.connection_id = connection_id
         self.record_id = record_id
 
@@ -32,9 +40,19 @@ class ConnectionAgent(BaseAgent):
             'source_title': item.get('title', 'Untitled'),
         }
 
+    def get_tool_classes(self) -> list:
+        """Append search tool classes when search is enabled for this agent."""
+        tools = super().get_tool_classes()
+        if not self.SEARCH_ENABLED:
+            return tools
+        for tool_cls in self._SEARCH_TOOL_CLASSES:
+            if tool_cls not in tools:
+                tools.append(tool_cls)
+        return tools
+
     def get_tool_registration_kwargs(self, tool_instance, record_context: dict) -> dict:
         tool_name = tool_instance.tool.get('function', {}).get('name', '')
-        if tool_name not in self.SEARCH_TOOL_NAMES:
+        if tool_name not in self._SEARCH_TOOL_NAMES:
             return {}
         return {
             'context': self._build_search_context(record_context),

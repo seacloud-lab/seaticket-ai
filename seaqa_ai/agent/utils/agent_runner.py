@@ -14,17 +14,36 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
+from dataclasses import dataclass
 from seaqa_ai.utils.llm_api import CompletionAPI
-from seaqa_ai.agent.system_prompt import (
-    FORCED_RECORD_EVENTS_SUMMARY_PROMPT,
+from seaqa_ai.agent.prompts._forced import (
+    FORCED_RECORD_EVENT_SUMMARY_PROMPT,
     PHASE_GUIDANCE_FOR_THINK,
-    FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
+    FORCED_RECORD_ANALYSIS_PROMPT,
     FORCED_FINAL_ANSWER_PROMPT,
 )
-from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool, RecordEventsSummaryTool
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool, RecordEventSummaryTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
+from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
+
+
+@dataclass(frozen=True)
+class PhaseSpec:
+    """Describes all invariants that govern one reasoning phase.
+
+    Attributes:
+        name: Human-readable label ('analysis' or 'handling').
+        terminator_tool: Name of the tool whose invocation ends the phase.
+        forced_prompt: System message injected when max_steps is reached
+            to force an immediate terminator call.
+        max_steps: Maximum number of LLM steps before forced termination.
+    """
+    name: str
+    terminator_tool: str
+    forced_prompt: str
+    max_steps: int = 10
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +56,11 @@ class AgentRunner:
     - Injects record context (source_type, source_id, source_title) into tool calls
     - Records each tool execution as an action in SeaDB via action_recorder
     - Supports 'pending' status for actions requiring user confirmation
+    - Phase behaviour (terminator tool, forced prompt, max steps) is expressed as
+      PhaseSpec objects so both phases are configured symmetrically
     """
 
-    PRELUDE_TOOL = 'record_events_summary'
-    ANALYSIS_TERMINATORS = ('record_ticket_analysis', 'record_issue_analysis')
-    HANDLING_TERMINATOR = 'final_answer'
+    PRELUDE_TOOL = 'record_event_summary'
 
     def __init__(
         self,
@@ -54,8 +73,9 @@ class AgentRunner:
         tool_metadata=None,
         analysis_system_prompt=None,
         handling_system_prompt=None,
-        max_analysis_steps=10,
-        max_handling_steps=10,
+        analysis_phase: PhaseSpec | None = None,
+        handling_phase: PhaseSpec | None = None,
+        search_enabled: bool = True,
     ):
         """
         Args:
@@ -71,8 +91,11 @@ class AgentRunner:
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
             analysis_system_prompt: system message for the analysis phase.
             handling_system_prompt: system message for the handling phase.
-            max_analysis_steps: maximum steps for the analysis loop.
-            max_handling_steps: maximum steps for the handling loop.
+            analysis_phase: PhaseSpec describing the analysis phase (terminator tool,
+                forced prompt, max steps).  Defaults to record_issue_analysis / 10 steps.
+            handling_phase: PhaseSpec describing the handling phase (terminator tool,
+                forced prompt, max steps).  Defaults to final_answer / 5 steps.
+            search_enabled: when False, *_search tools are hidden from the analysis phase.
         """
         self.tool_executor = tool_executor
         self.llm_client = llm_client
@@ -83,19 +106,28 @@ class AgentRunner:
         self.tool_metadata = tool_metadata or {}
         self.analysis_system_prompt = analysis_system_prompt
         self.handling_system_prompt = handling_system_prompt
-        self.max_analysis_steps = max_analysis_steps
-        self.max_handling_steps = max_handling_steps
+        self.analysis_phase = analysis_phase or PhaseSpec(
+            name='analysis',
+            terminator_tool='record_issue_analysis',
+            forced_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
+        )
+        self.handling_phase = handling_phase or PhaseSpec(
+            name='handling',
+            terminator_tool='final_answer',
+            forced_prompt=FORCED_FINAL_ANSWER_PROMPT,
+        )
+        self.search_enabled = search_enabled
         self.event_summary = ''
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
 
-        record_events_summary_tool = RecordEventsSummaryTool()
-        record_events_summary_tool.set_record_context(self.record_context)
-        record_events_summary_tool.register(tool_executor)
-        self.tool_metadata[record_events_summary_tool.tool.get('function', {}).get('name')] = {
-            'action_type': record_events_summary_tool.action_type,
-            'action_status': record_events_summary_tool.action_status,
+        record_event_summary_tool = RecordEventSummaryTool()
+        record_event_summary_tool.set_record_context(self.record_context)
+        record_event_summary_tool.register(tool_executor)
+        self.tool_metadata[record_event_summary_tool.tool.get('function', {}).get('name')] = {
+            'action_type': record_event_summary_tool.action_type,
+            'action_status': record_event_summary_tool.action_status,
         }
 
         think_tool = ThinkTool()
@@ -105,48 +137,30 @@ class AgentRunner:
             'action_status': think_tool.action_status,
         }
 
-    def run(self, task: str) -> str:
-        """Drive the two-phase reasoning loop: analysis then handling."""
+    def run(self, task: dict) -> None:
+        """Drive the two-phase reasoning loop: analysis then handling.
+
+        Args:
+            task: structured task payload (source_id, event, record, ...).
+        """
+
         self.event_summary = ''
-        messages = self._build_initial_messages(task)
+        analysis_task_xml = render_task_xml(task)
+        messages = self._build_initial_messages(analysis_task_xml)
 
-        self._record_events_summary(messages)
-        self._run_analysis_loop(messages)
+        self._record_event_summary(messages)
+        self._run_phase(messages, self.analysis_phase)
         handling_messages = self._build_handling_messages(task, messages)
-        self._run_handling_loop(handling_messages)
+        self._run_phase(handling_messages, self.handling_phase)
 
-    def _run_analysis_loop(self, messages: list[dict]) -> None:
-        self._run_loop(
-            messages=messages,
-            phase='analysis',
-            max_steps=self.max_analysis_steps,
-            terminators=self.ANALYSIS_TERMINATORS,
-            force_fallback=self._force_record_analysis,
-        )
-
-    def _run_handling_loop(self, messages: list[dict]) -> None:
-        self._run_loop(
-            messages=messages,
-            phase='handling',
-            max_steps=self.max_handling_steps,
-            terminators=(self.HANDLING_TERMINATOR,),
-            force_fallback=self._force_final_answer,
-        )
-
-    def _run_loop(
-        self,
-        messages: list[dict],
-        phase: str,
-        max_steps: int,
-        terminators: tuple[str, ...],
-        force_fallback,
-    ) -> None:
-        for step in range(max_steps):
-            # self._force_think_step(messages, step, phase=phase)
+    def _run_phase(self, messages: list[dict], spec: PhaseSpec) -> None:
+        """Run a single reasoning phase until the terminator tool is called or max steps reached."""
+        for step in range(spec.max_steps):
+            # self._force_think_step(messages, step, phase=spec.name)
             step_start = time.monotonic()
-            message, usage = self._request_llm_message_for_phase(messages, step, phase=phase)
+            message, usage = self._request_llm_message_for_phase(messages, step, phase=spec.name)
             if message is None:
-                logger.warning(f'{phase} step {step} LLM call failed, continuing to next step.')
+                logger.warning(f'{spec.name} step {step} LLM call failed, continuing to next step.')
                 continue
 
             tool_call = self._validate_single_tool_call(message.tool_calls, step)
@@ -154,24 +168,24 @@ class AgentRunner:
             messages.append(assistant_message)
 
             if not tool_call:
-                logger.warning(f'{phase} step {step} returned no tool call.')
+                logger.warning(f'{spec.name} step {step} returned no tool call.')
                 continue
 
             tool_name = tool_call.function.name
             logger.debug(f'Processing tool call {tool_name} at step {step}')
             self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage)
 
-            if tool_name in terminators:
-                logger.debug(f'{phase} loop completed at step {step} via {tool_name}.')
+            if tool_name == spec.terminator_tool:
+                logger.debug(f'{spec.name} loop completed at step {step} via {tool_name}.')
                 return
 
         logger.warning(
-            f'{phase} loop reached max steps ({max_steps}) '
-            f'without calling any of {terminators}.'
+            f'{spec.name} loop reached max steps ({spec.max_steps}) '
+            f'without calling {spec.terminator_tool!r}.'
         )
-        force_fallback(messages)
+        self._force_terminator(messages, spec)
 
-    def _build_handling_messages(self, task: str, analysis_messages: list[dict]) -> list[dict]:
+    def _build_handling_messages(self, task: dict, analysis_messages: list[dict]) -> list[dict]:
         event_summary = self.event_summary
         search_results = self._extract_successful_search_results(analysis_messages)
         analysis_result = self._extract_analysis_result(analysis_messages)
@@ -230,21 +244,16 @@ class AgentRunner:
 
             for tool_call in msg['tool_calls']:
                 tool_name = tool_call.get('function', {}).get('name', '')
-                if tool_name in self.ANALYSIS_TERMINATORS:
+                if tool_name == self.analysis_phase.terminator_tool:
                     args_str = tool_call.get('function', {}).get('arguments', '{}')
                     return self._parse_tool_arguments(args_str)
         return {}
 
-    def _build_handling_task_content(self, original_task: str, event_summary: str, search_results: list[dict], analysis_result: dict) -> str:
-        try:
-            task_dict = json.loads(original_task) if isinstance(original_task, str) else {}
-            if not isinstance(task_dict, dict):
-                task_dict = {'raw': original_task}
-        except (json.JSONDecodeError, TypeError):
-            task_dict = {'raw': original_task}
+    def _build_handling_task_content(self, original_task: dict, event_summary: str, search_results: list[dict], analysis_result: dict) -> str:
+        task_dict = dict(original_task)
 
         if event_summary:
-            task_dict['events_summary'] = event_summary
+            task_dict['event_summary'] = event_summary
 
         if search_results:
             task_dict['search_results'] = [
@@ -258,7 +267,7 @@ class AgentRunner:
         if analysis_result:
             task_dict['analysis_summary'] = analysis_result
 
-        return json.dumps(task_dict, ensure_ascii=False, indent=2)
+        return render_task_xml(task_dict)
 
 
     def _request_llm_message_for_phase(
@@ -331,34 +340,22 @@ class AgentRunner:
             system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
         )
 
-    def _record_events_summary(self, messages: list[dict]) -> None:
+    def _record_event_summary(self, messages: list[dict]) -> None:
         args = self._force_single_tool_call(
             messages=messages,
             tool_name=self.PRELUDE_TOOL,
             step=0,
-            system_content=FORCED_RECORD_EVENTS_SUMMARY_PROMPT,
+            system_content=FORCED_RECORD_EVENT_SUMMARY_PROMPT,
         )
         self.event_summary = (args.get('summary') or '').strip()
 
-    def _force_record_analysis(self, messages: list[dict]) -> None:
-        source_type = self.record_context.get('source_type', '')
-        if source_type == 'ticket':
-            tool_name = 'record_ticket_analysis'
-        else:
-            tool_name = 'record_issue_analysis'
+    def _force_terminator(self, messages: list[dict], spec: PhaseSpec) -> None:
+        """Force-call the terminator tool for a phase when max steps is exceeded."""
         self._force_single_tool_call(
             messages=messages,
-            tool_name=tool_name,
-            step=self.max_analysis_steps,
-            system_content=FORCED_RECORD_ISSUE_ANALYSIS_PROMPT,
-        )
-    
-    def _force_final_answer(self, messages: list[dict]):
-        self._force_single_tool_call(
-            messages=messages,
-            tool_name=self.HANDLING_TERMINATOR,
-            step=self.max_handling_steps,
-            system_content=FORCED_FINAL_ANSWER_PROMPT,
+            tool_name=spec.terminator_tool,
+            step=spec.max_steps,
+            system_content=spec.forced_prompt,
         )
 
     def _force_single_tool_call(
@@ -443,17 +440,23 @@ class AgentRunner:
 
     def _get_analysis_tools(self) -> list[dict]:
         excluded_prefixes = ('suggest_',)
-        excluded_names = (self.PRELUDE_TOOL, self.HANDLING_TERMINATOR, 'think')
-        return [
+        excluded_names = (self.PRELUDE_TOOL, self.handling_phase.terminator_tool, 'think')
+        tools = [
             tool
             for tool in self.tool_executor.get()
             if not tool.get('function', {}).get('name', '').startswith(excluded_prefixes)
             and tool.get('function', {}).get('name') not in excluded_names
         ]
+        if not self.search_enabled:
+            tools = [
+                tool for tool in tools
+                if not tool.get('function', {}).get('name', '').endswith('_search')
+            ]
+        return tools
 
     def _get_handling_tools(self) -> list[dict]:
         excluded_suffixes = ('_search',)
-        excluded_names = self.ANALYSIS_TERMINATORS + (self.PRELUDE_TOOL, 'think',)
+        excluded_names = {self.analysis_phase.terminator_tool, self.PRELUDE_TOOL, 'think'}
         return [
             tool
             for tool in self.tool_executor.get()

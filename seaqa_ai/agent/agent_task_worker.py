@@ -100,16 +100,14 @@ class AgentTaskWorker:
 
         record_id = data.get('record_id')
         connection_id = data.get('connection_id')
-        events = data.get('events')
-        if not isinstance(events, list):
-            events = []
+        event = data.get('event')
 
         self._work_task_handler(
             project_uuid=project_uuid,
             source_type=source_type,
             record_id=record_id,
             connection_id=connection_id,
-            events=events,
+            event=event,
         )
 
     def _work_task_handler(
@@ -118,14 +116,14 @@ class AgentTaskWorker:
         source_type: str,
         record_id,
         connection_id=None,
-        events=None,
+        event=None,
     ):
         project = self.app.seaqa_db.get_project_by_uuid(project_uuid)
         if not project:
             logger.warning('Project not found when processing agent task: %s', project_uuid)
             return
 
-        events = list(events) if events else []
+        event = event if isinstance(event, dict) else {}
 
         if source_type == AgentSourceType.TICKET.value:
             try:
@@ -133,7 +131,7 @@ class AgentTaskWorker:
                     self.app,
                     project,
                     record_id=record_id,
-                    events=events,
+                    event=event,
                 )
                 ticket_agent.run()
                 if ticket_agent.last_run_failed and ticket_agent.last_run_error_message:
@@ -148,7 +146,7 @@ class AgentTaskWorker:
                     project,
                     connection_id=connection_id,
                     record_id=record_id,
-                    events=events,
+                    event=event,
                 )
                 github_agent.run()
                 if github_agent.last_run_failed and github_agent.last_run_error_message:
@@ -163,7 +161,7 @@ class AgentTaskWorker:
                     project,
                     connection_id=connection_id,
                     record_id=record_id,
-                    events=events,
+                    event=event,
                 )
                 discourse_agent.run()
                 if discourse_agent.last_run_failed and discourse_agent.last_run_error_message:
@@ -178,7 +176,7 @@ class AgentTaskWorker:
                     project,
                     connection_id=connection_id,
                     record_id=record_id,
-                    events=events,
+                    event=event,
                 )
                 email_agent.run()
                 if email_agent.last_run_failed and email_agent.last_run_error_message:
