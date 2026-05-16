@@ -222,7 +222,6 @@ class BaseAgent:
     def _build_ai_stats_context(self) -> dict:
         """Build context used for AI usage statistics logging."""
         return {
-            'username': 'agent',
             'org_id': self.project_org_id if self.project_org_id is not None else -1,
             'project_uuid': self.project_uuid,
             'scenario': AIScenario.AGENT.value,

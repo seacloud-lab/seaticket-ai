@@ -44,7 +44,6 @@ class BasicLLMAPI:
                     'completion_tokens': token_usage['output_tokens'],
                     'total_tokens': token_usage['total_tokens']
                 },
-                'username': context.get('username'),
                 'org_id': context.get('org_id'),
                 'project_uuid': context.get('project_uuid'),
                 'scenario': context.get('scenario', AIScenario.UNKNOWN.value),

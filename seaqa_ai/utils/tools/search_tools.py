@@ -45,7 +45,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results, rerank_token_usage = app.ai_utils.search(query, connections, extra_sources, context, limit, call_back)
+        current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
