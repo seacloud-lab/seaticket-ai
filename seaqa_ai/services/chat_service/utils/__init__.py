@@ -9,6 +9,7 @@ from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_SEARCH_TOOLS_EXAMPLES,
     CHAT_SEARCH_POLICY,
     CHAT_SEARCH_REFERENCE_RULES,
+    CHAT_VISION_HINT_PROMPT,
 )
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
@@ -32,7 +33,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, has_images=False):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -52,6 +53,12 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
             'content': CHAT_OUTPUT_FORMAT_RULES,
         },
     ]
+
+    if has_images:
+        prompts.append({
+            'role': 'system',
+            'content': CHAT_VISION_HINT_PROMPT,
+        })
 
     if project_prompt and project_prompt.strip():
         prompts.append({
@@ -83,6 +90,13 @@ def combine_attachments_to_message(attachments, message):
         final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments) + '\n\n'
 
     return final_message + message
+
+def extract_images_from_attachments(attachments):
+    return [
+        {'name': attachment.get('name'), 'mime_type': attachment.get('mime_type'), 'data': attachment.get('data')}
+        for attachment in (attachments or [])
+        if isinstance(attachment, dict) and attachment.get('type') == 'image' and attachment.get('mime_type') and attachment.get('data')
+    ]
 
 def build_user_message_content(attachments, message, images):
     text = combine_attachments_to_message(attachments, message)

@@ -17,7 +17,8 @@ from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
-    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
+    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
+    extract_images_from_attachments
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -84,9 +85,10 @@ class BasicChat(object):
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
     
-    def __call__(self, message, attachments, context, model, images=None):
+    def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
         self._register_tools(tool_executor, context)
+        images = extract_images_from_attachments(attachments)
         return self.run(model, tool_executor, message, attachments, context=context, app=self.app, images=images)
 
     @abstractmethod
@@ -105,6 +107,7 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
+            has_images=bool(images),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -240,6 +243,7 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
+                has_images=bool(images),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
