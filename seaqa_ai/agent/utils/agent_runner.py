@@ -63,7 +63,7 @@ class AgentRunner:
             llm_client: CompletionAPI client used for LLM calls.
             record_context: dict with keys source_type, source_id, source_title.
             ai_stats_context: dict with keys used for AI usage statistics logging
-                            (e.g. username, org_id, project_uuid).
+                            (e.g. org_id, project_uuid).
             action_recorder: callable(run_id, source_type, source_id, source_title,
                              action_type, tool_name, content, result, action_status,
                              suggestion_text, sources, statistics) -> int

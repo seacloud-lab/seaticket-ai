@@ -44,7 +44,6 @@ def get_ai_reply():
 
     message = data.get('query')
     attachments = data.get('attachments', [])
-    username = data.get('username')
     session_uuid = data.get('session_uuid')
     project_uuid = data.get('project_uuid')
     org_id = data.get('org_id')
@@ -56,7 +55,6 @@ def get_ai_reply():
     extra_sources = data.get('extra_sources')
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
-        'username': username,
         'session_uuid': session_uuid,
         'project_uuid': project_uuid,
         'org_id': org_id,
@@ -75,15 +73,13 @@ def get_ai_reply():
         return {'error_msg': 'question invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
     
     if stream:
-        chat_manager = StreamingChat(flask_app.app)
+        chat_service = StreamingChat(flask_app.app)
         return Response(
-            stream_with_context(chat_manager(message, attachments, context, llm_model)),
+            stream_with_context(chat_service(message, attachments, context, llm_model)),
                 content_type='text/event-stream',
                 headers={
                     'Cache-Control': 'no-cache',
@@ -91,9 +87,9 @@ def get_ai_reply():
                 }
             )
     else:
-        chat_manager = SyncChat(flask_app.app)
+        chat_service = SyncChat(flask_app.app)
         try:
-            return chat_manager(message, attachments, context, llm_model), 200
+            return chat_service(message, attachments, context, llm_model), 200
         except Exception as e:
             logger.exception(e)
             return {'error_msg': 'Internet server error.'}, 500
@@ -111,14 +107,12 @@ def convert_record_to_ticket():
         logger.exception(e)
         return {'error_msg': 'Bad request.'}, 400
 
-    username = data.get('username')
     record_detail = data.get('record_detail')
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.RECORD_GENERATION.value)
 
     context = {
-        'username': username,
         'org_id': org_id,
         'project_uuid': project_uuid,
         'scenario': scenario,
@@ -126,11 +120,9 @@ def convert_record_to_ticket():
 
     if not record_detail:
         return {'error_msg': 'record_detail invalid.'}, 400
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
 
     try:
-        title, description = flask_app.app.ai_utils.gen_ticket_from_record(record_detail, context)
+        title, description = flask_app.app.ai_services.gen_ticket_from_record(record_detail, context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
@@ -149,7 +141,6 @@ def convert_ticket_to_kb_record():
         logger.exception(e)
         return {'error_msg': 'Bad request.'}, 400
 
-    username = data.get('username')
     ticket_title = data.get('ticket_title')
     ticket_content = data.get('ticket_content')
     ticket_comments = data.get('ticket_comments') or data.get('comments') or []
@@ -159,7 +150,6 @@ def convert_ticket_to_kb_record():
     scenario = data.get('scenario', AIScenario.RECORD_GENERATION.value)
 
     context = {
-        'username': username,
         'org_id': org_id,
         'project_uuid': project_uuid,
         'scenario': scenario,
@@ -167,15 +157,13 @@ def convert_ticket_to_kb_record():
 
     if not ticket_title and not ticket_content:
         return {'error_msg': 'ticket data invalid.'}, 400
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
     if ticket_comments and not isinstance(ticket_comments, list):
         return {'error_msg': 'ticket_comments invalid.'}, 400
 
     try:
-        kb_title, kb_content = flask_app.app.ai_utils.gen_kb_record_from_ticket(ticket_title or '', ticket_content or '', ticket_comments or [], context)
+        kb_title, kb_content = flask_app.app.ai_services.gen_kb_record_from_ticket(ticket_title or '', ticket_content or '', ticket_comments or [], context)
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
@@ -194,7 +182,6 @@ def generate_summary():
         return {'error_msg': 'Bad request.'}, 400
 
     connection_type = data.get('type')
-    username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.SUMMARY.value)
@@ -202,19 +189,16 @@ def generate_summary():
     if not connection_type:
         return {'error_msg': 'type invalid.'}, 400
     if not content:
-        return {'error_msg': 'content invalid'}, 400 
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
+        return {'error_msg': 'content invalid'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
-        'username': username,
         'project_uuid': project_uuid,
         'scenario': scenario,
     }
     try:
-        summary = flask_app.app.ai_utils.generate_summary(connection_type, project_uuid, content, context)
+        summary = flask_app.app.ai_services.generate_summary(connection_type, project_uuid, content, context)
         result = {"summary": summary}
     except Exception as e:
         logger.exception(e)
@@ -235,7 +219,6 @@ def rank_records_by_relevance():
 
     query_record = data.get('query_record')
     candidate_records = data.get('candidate_records')
-    username = data.get('username', '')
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.SEARCH.value)
@@ -246,22 +229,19 @@ def rank_records_by_relevance():
         return {'error_msg': 'candidate_records invalid.'}, 400
     if not isinstance(candidate_records, list):
         return {'error_msg': 'candidate_records must be a list.'}, 400
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not org_id:
         return {'error_msg': 'org_id invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
-        'username': username,
         'org_id': org_id,
         'project_uuid': project_uuid,
         'scenario': scenario,
     }
 
     try:
-        ranked_ids = flask_app.app.ai_utils.rank_records_by_relevance(query_record, candidate_records, context)[0]
+        ranked_ids = flask_app.app.ai_services.rank_records_by_relevance(query_record, candidate_records, context)[0]
         return {'ranked_ids': ranked_ids}, 200
     except Exception as e:
         logger.exception(e)
@@ -279,20 +259,16 @@ def generate_embedding():
     except Exception as e:
         return {'error_msg': 'Bad request.'}, 400
 
-    username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.UNKNOWN.value)
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
-        'username': username,
         'project_uuid': project_uuid,
         'scenario': scenario,
     }
@@ -315,20 +291,16 @@ def generate_chunks_embedding():
     except Exception as e:
         return {'error_msg': 'Bad request.'}, 400
 
-    username = data.get('username', '')
     content = data.get('content')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.SUMMARY.value)
 
     if not content:
         return {'error_msg': 'content invalid'}, 400 
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
-        'username': username,
         'project_uuid': project_uuid,
         'scenario': scenario,
     }
@@ -354,20 +326,16 @@ def batch_generate_embeddings():
     except Exception as e:
         return {'error_msg': 'Bad request.'}, 400
 
-    username = data.get('username', '')
     contents = data.get('contents')
     project_uuid = data.get('project_uuid')
     scenario = data.get('scenario', AIScenario.UNKNOWN.value)
 
     if not contents or not isinstance(contents, list):
         return {'error_msg': 'contents invalid'}, 400 
-    if not username:
-        return {'error_msg': 'username invalid.'}, 400
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
 
     context = {
-        'username': username,
         'project_uuid': project_uuid,
         'scenario': scenario,
     }
