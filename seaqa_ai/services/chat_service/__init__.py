@@ -17,8 +17,7 @@ from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
-    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
-    extract_images_from_attachments
+    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 
 logger = logging.getLogger(__name__)
@@ -88,8 +87,7 @@ class BasicChat(object):
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
         self._register_tools(tool_executor, context)
-        images = extract_images_from_attachments(attachments)
-        return self.run(model, tool_executor, message, attachments, context=context, app=self.app, images=images)
+        return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
     @abstractmethod
     def run(self, model, tool_executor, message, attachments, **kwargs):
@@ -100,19 +98,19 @@ class SyncChat(BasicChat):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
         project_prompt = context.get('project_prompt', '')
-        images = kwargs.get('images') or []
         llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
         context=kwargs.get('context')
 
+        user_raw_message = combine_attachments_to_message(attachments, message)
+        user_message_content, has_images = build_user_message_content(attachments, message)
+
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
+            has_images=has_images,
             is_external_portal=context.get('is_external_portal', False),
-            has_images=bool(images),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
-        user_raw_message = combine_attachments_to_message(attachments, message)
-        user_message_content = build_user_message_content(attachments, message, images)
         tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
         tool_executor.thought_process.context = memory.context_thought_process
 
@@ -236,19 +234,19 @@ class StreamingChat(BasicChat):
             context = kwargs.get('context', {})
             session_uuid = context.get('session_uuid')
             project_prompt = context.get('project_prompt', '')
-            images = kwargs.get('images') or []
             llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
             yield SSE.status('Preparing', 'Initializing user input')
 
+            user_raw_message = combine_attachments_to_message(attachments, message)
+            user_message_content, has_images = build_user_message_content(attachments, message)
+
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
+                has_images=has_images,
                 is_external_portal=context.get('is_external_portal', False),
-                has_images=bool(images),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
-            user_raw_message = combine_attachments_to_message(attachments, message)
-            user_message_content = build_user_message_content(attachments, message, images)
             tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 

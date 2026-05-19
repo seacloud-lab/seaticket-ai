@@ -33,7 +33,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, has_images=False):
+def build_chat_system_prompts(project_prompt='', has_images=False, is_external_portal=False, skip_tool_examples=False):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -98,15 +98,17 @@ def extract_images_from_attachments(attachments):
         if isinstance(attachment, dict) and attachment.get('type') == 'image' and attachment.get('mime_type') and attachment.get('data')
     ]
 
-def build_user_message_content(attachments, message, images):
+def build_user_message_content(attachments, message):
+    """
+    Returns (content, has_images):
+    - No images: content is a plain text string.
+    - With images: content is a multimodal parts list (text + image_url)
+    """
     text = combine_attachments_to_message(attachments, message)
-    valid_images = [
-        img for img in (images or [])
-        if isinstance(img, dict) and img.get('mime_type') and img.get('data')
-    ]
-    if not valid_images:
-        return text
-    return [
+    images = extract_images_from_attachments(attachments)
+    if not images:
+        return text, False
+    content = [
         {'type': 'text', 'text': text},
         *[
             {
@@ -115,9 +117,10 @@ def build_user_message_content(attachments, message, images):
                     'url': f"data:{img['mime_type']};base64,{img['data']}"
                 }
             }
-            for img in valid_images
+            for img in images
         ],
     ]
+    return content, True
 
 def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
