@@ -5,7 +5,7 @@ import time
 from copy import copy
 from seaqa_ai.config import AI_UTILS_TIER, SQLALCHEMY_DATABASE_URI
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMAEY_PROMPTS_MAP
+from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMARY_PROMPTS_MAP
 from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
@@ -130,7 +130,7 @@ class AIServices:
 
     def generate_summary(self, connection_type, project_uuid,  content, context):
         try:
-            system_prompts = GENERATE_SUMMAEY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMAEY_PROMPTS_MAP['documents'])
+            system_prompts = GENERATE_SUMMARY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMARY_PROMPTS_MAP['documents'])
             target_lang = self._get_project_target_language(project_uuid)
             lang_instruction = (
                 f"Output language requirement: You must write the summary in {target_lang}. "
