@@ -208,7 +208,7 @@ class AgentManager:
             return
 
         connection_id = data.get('connection_id')
-        self._register_pending_record(
+        self._register_pending_event(
             project_uuid=project_uuid,
             source_type=source_type,
             record_id=record_id,
@@ -242,7 +242,7 @@ class AgentManager:
                 return False
         return True
 
-    def _register_pending_record(
+    def _register_pending_event(
         self,
         project_uuid: str,
         source_type: str,
