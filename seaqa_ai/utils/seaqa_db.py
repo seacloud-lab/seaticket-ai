@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 from sqlalchemy import text
 from seaqa_ai.utils import uuid_str_to_32_chars
@@ -41,23 +42,26 @@ class SeaqaDB(object):
                 logger.exception(f'Failed to query project {project_uuid}: {e}')
         return None
     
-    def get_all_projects(self, page_size: int = 50) -> list[dict]:
-        all_projects = []
+    def get_all_projects(self, page_size: int = 50) -> Iterator[dict]:
         with self.db_session_class() as db_session:
             try:
                 page = 1
                 while True:
-                    projects, total = Project.get_all_active_projects(db_session, page=page, page_size=page_size)
-                    all_projects.extend(projects)
-                    if len(all_projects) >= total or not projects:
+                    projects = Project.get_all_active_projects(db_session, page=page, page_size=page_size)
+                    if not projects:
+                        break
+                    for project in projects:
+                        yield project
+                    if len(projects) < page_size:
                         break
                     page += 1
             except Exception as e:
                 logger.exception(f'Failed to get projects: {e}')
-        return all_projects
 
-    def get_enabled_projects(self) -> list[dict]:
-        return [project for project in self.get_all_projects() if self.is_agent_enabled(project)]
+    def get_enabled_agent_projects(self) -> Iterator[dict]:
+        for project in self.get_all_projects():
+            if self.is_agent_enabled(project):
+                yield project
 
     def update_project_agent_scanned_at(self, project_uuid: str) -> bool:
         project_uuid = uuid_str_to_32_chars(project_uuid)

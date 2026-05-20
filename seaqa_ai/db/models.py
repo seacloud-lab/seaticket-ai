@@ -40,7 +40,6 @@ class Project(Base):
                 cls.deleted == 0, 
                 cls.last_ticket_active_time > active_threshold
             )
-            total = base_query.count()
             offset = (page - 1) * page_size
             projects_query = base_query.offset(offset).limit(page_size)
             projects = []
@@ -54,10 +53,10 @@ class Project(Base):
                     'settings': settings,
                     'last_agent_scanned_at': project.last_agent_scanned_at,
                 })
-            return projects, total
+            return projects
         except Exception as e:
             logger.exception(f'Failed to query projects: {e}')
-            return [], 0
+            return []
 
     @classmethod
     def get_project_by_uuid(cls, session, uuid: str):

@@ -29,8 +29,8 @@ class PendingTaskState:
     record_id: int
     connection_id: int | None
     events: list = field(default_factory=list)
+    first_event_time: float = 0.0
     last_enqueue_time: float = 0.0
-    not_before: float = 0.0  # Earliest time this record can be enqueued (for ticket delay)
 
 
 class AgentManager:
@@ -43,13 +43,6 @@ class AgentManager:
         self.should_stop = threading.Event()
         self.worker_list = []
         self.pending_tasks: dict[str, PendingTaskState] = {}
-        self._check_pending_events_interval = 5
-        self._retry_interval = 3
-        self._no_message_timeout = 5 * 60 # 5 minutes
-        self._debounce_interval = 10 * 60 # 10 minutes
-        self._due_soon_scan_interval = 1 * 60 * 60 # 1 hour
-        self._min_scan_interval_hours = 24 # skip project if scanned within last 24 hours
-        self._ticket_delay_seconds = 5 * 60 # 5 minutes delay for ticket events before first enqueue
 
     def start(self):
         if not self.mq:
@@ -122,7 +115,7 @@ class AgentManager:
             except Exception as e:
                 logger.exception('Agent manager event listener failed: %s', e)
 
-            if self.should_stop.wait(self._retry_interval):
+            if self.should_stop.wait(config.AGENT_REDIS_CONNECTION_RETRY_INTETVAL):
                 return
 
     def _listen_once(self):
@@ -140,12 +133,12 @@ class AgentManager:
                     last_message_time = now_time
                     self._handle_event_message(message.get('data'), now_time)
 
-                if (now_time - last_pending_check_time) >= self._check_pending_events_interval:
+                if (now_time - last_pending_check_time) >= config.AGENT_ENQUEUE_PENDING_EVENTS_CHECL_INTETVAL:
                     last_pending_check_time = now_time
                     self._flush_pending_records(now_time)
 
-                if message is None and (now_time - last_message_time) >= self._no_message_timeout:
-                    logger.warning('No pubsub messages for %ss, reconnecting.', self._no_message_timeout)
+                if message is None and (now_time - last_message_time) >= config.AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME:
+                    logger.warning('No pubsub messages for %ss, reconnecting.', config.AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME)
                     return
 
     def _handle_event_message(self, raw_data: str, now_time: float):
@@ -264,14 +257,12 @@ class AgentManager:
 
         state = self.pending_tasks.get(key)
         if state is None:
-            # For tickets, delay first enqueue to allow absorbing consecutive edits (e.g., modify then close)
-            not_before = now_time + self._ticket_delay_seconds if source_type == AgentSourceType.TICKET.value else 0.0
             state = PendingTaskState(
                 project_uuid=project_uuid,
                 source_type=source_type,
                 record_id=record_id,
                 connection_id=connection_id,
-                not_before=not_before,
+                first_event_time=now_time,
             )
             self.pending_tasks[key] = state
 
@@ -296,7 +287,11 @@ class AgentManager:
         # Only enqueue when there is at least one new event since the last enqueue and the debounce interval has passed
         if not state.events:
             return False
-        if now_time < state.not_before:
+        if (
+            state.source_type == AgentSourceType.TICKET.value
+            and state.last_enqueue_time == 0
+            and (now_time - state.first_event_time) < config.AGENT_ENQUEUE_TICKET_FIRST_DELAY_TIME
+        ):
             return False
         return (now_time - state.last_enqueue_time) >= self._debounce_interval
 
@@ -317,11 +312,11 @@ class AgentManager:
                 self._enqueue_due_soon_scan_tasks()
             except Exception as e:
                 logger.exception('Due-soon scan failed: %s', e)
-            if self.should_stop.wait(self._due_soon_scan_interval):
+            if self.should_stop.wait(config.AGENT_TIMED_SCAN_INTERVAL):
                 return
 
     def _enqueue_due_soon_scan_tasks(self):
-        projects = self.app.seaqa_db.get_enabled_projects()
+        projects = self.app.seaqa_db.get_enabled_agent_projects()
         now = datetime.now(timezone.utc)
         for project in projects:
             project_uuid = project.get('uuid')
@@ -332,7 +327,7 @@ class AgentManager:
             if last_scanned_at is not None:
                 if last_scanned_at.tzinfo is None:
                     last_scanned_at = last_scanned_at.replace(tzinfo=timezone.utc)
-                if (now - last_scanned_at) < timedelta(hours=self._min_scan_interval_hours):
+                if (now - last_scanned_at) < timedelta(seconds=config.AGENT_TIMED_SCAN_DUPLICATION_PROJECT_INTERVAL):
                     logger.debug(
                         'Skipping due-soon scan for project %s (last scanned %s ago)',
                         project_uuid, now - last_scanned_at,
