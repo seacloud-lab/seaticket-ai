@@ -207,18 +207,18 @@ if MYSQL_UNIX_SOCKET:
 AGENT_CONFIG = configs.get('AGENT', {})
 
 ## Max records counter
-AGENT_MAX_TICKETS_PER_RUN = AGENT_CONFIG.get('agent_max_tickets_per_run', 100)
-AGENT_MAX_GITHUB_ISSUES_PER_RUN = AGENT_CONFIG.get('agent_max_github_issues_per_run', 100)
-AGENT_MAX_ANALYSIS_STEPS = AGENT_CONFIG.get('agent_max_analysis_steps', 10)
-AGENT_MAX_HANDLING_STEPS = AGENT_CONFIG.get('agent_max_handling_steps', 5)
+AGENT_MAX_TICKETS_PER_RUN = AGENT_CONFIG.get('max_tickets_per_run', 100)
+AGENT_MAX_GITHUB_ISSUES_PER_RUN = AGENT_CONFIG.get('max_github_issues_per_run', 100)
+AGENT_MAX_ANALYSIS_STEPS = AGENT_CONFIG.get('max_analysis_steps', 10)
+AGENT_MAX_HANDLING_STEPS = AGENT_CONFIG.get('max_handling_steps', 5)
 
 ## Agent manager timing (in unit of second)
 
 ### For enqueue
-AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL = AGENT_CONFIG.get('agent_enqueue_pending_events_check_intetval', 5)  # Interval to check and flush pending events
-AGENT_ENQUEUE_DEBOUNCE_INTERVAL = AGENT_CONFIG.get('agent_enqueue_debounce_interval', 600)  # Minimum interval between two enqueues for the same record (debounce)
-AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE = AGENT_CONFIG.get('agent_enqueue_ticket_initial_debounce', 300)  # Initial debounce wait after first ticket event, to coalesce rapid changes
+AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL = AGENT_CONFIG.get('enqueue_pending_events_check_intetval', 5)  # Interval to check and flush pending events
+AGENT_ENQUEUE_DEBOUNCE_INTERVAL = AGENT_CONFIG.get('enqueue_debounce_interval', 600)  # Minimum interval between two enqueues for the same record (debounce)
+AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE = AGENT_CONFIG.get('enqueue_ticket_initial_debounce', 300)  # Initial debounce wait after first ticket event, to coalesce rapid changes
 
 ### For timed scan
-AGENT_TIMED_SCAN_INTERVAL = AGENT_CONFIG.get('agent_timed_scan_interval', 3600)  # Timed scanner execution interval
-AGENT_TIMED_SCAN_PROJECT_COOLDOWN = AGENT_CONFIG.get('agent_timed_scan_project_cooldown', 86400)  # Cooldown before re-scanning the same project
+AGENT_TIMED_SCAN_INTERVAL = AGENT_CONFIG.get('timed_scan_interval', 3600)  # Timed scanner execution interval
+AGENT_TIMED_SCAN_PROJECT_COOLDOWN = AGENT_CONFIG.get('timed_scan_project_cooldown', 86400)  # Cooldown before re-scanning the same project
