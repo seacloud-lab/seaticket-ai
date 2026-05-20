@@ -36,6 +36,9 @@ class PendingTaskState:
 class AgentManager:
     """Listen to events and enqueue agent tasks."""
 
+    _retry_interval = 3
+    _no_message_timeout = 5 * 60 # 5 minutes
+
     def __init__(self, app):
         self.app = app
         self.mq = app.redis_client.connection
@@ -115,7 +118,7 @@ class AgentManager:
             except Exception as e:
                 logger.exception('Agent manager event listener failed: %s', e)
 
-            if self.should_stop.wait(3):
+            if self.should_stop.wait(self._retry_interval):
                 return
 
     def _listen_once(self):
@@ -137,8 +140,8 @@ class AgentManager:
                     last_pending_check_time = now_time
                     self._flush_pending_records(now_time)
 
-                if message is None and (now_time - last_message_time) >= 300:
-                    logger.warning('No pubsub messages for %ss, reconnecting.', 300)
+                if message is None and (now_time - last_message_time) >= self._no_message_timeout:
+                    logger.warning('No pubsub messages for %ss, reconnecting.', self._no_message_timeout)
                     return
 
     def _handle_event_message(self, raw_data: str, now_time: float):
