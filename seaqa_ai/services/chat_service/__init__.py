@@ -102,11 +102,10 @@ class SyncChat(BasicChat):
         context=kwargs.get('context')
 
         user_raw_message = combine_attachments_to_message(attachments, message)
-        user_message_content, has_images = build_user_message_content(attachments, message)
+        user_message_content = build_user_message_content(attachments, message)
 
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
-            has_images=has_images,
             is_external_portal=context.get('is_external_portal', False),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
@@ -238,11 +237,10 @@ class StreamingChat(BasicChat):
             yield SSE.status('Preparing', 'Initializing user input')
 
             user_raw_message = combine_attachments_to_message(attachments, message)
-            user_message_content, has_images = build_user_message_content(attachments, message)
+            user_message_content = build_user_message_content(attachments, message)
 
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
-                has_images=has_images,
                 is_external_portal=context.get('is_external_portal', False),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)

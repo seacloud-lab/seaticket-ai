@@ -156,9 +156,3 @@ I created the knowledge base entry.
 <seaqa-kb-entry id="1234" title="How to install Seafile with Docker" />"""
 
 MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT = f'WARNING: You have reached step {MAX_STEPS}. Tool access has been physically disabled for this request. Please provide your final response based on existing information. DO NOT RESPONSE ANY TOOL CALLS IN THIS STEP!!! (Even if the tools list is not empty and tool_choice is not none)'
-
-CHAT_VISION_HINT_PROMPT = """Image handling:
-- The user attached one or more images with this message.
-- If the user did not provide explicit text instructions, treat the image(s) as the primary input: first understand what they show, then decide whether to analyze, call tools, or answer based on that understanding.
-- If you cannot understand or analyze images, reply directly (NOT ANY TOOL CALLS) that you are unable to process images and suggest switching to a vision-capable model.
-- Do not guess or fabricate content based on file names alone."""

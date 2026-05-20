@@ -9,7 +9,6 @@ from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_SEARCH_TOOLS_EXAMPLES,
     CHAT_SEARCH_POLICY,
     CHAT_SEARCH_REFERENCE_RULES,
-    CHAT_VISION_HINT_PROMPT,
 )
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
@@ -33,7 +32,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', has_images=False, is_external_portal=False, skip_tool_examples=False):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -53,12 +52,6 @@ def build_chat_system_prompts(project_prompt='', has_images=False, is_external_p
             'content': CHAT_OUTPUT_FORMAT_RULES,
         },
     ]
-
-    if has_images:
-        prompts.append({
-            'role': 'system',
-            'content': CHAT_VISION_HINT_PROMPT,
-        })
 
     if project_prompt and project_prompt.strip():
         prompts.append({
@@ -100,15 +93,16 @@ def extract_images_from_attachments(attachments):
 
 def build_user_message_content(attachments, message):
     """
-    Returns (content, has_images):
-    - No images: content is a plain text string.
-    - With images: content is a multimodal parts list (text + image_url)
+    Returns the message content:
+    - No images: a plain text string.
+    - With images: a multimodal parts list (text + image_url) following
+      the LiteLLM-unified message schema, translated by LiteLLM to each provider.
     """
     text = combine_attachments_to_message(attachments, message)
     images = extract_images_from_attachments(attachments)
     if not images:
-        return text, False
-    content = [
+        return text
+    return [
         {'type': 'text', 'text': text},
         *[
             {
@@ -120,7 +114,6 @@ def build_user_message_content(attachments, message):
             for img in images
         ],
     ]
-    return content, True
 
 def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
