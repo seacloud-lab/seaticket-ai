@@ -204,24 +204,21 @@ if MYSQL_UNIX_SOCKET:
     SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI + '&unix_socket=' + MYSQL_UNIX_SOCKET
 
 # Agent
+AGENT_CONFIG = configs.get('AGENT', {})
 
 ## Max records counter
-AGENT_MAX_TICKETS_PER_RUN = configs.get('AGENT_MAX_TICKETS_PER_RUN', 100)
-AGENT_MAX_GITHUB_ISSUES_PER_RUN = configs.get('AGENT_MAX_GITHUB_ISSUES_PER_RUN', 100)
-AGENT_MAX_ANALYSIS_STEPS = configs.get('AGENT_MAX_ANALYSIS_STEPS', 10)
-AGENT_MAX_HANDLING_STEPS = configs.get('AGENT_MAX_HANDLING_STEPS', 5)
+AGENT_MAX_TICKETS_PER_RUN = AGENT_CONFIG.get('agent_max_tickets_per_run', 100)
+AGENT_MAX_GITHUB_ISSUES_PER_RUN = AGENT_CONFIG.get('agent_max_github_issues_per_run', 100)
+AGENT_MAX_ANALYSIS_STEPS = AGENT_CONFIG.get('agent_max_analysis_steps', 10)
+AGENT_MAX_HANDLING_STEPS = AGENT_CONFIG.get('agent_max_handling_steps', 5)
 
 ## Agent manager timing (in unit of second)
 
 ### For enqueue
-AGENT_ENQUEUE_PENDING_EVENTS_CHECL_INTETVAL = configs.get('AGENT_ENQUEUE_PENDING_EVENTS_CHECL_INTETVAL', 5)
-AGENT_ENQUEUE_DEBOUNCE_INTERVAL = configs.get('AGENT_ENQUEUE_DEBOUNCE_INTERVAL', 600)
-AGENT_ENQUEUE_TICKET_FIRST_DELAY_TIME = configs.get('AGENT_ENQUEUE_TICKET_FIRST_DELAY_TIME', 300)
-
-### For redis connection
-AGENT_REDIS_CONNECTION_RETRY_INTETVAL = configs.get('AGENT_REDIS_CONNECTION_RETRY_INTETVAL', 3)
-AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME = configs.get('AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME', 300)
+AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL = AGENT_CONFIG.get('agent_enqueue_pending_events_check_intetval', 5)  # Interval to check and flush pending events
+AGENT_ENQUEUE_DEBOUNCE_INTERVAL = AGENT_CONFIG.get('agent_enqueue_debounce_interval', 600)  # Minimum interval between two enqueues for the same record (debounce)
+AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE = AGENT_CONFIG.get('agent_enqueue_ticket_initial_debounce', 300)  # Initial debounce wait after first ticket event, to coalesce rapid changes
 
 ### For timed scan
-AGENT_TIMED_SCAN_INTERVAL = configs.get('AGENT_TIMED_SCAN_INTERVAL', 3600)
-AGENT_TIMED_SCAN_DUPLICATION_PROJECT_INTERVAL = configs.get('AGENT_TIMED_SCAN_DUPLICATION_PROJECT_INTERVAL', 86400)
+AGENT_TIMED_SCAN_INTERVAL = AGENT_CONFIG.get('agent_timed_scan_interval', 3600)  # Timed scanner execution interval
+AGENT_TIMED_SCAN_PROJECT_COOLDOWN = AGENT_CONFIG.get('agent_timed_scan_project_cooldown', 86400)  # Cooldown before re-scanning the same project

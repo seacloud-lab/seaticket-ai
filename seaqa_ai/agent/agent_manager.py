@@ -115,7 +115,7 @@ class AgentManager:
             except Exception as e:
                 logger.exception('Agent manager event listener failed: %s', e)
 
-            if self.should_stop.wait(config.AGENT_REDIS_CONNECTION_RETRY_INTETVAL):
+            if self.should_stop.wait(3):
                 return
 
     def _listen_once(self):
@@ -133,12 +133,12 @@ class AgentManager:
                     last_message_time = now_time
                     self._handle_event_message(message.get('data'), now_time)
 
-                if (now_time - last_pending_check_time) >= config.AGENT_ENQUEUE_PENDING_EVENTS_CHECL_INTETVAL:
+                if (now_time - last_pending_check_time) >= config.AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL:
                     last_pending_check_time = now_time
                     self._flush_pending_records(now_time)
 
-                if message is None and (now_time - last_message_time) >= config.AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME:
-                    logger.warning('No pubsub messages for %ss, reconnecting.', config.AGENT_REDIS_IDLE_STATUS_RECONNECTION_TIME)
+                if message is None and (now_time - last_message_time) >= 300:
+                    logger.warning('No pubsub messages for %ss, reconnecting.', 300)
                     return
 
     def _handle_event_message(self, raw_data: str, now_time: float):
@@ -278,7 +278,7 @@ class AgentManager:
                 self._enqueue_from_state(state, now_time)
             if (state.last_enqueue_time > 0
                     and not state.events
-                    and (now_time - state.last_enqueue_time) >= self._debounce_interval):
+                    and (now_time - state.last_enqueue_time) >= config.AGENT_ENQUEUE_DEBOUNCE_INTERVAL):
                 keys_to_remove.append(key)
         for key in keys_to_remove:
             self.pending_tasks.pop(key)
@@ -287,13 +287,20 @@ class AgentManager:
         # Only enqueue when there is at least one new event since the last enqueue and the debounce interval has passed
         if not state.events:
             return False
-        if (
-            state.source_type == AgentSourceType.TICKET.value
-            and state.last_enqueue_time == 0
-            and (now_time - state.first_event_time) < config.AGENT_ENQUEUE_TICKET_FIRST_DELAY_TIME
-        ):
-            return False
-        return (now_time - state.last_enqueue_time) >= self._debounce_interval
+
+        # for first-time enqueue request
+        if state.last_enqueue_time == 0:
+            if state.source_type == AgentSourceType.TICKET.value:
+                # for tickets require a specific debouncing period (AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE) after the `PendingTaskState` is created before they can be enqueued.
+
+                duration_after_created = now_time - state.first_event_time
+                return duration_after_created >= config.AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE
+            else:
+                # for other type, can enqueue directly after `PendingTaskState` is created
+                return True
+
+        # for non-first-time enqueue request, check debounce interval
+        return (now_time - state.last_enqueue_time) >= config.AGENT_ENQUEUE_DEBOUNCE_INTERVAL
 
     def _enqueue_from_state(self, state: PendingTaskState, now_time: float):
         self.add_to_task_queue(
@@ -327,7 +334,7 @@ class AgentManager:
             if last_scanned_at is not None:
                 if last_scanned_at.tzinfo is None:
                     last_scanned_at = last_scanned_at.replace(tzinfo=timezone.utc)
-                if (now - last_scanned_at) < timedelta(seconds=config.AGENT_TIMED_SCAN_DUPLICATION_PROJECT_INTERVAL):
+                if (now - last_scanned_at) < timedelta(seconds=config.AGENT_TIMED_SCAN_PROJECT_COOLDOWN):
                     logger.debug(
                         'Skipping due-soon scan for project %s (last scanned %s ago)',
                         project_uuid, now - last_scanned_at,
