@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PendingTaskState:
+class PendingEventState:
     project_uuid: str
     source_type: str
     record_id: int
@@ -45,7 +45,7 @@ class AgentManager:
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.should_stop = threading.Event()
         self.worker_list = []
-        self.pending_tasks: dict[str, PendingTaskState] = {}
+        self.pending_events: dict[str, PendingEventState] = {}
 
     def start(self):
         if not self.mq:
@@ -258,16 +258,16 @@ class AgentManager:
         else:
             key = f'{project_uuid}:ticket:{record_id}'
 
-        state = self.pending_tasks.get(key)
+        state = self.pending_events.get(key)
         if state is None:
-            state = PendingTaskState(
+            state = PendingEventState(
                 project_uuid=project_uuid,
                 source_type=source_type,
                 record_id=record_id,
                 connection_id=connection_id,
                 first_event_time=now_time,
             )
-            self.pending_tasks[key] = state
+            self.pending_events[key] = state
 
         state.events.append(event.copy())
 
@@ -276,7 +276,7 @@ class AgentManager:
 
     def _flush_pending_records(self, now_time: float):
         keys_to_remove = []
-        for key, state in self.pending_tasks.items():
+        for key, state in self.pending_events.items():
             if self._can_enqueue(state, now_time):
                 self._enqueue_from_state(state, now_time)
             if (state.last_enqueue_time > 0
@@ -284,9 +284,9 @@ class AgentManager:
                     and (now_time - state.last_enqueue_time) >= config.AGENT_ENQUEUE_DEBOUNCE_INTERVAL):
                 keys_to_remove.append(key)
         for key in keys_to_remove:
-            self.pending_tasks.pop(key)
+            self.pending_events.pop(key)
 
-    def _can_enqueue(self, state: PendingTaskState, now_time: float) -> bool:
+    def _can_enqueue(self, state: PendingEventState, now_time: float) -> bool:
         # Only enqueue when there is at least one new event since the last enqueue and the debounce interval has passed
         if not state.events:
             return False
@@ -294,18 +294,18 @@ class AgentManager:
         # for first-time enqueue request
         if state.last_enqueue_time == 0:
             if state.source_type == AgentSourceType.TICKET.value:
-                # for tickets require a specific debouncing period (AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE) after the `PendingTaskState` is created before they can be enqueued.
+                # for tickets require a specific debouncing period (AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE) after the `PendingEventState` is created before they can be enqueued.
 
                 duration_after_created = now_time - state.first_event_time
                 return duration_after_created >= config.AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE
             else:
-                # for other type, can enqueue directly after `PendingTaskState` is created
+                # for other type, can enqueue directly after `PendingEventState` is created
                 return True
 
         # for non-first-time enqueue request, check debounce interval
         return (now_time - state.last_enqueue_time) >= config.AGENT_ENQUEUE_DEBOUNCE_INTERVAL
 
-    def _enqueue_from_state(self, state: PendingTaskState, now_time: float):
+    def _enqueue_from_state(self, state: PendingEventState, now_time: float):
         self.add_to_task_queue(
             project_uuid=state.project_uuid,
             source_type=state.source_type,
@@ -319,13 +319,13 @@ class AgentManager:
     def _due_soon_scanner(self):
         while not self.should_stop.is_set():
             try:
-                self._enqueue_due_soon_scan_tasks()
+                self._enqueue_due_soon_scan_events()
             except Exception as e:
                 logger.exception('Due-soon scan failed: %s', e)
             if self.should_stop.wait(config.AGENT_TIMED_SCAN_INTERVAL):
                 return
 
-    def _enqueue_due_soon_scan_tasks(self):
+    def _enqueue_due_soon_scan_events(self):
         projects = self.app.seaqa_db.get_enabled_agent_projects()
         now = datetime.now(timezone.utc)
         for project in projects:
