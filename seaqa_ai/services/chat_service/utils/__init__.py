@@ -84,6 +84,37 @@ def combine_attachments_to_message(attachments, message):
 
     return final_message + message
 
+def extract_images_from_attachments(attachments):
+    return [
+        {'name': attachment.get('name'), 'mime_type': attachment.get('mime_type'), 'data': attachment.get('data')}
+        for attachment in (attachments or [])
+        if isinstance(attachment, dict) and attachment.get('type') == 'image' and attachment.get('mime_type') and attachment.get('data')
+    ]
+
+def build_user_message_content(attachments, message):
+    """
+    Returns the message content:
+    - No images: a plain text string.
+    - With images: a multimodal parts list (text + image_url) following
+      the LiteLLM-unified message schema, translated by LiteLLM to each provider.
+    """
+    text = combine_attachments_to_message(attachments, message)
+    images = extract_images_from_attachments(attachments)
+    if not images:
+        return text
+    return [
+        {'type': 'text', 'text': text},
+        *[
+            {
+                'type': 'image_url',
+                'image_url': {
+                    'url': f"data:{img['mime_type']};base64,{img['data']}"
+                }
+            }
+            for img in images
+        ],
+    ]
+
 def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
     for attachment in new_attachments:
