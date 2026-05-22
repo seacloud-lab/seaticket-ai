@@ -3,7 +3,7 @@ Common agent tools shared across source types.
 
 Provides:
 - BaseAgentTool: base class for tools that need record context
-- RecordEventsSummaryTool: records a concise summary of trigger events
+- RecordEventSummaryTool: records a concise summary of the input event
 - FinalAnswerTool: signals the reasoning loop is complete
 - SuggestReplyTool: suggest a user-facing reply
 - SuggestCreateTicketTool: suggest creating an internal ticket
@@ -44,16 +44,16 @@ class BaseAgentTool(BasicTool):
         return getattr(self, 'suggestion_text', '')
 
 
-class RecordEventsSummaryTool(BaseAgentTool):
-    """Records a concise summary of the trigger events for this run."""
+class RecordEventSummaryTool(BaseAgentTool):
+    """Records a concise summary of the input event for this run."""
 
     tool = {
         'type': 'function',
         'function': {
-            'name': 'record_events_summary',
+            'name': 'record_event_summary',
             'description': (
-                'Record a concise summary of the trigger events for this run. '
-                'Summarize only the input events that triggered this run: what type of event, what changed. '
+                'Record a concise summary of the input event for this run. '
+                'Summarize only the input event that triggered this run: what type of event, what changed. '
                 'Be concise and avoid repeating the full record content.'
             ),
             'parameters': {
@@ -62,7 +62,7 @@ class RecordEventsSummaryTool(BaseAgentTool):
                     'summary': {
                         'type': 'string',
                         'description': (
-                            'A concise summary of the trigger events and their likely impact on this run. '
+                            'A concise summary of the input event and its likely impact on this run. '
                             'Mention the most important changes only.'
                         ),
                     }
@@ -98,7 +98,8 @@ class RecordIssueAnalysisTool(BaseAgentTool):
             'name': 'record_issue_analysis',
             'description': (
                 'Record your structured source record analysis after search and before handling tools. '
-                'Include classification, evidence got by searches, and recommended next action.'
+                'Include evidence gathered by searches, the recommended next action, '
+                'and classification when the current scenario requires it.'
             ),
             'parameters': {
                 'type': 'object',
@@ -110,7 +111,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                     'classified_issue_type': {
                         'type': 'string',
                         'enum': ['Bug', 'Feature', 'Question'],
-                        'description': 'The agent-classified issue type based on title/content.'
+                        'description': 'Optional agent-classified issue type based on title/content. Include it when the scenario requires issue classification.'
                     },
                     'original_issue_type': {
                         'type': 'string',
@@ -124,7 +125,6 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 },
                 'required': [
                     'summary',
-                    'classified_issue_type',
                     'recommended_action'
                 ]
             }
@@ -137,19 +137,21 @@ class RecordIssueAnalysisTool(BaseAgentTool):
     def execute(
         self,
         summary,
-        classified_issue_type,
-        original_issue_type='',        
+        classified_issue_type='',
+        original_issue_type='',
         recommended_action='suggest_create_ticket',
     ):
 
         source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
-        return (
+        result = (
             f'Analysis recorded for {source_type} {source_id} - {source_title}. '
-            f'Classified as {classified_issue_type}. '
-            f'Recommended next action: {recommended_action}.'
         )
+        if classified_issue_type:
+            result += f'Classified as {classified_issue_type}. '
+        result += f'Recommended next action: {recommended_action}.'
+        return result
 
 
 class SuggestReplyTool(BaseAgentTool):

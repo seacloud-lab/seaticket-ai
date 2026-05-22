@@ -17,12 +17,8 @@ from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
     AgentSourceType,
-    DataEventType,
 )
-from seaqa_ai.agent.system_prompt import (
-    DISCOURSE_ANALYSIS_SYSTEM_PROMPT,
-    DISCOURSE_HANDLING_SYSTEM_PROMPT,
-)
+import seaqa_ai.agent.prompts.discourse as discourse_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -32,18 +28,15 @@ class DiscourseAgent(ConnectionAgent):
 
     SOURCE_TYPE = AgentSourceType.DISCOURSE_FORUM.value
 
-    def __init__(self, app, project, connection_id: int, record_id=None, events=None):
-        super().__init__(app, project, connection_id, record_id, events)
+    EVENT_TYPE_PROMPTS = discourse_prompts.PROMPTS
+
+    SOURCE_TOOL_CLASSES = DISCOURSE_TOOL_CLASSES
+
+    def __init__(self, app, project, connection_id: int, record_id=None, event=None):
+        super().__init__(app, project, connection_id, record_id, event)
         self._topics_table, self._replies_table = gen_seadb_table_name(ConnectionType.DISCOURSE_FORUM.value, self.connection_id)
 
-    def get_analysis_system_prompt(self) -> str:
-        return self._build_system_prompt(DISCOURSE_ANALYSIS_SYSTEM_PROMPT)
-
-    def get_handling_system_prompt(self) -> str:
-        return self._build_system_prompt(DISCOURSE_HANDLING_SYSTEM_PROMPT)
-
-    def get_tool_classes(self) -> list:
-        return DISCOURSE_TOOL_CLASSES + self.SEARCH_TOOL_CLASSES
+    # ── Abstract method implementations ────────────────────────────
 
     def get_item(self) -> dict | None:
         if self.record_id is None:
@@ -64,37 +57,23 @@ class DiscourseAgent(ConnectionAgent):
         return results[0] if results else None
 
     def get_item_context(self, item: dict) -> dict:
-        replies = self._get_topic_replies(item)
-        return {'replies': replies}
+        comments = self._get_topic_comments(item)
+        return {'comments': comments}
 
-    def build_item_message(self, item: dict, item_context: dict) -> str:
-        source_id = f'{self.connection_id}_{item["_pk"]}'
-
-        replies = item_context.get('replies', [])
+    def build_record_payload(self, item: dict, item_context: dict) -> dict:
+        comments = item_context.get('comments', [])
         topic_content = ''
         topic_author = 'N/A'
-        recent_replies: list[dict] = []
-        new_replies: list[dict] = []
-        new_reply_post_numbers = self._collect_new_reply_post_numbers()
+        recent_comments: list[dict] = []
 
-        if replies:
-            first_post = replies[0]
+        if comments:
+            first_post = comments[0]
             topic_author = first_post.get('author', 'N/A')
             topic_content = (first_post.get('content') or '').strip()[:MAX_CONTENT_CHARS]
+            subsequent_comments = comments[1:]
+            recent_comments = [self._format_comment_entry(r) for r in subsequent_comments[-10:]]
 
-            subsequent_replies = replies[1:]
-            recent_replies = [self._format_reply_entry(r) for r in subsequent_replies[-10:]]
-
-            if new_reply_post_numbers:
-                new_replies = [
-                    self._format_reply_entry(r)
-                    for r in subsequent_replies
-                    if r.get('post_number') in new_reply_post_numbers
-                ]
-
-        message_dict = {
-            'source_id': source_id,
-            'events': self.events,
+        return {
             'title': item.get('title', 'Untitled'),
             'topic_id': item.get('topic_id', 'N/A'),
             'resolved': item.get('resolved', False),
@@ -104,48 +83,19 @@ class DiscourseAgent(ConnectionAgent):
             'url': self._build_topic_url(item),
             'linked_ticket': item.get('linked_ticket', 'N/A'),
             'content': topic_content[:MAX_CONTENT_CHARS] if topic_content else '',
-            'recent_replies': recent_replies,
-            'new_replies': new_replies,
-        }
-
-        return json.dumps(message_dict, ensure_ascii=False, indent=2)
-
-    @staticmethod
-    def _format_reply_entry(r: dict) -> dict:
-        return {
-            'author': r.get('author', '?'),
-            'modified_time': r.get('modified_time', '?'),
-            'content': (r.get('content') or '').strip()[:MAX_COMMENT_CHARS],
+            'recent_comments': recent_comments,
         }
 
     # ── Discourse-specific helpers ──────────────────────────────────
 
-    def _is_reply_only_trigger(self) -> bool:
-        event_types = {e.get('type') for e in (self.events or []) if isinstance(e, dict)}
-        return (
-            DataEventType.DISCOURSE_TOPIC_REPLY_ADDED.value in event_types
-            and DataEventType.DISCOURSE_TOPIC_ADDED.value not in event_types
-        )
-
-    def _collect_new_reply_post_numbers(self) -> set:
-        if not self._is_reply_only_trigger():
-            return set()
-
-        new_reply_post_numbers = set()
-        for e in (self.events or []):
-            if not isinstance(e, dict):
-                continue
-            if e.get('type') != DataEventType.DISCOURSE_TOPIC_REPLY_ADDED.value:
-                continue
-            replies = ((e.get('new_value') or {}).get('replies') or [])
-            for r in replies:
-                if not isinstance(r, dict):
-                    continue
-                post_number = r.get('post_number')
-                if post_number is None:
-                    continue
-                new_reply_post_numbers.add(post_number)
-        return new_reply_post_numbers
+    @staticmethod
+    def _format_comment_entry(r: dict) -> dict:
+        return {
+            'author': r.get('author', '?'),
+            'modified_time': r.get('modified_time', '?'),
+            'content': (r.get('content') or '').strip()[:MAX_COMMENT_CHARS],
+            'post_number': r.get('post_number'),
+        }
 
     def _build_topic_url(self, item: dict) -> str:
         slug = item.get('slug')
@@ -177,7 +127,7 @@ class DiscourseAgent(ConnectionAgent):
 
         return forum_url
 
-    def _get_topic_replies(self, topic: dict) -> list:
+    def _get_topic_comments(self, topic: dict) -> list:
         topic_id = topic.get('topic_id')
         if not topic_id:
             return []

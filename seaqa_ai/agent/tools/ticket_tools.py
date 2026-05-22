@@ -2,9 +2,10 @@
 Agent tools specific to ticket processing.
 
 Tools:
-- AnalyzeTicketTool: records the agent's analysis of a ticket
-- NotifyAssigneeTool: suggests notifying ticket assignees (pending user confirmation)
-- AddCommentTool: suggests adding a comment to a ticket (pending user confirmation)
+- RecordTicketAnalysisTool: records the agent's analysis of a ticket
+  (used as the analysis terminator for some ticket event classes; injected
+  per event class by BaseAgent and NOT listed in TICKET_TOOL_CLASSES).
+- SuggestNotifyAssigneeTool: suggests notifying ticket assignees (pending user confirmation)
 """
 import logging
 from seaqa_ai.agent.tools.common_tools import BaseAgentTool
@@ -30,9 +31,14 @@ class RecordTicketAnalysisTool(BaseAgentTool):
                     'analysis': {
                         'type': 'string',
                         'description': 'Your detailed analysis of the ticket: current state, issues found, and what action you plan to take. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
+                    },
+                    'recommended_action': {
+                        'type': 'string',
+                        'enum': ['suggest_notify_assignee', 'no_op'],
+                        'description': 'The recommended action to take next.'
                     }
                 },
-                'required': ['analysis']
+                'required': ['analysis', 'recommended_action']
             }
         }
     }
@@ -40,10 +46,10 @@ class RecordTicketAnalysisTool(BaseAgentTool):
     action_type = 'analysis'
     action_status = 'completed'
 
-    def execute(self, analysis):
+    def execute(self, analysis, recommended_action):
         source_id = self.get_source_id()
         source_title = self.get_source_title()
-        return f'Analysis recorded for ticket #{source_id} - {source_title}.'
+        return f'Analysis recorded for ticket #{source_id} - {source_title}. Recommended action: {recommended_action}.'
 
 
 class SuggestNotifyAssigneeTool(BaseAgentTool):
@@ -100,54 +106,8 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
         )
 
 
-class SuggestAddCommentTool(BaseAgentTool):
-    """Suggests adding a comment to a ticket; requires user confirmation."""
-
-    tool = {
-        'type': 'function',
-        'function': {
-            'name': 'suggest_add_comment',
-            'description': (
-                'Add a comment to a ticket to reply the messages in the ticket. '
-                'The comment will be marked as pending '
-                'and requires user confirmation before being actually posted. '
-                'Use this to suggest responses or updates on tickets.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'comment': {
-                        'type': 'string',
-                        'description': 'The comment to add to the ticket. This should not be empty.'
-                    }
-                },
-                'required': ['comment']
-            }
-        }
-    }
-
-    action_type = 'suggestion'
-    action_status = 'pending'
-    suggestion_text = 'Add a comment to the ticket.'
-
-    def execute(self, comment):
-        source_id = self.get_source_id()
-        source_title = self.get_source_title()
-
-        comment = (comment or '').strip()
-        if not comment:
-            return 'Cannot add comment suggestion: empty comment content.'
-
-        preview = comment[:300]
-        if len(comment) > 300:
-            preview += '...'
-
-        return f'Comment suggestion prepared for ticket #{source_id} - {source_title}: {preview}'
-
-
-# All ticket-specific tools for registration by TicketAgentWorker
+# All ticket tools for registration by TicketAgentWorker
 TICKET_TOOL_CLASSES = [
     RecordTicketAnalysisTool,
     SuggestNotifyAssigneeTool,
-    SuggestAddCommentTool,
 ]

@@ -5,16 +5,32 @@ Each agent instance processes exactly one source record.
 Subclasses override the abstract methods to supply:
   - the single item to process (get_item)
   - per-item context (comments, activities, etc.)
-  - the LLM message describing the item
+  - the record payload for the user message (build_record_payload)
   - the tool classes to register
-  - the system prompt
+
+BaseAgent expects a normalized event payload:
+  - event = {type, ...}
 
 The run() method handles all SeaDB bookkeeping (run records, action records)
 and the LLM reasoning loop invocation, so subclasses only implement domain logic.
+
+Event-centric design
+----------------------
+event.type resolves to one DataEventType. The resolved event type selects
+the prompt module from EVENT_TYPE_PROMPTS, which determines:
+  - ANALYSIS_SYSTEM_PROMPT / HANDLING_SYSTEM_PROMPT
+
+The source-specific agent class determines the analysis terminator tool via its
+ANALYSIS_TERMINATOR_TOOL attribute, and whether search tools are available via
+its SEARCH_ENABLED attribute.
+
+The user message is structured as {source_id, event, record} so the LLM always
+knows exactly which event to focus on, rather than re-processing the whole record.
 """
 import json
 import logging
 from abc import abstractmethod
+from types import ModuleType
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
@@ -22,9 +38,17 @@ from seaqa_ai.db.models import Project, Workspace
 from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
-from seaqa_ai.agent.utils.agent_runner import AgentRunner
-from seaqa_ai.agent.utils.constants import AGENT_RUNS_TABLE, AGENT_ACTIONS_TABLE, MAX_CONTENT_CHARS
+from seaqa_ai.agent.utils.agent_runner import AgentRunner, PhaseSpec
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
+from seaqa_ai.agent.prompts._forced import FORCED_RECORD_ANALYSIS_PROMPT, FORCED_FINAL_ANSWER_PROMPT
+from seaqa_ai.agent.utils.constants import (
+    AGENT_RUNS_TABLE,
+    AGENT_ACTIONS_TABLE,
+    MAX_CONTENT_CHARS,
+    DataEventType,
+)
 from seaqa_ai.utils.constants import AIScenario
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,9 +58,24 @@ class BaseAgent:
 
     Manages run records in SeaDB, assembles the agent for each item,
     and delegates source-specific logic to subclasses.
+
+    Tool assembly contract
+    ----------------------
+    Subclasses declare the static, source-specific tools in SOURCE_TOOL_CLASSES,
+    including the analysis terminator tool declared by ANALYSIS_TERMINATOR_TOOL.
+    Subclasses with dynamic tool needs should override get_tool_classes().
     """
 
-    def __init__(self, app, project, events=None):
+    # Subclasses set this to the source-specific prompts package __init__,
+    # which exposes PROMPTS: dict[DataEventType, ModuleType].
+    EVENT_TYPE_PROMPTS: dict[DataEventType, ModuleType] = {}
+
+    # Static, source-specific tool classes, including the analysis terminator.
+    SOURCE_TOOL_CLASSES: list = []
+    ANALYSIS_TERMINATOR_TOOL: type | None = None
+    SEARCH_ENABLED: bool = False
+
+    def __init__(self, app, project, event: dict | None = None):
         self.app = app
         self.seadb_api = app.seadb_api
         self.project = project
@@ -48,7 +87,8 @@ class BaseAgent:
         self.last_items_processed = 0
         self.last_run_failed = False
         self.last_run_error_message = ''
-        self.events: list = list(events) if events else []
+        self.event = event if isinstance(event, dict) else {}
+        self.event_type = self._parse_event_type(self.event)
 
     # ── Abstract interface ──────────────────────────────────────────
 
@@ -63,22 +103,17 @@ class BaseAgent:
         raise NotImplementedError
 
     @abstractmethod
-    def build_item_message(self, item: dict, item_context: dict) -> str:
-        """Construct the user message sent to the LLM for a single item."""
+    def build_record_payload(self, item: dict, item_context: dict) -> dict:
+        """Return a dict representing the current record state for the user message.
+
+        The returned dict becomes the value of the top-level 'record' field.
+        Do NOT include top-level event data here; that belongs in the event payload.
+        """
         raise NotImplementedError
 
-    @abstractmethod
     def get_tool_classes(self) -> list:
-        """Return the list of tool classes to register for this source type."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_analysis_system_prompt(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_handling_system_prompt(self) -> str:
-        raise NotImplementedError
+        """Assemble the tool classes to register for this run."""
+        return list(self.SOURCE_TOOL_CLASSES)
 
     @abstractmethod
     def build_record_context(self, item: dict) -> dict:
@@ -92,6 +127,88 @@ class BaseAgent:
         dependencies (e.g. app/context for search tools).
         """
         return {}
+
+    @staticmethod
+    def _parse_event_type(event: dict) -> DataEventType | None:
+        event_type = event.get('type')
+        if not isinstance(event_type, str):
+            return None
+        try:
+            return DataEventType(event_type)
+        except ValueError:
+            return None
+
+    # ── Prompt resolution ───────────────────────────────────────────
+
+    def _prompt_module(self) -> ModuleType | None:
+        return self.EVENT_TYPE_PROMPTS.get(self.event_type)
+
+    def get_analysis_system_prompt(self) -> str:
+        module = self._prompt_module()
+        if module is None:
+            logger.warning('No prompt module for %s + %s', type(self).__name__, self.event_type)
+            return ''
+        return self._build_system_prompt(module.ANALYSIS_SYSTEM_PROMPT)
+
+    def get_handling_system_prompt(self) -> str:
+        module = self._prompt_module()
+        if module is None:
+            return ''
+        return self._build_system_prompt(module.HANDLING_SYSTEM_PROMPT)
+
+    @staticmethod
+    def _get_tool_name(tool_cls: type) -> str:
+        return tool_cls.tool['function']['name']
+
+    def get_analysis_phase(self) -> PhaseSpec:
+        return PhaseSpec(
+            name='analysis',
+            terminator_tool=self._get_tool_name(self.ANALYSIS_TERMINATOR_TOOL),
+            forced_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
+            max_steps=config.AGENT_MAX_ANALYSIS_STEPS,
+        )
+
+    def get_handling_phase(self) -> PhaseSpec:
+        return PhaseSpec(
+            name='handling',
+            terminator_tool=self._get_tool_name(FinalAnswerTool),
+            forced_prompt=FORCED_FINAL_ANSWER_PROMPT,
+            max_steps=config.AGENT_MAX_HANDLING_STEPS,
+        )
+
+    # ── User message assembly ───────────────────────────────────────
+
+    def _build_llm_event_payload(self) -> dict:
+        """Return the event payload exposed to the LLM user message.
+
+        The raw event is still persisted in run records. For the LLM payload we
+        intentionally omit old_value because current supported agent triggers do
+        not need it and it is always null.
+        """
+        if not isinstance(self.event, dict):
+            return {}
+        return {
+            key: value
+            for key, value in self.event.items()
+            if key != 'old_value'
+        }
+
+    def build_user_message_dict(self, item: dict, item_context: dict) -> dict:
+        """Return the task payload as a plain dict.
+
+        Structure: {source_id, event, record}
+        """
+        record_context = self.build_record_context(item)
+        source_id = record_context.get('source_id', '')
+
+        record = self.build_record_payload(item, item_context)
+
+        return {
+            'source_id': source_id,
+            'event': self._build_llm_event_payload(),
+            'record': record,
+        }
+
 
     # ── SeaDB run-record helpers ────────────────────────────────────
 
@@ -140,12 +257,16 @@ class BaseAgent:
         return pks[0]
 
     def create_run_record(self) -> int | None:
-        """Insert a new agent_runs row and return its pk."""
+        """Insert a new agent_runs row and return its pk.
+
+        The events column stores the normalized event object.
+        """
+        events_payload = json.dumps(self.event, ensure_ascii=False)
         row = {
             'status': 'running',
             'started_at': now_iso(),
             'items_processed': 0,
-            'events': json.dumps(self.events) if self.events else '[]',
+            'events': events_payload,
         }
         try:
             res = self.seadb_api.insert_rows(self.project_uuid, AGENT_RUNS_TABLE, [row])
@@ -218,7 +339,6 @@ class BaseAgent:
             except Exception as e:
                 logger.warning(f'Failed to resolve org_id for project {self.project_uuid}: {e}')
 
-
     def _build_ai_stats_context(self) -> dict:
         """Build context used for AI usage statistics logging."""
         return {
@@ -237,15 +357,21 @@ class BaseAgent:
     def process_item(self, item: dict, run_id: int) -> str:
         """Run the AI reasoning loop for a single source record.
 
-        Builds context, creates a BaseAgent with the appropriate tools, and runs it.
-        Actions are recorded to SeaDB via create_action_record.
+        Builds context, creates an AgentRunner with the appropriate tools and prompts,
+        and runs it. Actions are recorded to SeaDB via create_action_record.
         """
         record_context = self.build_record_context(item)
         item_context = self.get_item_context(item)
-        item_message = self.build_item_message(item, item_context)
+        task_dict = self.build_user_message_dict(item, item_context)
 
         tool_executor, tool_metadata = self._create_tool_executor(record_context)
         llm_client = get_llm_client_by_model_id(self.app.data_logger, self.agent_settings.get('model'))
+
+        analysis_system_prompt = self.get_analysis_system_prompt()
+        handling_system_prompt = self.get_handling_system_prompt()
+        if not analysis_system_prompt or not handling_system_prompt:
+            logger.warning(f'No analysis or handling system prompt for {record_context.get("source_type")}. Skip running agent.')
+            return
 
         agent_runner = AgentRunner(
             tool_executor=tool_executor,
@@ -255,14 +381,15 @@ class BaseAgent:
             action_recorder=self.create_action_record,
             run_id=run_id,
             tool_metadata=tool_metadata,
-            analysis_system_prompt=self.get_analysis_system_prompt(),
-            handling_system_prompt=self.get_handling_system_prompt(),
-            max_analysis_steps=config.AGENT_MAX_ANALYSIS_STEPS,
-            max_handling_steps=config.AGENT_MAX_HANDLING_STEPS,
+            analysis_system_prompt=analysis_system_prompt,
+            handling_system_prompt=handling_system_prompt,
+            analysis_phase=self.get_analysis_phase(),
+            handling_phase=self.get_handling_phase(),
+            search_enabled=self.SEARCH_ENABLED,
         )
 
         try:
-            agent_runner.run(item_message)
+            agent_runner.run(task_dict)
         except Exception as e:
             logger.exception(
                 f'Agent failed for {record_context.get("source_type")} '
@@ -287,6 +414,16 @@ class BaseAgent:
         try:
             item = self.get_item()
             if item is not None:
+                if self.event_type is None:
+                    self.last_run_failed = True
+                    self.last_run_error_message = (
+                        'No recognised event type in event payload; refusing to run.'
+                    )
+                    logger.warning(
+                        'Refusing to run agent for project %s: %s event=%s',
+                        self.project_uuid, self.last_run_error_message, self.event,
+                    )
+                    return None
                 try:
                     run_pk = self.create_run_record()
                     if run_pk is None:

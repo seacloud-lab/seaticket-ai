@@ -2,10 +2,10 @@
 Agent tools specific to GitHub issue processing.
 
 The agent uses this flow for each GitHub issue:
-  1. record_issue_analysis  — called after search, before handling.
-  2. suggest_modify_type    — optional, user-facing type suggestion.
-  3a. suggest_reply    — if the issue can be resolved with known info.
-  3b. suggest_create_ticket — if the issue should become a tracked ticket.
+  1. record_issue_analysis     — record analysis before handling.
+  2. suggest_modify_type       — optional, user-facing type suggestion.
+  3a. suggest_reply            — if the issue can be resolved with known info.
+  3b. suggest_create_ticket    — if the issue should become a tracked ticket.
 """
 import logging
 from seaqa_ai.agent.tools.common_tools import (

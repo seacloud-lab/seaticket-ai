@@ -10,6 +10,7 @@ from redis.exceptions import ConnectionError as NoMQAvailable, ResponseError, Ti
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.agent.utils import compact_events
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import TICKET_TABLES
 from seaqa_ai.agent.utils.constants import (
@@ -25,9 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PendingEventState:
     project_uuid: str
-    source_type: str
     record_id: int
-    connection_id: int | None
     events: list = field(default_factory=list)
     first_event_time: float = 0.0
     last_enqueue_time: float = 0.0
@@ -82,7 +81,7 @@ class AgentManager:
         source_type: str,
         record_id: int,
         connection_id: int | None,
-        events: list | None,
+        event: dict | None,
     ) -> dict:
         """Add one task message into the agent task queue."""
         project_uuid = uuid_str_to_32_chars(project_uuid)
@@ -93,19 +92,19 @@ class AgentManager:
             'project_uuid': project_uuid,
             'source_type': source_type,
             'record_id': record_id,
-            'events': list(events) if events else [],
+            'event': event if isinstance(event, dict) else {},
         }
         if connection_id is not None:
             message['connection_id'] = connection_id
 
         self.mq.lpush(AGENT_TASK_QUEUE_NAME, json.dumps(message))
         logger.info(
-            'Added agent task to queue for project %s (source=%s record_id=%s connection_id=%s events=%s)',
+            'Added agent task to queue for project %s (source=%s record_id=%s connection_id=%s event=%s)',
             project_uuid,
             source_type,
             record_id,
             connection_id,
-            message['events'],
+            message['event'],
         )
         return message
 
@@ -208,63 +207,66 @@ class AgentManager:
             return
 
         connection_id = data.get('connection_id')
-        self._register_pending_event(
+        if source_type == AgentSourceType.TICKET.value:
+            self._register_pending_event(
+                project_uuid=project_uuid,
+                record_id=record_id,
+                event=event,
+                now_time=now_time,
+            )
+            return
+
+        self.add_to_task_queue(
             project_uuid=project_uuid,
             source_type=source_type,
             record_id=record_id,
             connection_id=connection_id,
             event=event,
-            now_time=now_time,
         )
 
     def _is_noop_event(self, source_type: str, event: dict) -> bool:
         """Return True for events that carry no signal worth enqueuing an agent run.
 
-        Currently covers github_issue_comment_added events whose new_value.comments
-        are all authored by '*[bot]' accounts (GitHub App convention).
-
-        Events that mix bot and human authors in a single new_value.comments list
-        are NOT filtered here; they are forwarded so that GithubIssueAgent can
-        apply per-comment filtering downstream.
+        Currently covers:
+        - github_issue_updated / github_issue_closed / github_issue_reopened
+        - discourse_topic_updated
+        - ticket events except ticket_due_soon
+        - github_issue_comment_added events whose new_value.author is a
+          '*[bot]' account (GitHub App convention).
         """
-        if source_type != AgentSourceType.GITHUB_ISSUE.value:
+        event_type = event.get('type')
+        if source_type == AgentSourceType.GITHUB_ISSUE.value:
+            if event_type in {
+                DataEventType.GITHUB_ISSUE_UPDATED.value,
+                DataEventType.GITHUB_ISSUE_CLOSED.value,
+                DataEventType.GITHUB_ISSUE_REOPENED.value,
+            }:
+                return True
+            if event_type == DataEventType.GITHUB_ISSUE_COMMENT_ADDED.value:
+                author = str(((event.get('new_value') or {}).get('author') or '')).strip().lower()
+                return author.endswith('[bot]')
             return False
-        if event.get('type') != DataEventType.GITHUB_ISSUE_COMMENT_ADDED.value:
-            return False
-        comments = ((event.get('new_value') or {}).get('comments') or [])
-        if not comments:
-            return False
-        for c in comments:
-            if not isinstance(c, dict):
-                return False
-            author = str(c.get('author') or '').strip().lower()
-            if not author.endswith('[bot]'):
-                return False
-        return True
+        elif source_type == AgentSourceType.DISCOURSE_FORUM.value:
+            return event_type == DataEventType.DISCOURSE_TOPIC_UPDATED.value
+        elif source_type == AgentSourceType.TICKET.value:
+            return event_type != DataEventType.TICKET_DUE_SOON.value
+        return False
 
     def _register_pending_event(
         self,
         project_uuid: str,
-        source_type: str,
         record_id: int,
-        connection_id: int | None,
         event: dict,
         now_time: float,
     ):
-        # Debounce key is per-record: {project_uuid}:{connection_id}:{record_id}
-        # For ticket (no connection_id): {project_uuid}:ticket:{record_id}
-        if connection_id is not None:
-            key = f'{project_uuid}:{connection_id}:{record_id}'
-        else:
-            key = f'{project_uuid}:ticket:{record_id}'
+        # Ticket-only debounce key.
+        key = f'{project_uuid}:ticket:{record_id}'
 
         state = self.pending_events.get(key)
         if state is None:
             state = PendingEventState(
                 project_uuid=project_uuid,
-                source_type=source_type,
                 record_id=record_id,
-                connection_id=connection_id,
                 first_event_time=now_time,
             )
             self.pending_events[key] = state
@@ -293,26 +295,23 @@ class AgentManager:
 
         # for first-time enqueue request
         if state.last_enqueue_time == 0:
-            if state.source_type == AgentSourceType.TICKET.value:
-                # for tickets require a specific debouncing period (AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE) after the `PendingEventState` is created before they can be enqueued.
-
-                duration_after_created = now_time - state.first_event_time
-                return duration_after_created >= config.AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE
-            else:
-                # for other type, can enqueue directly after `PendingEventState` is created
-                return True
+            # ticket pending requires a specific initial debounce period.
+            duration_after_created = now_time - state.first_event_time
+            return duration_after_created >= config.AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE
 
         # for non-first-time enqueue request, check debounce interval
         return (now_time - state.last_enqueue_time) >= config.AGENT_ENQUEUE_DEBOUNCE_INTERVAL
 
     def _enqueue_from_state(self, state: PendingEventState, now_time: float):
-        self.add_to_task_queue(
-            project_uuid=state.project_uuid,
-            source_type=state.source_type,
-            record_id=state.record_id,
-            connection_id=state.connection_id,
-            events=state.events,
-        )
+        compacted_events = compact_events(state.events)
+        for event in compacted_events:
+            self.add_to_task_queue(
+                project_uuid=state.project_uuid,
+                source_type=AgentSourceType.TICKET.value,
+                record_id=state.record_id,
+                connection_id=None,
+                event=event,
+            )
         state.events.clear()
         state.last_enqueue_time = now_time
 
@@ -358,11 +357,11 @@ class AgentManager:
                     source_type=AgentSourceType.TICKET.value,
                     record_id=ticket_pk,
                     connection_id=None,
-                    events=[{
+                    event={
                         'type': DataEventType.TICKET_DUE_SOON.value,
                         'new_value': {},
                         'old_value': {},
-                    }],
+                    },
                 )
             self.app.seaqa_db.update_project_agent_scanned_at(project_uuid)
 
