@@ -4,8 +4,16 @@ from seaqa_ai.utils import object_to_json_str
 
 logger = logging.getLogger(__name__)
 
+def _enabled_required(func):
+    def wrapper(self, *args, **kwargs):
+        if not self.enabled:
+            return
+        return func(self, *args, **kwargs)
+    return wrapper
+
 class ThoughtProcessRecorder(object):
-    def __init__(self):
+    def __init__(self, enabled=True):
+        self.enabled = bool(enabled)
         self.task = {}
         self.actions = []
         self.context = []
@@ -28,6 +36,7 @@ class ThoughtProcessRecorder(object):
             retry_tokens_usage = self._sum_token_usage(retry_tokens_usage, retry.get('token_usage', {}))
         return retry_tokens_usage
 
+    @_enabled_required
     def set_task(self, system_prompts_messages, user_raw_input, user_message, attachments):
         self.task = {
             'system_prompts': [
@@ -41,6 +50,7 @@ class ThoughtProcessRecorder(object):
             }
         }
 
+    @_enabled_required
     def add_tool_calls_group(self):
         self.actions.append({
             'tool_calls': [],
@@ -55,11 +65,13 @@ class ThoughtProcessRecorder(object):
             'result': ''
         })
 
+    @_enabled_required
     def set_last_group_time_usage(self, time_usage):
         if not self.actions:
             return
         self.actions[-1]['time_usage'] = time_usage
     
+    @_enabled_required
     def update_last_group_tokens_usage(self, tokens_usage={}, replace=False):
         if not self.actions:
             return
@@ -72,6 +84,7 @@ class ThoughtProcessRecorder(object):
             self.actions[-1]['token_usage']['output_tokens'] += tokens_usage.get('output_tokens', 0)
             self.actions[-1]['token_usage']['total_tokens'] += tokens_usage.get('total_tokens', 0)
     
+    @_enabled_required
     def set_last_group_error(self, error):
         if not self.actions:
             return
@@ -80,11 +93,13 @@ class ThoughtProcessRecorder(object):
             'message': error['message']
         }
 
+    @_enabled_required
     def set_last_group_completion_retry(self, retries):
         if not self.actions:
             return
         self.actions[-1]['completion_retry'] = retries or []
 
+    @_enabled_required
     def append_last_group_tool_retry(self, errors):
         if not self.actions:
             return
@@ -92,6 +107,7 @@ class ThoughtProcessRecorder(object):
             return
         self.actions[-1]['tool_retry'].extend(errors)
 
+    @_enabled_required
     def add_tool_call(self, tool_name, arguments, execution_detail, result=None):
         if not self.actions:
             return
@@ -105,6 +121,7 @@ class ThoughtProcessRecorder(object):
             self.actions[-1]['tool_calls'][-1]['execution_detail'] = execution_detail
         self.actions[-1]['result'] += object_to_json_str(result) + '\n'
 
+    @_enabled_required
     def set_final_answer(self, result, reach_max_steps=False, token_usage={}, time_usage=0, retry=None):
         self.final_answer = {
             'result': result,
@@ -142,6 +159,8 @@ class ThoughtProcessRecorder(object):
 
     @property
     def details(self):
+        if not self.enabled:
+            return {}
         self._filter_empty_actions()
         self._migrate_final_answer_from_actions()
 

@@ -226,6 +226,7 @@ class BaseAgent:
         suggestion_text='',
         sources=None,
         statistics='',
+        details='',
     ):
         """Insert a new agent_actions row. Returns _pk."""
         if isinstance(sources, list):
@@ -250,6 +251,8 @@ class BaseAgent:
             'statistics': statistics or '',
             'created_at': now_iso(),
         }
+        if config.THOUGHT_PROCESS_ENABLED and details:
+            row['details'] = details
         res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
@@ -386,6 +389,7 @@ class BaseAgent:
             analysis_phase=self.get_analysis_phase(),
             handling_phase=self.get_handling_phase(),
             search_enabled=self.SEARCH_ENABLED,
+            trace_enabled=config.THOUGHT_PROCESS_ENABLED,
         )
 
         try:
