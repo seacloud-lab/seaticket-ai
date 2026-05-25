@@ -1,7 +1,8 @@
 AI_UTILS_PROMPTS_MAP = {
     'generate_ticket': "You are an expert ticket-processing assistant. Your task is to create well-structured tickets from provided information. Always follow the explicit output language requirement provided in the prompt.",
     'generate_kb_record_from_ticket': "You are an expert knowledge base editor. Your task is to convert a ticket into a reusable knowledge base record. Always follow the explicit output language requirement provided in the prompt.",
-    'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query"
+    'rank_relevant_records': "You are an expert on relevance ranking. Your task is to analyze records and identify only those that are truly relevant to the query",
+    'generate_chat_title': "You generate concise chat titles. Always follow the explicit output language requirement provided in the prompt."
 }
 
 class UserContentPrompts:
@@ -95,6 +96,29 @@ Candidate Records:
 - If no records are relevant, set "results" to an empty array: []
 - Each "connection_id" and "record_id" MUST be string values (convert numbers to strings if needed).
 - Do NOT include any additional text, explanations, or markdown formatting outside the JSON.
+"""
+
+    @staticmethod
+    def generate_chat_title(query, ai_reply, target_lang='English'):
+        return f"""Generate a concise title for the conversation.
+
+User Query:
+{query}
+
+Assistant Reply:
+{ai_reply}
+
+Requirements:
+1. The title language must be {target_lang}.
+2. Keep it concise, 3-8 words if possible.
+3. Do not include quotes, markdown, trailing punctuation, or line breaks.
+4. The title should summarize the conversation topic, not answer the question.
+5. Do NOT include any additional text outside JSON.
+
+Output JSON format:
+{{
+  "title": "..."
+}}
 """
 
 GENERATE_SUMMARY_PROMPTS_MAP = {
