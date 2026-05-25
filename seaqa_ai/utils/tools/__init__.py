@@ -2,7 +2,7 @@ import json
 import inspect
 from abc import abstractmethod
 from copy import deepcopy
-from seaqa_ai.config import THOUGHT_PROCESS_RECORD_TOOL_DETAILS
+from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
@@ -33,7 +33,7 @@ from .test_tool import TestTool
 class BasicToolExecutor(object):
     def __init__(self):
         self.cache = {}
-        self.thought_process = ThoughtProcessRecorder()
+        self.thought_process = ThoughtProcessRecorder(enabled=THOUGHT_PROCESS_ENABLED)
         self.clean()
 
     @abstractmethod

@@ -81,7 +81,6 @@ class BaseAgent:
         self.project = project
         self.project_uuid = project['uuid']
         self.agent_settings = project.get('settings', {}).get('agent', {})
-        self.developer_mode = bool(project.get('settings', {}).get('developer_mode', False))
         self.db_session_class = init_db_session_class(config.SQLALCHEMY_DATABASE_URI)
         self.project_org_id = self._get_project_org_id()
         self.username_resolver = app.username_resolver
@@ -252,7 +251,7 @@ class BaseAgent:
             'statistics': statistics or '',
             'created_at': now_iso(),
         }
-        if self.developer_mode and details:
+        if config.THOUGHT_PROCESS_ENABLED and details:
             row['details'] = details
         res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
         pks = res.get('pks', [])
@@ -390,7 +389,7 @@ class BaseAgent:
             analysis_phase=self.get_analysis_phase(),
             handling_phase=self.get_handling_phase(),
             search_enabled=self.SEARCH_ENABLED,
-            trace_enabled=self.developer_mode,
+            trace_enabled=config.THOUGHT_PROCESS_ENABLED,
         )
 
         try:
