@@ -197,8 +197,19 @@ def clean_markdown_references(content, sources):
 
     return result, sources
 
+def expand_grouped_reference_markers(content):
+    """<reference_1, reference_2, ...> -> <reference_1><reference_2><...>"""
+    pattern = re.compile(r'\<reference_\d+(?:\s*,\s*reference_\d+)+\>')
+
+    def replacer(match):
+        indexes = re.findall(r'reference_(\d+)', match.group(0))
+        return ''.join(f'<reference_{index}>' for index in indexes)
+
+    return pattern.sub(replacer, content)
+
 def get_answer_and_sources(tool_executor, content):
     sources_results = tool_executor.cache.get('sources_results', [])
+    content = expand_grouped_reference_markers(content)
 
     # remove redundent <reference_n> and [Reference n] (format error)
     pattern = re.compile(r'\<reference_(\d+)\>')
