@@ -7,6 +7,7 @@ The agent uses this flow for each GitHub issue:
   3a. suggest_reply            — if the issue can be resolved with known info.
   3b. suggest_create_ticket    — if the issue should become a tracked ticket.
 """
+import json
 import logging
 from seaqa_ai.agent.tools.common_tools import (
     BaseAgentTool,
@@ -87,10 +88,84 @@ class SuggestModifyTypeTool(BaseAgentTool):
         )
 
 
+class SuggestAssignLabelsTool(BaseAgentTool):
+    """Suggests updating GitHub issue labels."""
+
+    tool = {
+        'type': 'function',
+        'function': {
+            'name': 'suggest_assign_labels',
+            'description': (
+                'Suggest labels for this GitHub issue. '
+                'Only choose from available_labels in input and avoid inventing labels.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'current_labels': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Current labels on the GitHub issue.',
+                    },
+                    'suggested_labels': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Suggested labels picked from available_labels.',
+                    },
+                    'reason': {
+                        'type': 'string',
+                        'description': 'Explain why these labels are suitable for this issue.',
+                    },
+                },
+                'required': ['suggested_labels', 'reason'],
+            },
+        },
+    }
+
+    action_type = 'suggestion'
+    action_status = 'pending'
+    suggestion_text = 'Suggest assigning labels to this GitHub issue.'
+
+    def get_suggestion_text(self, **kwargs):
+        labels = kwargs.get('suggested_labels') or []
+        if not isinstance(labels, list):
+            labels = []
+        normalized = []
+        for label in labels:
+            name = str(label).strip()
+            if name:
+                normalized.append(name)
+        serialized = json.dumps(normalized, ensure_ascii=True)
+        return f'Suggest assigning labels {serialized} to this GitHub issue.'
+
+    def execute(self, suggested_labels, reason, current_labels=None):
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+        labels = suggested_labels if isinstance(suggested_labels, list) else []
+        normalized = []
+        for label in labels:
+            name = str(label).strip()
+            if name:
+                normalized.append(name)
+        if not normalized:
+            return 'Cannot create assign-labels suggestion: empty suggested_labels.'
+
+        reason = (reason or '').strip()
+        if not reason:
+            return 'Cannot create assign-labels suggestion: empty reason.'
+
+        serialized = json.dumps(normalized, ensure_ascii=True)
+        return (
+            f'Label suggestion prepared for GitHub issue {source_id} - {source_title}. '
+            f'Suggested labels: {serialized}; Reason: {reason}'
+        )
+
+
 # All GitHub issue tools for registration by GithubIssueAgentWorker
 GITHUB_ISSUE_TOOL_CLASSES = [
     RecordIssueAnalysisTool,
     SuggestModifyTypeTool,
+    SuggestAssignLabelsTool,
     SuggestReplyTool,
     SuggestCreateTicketTool,
 ]

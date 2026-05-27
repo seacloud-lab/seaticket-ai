@@ -59,6 +59,7 @@ class GithubIssueAgent(ConnectionAgent):
     def build_record_payload(self, item: dict, item_context: dict) -> dict:
         issue_content = (item.get('content') or '').strip()
         comments = item_context.get('comments', [])
+        available_labels = self._get_available_labels()
 
         recent_comments = [self._format_comment_entry(c) for c in comments[-10:]]
 
@@ -68,6 +69,7 @@ class GithubIssueAgent(ConnectionAgent):
             'state': item.get('state', 'N/A'),
             'author': item.get('author', 'N/A'),
             'labels': item.get('labels', 'N/A'),
+            'available_labels': available_labels,
             'issue_type': item.get('issue_type', 'N/A'),
             'created_time': item.get('created_time', 'N/A'),
             'url': item.get('url', 'N/A'),
@@ -99,3 +101,39 @@ class GithubIssueAgent(ConnectionAgent):
             f"ORDER BY `created_time` ASC"
         )
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+
+    def _get_available_labels(self) -> list[str]:
+        cached = getattr(self, '_available_labels_cache', None)
+        if isinstance(cached, list):
+            return cached
+
+        available_labels = []
+        try:
+            metadata = self.seadb_api.get_base_metadata(self.project_uuid)
+            tables = (metadata or {}).get('tables') or []
+            table_meta = next(
+                (table for table in tables if table.get('name') == self._issues_table),
+                None,
+            )
+            if table_meta:
+                label_column = next(
+                    (
+                        column for column in (table_meta.get('columns') or [])
+                        if column.get('name') == 'labels'
+                    ),
+                    None,
+                )
+                options = ((label_column or {}).get('data') or {}).get('options') or []
+                seen = set()
+                for option in options:
+                    name = str(option.get('name') or '').strip()
+                    key = name.lower()
+                    if not name or key in seen:
+                        continue
+                    seen.add(key)
+                    available_labels.append(name)
+        except Exception:
+            available_labels = []
+
+        self._available_labels_cache = available_labels
+        return available_labels
