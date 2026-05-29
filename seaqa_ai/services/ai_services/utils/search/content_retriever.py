@@ -360,6 +360,6 @@ class ContentRetriever:
 
         # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+            record['content'] = (results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         
         return record_id_record_map
