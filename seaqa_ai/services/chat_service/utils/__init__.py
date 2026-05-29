@@ -68,12 +68,15 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
 def combine_attachments_to_message(attachments, message):
     document_attachments = []
     issues_attachments = []
+    task_attachments = []
 
     for attachment in attachments:
         if attachment['type'] in ATTACHMENTS_TYPE.DOCUMENTS.value:
             document_attachments.append(attachment)
         elif attachment['type'] in ATTACHMENTS_TYPE.ISSUES.value:
             issues_attachments.append(attachment)
+        elif attachment['type'] in ATTACHMENTS_TYPE.TASK.value:
+            task_attachments.append(attachment)
     
     final_message = ''
     if document_attachments:
@@ -81,6 +84,9 @@ def combine_attachments_to_message(attachments, message):
 
     if issues_attachments:
         final_message += ATTACHMENTS_PROMPTS.ISSUES.value + convert_to_json_code_block(issues_attachments) + '\n\n'
+
+    if task_attachments:
+        final_message += ATTACHMENTS_PROMPTS.TASK.value + convert_to_json_code_block(task_attachments) + '\n\n'
 
     return final_message + message
 
