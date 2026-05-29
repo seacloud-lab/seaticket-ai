@@ -404,7 +404,6 @@ class AgentRunner:
                     action_status='failed',
                     step=step,
                     tool_name=tool_name,
-                    forced_tool_call=True,
                     statistics=json.dumps({'duration_ms': duration_ms})
                 )
             return {}
@@ -424,7 +423,6 @@ class AgentRunner:
                     action_status='failed',
                     step=step,
                     tool_name=tool_name,
-                    forced_tool_call=True,
                     statistics=json.dumps({'duration_ms': duration_ms, **usage})
                 )
             return {}
@@ -586,7 +584,6 @@ class AgentRunner:
                     step=step,
                     tool_name=tool_name,
                     tool_arguments=arguments,
-                    forced_tool_call=forced,
                     statistics=json.dumps({'duration_ms': duration_ms, **usage})
                 )
             logger.debug(f'Observation: {observation}')
@@ -630,7 +627,6 @@ class AgentRunner:
                     step=step,
                     tool_name=tool_name,
                     tool_arguments=arguments,
-                    forced_tool_call=forced,
                     statistics=json.dumps({'duration_ms': duration_ms, **usage})
                 )
         finally:
@@ -642,7 +638,7 @@ class AgentRunner:
 
         if not tool_failed:
             statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
-            self._record_tool_action(phase, step, tool_name, arguments, observation, forced, statistics=statistics,)
+            self._record_tool_action(phase, step, tool_name, arguments, observation, statistics=statistics,)
 
         if is_final_answer:
             return observation
@@ -660,7 +656,6 @@ class AgentRunner:
         tool_name: str,
         tool_arguments: dict,
         observation: str,
-        forced: bool,
         statistics: str | None = None
     ):
         if not (self.action_recorder and self.run_id):
@@ -676,7 +671,6 @@ class AgentRunner:
                 step=step,
                 tool_name=tool_name,
                 tool_arguments=tool_arguments,
-                forced_tool_call=forced,
                 observation=summary,
                 statistics=statistics
             )
@@ -731,7 +725,6 @@ class AgentRunner:
             step=step,
             tool_name=tool_name,
             tool_arguments=tool_arguments,
-            forced_tool_call=forced,
             observation=observation,
             suggestion_content=content  if action_type == 'suggestion' else '',
             sources=sources,
@@ -747,7 +740,6 @@ class AgentRunner:
         step,
         tool_name=None,
         tool_arguments=None,
-        forced_tool_call=False,
         observation=None,
         suggestion_content=None,
         sources=None,
@@ -757,19 +749,15 @@ class AgentRunner:
         if not self.action_recorder:
             return
         
+        # fetch system prompt
         if phase == self.analysis_phase.name:
             prompt = self.analysis_system_prompt
-            is_max_step = step == self.analysis_phase.max_steps
         elif phase == self.handling_phase.name:
             prompt = self.handling_system_prompt
-            self.handling_phase
-            is_max_step = step == self.handling_phase.max_steps
         elif action_type == 'events':
             prompt = FORCED_RECORD_EVENT_SUMMARY_PROMPT
-            is_max_step = False
         else:
             prompt = ''
-            is_max_step = False
 
         action_data = {
             'run_id': self.run_id,
@@ -782,10 +770,8 @@ class AgentRunner:
             'action_type': action_type,
             'action_status': action_status,
             'step': step,
-            'is_max_step': is_max_step,
             'tool_name': tool_name,
             'tool_arguments': tool_arguments,
-            'forced_tool_call': forced_tool_call,
             'observation': observation or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources or [],

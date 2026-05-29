@@ -38,10 +38,8 @@ class AgentActionRecorder:
         action_type,
         action_status,
         step,
-        is_max_step,
         tool_name,
         tool_arguments,
-        forced_tool_call,
         observation,
         suggestion_content='',
         sources=None,
@@ -77,6 +75,8 @@ class AgentActionRecorder:
         # record tool call detail
         if not THOUGHT_PROCESS_ENABLED or not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
             tool_arguments = '{}'
+        else:
+            tool_arguments = json.dumps(tool_arguments)
 
         new_observation = deepcopy(observation) or ''
         if not THOUGHT_PROCESS_ENABLED:
@@ -88,7 +88,7 @@ class AgentActionRecorder:
             new_observation = object_to_json_str(new_observation)
         else:
             new_observation = _truncate_string(new_observation, MAX_CONTENT_CHARS)
-
+    
         row = {
             'run_id': run_id,
             'source_type': source_type or '',
@@ -99,11 +99,9 @@ class AgentActionRecorder:
             'result': str(result) if result is not None else '',
             'prompt': prompt if THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS and prompt is not None else '',
             'step': step,
-            'is_max_step': is_max_step,
             'tool_name': tool_name or '',
-            'tool_arguments': tool_arguments,
-            'forced_tool_call': forced_tool_call,
-            'observation': new_observation,
+            'tool_arguments': tool_arguments or '',
+            'observation': new_observation or '',
             'status': action_status,
             'suggestion_content': suggestion_content or '',
             'sources': sources_payload,
