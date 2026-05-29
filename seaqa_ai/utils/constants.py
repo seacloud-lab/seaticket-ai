@@ -17,6 +17,7 @@ class ConnectionType(Enum):
     DISCOURSE_FORUM = 'discourse_forum'
     SITE = 'site'
     SEAFILE = 'seafile'
+    GENERAL_TASK = 'general_task'
 
     @classmethod
     def is_valid(cls, value):
@@ -58,6 +59,13 @@ class ExtraSourceType(Enum):
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value
         ]
 
+    @classmethod
+    def get_task_extra_source_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.TASKS.value
+        ]
+
 class SOURCES_TYPE(Enum):
     DOCUMENTS = (
         ExtraSourceType.KNOWLEDGE_BASE.value,
@@ -70,14 +78,19 @@ class SOURCES_TYPE(Enum):
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.EMAIL.value
     )
+    TASKS = (
+        ConnectionType.GENERAL_TASK.value
+    )
 
 class ATTACHMENTS_PROMPTS(Enum):
     DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
     ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
+    TASK = 'Here are some tasks in Json format with title and content. \n\n'
 
 class ATTACHMENTS_TYPE(Enum):
     DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
     ISSUES = SOURCES_TYPE.ISSUES.value
+    TASK = SOURCES_TYPE.TASKS.value
     OTHERS = ()
 
 class MODEL_REASONING_TIER(Enum):

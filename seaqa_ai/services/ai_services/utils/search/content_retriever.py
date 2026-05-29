@@ -346,3 +346,20 @@ class ContentRetriever:
                 })
             record['content'] = content
         return record_id_record_map
+
+
+    # tasks
+    ## general task
+    def _get_general_task_content(self, record_id_record_map, connection_id):
+        results_from_seadb = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=gen_seadb_table_name(ConnectionType.GENERAL_TASK.value, connection_id)[0],
+            pks=record_id_record_map.keys(),
+            fields_str='content'
+        )
+
+        # set content from keywords search result (priority) or from seadb
+        for record_id, record in record_id_record_map.items():
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+        
+        return record_id_record_map
