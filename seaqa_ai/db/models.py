@@ -283,7 +283,6 @@ class ChatMessages(Base):
 
     __table_args__ = (
         Index('idx_session_uuid_created_at', 'session_uuid', 'created_at'),
-        Index('idx_session_uuid_created_at_as_context_role', 'session_uuid', 'role', created_at.desc(), as_context.desc())
     )   
 
     def to_dict(self):

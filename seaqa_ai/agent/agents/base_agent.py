@@ -39,12 +39,11 @@ from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner, PhaseSpec
+from seaqa_ai.agent.utils.agent_trace_recorder import AgentActionRecorder
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.agent.prompts._forced import FORCED_RECORD_ANALYSIS_PROMPT, FORCED_FINAL_ANSWER_PROMPT
 from seaqa_ai.agent.utils.constants import (
     AGENT_RUNS_TABLE,
-    AGENT_ACTIONS_TABLE,
-    MAX_CONTENT_CHARS,
     DataEventType,
 )
 from seaqa_ai.utils.constants import AIScenario
@@ -212,53 +211,6 @@ class BaseAgent:
 
     # ── SeaDB run-record helpers ────────────────────────────────────
 
-    def create_action_record(
-        self,
-        run_id,
-        source_type,
-        source_id,
-        source_title,
-        action_type,
-        tool_name,
-        content,
-        result,
-        action_status,
-        suggestion_text='',
-        sources=None,
-        statistics='',
-        details='',
-    ):
-        """Insert a new agent_actions row. Returns _pk."""
-        if isinstance(sources, list):
-            sources_payload = json.dumps(sources, ensure_ascii=False)
-        elif isinstance(sources, str):
-            sources_payload = sources
-        else:
-            sources_payload = '[]'
-
-        row = {
-            'run_id': run_id,
-            'source_type': source_type or '',
-            'source_id': str(source_id) if source_id is not None else '',
-            'source_title': source_title or '',
-            'action_type': action_type,
-            'tool_name': tool_name or '',
-            'content': content[:MAX_CONTENT_CHARS] if content is not None else '',
-            'result': result[:MAX_CONTENT_CHARS] if result is not None else '',
-            'status': action_status,
-            'suggestion_text': suggestion_text or '',
-            'sources': sources_payload,
-            'statistics': statistics or '',
-            'created_at': now_iso(),
-        }
-        if config.THOUGHT_PROCESS_ENABLED and details:
-            row['details'] = details
-        res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
-        pks = res.get('pks', [])
-        if len(pks) != 1:
-            raise Exception(f'Expected 1 PK, got {len(pks)}')
-        return pks[0]
-
     def create_run_record(self) -> int | None:
         """Insert a new agent_runs row and return its pk.
 
@@ -381,15 +333,14 @@ class BaseAgent:
             llm_client=llm_client,
             record_context=record_context,
             ai_stats_context=self._build_ai_stats_context(),
-            action_recorder=self.create_action_record,
+            action_recorder=AgentActionRecorder(self.project_uuid, self.seadb_api),
             run_id=run_id,
             tool_metadata=tool_metadata,
             analysis_system_prompt=analysis_system_prompt,
             handling_system_prompt=handling_system_prompt,
             analysis_phase=self.get_analysis_phase(),
             handling_phase=self.get_handling_phase(),
-            search_enabled=self.SEARCH_ENABLED,
-            trace_enabled=config.THOUGHT_PROCESS_ENABLED,
+            search_enabled=self.SEARCH_ENABLED
         )
 
         try:

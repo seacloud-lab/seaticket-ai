@@ -6,11 +6,13 @@ from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL
 from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
+SEARCH_TOOL_NAMES = (
+    'documents_search',
+    'issues_search'
+)
+
 def filter_tool_calls_content(tool_name, results):
-    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (
-            'documents_search', 
-            'issues_search'
-        ):
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in SEARCH_TOOL_NAMES:
         return remove_sources_content_and_snippets(deepcopy(results))
     return results
 

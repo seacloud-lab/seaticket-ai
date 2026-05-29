@@ -144,25 +144,11 @@ class ThoughtProcessRecorder(object):
                     }
                 continue
 
-    def _migrate_final_answer_from_actions(self):
-        for i in reversed(range(len(self.actions))):
-            for j in reversed(range(len(self.actions[i]['tool_calls']))):
-                if self.actions[i]['tool_calls'][j]['name'] == 'final_answer':
-                    if not self.final_answer:
-                        self.set_final_answer(self.actions[i]['result'], False, self.actions[i]['token_usage'], self.actions[i]['time_usage'])
-                        del self.actions[i]['tool_calls'][j]
-                        if not self.actions[i]['tool_calls']:
-                            del self.actions[i]
-                        break
-                    else:
-                        self.actions[i]['tool_calls'][j]['name'] = 'final_answer (unexpected)'
-
     @property
     def details(self):
         if not self.enabled:
             return {}
         self._filter_empty_actions()
-        self._migrate_final_answer_from_actions()
 
         actions_total_tokens_usage = {
             'input_tokens': 0,

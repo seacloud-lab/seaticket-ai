@@ -4,7 +4,7 @@ ConnectionAgent: intermediate base class for connection-backed agents.
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.common_tools import RecordIssueAnalysisTool
-from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch
+from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch, SEARCH_TOOL_NAMES
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
 
@@ -23,7 +23,6 @@ class ConnectionAgent(BaseAgent):
     SEARCH_ENABLED = True
     ANALYSIS_TERMINATOR_TOOL = RecordIssueAnalysisTool
 
-    _SEARCH_TOOL_NAMES: set = {'documents_search', 'issues_search'}
     _SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
 
     def __init__(self, app, project, connection_id: int, record_id=None, event=None):
@@ -52,7 +51,7 @@ class ConnectionAgent(BaseAgent):
 
     def get_tool_registration_kwargs(self, tool_instance, record_context: dict) -> dict:
         tool_name = tool_instance.tool.get('function', {}).get('name', '')
-        if tool_name not in self._SEARCH_TOOL_NAMES:
+        if tool_name not in SEARCH_TOOL_NAMES:
             return {}
         return {
             'context': self._build_search_context(record_context),
