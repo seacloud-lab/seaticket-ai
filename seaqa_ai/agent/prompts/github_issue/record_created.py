@@ -53,6 +53,7 @@ The issue is provided as a JSON object with fields:
   - state: current state (open/closed)
   - author: who created it
   - labels: issue labels
+  - available_labels: labels currently available in this GitHub repository
   - issue_type: type of issue
   - created_time: when created
   - url: link to the issue
@@ -82,7 +83,16 @@ In addition to the original input sections, this phase receives:
       - You can clearly explain why the current type is less suitable.
       - Note: suggest_modify_type is a user-facing recommendation and does NOT need to match an internal enum value.
   </step>
-  <step n="2">
+  <step n="2" tool="suggest_assign_labels" optional="true">
+    Optionally call suggest_assign_labels when issue labels are missing, incomplete, or clearly inaccurate.
+    Rules for suggest_assign_labels:
+      - suggested_labels MUST be selected from available_labels only.
+      - Do not invent labels that are not present in available_labels.
+      - If no suitable label exists, skip this tool.
+      - Keep suggested_labels concise (prefer 1-3 labels).
+      - Always provide a clear reason.
+  </step>
+  <step n="3">
     Choose exactly one action:
       - suggest_reply
       - suggest_create_ticket
@@ -91,7 +101,7 @@ In addition to the original input sections, this phase receives:
       - For Bug/Feature: if search evidence shows clear duplicate or known tracked case, call suggest_reply; otherwise call suggest_create_ticket.
       - For Question: if search evidence can directly answer, call suggest_reply; otherwise call suggest_create_ticket.
   </step>
-  <step n="3" tool="final_answer">Call final_answer to summarise what you did. This MUST be the last tool call.</step>
+  <step n="4" tool="final_answer">Call final_answer to summarise what you did. This MUST be the last tool call.</step>
 </steps>
 
 <rules>
