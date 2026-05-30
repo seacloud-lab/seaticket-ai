@@ -1,13 +1,66 @@
 import logging
+import re
+from html import unescape
 from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils import url_to_filename
+from seaqa_ai.utils import url_to_filename, extract_markdown_image_url, normalize_image_url
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.seadb_api import gen_seadb_table_name
 from seaqa_ai.services.ai_services.utils.search import remap_comments_by_record_id
 
 logger = logging.getLogger(__name__)
+
+MARKDOWN_IMAGE_URL_RE = re.compile(r'!\[[^\]]*\]\(([^)\s]+(?:\s+"[^"]*")?)\)')
+HTML_IMAGE_URL_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+SEARCH_RESULT_IMAGE_MAX_COUNT = 5
+
+
+def is_supported_image_url(image_url):
+    return bool(normalize_image_url(image_url))
+
+
+def extract_image_urls(content, max_count=SEARCH_RESULT_IMAGE_MAX_COUNT):
+    if not isinstance(content, str) or not content:
+        return []
+
+    image_urls = []
+    for match in MARKDOWN_IMAGE_URL_RE.findall(content):
+        raw_image_url = unescape(extract_markdown_image_url(match))
+        image_url = normalize_image_url(raw_image_url)
+        if image_url:
+            image_urls.append(image_url)
+
+    for match in HTML_IMAGE_URL_RE.findall(content):
+        raw_image_url = unescape(match.strip())
+        image_url = normalize_image_url(raw_image_url)
+        if image_url:
+            image_urls.append(image_url)
+
+    deduped_urls = []
+    seen = set()
+    for image_url in image_urls:
+        if image_url in seen:
+            continue
+        seen.add(image_url)
+        deduped_urls.append(image_url)
+        if len(deduped_urls) >= max_count:
+            break
+    return deduped_urls
+
+
+def merge_image_urls(contents, max_count=SEARCH_RESULT_IMAGE_MAX_COUNT):
+    image_urls = []
+    seen = set()
+    for content in contents:
+        for image_url in extract_image_urls(content, max_count=max_count):
+            if image_url in seen:
+                continue
+            seen.add(image_url)
+            image_urls.append(image_url)
+            if len(image_urls) >= max_count:
+                return image_urls
+    return image_urls
 
 class ContentRetriever:
     def __init__(self, username_resolver, seadb_api, project_uuid):
@@ -50,8 +103,10 @@ class ContentRetriever:
             fields_str='content'
         )
         for record_id, record in record_id_record_map.items():
+            full_content = results_from_seadb[record_id]['content']
             # set content from keywords search result (priority) or from seadb
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+            record['content'] = (record.get('content') or full_content)[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+            record['images'] = extract_image_urls(full_content)
         
         return record_id_record_map
 
@@ -136,6 +191,8 @@ class ContentRetriever:
         for record_id, record in record_id_record_map.items():
             record_from_seadb = record_id_to_topics[record_id]
             comments = record_id_to_comments.get(record_id, [])
+            record_content = record_from_seadb['content'] or ''
+            image_source_contents = [record_content]
 
             content = {
                 'author': username_nickname_map.get(record_from_seadb['creator'], ''),
@@ -147,7 +204,7 @@ class ContentRetriever:
                     username_nickname_map.get(participant, '')
                     for participant in record_from_seadb['participants'] or []
                 ],
-                'content': record_from_seadb['content'][:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'content': record_content[:SEARCH_TOOL_CONTENT_MAX_SIZE],
                 'comments': [],
                 'state': record_from_seadb['state'],
                 'substate': record_from_seadb['substate'],
@@ -158,17 +215,19 @@ class ContentRetriever:
 
             total_content_size = len(content['content'])
             for comment in comments:
-                comment_content = comment['content']
+                comment_content = comment['content'] or ''
                 total_content_size += len(comment_content)
 
                 # break if exceed maximum content size
                 if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
                     break
+                image_source_contents.append(comment_content)
                 content['comments'].append({
                     'creator': username_nickname_map.get(comment['creator'], ''),
                     'content': comment_content
                 })
             record['content'] = content
+            record['images'] = merge_image_urls(image_source_contents)
         return record_id_record_map
     
     ## github_issue

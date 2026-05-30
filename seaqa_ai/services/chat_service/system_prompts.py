@@ -64,6 +64,12 @@ CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - Cite only the statements that are actually supported by the search results.
 - If several references support the same statement, place the labels together, for example `<reference_0><reference_3>`.
 - If search results are irrelevant, weak, or unused in the answer, do not cite them.
+- If a cited result includes helpful images and showing them would make the answer easier to understand, include relevant images from that same result.
+- This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
+- If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
+- First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
+- Use Markdown `![short caption](exact_url_from_images)` and copy the URL exactly from that same result's `images` field.
+- Do not mention screenshots or images unless you actually include valid ones from the cited result's `images` field.
 - If no search tool was used, do not output any `<reference_x>` tags."""
 
 CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
