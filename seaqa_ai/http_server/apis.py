@@ -68,6 +68,11 @@ def get_ai_reply():
         ],
         'scenario': scenario,
     }
+    if not is_external_portal:
+        username = data.get('username')
+        if not username:
+            return {'error_msg': 'username invalid.'}, 400
+        context['username'] = username
 
     if not message:
         return {'error_msg': 'question invalid.'}, 400

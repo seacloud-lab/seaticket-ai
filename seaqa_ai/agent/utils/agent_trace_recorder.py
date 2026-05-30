@@ -1,138 +1,117 @@
 import json
+import logging
 from copy import deepcopy
-from seaqa_ai.config import THOUGHT_PROCESS_RECORD_TOOL_DETAILS
-from seaqa_ai.utils import remove_sources_content_and_snippets
+from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS, THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS
+from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_to_json_str
+from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
+from seaqa_ai.agent.utils.constants import (
+    AGENT_ACTIONS_TABLE,
+    MAX_CONTENT_CHARS
+)
 
+logger = logging.getLogger(__name__)
 
-class AgentTraceRecorder:
-    MAX_STRING_CHARS = 1000
-    MAX_PROMPT_CONTENT_CHARS = 5000
-    SEARCH_TOOLS_WITH_LARGE_SOURCES = {'documents_search', 'issues_search'}
+def _truncate_string(value, max_chars):
+    if not isinstance(value, str):
+        return value
+    if len(value) <= max_chars:
+        return value
+    return value[:max_chars] + f'\n... [truncated, original_length={len(value)}]'
 
-    def __init__(self, enabled=False):
-        self.enabled = bool(enabled)
+class AgentActionRecorder:
+    def __init__(self, project_uuid, seadb_api):
+        self.project_uuid = project_uuid
+        self.seadb_api = seadb_api
 
-    def _truncate_string(self, value, max_chars):
-        if not isinstance(value, str):
-            return value
-        if len(value) <= max_chars:
-            return value
-        return value[:max_chars] + f'\n... [truncated, original_length={len(value)}]'
+    def __bool__(self):
+        return True
 
-    def _to_serializable(self, value):
-        if value is None:
-            return None
-        if isinstance(value, (str, int, float, bool)):
-            return self._truncate_string(value, self.MAX_STRING_CHARS)
-        if isinstance(value, list):
-            return [self._to_serializable(item) for item in value]
-        if isinstance(value, dict):
-            return {
-                key: self._to_serializable(item)
-                for key, item in value.items()
-            }
-        return str(value)
-
-    def _parse_json_observation(self, observation):
-        if not isinstance(observation, str):
-            return observation
-        try:
-            return json.loads(observation)
-        except Exception:
-            return observation
-
-    def _normalize_observation(self, observation, tool_name=None):
-        normalized_observation = self._parse_json_observation(observation)
-        if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in self.SEARCH_TOOLS_WITH_LARGE_SOURCES and isinstance(normalized_observation, list):
-            normalized_observation = remove_sources_content_and_snippets(deepcopy(normalized_observation))
-        return self._to_serializable(normalized_observation)
-
-    def _normalize_prompt_message(self, message):
-        if not isinstance(message, dict):
-            return self._to_serializable(message)
-        normalized = {}
-        for key, value in message.items():
-            if key == 'tool_call_id':
-                # Skip tool_call_id field
-                continue
-            if key == 'tool_calls' and isinstance(value, list):
-                normalized[key] = [
-                    {
-                        tool_call_key: self._to_serializable(tool_call_value)
-                        for tool_call_key, tool_call_value in tool_call.items()
-                        if tool_call_key != 'id' # Skip id field
-                    }
-                    for tool_call in value
-                    if isinstance(tool_call, dict)
-                ]
-            elif key == 'content' and isinstance(value, str):
-                normalized[key] = self._truncate_string(value, self.MAX_PROMPT_CONTENT_CHARS)
-            else:
-                normalized[key] = self._to_serializable(value)
-        return normalized
-
-    def _normalize_prompt(self, prompt):
-        if not isinstance(prompt, list):
-            return self._to_serializable(prompt)
-
-        return [
-            self._normalize_prompt_message(message)
-            for message in prompt
-        ]
-
-    def _normalize_error(self, error):
-        if not error:
-            return None
-        if isinstance(error, dict):
-            error_type = error.get('type')
-            error_message = error.get('message')
-        else:
-            error_type = type(error).__name__
-            error_message = str(error)
-        return {
-            'type': error_type or 'Error',
-            'message': error_message or '',
-        }
-
-    def build_details(
+    def __call__(
         self,
-        phase=None,
-        step=None,
-        tool_name=None,
-        arguments=None,
-        raw_arguments=None,
-        observation=None,
-        status=None,
-        forced=False,
-        error=None,
-        prompt=None,
+        run_id,
+        source_type,
+        source_id,
+        source_title,
+        phase,
+        prompt,
+        result,
+        action_type,
+        action_status,
+        step,
+        tool_name,
+        tool_arguments,
+        observation,
+        suggestion_content='',
+        sources=None,
+        statistics=''
     ):
-        if not self.enabled:
-            return ''
+        """Insert a new agent_actions row. Returns _pk."""
+        if isinstance(sources, list):
+            sources_payload = json.dumps(sources, ensure_ascii=False)
+        elif isinstance(sources, str):
+            sources_payload = sources
+        else:
+            sources_payload = '[]'
 
-        details = {}
-        if phase:
-            details['phase'] = phase
-        if step is not None:
-            details['step'] = step + 1 if isinstance(step, int) else step
-        if tool_name:
-            details['tool_name'] = tool_name
-        if status:
-            details['status'] = status
-        if forced:
-            details['forced'] = True
-        if THOUGHT_PROCESS_RECORD_TOOL_DETAILS and raw_arguments not in (None, ''):
-            details['raw_arguments'] = self._to_serializable(raw_arguments)
-        if isinstance(arguments, dict):
-            details['arguments'] = self._to_serializable(arguments)
-        if THOUGHT_PROCESS_RECORD_TOOL_DETAILS and prompt:
-            details['prompt'] = self._normalize_prompt(prompt)
-        if observation not in (None, ''):
-            details['observation'] = self._normalize_observation(observation, tool_name=tool_name)
-        normalized_error = self._normalize_error(error)
-        if normalized_error:
-            details['error'] = normalized_error
+        if not isinstance(result, str):
+            result = object_to_json_str(result)
+        else:
+            result = _truncate_string(result, MAX_CONTENT_CHARS)
 
-        if not details:
-            return ''
-        return json.dumps(details, ensure_ascii=False)
+        # record phase' system prompt
+        prompt = prompt or ''
+        if not THOUGHT_PROCESS_ENABLED or \
+            not THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS:
+            prompt = ''
+
+        if action_type not in (
+            'events',
+            'analysis',
+            'summary'
+        ):
+            # disable recording system prompt in common tool_call steps
+            prompt = ''
+
+        # record tool call detail
+        if not THOUGHT_PROCESS_ENABLED or not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
+            tool_arguments = '{}'
+        else:
+            tool_arguments = json.dumps(tool_arguments)
+
+        new_observation = deepcopy(observation) or ''
+        if not THOUGHT_PROCESS_ENABLED:
+            new_observation = ''
+        elif not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in SEARCH_TOOL_NAMES:
+            remove_sources_content_and_snippets(new_observation)
+        
+        if not isinstance(new_observation, str):
+            new_observation = object_to_json_str(new_observation)
+        else:
+            new_observation = _truncate_string(new_observation, MAX_CONTENT_CHARS)
+    
+        row = {
+            'run_id': run_id,
+            'source_type': source_type or '',
+            'source_id': str(source_id) if source_id is not None else '',
+            'source_title': source_title or '',
+            'action_type': action_type,
+            'phase': phase,
+            'result': str(result) if result is not None else '',
+            'prompt': prompt if THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS and prompt is not None else '',
+            'step': step,
+            'tool_name': tool_name or '',
+            'tool_arguments': tool_arguments or '',
+            'observation': new_observation or '',
+            'status': action_status,
+            'suggestion_content': suggestion_content or '',
+            'sources': sources_payload,
+            'statistics': statistics or '',
+            'created_at': now_iso(),
+        }
+        try:
+            res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
+            pks = res.get('pks', [])
+            assert len(pks) == 1, f'Expected 1 PK, got {len(pks)}'
+            return pks[0]
+        except Exception as e:
+            logger.warning(f'Failure to record agent action: {e}')

@@ -7,15 +7,13 @@ Responsibilities:
 3. Record analysis and suggestions (notify assignee, add comment) to SeaDB.
 """
 import logging
-import json
 
 from seaqa_ai.utils import now_iso
 from seaqa_ai.utils.constants import TICKET_TABLES
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import (
-    AGENT_ACTIONS_TABLE,
-    MAX_CONTENT_CHARS,
+    AGENT_ACTIONS_TABLE
 )
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
@@ -146,7 +144,7 @@ class TicketAgent(BaseAgent):
         
         where = ' AND '.join(conditions)
         sql = (
-            f"SELECT `content`, `executed_at`, `created_at` "
+            f"SELECT `result`, `executed_at`, `created_at` "
             f"FROM `{AGENT_ACTIONS_TABLE}` WHERE {where} "
             f"ORDER BY `created_at` DESC LIMIT 10"
         )

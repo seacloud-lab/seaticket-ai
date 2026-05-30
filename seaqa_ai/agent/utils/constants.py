@@ -45,5 +45,6 @@ AGENT_ACTIONS_TABLE = 'agent_actions'
 # Maximum body characters sent to the LLM to avoid excessive token usage
 MAX_CONTENT_CHARS, MAX_COMMENT_CHARS = 5000, 5000
 
+
 # Minimum similarity score to consider a related record as a known issue
 RELATED_RECORD_SCORE_THRESHOLD = 0.5

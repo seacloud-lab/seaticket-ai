@@ -10,7 +10,7 @@ from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remov
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
-from seaqa_ai.utils.tools import OpenAIToolExecutor
+from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, OpenAIMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
@@ -450,7 +450,7 @@ class StreamingChat(BasicChat):
                     tool_calls_num = len(tool_calls)
                     for tool_call_id, tool_call in enumerate(tool_calls):
                         tool_name = tool_call['function']['name']
-                        if tool_name in ('documents_search', 'issues_search'):
+                        if tool_name in SEARCH_TOOL_NAMES:
                             has_search_tool = True
                         yield from StreamingCompletionUtils.execute_tool_with_retry(
                             tool_executor,
