@@ -271,7 +271,7 @@ class ChatMessages(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    session_uuid = Column(String(length=36), nullable=False)
+    session_uuid = Column(String(length=36), nullable=False, index=True)
     message_id = Column(String(length=4), nullable=False)
     role = Column(Enum('user', 'assistant'), nullable=False)
     content = Column(Text, nullable=True)
@@ -280,10 +280,6 @@ class ChatMessages(Base):
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
     as_context = Column(Boolean, nullable=False, default=True)
-
-    __table_args__ = (
-        Index('idx_session_uuid_created_at', 'session_uuid', 'created_at'),
-    )   
 
     def to_dict(self):
         try:
