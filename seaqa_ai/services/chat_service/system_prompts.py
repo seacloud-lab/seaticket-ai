@@ -64,12 +64,12 @@ CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - Cite only the statements that are actually supported by the search results.
 - If several references support the same statement, place the labels together, for example `<reference_0><reference_3>`.
 - If search results are irrelevant, weak, or unused in the answer, do not cite them.
-- If a cited result includes helpful images and showing them would make the answer easier to understand, include relevant images from that same result.
+- If a cited result's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image.
 - This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
 - If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
 - First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
-- Use Markdown `![short caption](exact_url_from_images)` and copy the URL exactly from that same result's `images` field.
-- Do not mention screenshots or images unless you actually include valid ones from the cited result's `images` field.
+- Use Markdown `![short caption](exact_url)` and copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
+- Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content.
 - If no search tool was used, do not output any `<reference_x>` tags."""
 
 CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
@@ -115,6 +115,19 @@ Step 2 result includes `<reference_1>` and `<reference_2>`.
 Final answer: Similar upgrade-related LDAP login issues have been reported before<reference_1><reference_2>.
 
 Example 3
+User: Show me where this setting is in the UI.
+Tool call:
+{
+  "name": "documents_search",
+  "arguments": {
+    "query": "where to find this setting in the UI"
+  }
+}
+Tool result includes `<reference_0>`. Its content directly contains an image URL that shows the settings page.
+Final answer: You can find this setting on the system settings page<reference_0>.
+![settings page](/file/settings-page.png)
+
+Example 4
 User: Which number is largest in 5, 9, 19, 28, and 3?
 Tool call: none
 Final answer: 28."""

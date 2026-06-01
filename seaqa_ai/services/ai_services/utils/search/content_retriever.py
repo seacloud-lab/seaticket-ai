@@ -13,14 +13,9 @@ logger = logging.getLogger(__name__)
 
 MARKDOWN_IMAGE_URL_RE = re.compile(r'!\[[^\]]*\]\(([^)\s]+(?:\s+"[^"]*")?)\)')
 HTML_IMAGE_URL_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
-SEARCH_RESULT_IMAGE_MAX_COUNT = 5
 
 
-def is_supported_image_url(image_url):
-    return bool(normalize_image_url(image_url))
-
-
-def extract_image_urls(content, max_count=SEARCH_RESULT_IMAGE_MAX_COUNT):
+def extract_image_urls(content):
     if not isinstance(content, str) or not content:
         return []
 
@@ -44,22 +39,18 @@ def extract_image_urls(content, max_count=SEARCH_RESULT_IMAGE_MAX_COUNT):
             continue
         seen.add(image_url)
         deduped_urls.append(image_url)
-        if len(deduped_urls) >= max_count:
-            break
     return deduped_urls
 
 
-def merge_image_urls(contents, max_count=SEARCH_RESULT_IMAGE_MAX_COUNT):
+def merge_image_urls(contents):
     image_urls = []
     seen = set()
     for content in contents:
-        for image_url in extract_image_urls(content, max_count=max_count):
+        for image_url in extract_image_urls(content):
             if image_url in seen:
                 continue
             seen.add(image_url)
             image_urls.append(image_url)
-            if len(image_urls) >= max_count:
-                return image_urls
     return image_urls
 
 class ContentRetriever:

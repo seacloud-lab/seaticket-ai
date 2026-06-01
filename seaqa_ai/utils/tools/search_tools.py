@@ -11,7 +11,6 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
         "type": "github_issue | discourse_forum | email | ticket | ...",
         "title": "Title",
         "content": "Search result's content",
-        "images": ["Related image URL"],
         "url": "Record URL (if available)",
         "state": "open/closed (when available)",
         "state_reason": "state reason for GitHub issue (when available)",
@@ -61,8 +60,6 @@ class BasicSearchTool(BasicTool):
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
-            if 'images' in search_result:
-                doc['images'] = search_result['images']
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
