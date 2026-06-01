@@ -2,7 +2,7 @@ import json
 import logging
 from copy import deepcopy
 from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS, THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS
-from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_to_json_str
+from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_to_json_str, parse_json
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 from seaqa_ai.agent.utils.constants import (
     AGENT_ACTIONS_TABLE,
@@ -82,13 +82,7 @@ class AgentActionRecorder:
         if not THOUGHT_PROCESS_ENABLED:
             new_observation = ''
         elif tool_name in SEARCH_TOOL_NAMES:
-            parsed = new_observation
-            if isinstance(new_observation, str):
-                try:
-                    parsed = json.loads(new_observation)
-                except Exception:
-                    parsed = new_observation
-
+            parsed = parse_json(new_observation)
             if isinstance(parsed, list):
                 if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
                     parsed = remove_sources_content_and_snippets(parsed)
