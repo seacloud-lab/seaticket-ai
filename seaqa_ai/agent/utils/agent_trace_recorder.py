@@ -81,11 +81,20 @@ class AgentActionRecorder:
         new_observation = deepcopy(observation) or ''
         if not THOUGHT_PROCESS_ENABLED:
             new_observation = ''
-        elif not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in SEARCH_TOOL_NAMES:
-            remove_sources_content_and_snippets(new_observation)
-        
-        if not isinstance(new_observation, str):
-            new_observation = object_to_json_str(new_observation)
+        elif tool_name in SEARCH_TOOL_NAMES:
+            parsed = new_observation
+            if isinstance(new_observation, str):
+                try:
+                    parsed = json.loads(new_observation)
+                except Exception:
+                    parsed = new_observation
+
+            if isinstance(parsed, list):
+                if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
+                    parsed = remove_sources_content_and_snippets(parsed)
+                new_observation = json.dumps(parsed, ensure_ascii=False)
+        elif not isinstance(new_observation, str):
+            new_observation = json.dumps(new_observation)
         else:
             new_observation = _truncate_string(new_observation, MAX_CONTENT_CHARS)
     
