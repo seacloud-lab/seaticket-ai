@@ -90,15 +90,32 @@ class AgentRunner:
             task: structured task payload (source_id, event, record, ...).
         """
 
-        # prelude phase (single-turn Q&A)
+        self._run_prelude_phase(task)
+        
+        self._run_analysis_phase(task)
+
+        if self._should_skip_handling_phase():
+            return
+
+        self._run_handling_phase(task)
+
+    def _run_prelude_phase(self, task: dict) -> None:
         self.prelude_phase.input = render_task_xml(task)
         self._run_phase(self.prelude_phase)
 
-        # analysis phase (multi-step ReAct)
+    def _run_analysis_phase(self, task: dict) -> None:
         self._update_analysis_input(task)
         self._run_phase(self.analysis_phase)
 
-        # handling phase (multi-step ReAct)
+    def _should_skip_handling_phase(self) -> bool:
+        analysis_result = self._extract_analysis_result(list(self.analysis_phase.memory))
+        recommended_action = str(analysis_result.get('recommended_action') or '').strip()
+        if recommended_action == 'no_op':
+            logger.info('Analysis recommended no handling action; skipping handling phase.')
+            return True
+        return False
+
+    def _run_handling_phase(self, task: dict) -> None:
         self._update_handling_input(task)
         self._run_phase(self.handling_phase)
 

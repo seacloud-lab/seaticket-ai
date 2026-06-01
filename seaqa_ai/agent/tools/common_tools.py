@@ -73,8 +73,8 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                     },
                     'recommended_action': {
                         'type': 'string',
-                        'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket'],
-                        'description': 'The handling action to call next.'
+                        'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'no_op'],
+                        'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
                     },
                 },
                 'required': [
