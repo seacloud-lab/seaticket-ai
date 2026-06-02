@@ -68,7 +68,9 @@ CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
 - If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
 - First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
-- Use Markdown `![short caption](exact_url)` and copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
+- If the cited content contains an HTML tag like `<img src="...">`, you may extract that exact `src` value and use it as the image URL.
+- You may output the image as Markdown `![short caption](exact_url)` or HTML `<img src="exact_url" alt="short caption">`.
+- Copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
 - Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content.
 - If no search tool was used, do not output any `<reference_x>` tags."""
 
@@ -115,17 +117,27 @@ Step 2 result includes `<reference_1>` and `<reference_2>`.
 Final answer: Similar upgrade-related LDAP login issues have been reported before<reference_1><reference_2>.
 
 Example 3
-User: Show me where this setting is in the UI.
-Tool call:
+User: Show me the related UI screenshots.
+Step 1 tool call:
 {
   "name": "documents_search",
   "arguments": {
     "query": "where to find this setting in the UI"
   }
 }
-Tool result includes `<reference_0>`. Its content directly contains an image URL that shows the settings page.
+Step 1 result includes `<reference_0>`. Its content contains `<img src="/file/settings-page.png">` that shows the settings page.
+Step 2 tool call:
+{
+  "name": "documents_search",
+  "arguments": {
+    "query": "panel screenshot for this feature"
+  }
+}
+Step 2 result includes `<reference_1>`. Its content contains `https://example.com/images/panel.png`.
 Final answer: You can find this setting on the system settings page<reference_0>.
 ![settings page](/file/settings-page.png)
+This is the related panel screenshot<reference_1>.
+<img src="https://example.com/images/panel.png" alt="panel screenshot">
 
 Example 4
 User: Which number is largest in 5, 9, 19, 28, and 3?
