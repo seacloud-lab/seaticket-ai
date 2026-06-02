@@ -133,11 +133,11 @@ Step 2 tool call:
     "query": "panel screenshot for this feature"
   }
 }
-Step 2 result includes `<reference_1>`. Its content contains `https://example.com/images/panel.png`.
+Step 2 result includes `<reference_1>`. Its content contains `![panel screenshot](https://example.com/images/panel.png)`.
 Final answer: You can find this setting on the system settings page<reference_0>.
-![settings page](/file/settings-page.png)
+<img src="/file/settings-page.png" alt="settings page">
 This is the related panel screenshot<reference_1>.
-<img src="https://example.com/images/panel.png" alt="panel screenshot">
+![panel screenshot](https://example.com/images/panel.png)
 
 Example 4
 User: Which number is largest in 5, 9, 19, 28, and 3?
