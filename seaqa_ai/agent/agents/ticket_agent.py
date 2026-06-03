@@ -9,12 +9,9 @@ Responsibilities:
 import logging
 
 from seaqa_ai.utils import now_iso
-from seaqa_ai.utils.constants import TICKET_TABLES
+from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
-from seaqa_ai.agent.utils.constants import (
-    AGENT_ACTIONS_TABLE
-)
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
@@ -57,7 +54,7 @@ class TicketAgent(BaseAgent):
         sql = (
             f"SELECT `_pk`, `title`, `state`, `substate`, `type`, `tags`, `priority`, "
             f"`assignees`, `participants`, `created_time`, `modified_time`, `due_date`, `content` "
-            f"FROM `{TICKET_TABLES.TICKETS_TABLE.value}` "
+            f"FROM `{get_table_name_from_schema(SchemaTableNames.TICKETS)}` "
             f"WHERE _pk = {self.record_id} "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
@@ -74,7 +71,7 @@ class TicketAgent(BaseAgent):
             return
         self.seadb_api.update_rows(
             self.project_uuid,
-            TICKET_TABLES.TICKETS_TABLE.value,
+            get_table_name_from_schema(SchemaTableNames.TICKETS),
             [
                 {
                     'pk': ticket_pk,
@@ -91,7 +88,7 @@ class TicketAgent(BaseAgent):
 
         comments_sql = (
             f"SELECT `creator`, `created_time`, `content` "
-            f"FROM `{TICKET_TABLES.TICKET_COMMENTS_TABLE.value}` "
+            f"FROM `{get_table_name_from_schema(SchemaTableNames.TICKET_COMMENTS)}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"ORDER BY `_pk` ASC LIMIT 100"
@@ -102,7 +99,7 @@ class TicketAgent(BaseAgent):
 
         activities_sql = (
             f"SELECT `activity_type`, `created_time`, `detail` "
-            f"FROM `{TICKET_TABLES.TICKET_ACTIVITIES_TABLE.value}` "
+            f"FROM `{get_table_name_from_schema(SchemaTableNames.TICKET_ACTIVITIES)}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"ORDER BY `created_time` ASC LIMIT 100"
         )
@@ -145,7 +142,7 @@ class TicketAgent(BaseAgent):
         where = ' AND '.join(conditions)
         sql = (
             f"SELECT `result`, `executed_at`, `created_at` "
-            f"FROM `{AGENT_ACTIONS_TABLE}` WHERE {where} "
+            f"FROM `{get_table_name_from_schema(SchemaTableNames.AGENT_ACTIONS)}` WHERE {where} "
             f"ORDER BY `created_at` DESC LIMIT 10"
         )
         return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])

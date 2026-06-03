@@ -1,7 +1,7 @@
 import logging
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
-from seaqa_ai.utils.seadb_api import gen_seadb_table_name
+from seaqa_ai.seadb_models.utils import get_connection_table_name
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def get_title_and_ai_summary_of_search_results(search_results, seadb_api, projec
 
     for connection_id, record_id_record_map in search_results.items():
         connection_type = connection_id_type_map[connection_id]
-        records_table_name, _ = gen_seadb_table_name(connection_type, connection_id)
+        records_table_name = get_connection_table_name(connection_type, connection_id)
 
         # query title and ai_summary for current connection (including tk, kb)
         records_in_seadb = seadb_api.get_records_by_pks(

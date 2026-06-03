@@ -12,7 +12,7 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.utils import compact_events
 from seaqa_ai.utils import uuid_str_to_32_chars
-from seaqa_ai.utils.constants import TICKET_TABLES
+from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
 from seaqa_ai.agent.utils.constants import (
     AGENT_TASK_QUEUE_NAME,
     DATA_EVENTS_CHANNEL,
@@ -375,7 +375,7 @@ class AgentManager:
         threshold = (now + timedelta(hours=notify_before_due_hours)).isoformat()
         min_reprocess_before = (now - timedelta(hours=min_reprocess_hours)).isoformat()
 
-        tickets_table = TICKET_TABLES.TICKETS_TABLE.value
+        tickets_table = get_table_name_from_schema(SchemaTableNames.TICKETS)
         sql = (
             f"SELECT `_pk` FROM `{tickets_table}` "
             f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
