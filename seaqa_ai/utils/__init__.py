@@ -4,6 +4,7 @@ import uuid
 import json
 import pytz
 import re
+import html
 import ast
 import hashlib
 import uuid
@@ -173,6 +174,65 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
 def remove_reference_markers(content):
     return re.sub(r'\[Reference \d+\]', '', content)
 
+MARKDOWN_IMAGE_RE = re.compile(r'!\[[^\]]*\]\(([^)\s]+(?:\s+"[^"]*")?)\)')
+HTML_IMAGE_RE = re.compile(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
+
+def extract_markdown_image_url(raw_url):
+    if not isinstance(raw_url, str):
+        return ''
+    return raw_url.split(' "', 1)[0].strip()
+
+
+def normalize_image_url(image_url):
+    if not isinstance(image_url, str):
+        return ''
+
+    image_url = html.unescape(image_url).strip()
+    if not image_url:
+        return ''
+
+    if image_url.startswith('/file/'):
+        return image_url
+
+    parsed_url = urllib.parse.urlsplit(image_url)
+    if parsed_url.scheme in ('http', 'https') and parsed_url.netloc:
+        return image_url
+
+    return ''
+
+
+def sanitize_answer_images(content, sources):
+    """Keep only images returned by the cited search sources."""
+    if not isinstance(content, str) or not content:
+        return content
+
+    allowed_image_urls = set()
+    for source in sources:
+        images = source.get('images') if isinstance(source, dict) else None
+        if not isinstance(images, list):
+            continue
+        for image_url in images:
+            normalized_url = normalize_image_url(image_url)
+            if normalized_url:
+                allowed_image_urls.add(normalized_url)
+
+    def markdown_replacer(match):
+        raw_image_url = extract_markdown_image_url(match.group(1))
+        normalized_image_url = normalize_image_url(raw_image_url)
+        if normalized_image_url and normalized_image_url in allowed_image_urls:
+            return match.group(0)
+        return ''
+
+    def html_replacer(match):
+        raw_image_url = match.group(1).strip()
+        normalized_image_url = normalize_image_url(raw_image_url)
+        if normalized_image_url and normalized_image_url in allowed_image_urls:
+            return match.group(0)
+        return ''
+
+    content = MARKDOWN_IMAGE_RE.sub(markdown_replacer, content)
+    return HTML_IMAGE_RE.sub(html_replacer, content)
+
 def clean_markdown_references(content, sources):
     sources_len = len(sources)
     md_blocks = content.split('<seaqa-markdown')
@@ -237,6 +297,7 @@ def get_answer_and_sources(tool_executor, content):
         sources.append(sources_results[sources_index])
 
     content, sources = clean_markdown_references(content, sources)
+    content = sanitize_answer_images(content, sources)
 
     return content, sources
 
@@ -281,4 +342,5 @@ def remove_sources_content_and_snippets(sources):
             continue
         source.pop('content', None)
         source.pop('snippets', None)
+        source.pop('images', None)
     return sources
