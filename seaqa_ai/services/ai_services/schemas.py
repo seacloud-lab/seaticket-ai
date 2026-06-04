@@ -55,5 +55,16 @@ SCHEMAS_MAP = {
         },
         'additionalProperties': False,
         'required': ['results']
+    },
+    'generate_chat_title': {
+        'type': 'object',
+        'properties': {
+            'title': {
+                'type': 'string',
+                'description': 'A concise chat title'
+            }
+        },
+        'additionalProperties': False,
+        'required': ['title']
     }
 }

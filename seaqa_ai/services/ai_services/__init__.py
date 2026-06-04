@@ -128,6 +128,47 @@ class AIServices:
             logger.error(f"Error generating knowledge base record: {str(e)}")
             return '', ''
 
+    def generate_chat_title(self, query, ai_reply, context):
+        try:
+            context = context or {}
+            project_uuid = context.get('project_uuid')
+            target_lang = self._get_project_target_language(project_uuid)
+            lang_instruction = (
+                f"Output language requirement: You must write the chat title in {target_lang}."
+            )
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"{AI_UTILS_PROMPTS_MAP['generate_chat_title']}\n\n{lang_instruction}"
+                },
+                {
+                    "role": "user",
+                    "content": UserContentPrompts.generate_chat_title(query, ai_reply, target_lang)
+                }
+            ]
+
+            llm_client = get_llm_client_by_model_tier(
+                self.app.data_logger,
+                AI_UTILS_TIER.get('generate_chat_title', MODEL_REASONING_TIER.LOW.value)
+            )
+
+            response = llm_client.completion(
+                messages=messages,
+                context=context,
+                response_format=gen_completion_format(SCHEMAS_MAP['generate_chat_title'])
+            ).choices[0].message.content
+
+            try:
+                result = json_repair.loads(response, strict=True)
+            except Exception as e:
+                logger.exception(f'Failure to parse chat title result: {e}')
+                return ''
+
+            return (result.get('title') or '').strip()
+        except Exception as e:
+            logger.error(f"Error generating chat title: {e}")
+            return ''
+
     def generate_summary(self, connection_type, project_uuid,  content, context):
         try:
             system_prompts = GENERATE_SUMMARY_PROMPTS_MAP.get(connection_type, GENERATE_SUMMARY_PROMPTS_MAP['documents'])

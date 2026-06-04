@@ -100,6 +100,45 @@ def get_ai_reply():
             return {'error_msg': 'Internet server error.'}, 500
 
 # AI utils
+@flask_app.route('/generate-chat-title', methods=['POST'])
+def generate_chat_title():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    query = data.get('query')
+    ai_reply = data.get('ai_reply')
+    org_id = data.get('org_id')
+    project_uuid = data.get('project_uuid')
+    scenario = data.get('scenario', AIScenario.CHAT.value)
+
+    if not query:
+        return {'error_msg': 'query invalid.'}, 400
+    if not ai_reply:
+        return {'error_msg': 'ai_reply invalid.'}, 400
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    context = {
+        'org_id': org_id,
+        'project_uuid': project_uuid,
+        'scenario': scenario,
+    }
+
+    try:
+        title = flask_app.app.ai_services.generate_chat_title(query, ai_reply, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return {'title': title}, 200
+
+
 @flask_app.route('/convert-record-to-ticket', methods=['POST'])
 def convert_record_to_ticket():
     is_valid = check_auth_token(request)
