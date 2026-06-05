@@ -15,14 +15,13 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from seaqa_ai import config
 from seaqa_ai.utils.llm_api import CompletionAPI
 from seaqa_ai.agent.prompts._forced import (
-    FORCED_RECORD_EVENT_SUMMARY_PROMPT,
-    PHASE_GUIDANCE_FOR_THINK,
     FORCED_RECORD_ANALYSIS_PROMPT,
     FORCED_FINAL_ANSWER_PROMPT,
 )
-from seaqa_ai.agent.tools.common_tools import FinalAnswerTool, ThinkTool, RecordEventSummaryTool
+from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.agent.utils import render_task_xml
@@ -47,19 +46,24 @@ class PhaseSpec:
 logger = logging.getLogger(__name__)
 
 
+class AgentRetryExceededError(Exception):
+    """Raised when agent completion retries are exhausted and the run must stop."""
+
+
 class AgentRunner:
     """
-    Generic agent that drives a tool-calling reasoning loop.
+    Generic agent that drives a prelude step plus a tool-calling reasoning loop.
 
     Features:
+    - Generates an event summary in a dedicated prelude step
     - Injects record context (source_type, source_id, source_title) into tool calls
     - Records each tool execution as an action in SeaDB via action_recorder
     - Supports 'pending' status for actions requiring user confirmation
     - Phase behaviour (terminator tool, forced prompt, max steps) is expressed as
-      PhaseSpec objects so both phases are configured symmetrically
+      PhaseSpec objects so analysis and handling remain configured symmetrically
     """
 
-    PRELUDE_TOOL = 'record_event_summary'
+    PRELUDE_TOOL_NAME = 'generate_event_summary'
 
     def __init__(
         self,
@@ -70,6 +74,7 @@ class AgentRunner:
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
+        prelude_system_prompt=None,
         analysis_system_prompt=None,
         handling_system_prompt=None,
         analysis_phase: PhaseSpec | None = None,
@@ -88,6 +93,7 @@ class AgentRunner:
                              suggestion_text, sources, statistics) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
+            prelude_system_prompt: system message for the prelude event-summary step.
             analysis_system_prompt: system message for the analysis phase.
             handling_system_prompt: system message for the handling phase.
             analysis_phase: PhaseSpec describing the analysis phase (terminator tool,
@@ -103,6 +109,7 @@ class AgentRunner:
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
+        self.prelude_system_prompt = prelude_system_prompt
         self.analysis_system_prompt = analysis_system_prompt
         self.handling_system_prompt = handling_system_prompt
         self.analysis_phase = analysis_phase or PhaseSpec(
@@ -117,50 +124,82 @@ class AgentRunner:
         )
         self.search_enabled = search_enabled
         self.event_summary = ''
+        self.phase_inputs = {}
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
 
-        record_event_summary_tool = RecordEventSummaryTool()
-        record_event_summary_tool.set_record_context(self.record_context)
-        record_event_summary_tool.register(tool_executor)
-        self.tool_metadata[record_event_summary_tool.tool.get('function', {}).get('name')] = {
-            'action_type': record_event_summary_tool.action_type,
-            'action_status': record_event_summary_tool.action_status,
-        }
-
-        think_tool = ThinkTool()
-        think_tool.register(tool_executor)
-        self.tool_metadata[think_tool.tool.get('function', {}).get('name')] = {
-            'action_type': think_tool.action_type,
-            'action_status': think_tool.action_status,
-        }
-
     def run(self, task: dict) -> None:
-        """Drive the two-phase reasoning loop: analysis then handling.
+        """Drive the prelude, analysis, and handling flow.
 
         Args:
             task: structured task payload (source_id, event, record, ...).
         """
 
-        self.event_summary = ''
-        analysis_task_xml = render_task_xml(task)
-        messages = self._build_initial_messages(analysis_task_xml)
+        # event (prelude) phase
+        self.event_summary = self._run_prelude(task)
 
-        self._record_event_summary(messages)
-        self._run_phase(messages, self.analysis_phase)
-        handling_messages = self._build_handling_messages(task, messages)
+        # analysis phase
+        analysis_task_xml = render_task_xml(self._build_analysis_task(task))
+        self.phase_inputs[self.analysis_phase.name] = analysis_task_xml
+        analysis_messages = self._build_analysis_messages(analysis_task_xml)
+        self._run_phase(analysis_messages, self.analysis_phase)
+
+        # handling phase
+        handling_messages = self._build_handling_messages(task, analysis_messages)
         self._run_phase(handling_messages, self.handling_phase)
+
+    def _build_analysis_task(self, original_task: dict) -> dict:
+        task = dict(original_task)
+        if self.event_summary:
+            task['event_summary'] = self.event_summary
+        return task
+
+    def _run_prelude(self, task: dict) -> str:
+        task_xml = render_task_xml(task)
+        self.phase_inputs['prelude'] = task_xml
+        messages = [
+            {'role': 'system', 'content': self.prelude_system_prompt},
+            {'role': 'user', 'content': task_xml},
+        ]
+        step_start = time.monotonic()
+        message, usage = self._request_llm_message_for_phase(messages, step=0, phase='prelude', use_tools=False)
+        raw_content = (message.content or '').strip()
+        parsed = self._parse_prelude_response(raw_content)
+        summary = (parsed.get('summary') or '').strip()
+        if not summary:
+            error_message = 'Prelude completion did not return a valid summary.'
+            self._record_action(
+                phase='prelude',
+                result=error_message,
+                action_type='error',
+                action_status='failed',
+                record_phase_context=True,
+                step=0,
+                tool_name=self.PRELUDE_TOOL_NAME,
+                observation=raw_content,
+                statistics=self._build_statistics(step_start, usage),
+            )
+            raise AgentRetryExceededError(error_message)
+
+        observation = json.dumps({'summary': summary}, ensure_ascii=False)
+        self._record_action(
+            phase='prelude',
+            result=summary,
+            action_type='events',
+            action_status='completed',
+            step=0,
+            tool_name=self.PRELUDE_TOOL_NAME,
+            observation=observation,
+            statistics=self._build_statistics(step_start, usage),
+        )
+        return summary
 
     def _run_phase(self, messages: list[dict], spec: PhaseSpec) -> None:
         """Run a single reasoning phase until the terminator tool is called or max steps reached."""
         for step in range(spec.max_steps):
-            # self._force_think_step(messages, step, phase=spec.name)
             step_start = time.monotonic()
             message, usage = self._request_llm_message_for_phase(messages, step, phase=spec.name)
-            if message is None:
-                logger.warning(f'{spec.name} step {step} LLM call failed, continuing to next step.')
-                continue
 
             tool_call = self._validate_single_tool_call(message.tool_calls, step)
             assistant_message = self._build_assistant_message(message, tool_call=tool_call)
@@ -195,6 +234,7 @@ class AgentRunner:
             search_results=search_results,
             analysis_result=analysis_result,
         )
+        self.phase_inputs[self.handling_phase.name] = handling_task_content
 
         return [
             {'role': 'system', 'content': self.handling_system_prompt},
@@ -275,7 +315,7 @@ class AgentRunner:
         step: int,
         phase: str,
         use_tools: bool = True,
-    ) -> tuple[Message | None, dict]:
+    ) -> tuple[Message, dict]:
         """Request an LLM message with phase-specific tools."""
         total_chars = 0
         for i, m in enumerate(messages):
@@ -299,55 +339,21 @@ class AgentRunner:
                 'tool_choice': 'auto',
             })
 
-        llm_start = time.monotonic()
-        try:
-            response = self.llm_client.completion(**request_kwargs)
-            return response.choices[0].message, self._extract_usage(response)
-        except Exception as e:
-            duration_ms = int((time.monotonic() - llm_start) * 1000)
-            logger.exception(f'LLM call failed at {phase} step {step}: {e}')
-            if self.action_recorder and self.run_id:
-                self._record_action(
-                    phase=phase,
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                    step=step,
-                    statistics=json.dumps({'duration_ms': duration_ms})
-                )
-            return None, {}
+        response, usage, retry_entries = self._completion_with_retry(
+            completion_kwargs=request_kwargs,
+            step=step,
+            phase=phase,
+            failure_reason='completion_error',
+        )
+        if retry_entries:
+            usage = self._merge_retry_entries_into_usage(usage, retry_entries)
+        return response.choices[0].message, usage
 
-    def _build_initial_messages(self, task: str) -> list[dict]:
+    def _build_analysis_messages(self, task: str) -> list[dict]:
         return [
             {'role': 'system', 'content': self.analysis_system_prompt},
             {'role': 'user', 'content': task},
         ]
-
-    def _force_think_step(self, messages: list[dict], step: int, phase: str):
-        source_type = self.record_context.get('source_type', '')
-        if phase == 'analysis' and source_type == 'ticket':
-            guidance_key = 'ticket_analysis'
-        elif phase == 'analysis' and source_type != 'ticket':
-            guidance_key ='issue_analysis'
-        else:
-            guidance_key = phase
-        self._force_single_tool_call(
-            messages=messages,
-            tool_name='think',
-            step=step,
-            phase=phase,
-            system_content=PHASE_GUIDANCE_FOR_THINK.get(guidance_key),
-        )
-
-    def _record_event_summary(self, messages: list[dict]) -> None:
-        args = self._force_single_tool_call(
-            messages=messages,
-            tool_name=self.PRELUDE_TOOL,
-            step=0,
-            phase='prelude',
-            system_content=FORCED_RECORD_EVENT_SUMMARY_PROMPT,
-        )
-        self.event_summary = (args.get('summary') or '').strip()
 
     def _force_terminator(self, messages: list[dict], spec: PhaseSpec) -> None:
         """Force-call the terminator tool for a phase when max steps is exceeded."""
@@ -389,24 +395,16 @@ class AgentRunner:
             },
         }
         step_start = time.monotonic()
-        try:
-            response = self.llm_client.completion(**completion_kwargs)
-            message = response.choices[0].message
-            usage = self._extract_usage(response)
-        except Exception as e:
-            duration_ms = int((time.monotonic() - step_start) * 1000)
-            logger.exception(f'Forced {tool_name} call failed at step {step}: {e}')
-            if self.action_recorder and self.run_id:
-                self._record_action(
-                    phase=phase,
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                    step=step,
-                    tool_name=tool_name,
-                    statistics=json.dumps({'duration_ms': duration_ms})
-                )
-            return {}
+        response, usage, retry_entries = self._completion_with_retry(
+            completion_kwargs=completion_kwargs,
+            step=step,
+            phase=phase,
+            failure_reason='forced_completion_error',
+            tool_name=tool_name,
+        )
+        message = response.choices[0].message
+        if retry_entries:
+            usage = self._merge_retry_entries_into_usage(usage, retry_entries)
 
         tool_call = self._validate_single_tool_call(message.tool_calls, step)
         assistant_message = self._build_assistant_message(message, tool_call=tool_call)
@@ -414,22 +412,76 @@ class AgentRunner:
 
         if not tool_call:
             logger.warning(f'Forced {tool_name} step {step} returned no tool call.')
-            if self.action_recorder and self.run_id:
-                duration_ms = int((time.monotonic() - step_start) * 1000)
-                self._record_action(
-                    phase=phase,
-                    result="Forced tool call did not produce a tool call.",
-                    action_type='error',
-                    action_status='failed',
-                    step=step,
-                    tool_name=tool_name,
-                    statistics=json.dumps({'duration_ms': duration_ms, **usage})
-                )
-            return {}
+            error_message = 'Forced tool call did not produce a tool call.'
+            self._record_action(
+                phase=phase,
+                result=error_message,
+                action_type='error',
+                action_status='failed',
+                record_phase_context=True,
+                step=step,
+                tool_name=tool_name,
+                statistics=self._build_statistics(step_start, usage),
+            )
+            raise AgentRetryExceededError(error_message)
 
         arguments = self._parse_tool_arguments(tool_call.function.arguments)
-        self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage, phase=phase, step=step, forced=True)
+        self._process_tool_call(tool_call, messages, step_start=step_start, usage=usage, phase=phase, step=step)
         return arguments
+
+    def _completion_with_retry(
+        self,
+        completion_kwargs: dict,
+        step: int,
+        phase: str,
+        failure_reason: str,
+        tool_name: str | None = None,
+    ) -> tuple[object, dict, list[dict]]:
+        retry_entries = []
+        last_error = None
+        last_usage = {}
+
+        for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
+            llm_start = time.monotonic()
+            response = None
+            try:
+                response = self.llm_client.completion(**completion_kwargs)
+                last_usage = self._extract_usage(response)
+                return response, last_usage, retry_entries
+            except Exception as e:
+                last_error = e
+                duration_ms = int((time.monotonic() - llm_start) * 1000)
+                logger.exception(
+                    'LLM call failed at %s step %s retry %s/%s: %s',
+                    phase,
+                    step,
+                    current_retry,
+                    config.COMPLETION_MAX_RETRIES,
+                    e,
+                )
+                retry_entries.append({
+                    'retry': current_retry,
+                    'reason': failure_reason,
+                    'error': repr(e),
+                    'duration_ms': duration_ms,
+                    'token_usage': self._extract_usage(response),
+                })
+                if current_retry < config.COMPLETION_MAX_RETRIES:
+                    time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                    continue
+
+        usage_with_retries = self._merge_retry_entries_into_usage(last_usage, retry_entries)
+        self._record_action(
+            phase=phase,
+            result=str(last_error) if last_error else 'LLM completion failed after retries.',
+            action_type='error',
+            action_status='failed',
+            record_phase_context=True,
+            step=step,
+            tool_name=tool_name,
+            statistics=self._build_statistics(None, usage_with_retries),
+        )
+        raise AgentRetryExceededError(str(last_error) if last_error else 'LLM completion failed after retries.')
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments) -> dict:
@@ -439,9 +491,19 @@ class AgentRunner:
             return {}
         return parsed_arguments if isinstance(parsed_arguments, dict) else {}
 
+    @staticmethod
+    def _parse_prelude_response(raw_content: str) -> dict:
+        if not raw_content:
+            return {}
+        try:
+            parsed = json.loads(raw_content)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
     def _get_analysis_tools(self) -> list[dict]:
         excluded_prefixes = ('suggest_',)
-        excluded_names = (self.PRELUDE_TOOL, self.handling_phase.terminator_tool, 'think')
+        excluded_names = (self.handling_phase.terminator_tool,)
         tools = [
             tool
             for tool in self.tool_executor.get()
@@ -457,7 +519,7 @@ class AgentRunner:
 
     def _get_handling_tools(self) -> list[dict]:
         excluded_suffixes = ('_search',)
-        excluded_names = {self.analysis_phase.terminator_tool, self.PRELUDE_TOOL, 'think'}
+        excluded_names = {self.analysis_phase.terminator_tool}
         return [
             tool
             for tool in self.tool_executor.get()
@@ -539,9 +601,20 @@ class AgentRunner:
             for key in ('input_tokens', 'output_tokens', 'total_tokens'):
                 if tool_token_usage.get(key):
                     stats[key] = stats.get(key, 0) + tool_token_usage[key]
+            combined_retries = list(stats.get('retries', []))
+            combined_retries.extend(tool_token_usage.get('retries', []))
+            if combined_retries:
+                stats['retries'] = combined_retries
         if step_start is not None:
             stats['duration_ms'] = int((time.monotonic() - step_start) * 1000)
         return json.dumps(stats) if stats else None
+
+    @staticmethod
+    def _merge_retry_entries_into_usage(usage: dict | None, retry_entries: list[dict]) -> dict:
+        merged_usage = dict(usage or {})
+        if retry_entries:
+            merged_usage['retries'] = retry_entries
+        return merged_usage
 
     def _process_tool_call(
         self,
@@ -550,12 +623,10 @@ class AgentRunner:
         step_start: float | None = None,
         usage: dict | None = None,
         phase: str | None = None,
-        step: int | None = None,
-        forced: bool = False
+        step: int | None = None
     ) -> str | None:
         tool_name = tool_call.function.name
         is_final_answer = tool_name == 'final_answer'
-        tool_failed = False
         usage = usage or {}
 
         try:
@@ -565,7 +636,6 @@ class AgentRunner:
                 raise TypeError('Tool arguments must be a JSON object.')
             arguments = parsed_arguments
         except (json.JSONDecodeError, TypeError) as e:
-            tool_failed = True
             arguments = {}
             logger.exception(f'Failed to parse tool arguments for {tool_name!r}: {e}')
             observation = json.dumps({
@@ -574,18 +644,16 @@ class AgentRunner:
                 'error_type': type(e).__name__,
                 'error_message': str(e),
             }, ensure_ascii=False)
-            if self.action_recorder and self.run_id:
-                duration_ms = int((time.monotonic() - step_start) * 1000)
-                self._record_action(
-                    phase=phase,
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                    step=step,
-                    tool_name=tool_name,
-                    tool_arguments=arguments,
-                    statistics=json.dumps({'duration_ms': duration_ms, **usage})
-                )
+            self._record_action(
+                phase=phase,
+                result=str(e),
+                action_type='error',
+                action_status='failed',
+                step=step,
+                tool_name=tool_name,
+                tool_arguments=arguments,
+                statistics=self._build_statistics(step_start, usage),
+            )
             logger.debug(f'Observation: {observation}')
             if is_final_answer:
                 return observation
@@ -598,8 +666,36 @@ class AgentRunner:
 
         logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
         self.tool_executor.thought_process.add_tool_calls_group()
+        retry_entries = []
+        tool_failed = False
         try:
-            result = self.tool_executor.execute(tool_call)
+            result = None
+            for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
+                tool_try_start = time.monotonic()
+                try:
+                    result = self.tool_executor.execute(tool_call)
+                    break
+                except Exception as e:
+                    logger.exception(
+                        'Tool execution failed for %r at %s step %s retry %s/%s: %s',
+                        tool_name,
+                        phase,
+                        step,
+                        current_retry,
+                        config.TOOL_CALL_MAX_RETRIES,
+                        e,
+                    )
+                    retry_entries.append({
+                        'retry': current_retry,
+                        'reason': 'tool_call_error',
+                        'error': repr(e),
+                        'duration_ms': int((time.monotonic() - tool_try_start) * 1000),
+                    })
+                    if current_retry < config.TOOL_CALL_MAX_RETRIES:
+                        time.sleep(config.TOOL_CALL_RETRY_INTERVAL)
+                        continue
+                    raise
+
             if result is None:
                 observation = ''
             elif isinstance(result, str):
@@ -610,34 +706,35 @@ class AgentRunner:
                 observation = str(result).strip()
         except Exception as e:
             tool_failed = True
-            logger.exception(f'Tool execution failed for {tool_name!r}: {e}')
             observation = json.dumps({
                 'status': 'error',
                 'tool_name': tool_name,
                 'error_type': type(e).__name__,
                 'error_message': str(e),
             }, ensure_ascii=False)
-            if self.action_recorder and self.run_id:
-                duration_ms = int((time.monotonic() - step_start) * 1000)
-                self._record_action(
-                    phase=phase,
-                    result=str(e),
-                    action_type='error',
-                    action_status='failed',
-                    step=step,
-                    tool_name=tool_name,
-                    tool_arguments=arguments,
-                    statistics=json.dumps({'duration_ms': duration_ms, **usage})
-                )
         finally:
             tool_token_usage = {}
             if self.tool_executor.thought_process.actions:
                 last_group = self.tool_executor.thought_process.actions.pop()
                 tool_token_usage = last_group.get('token_usage', {})
+        if retry_entries:
+            tool_token_usage = self._merge_retry_entries_into_usage(tool_token_usage, retry_entries)
         logger.debug(f'Observation: {observation}')
 
-        if not tool_failed:
-            statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
+        statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
+        if tool_failed:
+            self._record_action(
+                phase=phase,
+                result=json.loads(observation).get('error_message', observation),
+                action_type='error',
+                action_status='failed',
+                step=step,
+                tool_name=tool_name,
+                tool_arguments=arguments,
+                observation=observation,
+                statistics=statistics,
+            )
+        else:
             self._record_tool_action(phase, step, tool_name, arguments, observation, statistics=statistics,)
 
         if is_final_answer:
@@ -743,7 +840,8 @@ class AgentRunner:
         observation=None,
         suggestion_content=None,
         sources=None,
-        statistics=None
+        statistics=None,
+        record_phase_context=False,
     ):
         """Record an action to SeaDB via the action_recorder callback."""
         if not self.action_recorder:
@@ -754,10 +852,11 @@ class AgentRunner:
             prompt = self.analysis_system_prompt
         elif phase == self.handling_phase.name:
             prompt = self.handling_system_prompt
-        elif action_type == 'events':
-            prompt = FORCED_RECORD_EVENT_SUMMARY_PROMPT
+        elif phase == 'prelude':
+            prompt = self.prelude_system_prompt
         else:
             prompt = ''
+        phase_input = self.phase_inputs.get(phase, '')
 
         action_data = {
             'run_id': self.run_id,
@@ -765,7 +864,9 @@ class AgentRunner:
             'source_id': self.record_context.get('source_id'),
             'source_title': self.record_context.get('source_title'),
             'phase': phase,
+            'record_phase_context': record_phase_context,
             'prompt': prompt,
+            'input': phase_input,
             'result': result,
             'action_type': action_type,
             'action_status': action_status,

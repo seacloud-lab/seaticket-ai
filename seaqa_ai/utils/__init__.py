@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
-import logging
-import uuid
-import json
-import pytz
-import re
-import html
 import ast
 import hashlib
-import uuid
+import html
+import json
+import logging
+import pytz
+import re
 import urllib.parse
+import uuid
 from datetime import datetime, timezone
 from seaqa_ai.config import TIME_ZONE
 from seaqa_ai.utils.constants import ExtraSourceType
@@ -45,6 +44,13 @@ def localize_time(date):
 def now_iso():
     return localize_time(datetime.now(timezone.utc)).isoformat()
 
+
+def sanitize_project_prompt(project_prompt: str) -> str:
+    """Escape project prompt content before embedding it into system prompts."""
+    if not project_prompt:
+        return ''
+    return html.escape(project_prompt.strip(), quote=False)
+
 def build_system_prompt(base_prompt: str, project_prompt: str = '') -> str:
     """Merge project-level prompt with a base system prompt.
 
@@ -55,9 +61,11 @@ def build_system_prompt(base_prompt: str, project_prompt: str = '') -> str:
     if not project_prompt or not project_prompt.strip():
         return base_prompt
 
+    safe_project_prompt = sanitize_project_prompt(project_prompt)
+
     project_block = (
         '<project_context priority="high">\n'
-        f'{project_prompt.strip()}\n'
+        f'{safe_project_prompt}\n'
         '</project_context>\n'
     )
 
@@ -272,6 +280,13 @@ def get_answer_and_sources(tool_executor, content):
     content = expand_grouped_reference_markers(content)
 
     # remove redundent <reference_n> and [Reference n] (format error)
+    ## remove ```<reference_x>
+    content = re.sub(
+        r'(```[\s\S]*?```)([ \t]*\n[ \t]*|[ \t]+)(<reference_\d+>(?:<reference_\d+>)*)',
+        r'\1\n\n\3',
+        content
+    )
+    ## remove unexpect references
     pattern = re.compile(r'\<reference_(\d+)\>')
     replacer = lambda match: match.group(0) if int(match.group(1)) in range(len(sources_results)) else ''
     content = pattern.sub(replacer, content)

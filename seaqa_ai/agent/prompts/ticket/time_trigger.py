@@ -7,6 +7,12 @@ A scheduled scan has identified that a ticket is approaching its due date.
 Your goal is to determine whether assignees should be notified.</role>
 <phase name="analysis">Your task is to assess the due-soon situation.</phase>
 
+<context>
+The triggering event has already been summarized before this phase.
+Do not repeat event summarization here.
+Focus on assessing the due-soon situation and deciding whether notification is needed.
+</context>
+
 <steps>
   <step n="1">Review the ticket's due_date, state, priority, and assignees.</step>
   <step n="2">Check previous_notifications to see if a due-soon notification was already sent.</step>

@@ -41,6 +41,7 @@ from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner, PhaseSpec
 from seaqa_ai.agent.utils.agent_trace_recorder import AgentActionRecorder
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
+from seaqa_ai.agent.prompts._shared import PRELUDE_SYSTEM_PROMPT
 from seaqa_ai.agent.prompts._forced import FORCED_RECORD_ANALYSIS_PROMPT, FORCED_FINAL_ANSWER_PROMPT
 from seaqa_ai.agent.utils.constants import (
     AGENT_RUNS_TABLE,
@@ -148,6 +149,10 @@ class BaseAgent:
             logger.warning('No prompt module for %s + %s', type(self).__name__, self.event_type)
             return ''
         return self._build_system_prompt(module.ANALYSIS_SYSTEM_PROMPT)
+
+    @staticmethod
+    def get_prelude_system_prompt() -> str:
+        return PRELUDE_SYSTEM_PROMPT
 
     def get_handling_system_prompt(self) -> str:
         module = self._prompt_module()
@@ -336,6 +341,7 @@ class BaseAgent:
             action_recorder=AgentActionRecorder(self.project_uuid, self.seadb_api),
             run_id=run_id,
             tool_metadata=tool_metadata,
+            prelude_system_prompt=self.get_prelude_system_prompt(),
             analysis_system_prompt=analysis_system_prompt,
             handling_system_prompt=handling_system_prompt,
             analysis_phase=self.get_analysis_phase(),

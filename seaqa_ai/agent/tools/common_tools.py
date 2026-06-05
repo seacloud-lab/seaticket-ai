@@ -3,7 +3,6 @@ Common agent tools shared across source types.
 
 Provides:
 - BaseAgentTool: base class for tools that need record context
-- RecordEventSummaryTool: records a concise summary of the input event
 - FinalAnswerTool: signals the reasoning loop is complete
 - SuggestReplyTool: suggest a user-facing reply
 - SuggestCreateTicketTool: suggest creating an internal ticket
@@ -42,51 +41,6 @@ class BaseAgentTool(BasicTool):
     def get_suggestion_text(self, **kwargs):
         """Return the suggestion_text for this tool, optionally using call arguments."""
         return getattr(self, 'suggestion_text', '')
-
-
-class RecordEventSummaryTool(BaseAgentTool):
-    """Records a concise summary of the input event for this run."""
-
-    tool = {
-        'type': 'function',
-        'function': {
-            'name': 'record_event_summary',
-            'description': (
-                'Record a concise summary of the input event for this run. '
-                'Summarize only the input event that triggered this run: what type of event, what changed. '
-                'Be concise and avoid repeating the full record content.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'summary': {
-                        'type': 'string',
-                        'description': (
-                            'A concise summary of the input event and its likely impact on this run. '
-                            'Mention the most important changes only.'
-                        ),
-                    }
-                },
-                'required': ['summary'],
-            },
-        },
-    }
-
-    action_type = 'events'
-    action_status = 'completed'
-
-    def execute(self, summary):
-        source_type = self.get_source_type()
-        source_id = self.get_source_id()
-        source_title = self.get_source_title()
-
-        summary = (summary or '').strip()
-        if not summary:
-            return 'Cannot record event summary: empty summary.'
-
-        return (
-            f'Event summary recorded for {source_type} {source_id} - {source_title}: {summary}'
-        )
 
 
 class RecordIssueAnalysisTool(BaseAgentTool):
@@ -261,49 +215,6 @@ class SuggestCreateTicketTool(BaseAgentTool):
             f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
             f'Reason: {preview}'
         )
-
-
-class ThinkTool(BasicTool):
-    """No-op tool that gives the model a structured space to reason.
-
-    The model calls this tool to pause and think before deciding the next
-    action. Inspired by Anthropic's "think" tool pattern (https://www.anthropic.com/engineering/claude-think-tool).
-    """
-
-    tool = {
-        'type': 'function',
-        'function': {
-            'name': 'think',
-            'description': (
-                'Use this tool to think about the current situation. It will not obtain '
-                'new information or change anything, but just append the thought '
-                'to the log. Use it when complex reasoning or analysis of tool '
-                'results is needed before deciding next steps. '
-                'Keep your thought concise: at most 3-8 bullet points or a short paragraph (under 1000 words). '
-                'Do NOT repeat raw data or search results verbatim.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'thought': {
-                        'type': 'string',
-                        'description': (
-                            'Your concise reasoning or analysis in under 1000 words. '
-                            'Use short bullet points. Do not copy-paste raw data.'
-                        ),
-                    }
-                },
-                'required': ['thought'],
-            },
-        },
-    }
-
-    action_type = 'thought'
-    action_status = 'completed'
-
-    def execute(self, thought: str = ''):
-        return ''
-
 
 class FinalAnswerTool(BasicTool):
     """Signals the end of the agent reasoning loop with a brief summary."""
