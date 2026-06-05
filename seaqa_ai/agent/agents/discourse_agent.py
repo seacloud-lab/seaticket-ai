@@ -11,8 +11,7 @@ from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.discourse_tools import DISCOURSE_TOOL_CLASSES
 from seaqa_ai.utils import uuid_str_to_32_chars
-from seaqa_ai.utils.constants import ConnectionType
-from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
+from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
@@ -34,8 +33,8 @@ class DiscourseAgent(ConnectionAgent):
 
     def __init__(self, app, project, connection_id: int, record_id=None, event=None):
         super().__init__(app, project, connection_id, record_id, event)
-        self._topics_table = get_table_name_from_schema(SchemaTableNames.DISCOURSE_TOPICS, self.connection_id)
-        self._replies_table = get_table_name_from_schema(SchemaTableNames.DISCOURSE_REPLIES, self.connection_id)
+        self._topics_table = SchemaTables.DISCOURSE_TOPICS.table_name(self.connection_id)
+        self._replies_table = SchemaTables.DISCOURSE_REPLIES.table_name(self.connection_id)
 
     # ── Abstract method implementations ────────────────────────────
 

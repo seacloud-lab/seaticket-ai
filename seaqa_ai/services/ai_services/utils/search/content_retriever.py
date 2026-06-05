@@ -6,7 +6,7 @@ from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX
 from seaqa_ai.utils import url_to_filename, extract_markdown_image_url, normalize_image_url
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
-from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
+from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.services.ai_services.utils.search import remap_comments_by_record_id
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ class ContentRetriever:
     def _get_knowledge_base_content(self, record_id_record_map, _):
         results_from_seadb = self.seadb_api.get_records_by_pks(
             base_id=self.project_uuid,
-            table_name=get_table_name_from_schema(SchemaTableNames.KNOWLEDGE_BASE),
+            table_name=SchemaTables.KNOWLEDGE_BASE.table_name(),
             pks=record_id_record_map.keys(),
             fields_str='content'
         )
@@ -105,7 +105,7 @@ class ContentRetriever:
     def _get_site_content(self, record_id_record_map, connection_id):
         results_from_seadb = self.seadb_api.get_records_by_pks(
             base_id=self.project_uuid,
-            table_name=get_table_name_from_schema(SchemaTableNames.WEB_CRAWL, connection_id),
+            table_name=SchemaTables.WebCrawlTable.table_name(connection_id),
             pks=record_id_record_map.keys(),
             fields_str='url'
         )
@@ -125,7 +125,7 @@ class ContentRetriever:
     def _get_seafile_content(self, record_id_record_map, connection_id):
         results_from_seadb = self.seadb_api.get_records_by_pks(
             base_id=self.project_uuid,
-            table_name=get_table_name_from_schema(SchemaTableNames.SEAFILE, connection_id),
+            table_name=SchemaTables.SEAFILE.table_name(connection_id),
             pks=record_id_record_map.keys(),
             fields_str='content'
         )
@@ -139,8 +139,8 @@ class ContentRetriever:
     # issues
     ## ticket
     def _get_ticket_content(self, record_id_record_map, _):
-        topics_table_name = get_table_name_from_schema(SchemaTableNames.TICKETS)
-        comments_table_name = get_table_name_from_schema(SchemaTableNames.TICKET_COMMENTS)
+        topics_table_name = SchemaTables.TICKETS.table_name()
+        comments_table_name = SchemaTables.TICKET_COMMENTS.table_name()
 
         # query topics
         record_ids = record_id_record_map.keys()
@@ -224,8 +224,8 @@ class ContentRetriever:
     
     ## github_issue
     def _get_github_issue_content(self, record_id_record_map, connection_id):
-        topics_table_name = get_table_name_from_schema(SchemaTableNames.GITHUB_ISSUES, connection_id)
-        comments_table_name = get_table_name_from_schema(SchemaTableNames.GITHUB_ISSUE_COMMENTS, connection_id)
+        topics_table_name = SchemaTables.GITHUB_ISSUES.table_name(connection_id)
+        comments_table_name = SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(connection_id)
 
         # query topics
         record_id_to_topics = self.seadb_api.get_records_by_pks(
@@ -290,8 +290,8 @@ class ContentRetriever:
 
     ## discourse_forum
     def _get_discourse_forum_content(self, record_id_record_map, connection_id):
-        topics_table_name = get_table_name_from_schema(SchemaTableNames.DISCOURSE_TOPICS, connection_id)
-        comments_table_name = get_table_name_from_schema(SchemaTableNames.DISCOURSE_REPLIES, connection_id)
+        topics_table_name = SchemaTables.DISCOURSE_TOPICS.table_name(connection_id)
+        comments_table_name = SchemaTables.DISCOURSE_REPLIES.table_name(connection_id)
 
         # query topics
         record_id_to_topics = self.seadb_api.get_records_by_pks(
@@ -349,8 +349,8 @@ class ContentRetriever:
 
     ## email
     def _get_email_content(self, record_id_record_map, connection_id):
-        threads_table_name = get_table_name_from_schema(SchemaTableNames.THREAD, connection_id)
-        replies_table_name = get_table_name_from_schema(SchemaTableNames.EMAIL, connection_id)
+        threads_table_name = SchemaTables.THREAD.table_name(connection_id)
+        replies_table_name = SchemaTables.EMAIL.table_name(connection_id)
 
         # query threads
         record_ids = record_id_record_map.keys()
@@ -407,7 +407,7 @@ class ContentRetriever:
     def _get_general_task_content(self, record_id_record_map, connection_id):
         results_from_seadb = self.seadb_api.get_records_by_pks(
             base_id=self.project_uuid,
-            table_name=get_table_name_from_schema(SchemaTableNames.GENERAL_TASK, connection_id),
+            table_name=SchemaTables.GENERAL_TASK.table_name(connection_id),
             pks=record_id_record_map.keys(),
             fields_str='content'
         )

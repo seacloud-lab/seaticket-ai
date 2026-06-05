@@ -42,7 +42,7 @@ from seaqa_ai.agent.utils.agent_runner import AgentRunner, PhaseSpec
 from seaqa_ai.agent.utils.agent_trace_recorder import AgentActionRecorder
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.agent.prompts._forced import FORCED_RECORD_ANALYSIS_PROMPT, FORCED_FINAL_ANSWER_PROMPT
-from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
+from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     DataEventType,
 )
@@ -224,7 +224,7 @@ class BaseAgent:
             'events': events_payload,
         }
         try:
-            res = self.seadb_api.insert_rows(self.project_uuid, get_table_name_from_schema(SchemaTableNames.AGENT_RUNS), [row])
+            res = self.seadb_api.insert_rows(self.project_uuid, SchemaTables.AGENT_RUNS.table_name(), [row])
             pks = res.get('pks', [])
             if len(pks) != 1:
                 raise Exception(f'Expected 1 PK, got {len(pks)}')
@@ -238,7 +238,7 @@ class BaseAgent:
         try:
             self.seadb_api.update_rows(
                 self.project_uuid,
-                get_table_name_from_schema(SchemaTableNames.AGENT_RUNS),
+                SchemaTables.AGENT_RUNS.table_name(),
                 [{'pk': run_pk, 'row': updates}],
             )
         except Exception as e:

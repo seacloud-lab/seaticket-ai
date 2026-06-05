@@ -5,7 +5,7 @@ from html import escape
 from seaqa_ai import config
 from seaqa_ai.utils.seadb_api import SeaDBAPI
 from seaqa_ai.utils.tools import BasicTool
-from seaqa_ai.seadb_models import SchemaTableNames, get_table_name_from_schema
+from seaqa_ai.seadb_models import SchemaTables
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ LDAP_SERVER_URL = 'ldap://your-server'
             'modified_time': now,
             'deleted': False,
         }
-        res = seadb_api.insert_rows(context['project_uuid'], get_table_name_from_schema(SchemaTableNames.KNOWLEDGE_BASE), [row])
+        res = seadb_api.insert_rows(context['project_uuid'], SchemaTables.KNOWLEDGE_BASE.table_name(), [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
             raise AssertionError('Failed to create knowledge base entry')
