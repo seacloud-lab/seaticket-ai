@@ -12,22 +12,21 @@ logger = logging.getLogger(__name__)
 class MarkdownGenerator(BasicTool):
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'generate_markdown',
-            'description': "This tool processes requests to generate Markdown files or documents. The output is returned as content wrapped within `<seaqa-markdown>` HTML tags.",
-            'parameters':{
-                'type': 'object',
-                'properties': {
-                    'file_name': {
-                        'type': 'string',
-                        'description': """This parameter represents the filename of the generated Markdown file (or document), which must follow these rules:
+        'name': 'generate_markdown',
+        'description': "This tool processes requests to generate Markdown files or documents. The output is returned as content wrapped within `<seaqa-markdown>` HTML tags.",
+        'parameters':{
+            'type': 'object',
+            'properties': {
+                'file_name': {
+                    'type': 'string',
+                    'description': """This parameter represents the filename of the generated Markdown file (or document), which must follow these rules:
 - Must end with .md
 - Use lowercase letters, numbers, hyphens, or underscores
 - Should reflect the document content"""
-                    },
-                    'content': {
-                        'type': 'string',
-                        'description': """This parameter represents the content of the generated Markdown file (or document). This parameter of should follow the Markdown's standard format.
+                },
+                'content': {
+                    'type': 'string',
+                    'description': """This parameter represents the content of the generated Markdown file (or document). This parameter of should follow the Markdown's standard format.
 
 Here is an example:
 # Seafile Docker overview
@@ -37,11 +36,11 @@ Seafile docker based installation consist of the following components (docker im
 - Redis: Cache server.
 - Caddy: Caddy server enables user to access the Seafile service (i.e., Seafile server and Sdoc server) externally and handles `SSL` configuration.
     """
-                    }
-                },
-                'required': ['file_name', 'content']
-            }
-        }
+                }
+            },
+            'required': ['file_name', 'content']
+        },
+        'strict': False,
     }
 
     def execute(self, file_name, content):
@@ -58,19 +57,18 @@ Seafile docker based installation consist of the following components (docker im
 class KnowledgeBaseEntryCreator(BasicTool):
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'create_knowledge_base_entry',
-            'description': """This tool creates a knowledge base entry based on the conversation context. Use this tool when the user explicitly requests to create, add, or save a knowledge base entry/record from the current chat content. The output is returned as content wrapped within `<seaqa-kb-entry>` HTML tags, which will be processed by the system to automatically create the record.""",
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'title': {
-                        'type': 'string',
-                        'description': 'A concise, descriptive title for the knowledge base entry. Should accurately summarize the main topic. Maximum 200 characters.'
-                    },
-                    'content': {
-                        'type': 'string',
-                        'description': """The main content of the knowledge base entry. Please don't use '\\n' to separate paragraphs, use Markdown's standard format instead.
+        'name': 'create_knowledge_base_entry',
+        'description': """This tool creates a knowledge base entry based on the conversation context. Use this tool when the user explicitly requests to create, add, or save a knowledge base entry/record from the current chat content. The output is returned as content wrapped within `<seaqa-kb-entry>` HTML tags, which will be processed by the system to automatically create the record.""",
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'title': {
+                    'type': 'string',
+                    'description': 'A concise, descriptive title for the knowledge base entry. Should accurately summarize the main topic. Maximum 200 characters.'
+                },
+                'content': {
+                    'type': 'string',
+                    'description': """The main content of the knowledge base entry. Please don't use '\\n' to separate paragraphs, use Markdown's standard format instead.
 
 Here is an example:
 # Issue: Cannot access Seafile after upgrade
@@ -87,11 +85,11 @@ Update `seahub_settings.py` with the new LDAP format:
 LDAP_SERVER_URL = 'ldap://your-server'
 ```
 """
-                    }
-                },
-                'required': ['title', 'content']
-            }
-        }
+                }
+            },
+            'required': ['title', 'content']
+        },
+        'strict': False,
     }
 
     def execute(self, title, content, context):

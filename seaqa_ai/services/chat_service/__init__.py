@@ -8,7 +8,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
 from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, get_answer_and_sources
 from seaqa_ai.utils.constants import ConnectionType
-from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
+from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionUtils
@@ -98,8 +98,7 @@ class SyncChat(BasicChat):
         context = kwargs.get('context', {})
         session_uuid = context.get('session_uuid')
         project_prompt = context.get('project_prompt', '')
-        llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
-        context=kwargs.get('context')
+        llm_client = get_responses_client_by_model_id(self.app.data_logger, model)
 
         user_raw_message = combine_attachments_to_message(attachments, message)
         user_message_content = build_user_message_content(attachments, message)
@@ -122,11 +121,11 @@ class SyncChat(BasicChat):
         has_inserter_max_step_prompt = False
         while current_step < config.MAX_STEPS:
             current_step += 1
-            response = None
+            result = None
             llm_message = None
             completion_retries = []
             for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
-                response = None
+                result = None
                 llm_message = None
                 time_begin = time.time()
                 response_token_usage = {}
@@ -135,11 +134,11 @@ class SyncChat(BasicChat):
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
 
-                    response = llm_client.completion(
+                    result = llm_client.responses(
                         **completion_kwargs
                     )
-                    response_token_usage = BasicCompletionUtils.get_response_token_usage(response)
-                    llm_message = response.choices[0].message
+                    response_token_usage = result.usage
+                    llm_message = result
                     if llm_message.tool_calls and current_step >= config.MAX_STEPS:
                         time_usage = time.time() - time_begin
                         completion_retries.append(BasicCompletionUtils.build_completion_retry_entry(
@@ -190,16 +189,13 @@ class SyncChat(BasicChat):
 
             # action step
             if llm_message.tool_calls:
-                memory += {
-                    'role': 'assistant',
-                    'tool_calls': llm_message.tool_calls
-                }
+                memory += llm_message.tool_calls
                 tool_executor.thought_process.add_tool_calls_group()
                 if completion_retries:
                     tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
                 for tool_call in llm_message.tool_calls:
                     BasicCompletionUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
-                tool_executor.thought_process.update_last_group_tokens_usage(BasicCompletionUtils.get_response_token_usage(response))
+                tool_executor.thought_process.update_last_group_tokens_usage(result.usage)
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
             # final answer
@@ -208,7 +204,7 @@ class SyncChat(BasicChat):
                 tool_executor.thought_process.set_final_answer(
                     content,
                     current_step >= config.MAX_STEPS,
-                    BasicCompletionUtils.get_response_token_usage(response),
+                    result.usage,
                     time.time() - time_begin,
                     retry=completion_retries if completion_retries else None
                 )
@@ -233,7 +229,7 @@ class StreamingChat(BasicChat):
             context = kwargs.get('context', {})
             session_uuid = context.get('session_uuid')
             project_prompt = context.get('project_prompt', '')
-            llm_client = get_llm_client_by_model_id(self.app.data_logger, model)
+            llm_client = get_responses_client_by_model_id(self.app.data_logger, model)
             yield SSE.status('Preparing', 'Initializing user input')
 
             user_raw_message = combine_attachments_to_message(attachments, message)
@@ -269,7 +265,7 @@ class StreamingChat(BasicChat):
                     completion_kwargs, has_inserter_max_step_prompt = StreamingCompletionUtils.build_completion_kwargs(
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
-                    response = llm_client.completion(**completion_kwargs)
+                    response_stream = llm_client.responses_stream(**completion_kwargs)
                 except Exception as e:
                     time_usage = time.time() - time_begin
                     completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
@@ -291,59 +287,31 @@ class StreamingChat(BasicChat):
 
                 tool_calls = []
                 content = ""
-                current_tool_index = -1
+                result = None
                 has_yield_answering_status = False
-                recent_chunks = deque(maxlen=5)
+                recent_chunks = deque(maxlen=10)
 
                 try:
-                    for chunk in response:
-                        recent_chunks.append(StreamingCompletionUtils.safe_model_dump(chunk))
-                        if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                            for tool_call in chunk.tool_calls:
-                                if tool_call.type == 'function':
-                                    tool_calls.append({
-                                        'id': tool_call.id,
-                                        'type': 'function',
-                                        'function': {
-                                            'name': tool_call.function.name,
-                                            'arguments': tool_call.function.arguments
-                                        }
-                                    })
-                        elif hasattr(chunk, 'choices') and chunk.choices:
-                            choice = chunk.choices[0]
-                            delta = choice.delta
-                            
-                            if hasattr(delta, 'tool_calls') and delta.tool_calls:
-                                for tool_call_delta in delta.tool_calls:
-                                    tool_call_index = tool_call_delta.index
-                                    current_tool_index = StreamingCompletionUtils.ensure_tool_call_slot(tool_calls, tool_call_index, tool_call_delta.id)
-                                    
-                                    if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
-                                        if tool_call_delta.function.name:
-                                            tool_calls[current_tool_index]['function']['name'] = tool_call_delta.function.name
-                                        if tool_call_delta.function.arguments:
-                                            tool_calls[current_tool_index]['function']['arguments'] += tool_call_delta.function.arguments
+                    for kind, payload in response_stream:
+                        if kind == STREAM_TEXT_DELTA:
+                            recent_chunks.append({'text_delta': payload})
+                            if not has_yield_answering_status:
+                                yield SSE.status('Answering')
+                                has_yield_answering_status = True
+                            yield SSE.answer(payload)
+                            content += payload
+                        elif kind == STREAM_REASONING_DELTA:
+                            recent_chunks.append({'reasoning_delta': payload})
+                        elif kind == STREAM_COMPLETED:
+                            result = payload
+                            recent_chunks.append({'completed': True})
 
-                            if hasattr(delta, 'function_call') and delta.function_call:
-                                current_tool_index = StreamingCompletionUtils.ensure_tool_call_slot(tool_calls, current_tool_index if current_tool_index >= 0 else 0)
-                                if delta.function_call.name:
-                                    tool_calls[current_tool_index]['function']['name'] = delta.function_call.name
-                                if delta.function_call.arguments:
-                                    tool_calls[current_tool_index]['function']['arguments'] += delta.function_call.arguments
-
-                            delta_content = StreamingCompletionUtils.collect_delta_content(getattr(delta, 'content', None))
-                            if delta_content:
-                                if not has_yield_answering_status:
-                                    yield SSE.status('Answering')
-                                    has_yield_answering_status = True
-                                yield SSE.answer(delta_content)
-                                content += delta_content
-                        if hasattr(chunk, 'usage'):
-                            token_usage = {
-                                'input_tokens': chunk.usage.prompt_tokens,
-                                'output_tokens': chunk.usage.completion_tokens,
-                                'total_tokens': chunk.usage.total_tokens,
-                            }
+                    if result is not None:
+                        tool_calls = result.tool_calls
+                        if result.content:
+                            content = result.content
+                        if result.usage:
+                            token_usage = result.usage
                             llm_client.logger_usage(token_usage, context)
                 except Exception as e:
                     if tool_calls or content:
@@ -440,16 +408,13 @@ class StreamingChat(BasicChat):
                     current_retry = 0
                     has_search_tool = False
 
-                    memory += {
-                        'role': 'assistant',
-                        'tool_calls': tool_calls
-                    }
+                    memory += tool_calls
                     tool_executor.thought_process.add_tool_calls_group()
                     if completion_retries:
                         tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
                     tool_calls_num = len(tool_calls)
                     for tool_call_id, tool_call in enumerate(tool_calls):
-                        tool_name = tool_call['function']['name']
+                        tool_name = tool_call.get('name', '')
                         if tool_name in SEARCH_TOOL_NAMES:
                             has_search_tool = True
                         yield from StreamingCompletionUtils.execute_tool_with_retry(

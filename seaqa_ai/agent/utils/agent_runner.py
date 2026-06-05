@@ -15,13 +15,11 @@ import json
 import logging
 import time
 from seaqa_ai import config
-from seaqa_ai.utils.llm_api import CompletionAPI
+from seaqa_ai.utils.llm_api import ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.tools import OpenAIToolExecutor
-from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
-from seaqa_ai.utils.completion import gen_completion_format
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +44,7 @@ class AgentRunner:
     def __init__(
         self,
         tool_executor: OpenAIToolExecutor,
-        llm_client: CompletionAPI,
+        llm_client: ResponsesAPI,
         record_context: dict,
         ai_stats_context: dict | None = None,
         action_recorder=None,
@@ -59,7 +57,7 @@ class AgentRunner:
         """
         Args:
             tool_executor: OpenAIToolExecutor with all tools already registered.
-            llm_client: CompletionAPI client used for LLM calls.
+            llm_client: ResponsesAPI client used for LLM calls.
             record_context: dict with keys source_type, source_id, source_title.
             ai_stats_context: dict with keys used for AI usage statistics logging
                             (e.g. org_id, project_uuid).
@@ -152,8 +150,8 @@ class AgentRunner:
 
     def _run_ask(self, phase: AskPhase) -> None:
         step_start = time.monotonic()
-        message, usage = self._request_llm_message_for_phase(phase, step=0)
-        raw_content = (message.content or '').strip()
+        result, usage = self._request_llm_message_for_phase(phase, step=0)
+        raw_content = (result.content or '').strip()
         parsed = parse_json(raw_content)
         phase.output = parsed if isinstance(parsed, dict) else {}
 
@@ -173,17 +171,16 @@ class AgentRunner:
         """Run a single reasoning phase until the terminator tool is called or max steps reached."""
         for step in range(phase.max_steps):
             step_start = time.monotonic()
-            message, usage = self._request_llm_message_for_phase(phase, step)
+            result, usage = self._request_llm_message_for_phase(phase, step)
 
-            tool_call = self._validate_single_tool_call(message.tool_calls, step)
-            assistant_message = self._build_assistant_message(message, tool_call=tool_call)
-            phase.memory += assistant_message
+            tool_call = self._validate_single_tool_call(result.tool_calls, step)
+            phase.memory += self._build_assistant_items(result, tool_call=tool_call)
 
             if not tool_call:
                 logger.warning(f'{phase.name} step {step} returned no tool call.')
                 continue
 
-            tool_name = tool_call.function.name
+            tool_name = tool_call['name']
             logger.debug(f'Processing tool call {tool_name} at step {step}')
             self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
 
@@ -201,25 +198,24 @@ class AgentRunner:
         search_results = []
 
         for i, msg in enumerate(messages):
-            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+            if msg.get('type') != 'function_call':
                 continue
 
-            for tool_call in msg['tool_calls']:
-                tool_name = tool_call.get('function', {}).get('name', '')
-                if not tool_name.endswith('_search'):
-                    continue
+            tool_name = msg.get('name', '')
+            if not tool_name.endswith('_search'):
+                continue
 
-                tool_call_id = tool_call.get('id')
-                for next_msg in messages[i + 1:]:
-                    if (next_msg.get('role') == 'tool' and
-                            next_msg.get('tool_call_id') == tool_call_id):
-                        content = next_msg.get('content', '')
-                        if not self._is_search_failed(content):
-                            search_results.append({
-                                'tool_name': tool_name,
-                                'content': content,
-                            })
-                        break
+            tool_call_id = msg.get('call_id', '')
+            for next_msg in messages[i + 1:]:
+                if (next_msg.get('type') == 'function_call_output' and
+                        next_msg.get('call_id') == tool_call_id):
+                    content = next_msg.get('output', '')
+                    if not self._is_search_failed(content):
+                        search_results.append({
+                            'tool_name': tool_name,
+                            'content': content,
+                        })
+                    break
 
         return search_results
 
@@ -234,22 +230,20 @@ class AgentRunner:
 
     def _extract_analysis_result(self, messages: list[dict]) -> dict:
         for msg in reversed(messages):
-            if msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+            if msg.get('type') != 'function_call':
                 continue
 
-            for tool_call in msg['tool_calls']:
-                tool_name = tool_call.get('function', {}).get('name', '')
-                if tool_name == self.analysis_phase.terminator_tool:
-                    args_str = tool_call.get('function', {}).get('arguments', '{}')
-                    return self._parse_tool_arguments(args_str)
+            tool_name = msg.get('name', '')
+            if tool_name == self.analysis_phase.terminator_tool:
+                return self._parse_tool_arguments(msg.get('arguments'))
         return {}
 
     def _request_llm_message_for_phase(
         self,
         phase: Phase,
         step: int,
-    ) -> tuple[Message, dict]:
-        """Request an LLM message with phase-phaseific tools."""
+    ) -> tuple[ResponsesResult, dict]:
+        """Request an LLM turn with phase-specific tools."""
         messages = list(phase.memory)
         total_chars = 0
         for i, m in enumerate(messages):
@@ -259,7 +253,7 @@ class AgentRunner:
         logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
 
         request_kwargs = {
-            'messages': phase.memory,
+            'input': messages,
             'context': self.ai_stats_context,
         }
         if isinstance(phase, ReactPhase) and phase.tools:
@@ -268,20 +262,27 @@ class AgentRunner:
                 'tool_choice': 'auto',
             })
         elif isinstance(phase, AskPhase) and phase.schema:
-            request_kwargs['response_format'] = gen_completion_format(phase.schema)
+            request_kwargs['text'] = {
+                'format': {
+                    'type': 'json_schema',
+                    'name': f'{phase.name}_result',
+                    'strict': True,
+                    'schema': phase.schema,
+                }
+            }
 
-        message, usage, retry_entries = self._completion_with_retry(
-            completion_kwargs=request_kwargs,
+        result, usage, retry_entries = self._responses_with_retry(
+            responses_kwargs=request_kwargs,
             step=step,
             phase=phase,
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
-        return message, usage
+        return result, usage
 
     def _force_terminator(self, phase: ReactPhase) -> dict:
         terminator_tool = next(
-            (t for t in phase.tools if t.get('function', {}).get('name') == phase.terminator_tool),
+            (tool for tool in phase.tools if tool.get('name') == phase.terminator_tool),
             None,
         )
         if not terminator_tool:
@@ -291,31 +292,27 @@ class AgentRunner:
         phase.memory += {'role': 'system', 'content': phase.terminator_prompt}
 
         step = phase.max_steps
-        completion_kwargs = {
-            'messages': phase.memory,
+        responses_kwargs = {
+            'input': list(phase.memory),
             'context': self.ai_stats_context,
             'tools': [terminator_tool],
             'tool_choice': {
                 'type': 'function',
-                'function': {
-                    'name': phase.terminator_tool,
-                },
+                'name': phase.terminator_tool,
             },
         }
         step_start = time.monotonic()
-        message, usage, retry_entries = self._completion_with_retry(
-            completion_kwargs=completion_kwargs,
+        result, usage, retry_entries = self._responses_with_retry(
+            responses_kwargs=responses_kwargs,
             step=step,
             phase=phase,
             tool_name=phase.terminator_tool,
         )
-
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
 
-        tool_call = self._validate_single_tool_call(message.tool_calls, step)
-        assistant_message = self._build_assistant_message(message, tool_call=tool_call)
-        phase.memory += assistant_message
+        tool_call = self._validate_single_tool_call(result.tool_calls, step)
+        phase.memory += self._build_assistant_items(result, tool_call=tool_call)
 
         if not tool_call:
             logger.warning(f'Forced {phase.terminator_tool} step {step} returned no tool call.')
@@ -332,42 +329,42 @@ class AgentRunner:
             )
             raise AgentRetryExceededError(error_message)
 
-        arguments = self._parse_tool_arguments(tool_call.function.arguments)
+        arguments = self._parse_tool_arguments(tool_call.get('arguments'))
         self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
         return arguments
 
-    def _completion_with_retry(
+    def _responses_with_retry(
         self,
-        completion_kwargs: dict,
+        responses_kwargs: dict,
         step: int,
         phase: Phase,
         tool_name: str | None = None,
-    ) -> tuple[object, dict, list[dict]]:
+    ) -> tuple[ResponsesResult, dict, list[dict]]:
         retry_entries = []
         last_error = None
         last_usage = {}
 
         for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
             llm_start = time.monotonic()
-            response = None
+            result = None
             try:
-                response = self.llm_client.completion(**completion_kwargs)
-                message = response.choices[0].message
-                last_usage = self._extract_usage(response)
+                result = self.llm_client.responses(**responses_kwargs)
+                last_usage = result.usage
                 if isinstance(phase, AskPhase) and phase.schema:
-                    schema_output = parse_json(message.content)
-                    if not isinstance(schema_output, dict) or not all([
+                    schema_output = parse_json(result.content)
+                    required_fields = phase.schema.get('required') or []
+                    if not isinstance(schema_output, dict) or not all(
                         required_field in schema_output
-                        for required_field in phase.schema.get('required')
-                    ]):
-                        raise ValueError("Invalid AI response: invalid format or missing required fields")
-                return message, last_usage, retry_entries
+                        for required_field in required_fields
+                    ):
+                        raise ValueError('Invalid AI response: invalid format or missing required fields')
+                return result, last_usage, retry_entries
             except Exception as e:
                 last_error = e
                 duration_ms = int((time.monotonic() - llm_start) * 1000)
                 logger.exception(
-                    'LLM call failed at %s step %s retry %s/%s: %s',
-                    phase,
+                    'LLM responses call failed at %s step %s retry %s/%s: %s',
+                    phase.name,
                     step,
                     current_retry,
                     config.COMPLETION_MAX_RETRIES,
@@ -377,7 +374,7 @@ class AgentRunner:
                     'retry': current_retry,
                     'error': repr(e),
                     'duration_ms': duration_ms,
-                    'token_usage': self._extract_usage(response),
+                    'token_usage': result.usage if result else {},
                 })
                 if current_retry < config.COMPLETION_MAX_RETRIES:
                     time.sleep(config.COMPLETION_RETRY_INTERVAL)
@@ -386,7 +383,7 @@ class AgentRunner:
         usage_with_retries = self._merge_retry_entries_into_usage(last_usage, retry_entries)
         self._record_action(
             phase=phase,
-            result=str(last_error) if last_error else 'LLM completion failed after retries.',
+            result=str(last_error) if last_error else 'LLM responses call failed after retries.',
             action_type='error',
             action_status='failed',
             record_phase_context=True,
@@ -394,7 +391,7 @@ class AgentRunner:
             tool_name=tool_name,
             statistics=self._build_statistics(None, usage_with_retries),
         )
-        raise AgentRetryExceededError(str(last_error) if last_error else 'LLM completion failed after retries.')
+        raise AgentRetryExceededError(str(last_error) if last_error else 'LLM responses call failed after retries.')
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments) -> dict:
@@ -406,16 +403,16 @@ class AgentRunner:
 
     def _validate_single_tool_call(
         self,
-        tool_calls: list[ChatCompletionMessageToolCall] | None,
+        tool_calls: list[dict] | None,
         step: int,
-    ) -> ChatCompletionMessageToolCall | None:
+    ) -> dict | None:
         """Keep only one tool call per step and warn when model returns more."""
         if not tool_calls:
             return None
         if len(tool_calls) == 1:
             return tool_calls[0]
 
-        tool_names = [tc.function.name for tc in tool_calls]
+        tool_names = [tool_call.get('name', '') for tool_call in tool_calls]
         logger.warning(
             'Agent step %s returned %s tool calls; keeping only the first one. tool_names=%s',
             step,
@@ -424,34 +421,17 @@ class AgentRunner:
         )
         return tool_calls[0]
 
-    def _build_assistant_message(
-        self,
-        message: Message,
-        tool_call: ChatCompletionMessageToolCall | None = None,
-    ) -> dict:
-        msg_dict = {'role': 'assistant', 'content': message.content or ''}
-        if tool_call:
-            msg_dict['tool_calls'] = [{
-                'id': tool_call.id,
-                'type': 'function',
-                'function': {
-                    'name': tool_call.function.name,
-                    'arguments': tool_call.function.arguments,
-                }
-            }]
-        return msg_dict
-
     @staticmethod
-    def _extract_usage(response) -> dict:
-        try:
-            usage = response.usage
-            return {
-                'input_tokens': usage.prompt_tokens,
-                'output_tokens': usage.completion_tokens,
-                'total_tokens': usage.total_tokens,
-            }
-        except AttributeError:
-            return {}
+    def _build_assistant_items(
+        message: ResponsesResult,
+        tool_call: dict | None = None,
+    ) -> list[dict]:
+        items = []
+        if message.content:
+            items.append({'role': 'assistant', 'content': message.content})
+        if tool_call:
+            items.append(tool_call)
+        return items
 
     @staticmethod
     def _build_statistics(
@@ -461,7 +441,7 @@ class AgentRunner:
     ) -> str | None:
         """Build a JSON string with token usage and duration for one step.
 
-        usage: tokens from the LLM completion call.
+        usage: tokens from the LLM Responses call.
         tool_token_usage: extra tokens consumed inside tool execution (e.g. rerank).
         """
         stats = {}
@@ -488,18 +468,18 @@ class AgentRunner:
 
     def _process_tool_call(
         self,
-        tool_call: ChatCompletionMessageToolCall,
+        tool_call: dict,
         phase: ReactPhase,
         step_start: float | None = None,
         usage: dict | None = None,
-        step: int | None = None
+        step: int | None = None,
     ) -> str | None:
-        tool_name = tool_call.function.name
+        tool_name = tool_call['name']
         is_final_answer = tool_name == 'final_answer'
         usage = usage or {}
 
         try:
-            raw_arguments = tool_call.function.arguments
+            raw_arguments = tool_call.get('arguments')
             parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else (raw_arguments or {})
             if not isinstance(parsed_arguments, dict):
                 raise TypeError('Tool arguments must be a JSON object.')
@@ -527,9 +507,9 @@ class AgentRunner:
             if is_final_answer:
                 return observation
             phase.memory += {
-                'role': 'tool',
-                'tool_call_id': tool_call.id,
-                'content': observation,
+                'type': 'function_call_output',
+                'call_id': tool_call.get('call_id', ''),
+                'output': observation,
             }
             return None
 
@@ -610,9 +590,9 @@ class AgentRunner:
             return observation
 
         phase.memory += {
-            'role': 'tool',
-            'tool_call_id': tool_call.id,
-            'content': observation,
+            'type': 'function_call_output',
+            'call_id': tool_call.get('call_id', ''),
+            'output': observation,
         }
 
     def _record_tool_action(
@@ -692,7 +672,7 @@ class AgentRunner:
             tool_name=tool_name,
             tool_arguments=tool_arguments,
             observation=observation,
-            suggestion_content=content  if action_type == 'suggestion' else '',
+            suggestion_content=content if action_type == 'suggestion' else '',
             sources=sources,
             statistics=statistics
         )

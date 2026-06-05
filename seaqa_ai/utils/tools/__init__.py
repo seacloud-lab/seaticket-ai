@@ -66,16 +66,19 @@ class OpenAIToolExecutor(BasicToolExecutor):
     def register(self, func, tool_info, **constant_kwargs):
         """
         func: callable
-        tool_info: json-like openai format tool defined
+        tool_info: Responses function tool definition
         """
-        name = tool_info.get('function', {}).get('name')
+        name = tool_info.get('name')
         if not name:
             raise InvalidToolException(tool_info)
-        
+        tool_info = dict(tool_info)
+        if tool_info.get('type') == 'function':
+            tool_info.setdefault('strict', False)
+
         self.tools[name] = {
             'func': func,
             'constant_kwargs': constant_kwargs,
-            'tool_info': tool_info
+            'tool_info': tool_info,
         }
 
     def get(self):
@@ -85,9 +88,14 @@ class OpenAIToolExecutor(BasicToolExecutor):
         ]
     
     def execute(self, tool_call, call_back=lambda: None):
-        function = tool_call['function']
-        name = function['name']
-        params = json.loads(function.get('arguments', '{}'))
+        name = tool_call['name']
+        raw_arguments = tool_call.get('arguments')
+        if isinstance(raw_arguments, str):
+            params = json.loads(raw_arguments or '{}')
+        else:
+            params = raw_arguments or {}
+        if not isinstance(params, dict):
+            raise InvalidToolException(tool_call)
         constant_kwargs = self.tools[name]['constant_kwargs']
         available_params = inspect.signature(self.tools[name]['func']).parameters
         params.update({
@@ -100,5 +108,5 @@ class OpenAIToolExecutor(BasicToolExecutor):
         
         if 'call_back' in available_params and 'call_back' not in params:
             params.update({'call_back': call_back})
-        
+
         return self.tools[name]['func'](**params)
