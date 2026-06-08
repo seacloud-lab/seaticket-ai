@@ -105,7 +105,7 @@ class ContentRetriever:
     def _get_site_content(self, record_id_record_map, connection_id):
         results_from_seadb = self.seadb_api.get_records_by_pks(
             base_id=self.project_uuid,
-            table_name=SchemaTables.WebCrawlTable.table_name(connection_id),
+            table_name=SchemaTables.WEB_CRAWL.table_name(connection_id),
             pks=record_id_record_map.keys(),
             fields_str='url'
         )
