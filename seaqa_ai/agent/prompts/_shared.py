@@ -37,7 +37,7 @@ Return exactly one JSON object and nothing else:
 {"summary":"..."}
 
 Rules for summary:
-- one sentence
+- one or two sentence(s)
 - concise and specific
 - no markdown
 - no extra keys

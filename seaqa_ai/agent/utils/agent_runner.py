@@ -14,34 +14,14 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
-from dataclasses import dataclass
 from seaqa_ai import config
 from seaqa_ai.utils.llm_api import CompletionAPI
-from seaqa_ai.agent.prompts._forced import (
-    FORCED_RECORD_ANALYSIS_PROMPT,
-    FORCED_FINAL_ANSWER_PROMPT,
-)
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.agent.utils import render_task_xml
+from seaqa_ai.agent.utils.phase_spec import PhaseSpec, AskPhaseSpec, ReactPhaseSpec
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
-
-@dataclass(frozen=True)
-class PhaseSpec:
-    """Describes all invariants that govern one reasoning phase.
-
-    Attributes:
-        name: Human-readable label ('analysis' or 'handling').
-        terminator_tool: Name of the tool whose invocation ends the phase.
-        forced_prompt: System message injected when max_steps is reached
-            to force an immediate terminator call.
-        max_steps: Maximum number of LLM steps before forced termination.
-    """
-    name: str
-    terminator_tool: str
-    forced_prompt: str
-    max_steps: int = 10
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +39,9 @@ class AgentRunner:
     - Injects record context (source_type, source_id, source_title) into tool calls
     - Records each tool execution as an action in SeaDB via action_recorder
     - Supports 'pending' status for actions requiring user confirmation
-    - Phase behaviour (terminator tool, forced prompt, max steps) is expressed as
-      PhaseSpec objects so analysis and handling remain configured symmetrically
+    - Phase behaviour is expressed as AskPhaseSpec / ReactPhaseSpec objects
+      so analysis and handling remain configured symmetrically
     """
-
-    PRELUDE_TOOL_NAME = 'generate_event_summary'
 
     def __init__(
         self,
@@ -74,11 +52,9 @@ class AgentRunner:
         action_recorder=None,
         run_id=None,
         tool_metadata=None,
-        prelude_system_prompt=None,
-        analysis_system_prompt=None,
-        handling_system_prompt=None,
-        analysis_phase: PhaseSpec | None = None,
-        handling_phase: PhaseSpec | None = None,
+        prelude_phase: AskPhaseSpec | None = None,
+        analysis_phase: ReactPhaseSpec | None = None,
+        handling_phase: ReactPhaseSpec | None = None,
         search_enabled: bool = True
     ):
         """
@@ -93,13 +69,9 @@ class AgentRunner:
                              suggestion_text, sources, statistics) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
-            prelude_system_prompt: system message for the prelude event-summary step.
-            analysis_system_prompt: system message for the analysis phase.
-            handling_system_prompt: system message for the handling phase.
-            analysis_phase: PhaseSpec describing the analysis phase (terminator tool,
-                forced prompt, max steps).  Defaults to record_issue_analysis / 10 steps.
-            handling_phase: PhaseSpec describing the handling phase (terminator tool,
-                forced prompt, max steps).  Defaults to final_answer / 5 steps.
+            prelude_phase: AskPhaseSpec for the prelude event-summary step.
+            analysis_phase: ReactPhaseSpec for the analysis phase.
+            handling_phase: ReactPhaseSpec for the handling phase.
             search_enabled: when False, *_search tools are hidden from the analysis phase.
         """
         self.tool_executor = tool_executor
@@ -109,25 +81,20 @@ class AgentRunner:
         self.action_recorder = action_recorder
         self.run_id = run_id
         self.tool_metadata = tool_metadata or {}
-        self.prelude_system_prompt = prelude_system_prompt
-        self.analysis_system_prompt = analysis_system_prompt
-        self.handling_system_prompt = handling_system_prompt
-        self.analysis_phase = analysis_phase or PhaseSpec(
-            name='analysis',
-            terminator_tool='record_issue_analysis',
-            forced_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
-        )
-        self.handling_phase = handling_phase or PhaseSpec(
-            name='handling',
-            terminator_tool='final_answer',
-            forced_prompt=FORCED_FINAL_ANSWER_PROMPT,
-        )
+        self.prelude_phase = prelude_phase
+        self.analysis_phase = analysis_phase
+        self.handling_phase = handling_phase
         self.search_enabled = search_enabled
         self.event_summary = ''
-        self.phase_inputs = {}
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
+
+    def _phase_by_name(self, name: str) -> PhaseSpec | None:
+        for spec in (self.prelude_phase, self.analysis_phase, self.handling_phase):
+            if spec is not None and spec.name == name:
+                return spec
+        return None
 
     def run(self, task: dict) -> None:
         """Drive the prelude, analysis, and handling flow.
@@ -136,16 +103,23 @@ class AgentRunner:
             task: structured task payload (source_id, event, record, ...).
         """
 
-        # event (prelude) phase
-        self.event_summary = self._run_prelude(task)
+        # prelude phase (single-turn Q&A)
+        prelude_input = render_task_xml(task)
+        self.prelude_phase.input = prelude_input
+        prelude_messages = [
+            {'role': 'system', 'content': self.prelude_phase.system_prompt},
+            {'role': 'user', 'content': prelude_input},
+        ]
+        self._run_phase(prelude_messages, self.prelude_phase)
+        self.event_summary = ((self.prelude_phase.output or {}).get('summary') or '').strip()
+        if not self.event_summary:
+            raise AgentRetryExceededError('Prelude completion did not return a valid summary.')
 
-        # analysis phase
-        analysis_task_xml = render_task_xml(self._build_analysis_task(task))
-        self.phase_inputs[self.analysis_phase.name] = analysis_task_xml
-        analysis_messages = self._build_analysis_messages(analysis_task_xml)
+        # analysis phase (multi-step ReAct)
+        analysis_messages = self._build_analysis_messages(task)
         self._run_phase(analysis_messages, self.analysis_phase)
 
-        # handling phase
+        # handling phase (multi-step ReAct)
         handling_messages = self._build_handling_messages(task, analysis_messages)
         self._run_phase(handling_messages, self.handling_phase)
 
@@ -155,47 +129,32 @@ class AgentRunner:
             task['event_summary'] = self.event_summary
         return task
 
-    def _run_prelude(self, task: dict) -> str:
-        task_xml = render_task_xml(task)
-        self.phase_inputs['prelude'] = task_xml
-        messages = [
-            {'role': 'system', 'content': self.prelude_system_prompt},
-            {'role': 'user', 'content': task_xml},
-        ]
-        step_start = time.monotonic()
-        message, usage = self._request_llm_message_for_phase(messages, step=0, phase='prelude', use_tools=False)
-        raw_content = (message.content or '').strip()
-        parsed = self._parse_prelude_response(raw_content)
-        summary = (parsed.get('summary') or '').strip()
-        if not summary:
-            error_message = 'Prelude completion did not return a valid summary.'
-            self._record_action(
-                phase='prelude',
-                result=error_message,
-                action_type='error',
-                action_status='failed',
-                record_phase_context=True,
-                step=0,
-                tool_name=self.PRELUDE_TOOL_NAME,
-                observation=raw_content,
-                statistics=self._build_statistics(step_start, usage),
-            )
-            raise AgentRetryExceededError(error_message)
+    def _run_phase(self, messages: list[dict], spec: PhaseSpec) -> None:
+        if isinstance(spec, AskPhaseSpec):
+            self._run_ask(messages, spec)
+        else:
+            self._run_react(messages, spec)
 
-        observation = json.dumps({'summary': summary}, ensure_ascii=False)
+    def _run_ask(self, messages: list[dict], spec: AskPhaseSpec) -> None:
+        step_start = time.monotonic()
+        message, usage = self._request_llm_message_for_phase(messages, step=0, phase=spec.name, use_tools=False)
+        raw_content = (message.content or '').strip()
+        parsed = parse_json(raw_content)
+        spec.output = parsed if isinstance(parsed, dict) else {}
+
+        observation = json.dumps(spec.output, ensure_ascii=False)
         self._record_action(
-            phase='prelude',
-            result=summary,
+            phase=spec.name,
+            result=json.dumps(spec.output, ensure_ascii=False),
             action_type='events',
             action_status='completed',
             step=0,
-            tool_name=self.PRELUDE_TOOL_NAME,
+            tool_name=f'generate_{spec.name}',
             observation=observation,
             statistics=self._build_statistics(step_start, usage),
         )
-        return summary
 
-    def _run_phase(self, messages: list[dict], spec: PhaseSpec) -> None:
+    def _run_react(self, messages: list[dict], spec: ReactPhaseSpec) -> None:
         """Run a single reasoning phase until the terminator tool is called or max steps reached."""
         for step in range(spec.max_steps):
             step_start = time.monotonic()
@@ -234,10 +193,10 @@ class AgentRunner:
             search_results=search_results,
             analysis_result=analysis_result,
         )
-        self.phase_inputs[self.handling_phase.name] = handling_task_content
+        self.handling_phase.input = handling_task_content
 
         return [
-            {'role': 'system', 'content': self.handling_system_prompt},
+            {'role': 'system', 'content': self.handling_phase.system_prompt},
             {'role': 'user', 'content': handling_task_content},
         ]
 
@@ -343,19 +302,21 @@ class AgentRunner:
             completion_kwargs=request_kwargs,
             step=step,
             phase=phase,
-            failure_reason='completion_error',
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
         return response.choices[0].message, usage
 
-    def _build_analysis_messages(self, task: str) -> list[dict]:
+    def _build_analysis_messages(self, task: dict) -> list[dict]:
+        analysis_task = self._build_analysis_task(task)
+        task_xml = render_task_xml(analysis_task)
+        self.analysis_phase.input = task_xml
         return [
-            {'role': 'system', 'content': self.analysis_system_prompt},
-            {'role': 'user', 'content': task},
+            {'role': 'system', 'content': self.analysis_phase.system_prompt},
+            {'role': 'user', 'content': task_xml},
         ]
 
-    def _force_terminator(self, messages: list[dict], spec: PhaseSpec) -> None:
+    def _force_terminator(self, messages: list[dict], spec: ReactPhaseSpec) -> None:
         """Force-call the terminator tool for a phase when max steps is exceeded."""
         self._force_single_tool_call(
             messages=messages,
@@ -399,7 +360,6 @@ class AgentRunner:
             completion_kwargs=completion_kwargs,
             step=step,
             phase=phase,
-            failure_reason='forced_completion_error',
             tool_name=tool_name,
         )
         message = response.choices[0].message
@@ -434,7 +394,6 @@ class AgentRunner:
         completion_kwargs: dict,
         step: int,
         phase: str,
-        failure_reason: str,
         tool_name: str | None = None,
     ) -> tuple[object, dict, list[dict]]:
         retry_entries = []
@@ -461,7 +420,6 @@ class AgentRunner:
                 )
                 retry_entries.append({
                     'retry': current_retry,
-                    'reason': failure_reason,
                     'error': repr(e),
                     'duration_ms': duration_ms,
                     'token_usage': self._extract_usage(response),
@@ -490,16 +448,6 @@ class AgentRunner:
         except (json.JSONDecodeError, TypeError):
             return {}
         return parsed_arguments if isinstance(parsed_arguments, dict) else {}
-
-    @staticmethod
-    def _parse_prelude_response(raw_content: str) -> dict:
-        if not raw_content:
-            return {}
-        try:
-            parsed = json.loads(raw_content)
-        except (json.JSONDecodeError, TypeError):
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
 
     def _get_analysis_tools(self) -> list[dict]:
         excluded_prefixes = ('suggest_',)
@@ -846,17 +794,10 @@ class AgentRunner:
         """Record an action to SeaDB via the action_recorder callback."""
         if not self.action_recorder:
             return
-        
-        # fetch system prompt
-        if phase == self.analysis_phase.name:
-            prompt = self.analysis_system_prompt
-        elif phase == self.handling_phase.name:
-            prompt = self.handling_system_prompt
-        elif phase == 'prelude':
-            prompt = self.prelude_system_prompt
-        else:
-            prompt = ''
-        phase_input = self.phase_inputs.get(phase, '')
+
+        spec = self._phase_by_name(phase)
+        prompt = spec.system_prompt if spec else ''
+        phase_input = spec.input if spec else ''
 
         action_data = {
             'run_id': self.run_id,
