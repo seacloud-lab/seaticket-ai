@@ -85,7 +85,6 @@ class AgentRunner:
         self.analysis_phase = analysis_phase
         self.handling_phase = handling_phase
         self.search_enabled = search_enabled
-        self.event_summary = ''
 
         final_answer_tool = FinalAnswerTool()
         final_answer_tool.register(tool_executor)
@@ -104,36 +103,49 @@ class AgentRunner:
         """
 
         # prelude phase (single-turn Q&A)
-        prelude_input = render_task_xml(task)
-        self.prelude_phase.input = prelude_input
-        prelude_messages = [
-            {'role': 'system', 'content': self.prelude_phase.system_prompt},
-            {'role': 'user', 'content': prelude_input},
-        ]
-        self._run_phase(prelude_messages, self.prelude_phase)
-        self.event_summary = ((self.prelude_phase.output or {}).get('summary') or '').strip()
-        if not self.event_summary:
+        self.prelude_phase.input = render_task_xml(task)
+        self._run_phase(self.prelude_phase)
+        if not ((self.prelude_phase.output or {}).get('summary') or '').strip():
             raise AgentRetryExceededError('Prelude completion did not return a valid summary.')
 
         # analysis phase (multi-step ReAct)
-        analysis_messages = self._build_analysis_messages(task)
-        self._run_phase(analysis_messages, self.analysis_phase)
+        self._update_analysis_input(task)
+        analysis_messages = self._run_phase(self.analysis_phase)
 
         # handling phase (multi-step ReAct)
-        handling_messages = self._build_handling_messages(task, analysis_messages)
-        self._run_phase(handling_messages, self.handling_phase)
+        self._update_handling_input(task, analysis_messages)
+        self._run_phase(self.handling_phase)
 
-    def _build_analysis_task(self, original_task: dict) -> dict:
-        task = dict(original_task)
-        if self.event_summary:
-            task['event_summary'] = self.event_summary
-        return task
+    def _update_analysis_input(self, task: dict) -> None:
+        analysis_task = dict(task)
+        prelude_output = self.prelude_phase.output or {}
+        if prelude_output.get('summary'):
+            analysis_task['event_summary'] = prelude_output['summary']
+        self.analysis_phase.input = render_task_xml(analysis_task)
 
-    def _run_phase(self, messages: list[dict], spec: PhaseSpec) -> None:
+    def _update_handling_input(self, task: dict, analysis_messages: list[dict]) -> None:
+        search_results = self._extract_successful_search_results(analysis_messages)
+        analysis_result = self._extract_analysis_result(analysis_messages)
+        task_dict = dict(task)
+        prelude_output = self.prelude_phase.output or {}
+        if prelude_output.get('summary'):
+            task_dict['event_summary'] = prelude_output['summary']
+        if search_results:
+            task_dict['search_results'] = [
+                {'tool_name': sr['tool_name'], 'content': parse_json(sr['content'])}
+                for sr in search_results
+            ]
+        if analysis_result:
+            task_dict['analysis_summary'] = analysis_result
+        self.handling_phase.input = render_task_xml(task_dict)
+
+    def _run_phase(self, spec: PhaseSpec) -> list[dict]:
+        messages = spec.initial_messages()
         if isinstance(spec, AskPhaseSpec):
             self._run_ask(messages, spec)
         else:
             self._run_react(messages, spec)
+        return messages
 
     def _run_ask(self, messages: list[dict], spec: AskPhaseSpec) -> None:
         step_start = time.monotonic()
@@ -182,24 +194,6 @@ class AgentRunner:
         )
         self._force_terminator(messages, spec)
 
-    def _build_handling_messages(self, task: dict, analysis_messages: list[dict]) -> list[dict]:
-        event_summary = self.event_summary
-        search_results = self._extract_successful_search_results(analysis_messages)
-        analysis_result = self._extract_analysis_result(analysis_messages)
-
-        handling_task_content = self._build_handling_task_content(
-            original_task=task,
-            event_summary=event_summary,
-            search_results=search_results,
-            analysis_result=analysis_result,
-        )
-        self.handling_phase.input = handling_task_content
-
-        return [
-            {'role': 'system', 'content': self.handling_phase.system_prompt},
-            {'role': 'user', 'content': handling_task_content},
-        ]
-
     def _extract_successful_search_results(self, messages: list[dict]) -> list[dict]:
         search_results = []
 
@@ -247,27 +241,6 @@ class AgentRunner:
                     return self._parse_tool_arguments(args_str)
         return {}
 
-    def _build_handling_task_content(self, original_task: dict, event_summary: str, search_results: list[dict], analysis_result: dict) -> str:
-        task_dict = dict(original_task)
-
-        if event_summary:
-            task_dict['event_summary'] = event_summary
-
-        if search_results:
-            task_dict['search_results'] = [
-                {
-                    'tool_name': sr['tool_name'],
-                    'content': parse_json(sr['content']),
-                }
-                for sr in search_results
-            ]
-
-        if analysis_result:
-            task_dict['analysis_summary'] = analysis_result
-
-        return render_task_xml(task_dict)
-
-
     def _request_llm_message_for_phase(
         self,
         messages: list[dict],
@@ -306,15 +279,6 @@ class AgentRunner:
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
         return response.choices[0].message, usage
-
-    def _build_analysis_messages(self, task: dict) -> list[dict]:
-        analysis_task = self._build_analysis_task(task)
-        task_xml = render_task_xml(analysis_task)
-        self.analysis_phase.input = task_xml
-        return [
-            {'role': 'system', 'content': self.analysis_phase.system_prompt},
-            {'role': 'user', 'content': task_xml},
-        ]
 
     def _force_terminator(self, messages: list[dict], spec: ReactPhaseSpec) -> None:
         """Force-call the terminator tool for a phase when max steps is exceeded."""

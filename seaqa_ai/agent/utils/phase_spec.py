@@ -15,6 +15,12 @@ class PhaseSpec:
     system_prompt: str = ''
     input: str = field(default='', init=False, repr=False)
 
+    def initial_messages(self) -> list[dict]:
+        return [
+            {'role': 'system', 'content': self.system_prompt},
+            {'role': 'user', 'content': self.input},
+        ]
+
 
 @dataclass
 class AskPhaseSpec(PhaseSpec):
