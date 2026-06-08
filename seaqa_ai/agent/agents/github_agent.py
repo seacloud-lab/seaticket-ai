@@ -7,8 +7,7 @@ GithubIssueAgent: processes a single GitHub issue for one connection.
 """
 from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.github_issue_tools import GITHUB_ISSUE_TOOL_CLASSES
-from seaqa_ai.utils.constants import ConnectionType
-from seaqa_ai.utils.seadb_api import gen_seadb_table_name
+from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
@@ -27,7 +26,8 @@ class GithubIssueAgent(ConnectionAgent):
 
     def __init__(self, app, project, connection_id: int, record_id=None, event=None):
         super().__init__(app, project, connection_id, record_id, event)
-        self._issues_table, self._comments_table = gen_seadb_table_name(ConnectionType.GITHUB_ISSUE.value, self.connection_id)
+        self._issues_table = SchemaTables.GITHUB_ISSUES.table_name(self.connection_id)
+        self._comments_table = SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(self.connection_id)
 
     # ── Abstract method implementations ────────────────────────────
 

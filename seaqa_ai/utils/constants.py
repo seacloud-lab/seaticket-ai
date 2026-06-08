@@ -108,12 +108,6 @@ class MODEL_REASONING_TIER(Enum):
             return 3
         return 0
 
-class TICKET_TABLES(Enum):
-    TICKETS_TABLE = 'tickets'
-    TICKET_COMMENTS_TABLE = 'ticket_comments'
-    TICKET_ACTIVITIES_TABLE = 'ticket_activities'
-
-
 class AIScenario(Enum):
     SUMMARY = 'summary'
     AGENT = 'agent'

@@ -13,8 +13,7 @@ from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     AgentSourceType,
 )
-from seaqa_ai.utils.constants import ConnectionType
-from seaqa_ai.utils.seadb_api import gen_seadb_table_name
+from seaqa_ai.seadb_models import SchemaTables
 import seaqa_ai.agent.prompts.email as email_prompts
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,8 @@ class EmailAgent(ConnectionAgent):
 
     def __init__(self, app, project, connection_id: int, record_id=None, event=None):
         super().__init__(app, project, connection_id, record_id, event)
-        self._threads_table, self._emails_table = gen_seadb_table_name(ConnectionType.EMAIL.value, self.connection_id)
+        self._threads_table = SchemaTables.THREAD.table_name(self.connection_id)
+        self._emails_table = SchemaTables.EMAIL.table_name(self.connection_id)
 
     # ── Abstract method implementations ────────────────────────────
 

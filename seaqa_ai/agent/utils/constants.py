@@ -39,9 +39,6 @@ class AgentSourceType(Enum):
     def is_valid(cls, value):
         return value in {item.value for item in cls}
 
-AGENT_RUNS_TABLE = 'agent_runs'
-AGENT_ACTIONS_TABLE = 'agent_actions'
-
 # Maximum body characters sent to the LLM to avoid excessive token usage
 MAX_CONTENT_CHARS, MAX_COMMENT_CHARS = 5000, 5000
 

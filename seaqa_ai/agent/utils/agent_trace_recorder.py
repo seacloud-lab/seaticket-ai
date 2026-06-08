@@ -4,8 +4,8 @@ from copy import deepcopy
 from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS, THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS
 from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_to_json_str, parse_json
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
+from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
-    AGENT_ACTIONS_TABLE,
     MAX_CONTENT_CHARS
 )
 
@@ -112,7 +112,7 @@ class AgentActionRecorder:
             'created_at': now_iso(),
         }
         try:
-            res = self.seadb_api.insert_rows(self.project_uuid, AGENT_ACTIONS_TABLE, [row])
+            res = self.seadb_api.insert_rows(self.project_uuid, SchemaTables.AGENT_ACTIONS.table_name(), [row])
             pks = res.get('pks', [])
             assert len(pks) == 1, f'Expected 1 PK, got {len(pks)}'
             return pks[0]
