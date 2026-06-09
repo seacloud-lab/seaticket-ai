@@ -75,7 +75,7 @@ class AgentActionRecorder:
             input = ''
 
         if action_type not in (
-            'events',
+            'event',
             'analysis',
             'summary',
             'error',

@@ -39,7 +39,7 @@ from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
-from seaqa_ai.agent.utils.phase_spec import AskPhaseSpec, ReactPhaseSpec
+from seaqa_ai.agent.utils.phase import AskPhase, ReactPhase
 from seaqa_ai.agent.utils.agent_trace_recorder import AgentActionRecorder
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.agent.prompts._shared import PRELUDE_SYSTEM_PROMPT
@@ -114,7 +114,7 @@ class BaseAgent:
 
     def get_tool_classes(self) -> list:
         """Assemble the tool classes to register for this run."""
-        return list(self.SOURCE_TOOL_CLASSES)
+        return list(self.SOURCE_TOOL_CLASSES) + [FinalAnswerTool]
 
     @abstractmethod
     def build_record_context(self, item: dict) -> dict:
@@ -161,14 +161,14 @@ class BaseAgent:
     def _get_tool_name(tool_cls: type) -> str:
         return tool_cls.tool['function']['name']
 
-    def get_prelude_phase(self) -> AskPhaseSpec:
-        return AskPhaseSpec(
+    def get_prelude_phase(self) -> AskPhase:
+        return AskPhase(
             name='prelude',
             system_prompt=PRELUDE_SYSTEM_PROMPT,
         )
 
-    def get_analysis_phase(self) -> ReactPhaseSpec:
-        return ReactPhaseSpec(
+    def get_analysis_phase(self) -> ReactPhase:
+        return ReactPhase(
             name='analysis',
             system_prompt=self.get_analysis_system_prompt(),
             terminator_tool=self._get_tool_name(self.ANALYSIS_TERMINATOR_TOOL),
@@ -176,8 +176,8 @@ class BaseAgent:
             max_steps=config.AGENT_MAX_ANALYSIS_STEPS,
         )
 
-    def get_handling_phase(self) -> ReactPhaseSpec:
-        return ReactPhaseSpec(
+    def get_handling_phase(self) -> ReactPhase:
+        return ReactPhase(
             name='handling',
             system_prompt=self.get_handling_system_prompt(),
             terminator_tool=self._get_tool_name(FinalAnswerTool),
@@ -292,6 +292,25 @@ class BaseAgent:
 
         return tool_executor, tool_metadata
 
+    @staticmethod
+    def _compute_phase_tools(tool_executor: OpenAIToolExecutor, spec: ReactPhase, *,
+                             exclude_terminators: set, filter_search: bool):
+        tools = [
+            tool
+            for tool in tool_executor.get()
+            if tool.get('function', {}).get('name') not in exclude_terminators
+        ]
+        if filter_search:
+            tools = [
+                tool for tool in tools
+                if not tool.get('function', {}).get('name', '').endswith('_search')
+            ]
+        spec.tools = tools
+        for tool in tool_executor.get():
+            if tool.get('function', {}).get('name') == spec.terminator_tool:
+                spec.forced_tool = tool
+                break
+
     def _get_project_org_id(self):
         with self.db_session_class() as db_session:
             try:
@@ -338,6 +357,17 @@ class BaseAgent:
             logger.warning(f'No analysis or handling system prompt for {record_context.get("source_type")}. Skip running agent.')
             return
 
+        self._compute_phase_tools(
+            tool_executor, analysis_phase,
+            exclude_terminators={handling_phase.terminator_tool},
+            filter_search=not self.SEARCH_ENABLED,
+        )
+        self._compute_phase_tools(
+            tool_executor, handling_phase,
+            exclude_terminators={analysis_phase.terminator_tool},
+            filter_search=False,
+        )
+
         agent_runner = AgentRunner(
             tool_executor=tool_executor,
             llm_client=llm_client,
@@ -349,7 +379,6 @@ class BaseAgent:
             prelude_phase=self.get_prelude_phase(),
             analysis_phase=analysis_phase,
             handling_phase=handling_phase,
-            search_enabled=self.SEARCH_ENABLED
         )
 
         try:

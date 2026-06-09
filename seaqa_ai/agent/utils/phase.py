@@ -1,29 +1,33 @@
 from dataclasses import dataclass, field
 
+from seaqa_ai.services.chat_service.utils.memory import OpenAIMemory
+
 
 @dataclass
-class PhaseSpec:
-    """Base spec describing one reasoning phase.
+class Phase:
+    """Base dataclass describing one reasoning phase.
 
     Attributes:
         name: Human-readable label ('prelude', 'analysis', 'handling').
         system_prompt: System message injected at the start of the phase.
         input: Runtime input rendered for the phase (set during run).
+        memory: OpenAIMemory constructed from system_prompt + input.
     """
 
     name: str
     system_prompt: str = ''
     input: str = field(default='', init=False, repr=False)
+    memory: OpenAIMemory | None = field(default=None, init=False, repr=False)
 
-    def initial_messages(self) -> list[dict]:
-        return [
+    def init_memory(self):
+        self.memory = OpenAIMemory([
             {'role': 'system', 'content': self.system_prompt},
             {'role': 'user', 'content': self.input},
-        ]
+        ])
 
 
 @dataclass
-class AskPhaseSpec(PhaseSpec):
+class AskPhase(Phase):
     """Single-turn Q&A phase (no tools, no loop).
 
     Attributes:
@@ -36,16 +40,20 @@ class AskPhaseSpec(PhaseSpec):
 
 
 @dataclass
-class ReactPhaseSpec(PhaseSpec):
+class ReactPhase(Phase):
     """Multi-step ReAct tool-calling phase.
 
     Attributes:
         terminator_tool: Name of the tool whose invocation ends the phase.
         forced_prompt: System message injected when max_steps is reached
             to force an immediate terminator call.
+        forced_tool: OpenAIToolExecutor-registered dict for the terminator tool.
         max_steps: Maximum number of LLM steps before forced termination.
+        tools: OpenAI function-calling tool dicts available during this phase.
     """
 
     terminator_tool: str = ''
     forced_prompt: str = ''
+    forced_tool: dict | None = field(default=None, repr=False)
     max_steps: int = 10
+    tools: list[dict] = field(default_factory=list)
