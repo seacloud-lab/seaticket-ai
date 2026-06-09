@@ -275,17 +275,21 @@ class AgentRunner:
         self,
         spec: ReactPhase,
     ) -> dict:
-        if not spec.forced_tool:
-            logger.warning(f'{spec.terminator_tool} tool is not registered; skipping forced tool call.')
+        forced_tool = next(
+            (t for t in spec.tools if t.get('function', {}).get('name') == spec.terminator_tool),
+            None,
+        )
+        if not forced_tool:
+            logger.warning(f'{spec.terminator_tool} tool not found in phase tools; skipping forced tool call.')
             return {}
 
-        spec.memory += {'role': 'system', 'content': spec.forced_prompt}
+        spec.memory += {'role': 'system', 'content': spec.terminator_prompt}
 
         step = spec.max_steps
         completion_kwargs = {
             'messages': spec.memory,
             'context': self.ai_stats_context,
-            'tools': [spec.forced_tool],
+            'tools': [forced_tool],
             'tool_choice': {
                 'type': 'function',
                 'function': {

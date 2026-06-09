@@ -172,7 +172,7 @@ class BaseAgent:
             name='analysis',
             system_prompt=self.get_analysis_system_prompt(),
             terminator_tool=self._get_tool_name(self.ANALYSIS_TERMINATOR_TOOL),
-            forced_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
+            terminator_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
             max_steps=config.AGENT_MAX_ANALYSIS_STEPS,
         )
 
@@ -181,7 +181,7 @@ class BaseAgent:
             name='handling',
             system_prompt=self.get_handling_system_prompt(),
             terminator_tool=self._get_tool_name(FinalAnswerTool),
-            forced_prompt=FORCED_FINAL_ANSWER_PROMPT,
+            terminator_prompt=FORCED_FINAL_ANSWER_PROMPT,
             max_steps=config.AGENT_MAX_HANDLING_STEPS,
         )
 
@@ -306,10 +306,6 @@ class BaseAgent:
                 if not tool.get('function', {}).get('name', '').endswith('_search')
             ]
         spec.tools = tools
-        for tool in tool_executor.get():
-            if tool.get('function', {}).get('name') == spec.terminator_tool:
-                spec.forced_tool = tool
-                break
 
     def _get_project_org_id(self):
         with self.db_session_class() as db_session:

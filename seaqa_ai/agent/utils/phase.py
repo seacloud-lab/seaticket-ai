@@ -45,15 +45,13 @@ class ReactPhase(Phase):
 
     Attributes:
         terminator_tool: Name of the tool whose invocation ends the phase.
-        forced_prompt: System message injected when max_steps is reached
-            to force an immediate terminator call.
-        forced_tool: OpenAIToolExecutor-registered dict for the terminator tool.
+        terminator_prompt: System message injected when max_steps is reached
+            to push the LLM to call terminator_tool.
         max_steps: Maximum number of LLM steps before forced termination.
         tools: OpenAI function-calling tool dicts available during this phase.
     """
 
     terminator_tool: str = ''
-    forced_prompt: str = ''
-    forced_tool: dict | None = field(default=None, repr=False)
+    terminator_prompt: str = ''
     max_steps: int = 10
     tools: list[dict] = field(default_factory=list)
