@@ -253,14 +253,14 @@ class AgentRunner:
         elif isinstance(phase, AskPhase) and phase.schema:
             request_kwargs['response_format'] = gen_completion_format(phase.schema)
 
-        response, usage, retry_entries = self._completion_with_retry(
+        message, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=request_kwargs,
             step=step,
             phase=phase,
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
-        return response.choices[0].message, usage
+        return message, usage
 
     def _force_terminator(self, phase: ReactPhase) -> dict:
         terminator_tool = next(
@@ -286,13 +286,13 @@ class AgentRunner:
             },
         }
         step_start = time.monotonic()
-        response, usage, retry_entries = self._completion_with_retry(
+        message, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=completion_kwargs,
             step=step,
             phase=phase,
             tool_name=phase.terminator_tool,
         )
-        message = response.choices[0].message
+
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
 
@@ -335,15 +335,16 @@ class AgentRunner:
             response = None
             try:
                 response = self.llm_client.completion(**completion_kwargs)
+                message = response.choices[0].message
                 last_usage = self._extract_usage(response)
                 if isinstance(phase, AskPhase) and phase.schema:
-                    res = parse_json(response)
-                    if not isinstance(res, dict) or not all([
-                        required_field in res
+                    schema_output = parse_json(message.content)
+                    if not isinstance(schema_output, dict) or not all([
+                        required_field in schema_output
                         for required_field in phase.schema.get('required')
                     ]):
                         raise ValueError("Invalid AI response: invalid format or missing required fields")
-                return response, last_usage, retry_entries
+                return message, last_usage, retry_entries
             except Exception as e:
                 last_error = e
                 duration_ms = int((time.monotonic() - llm_start) * 1000)
