@@ -93,15 +93,13 @@ class AgentRunner:
         # prelude phase (single-turn Q&A)
         self.prelude_phase.input = render_task_xml(task)
         self._run_phase(self.prelude_phase)
-        if not ((self.prelude_phase.output or {}).get('summary') or '').strip():
-            raise AgentRetryExceededError('Prelude completion did not return a valid summary.')
 
         # analysis phase (multi-step ReAct)
         self._update_analysis_input(task)
         self._run_phase(self.analysis_phase)
 
         # handling phase (multi-step ReAct)
-        self._update_handling_input(task, self.analysis_phase)
+        self._update_handling_input(task)
         self._run_phase(self.handling_phase)
 
     def _update_analysis_input(self, task: dict) -> None:
@@ -111,8 +109,8 @@ class AgentRunner:
             analysis_task['event_summary'] = prelude_output['summary']
         self.analysis_phase.input = render_task_xml(analysis_task)
 
-    def _update_handling_input(self, task: dict, analysis_phase: ReactPhase) -> None:
-        messages = list(analysis_phase.memory)
+    def _update_handling_input(self, task: dict) -> None:
+        messages = list(self.analysis_phase.memory)
         search_results = self._extract_successful_search_results(messages)
         analysis_result = self._extract_analysis_result(messages)
         task_dict = dict(task)
