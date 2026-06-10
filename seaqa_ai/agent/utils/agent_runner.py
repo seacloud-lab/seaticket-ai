@@ -706,7 +706,7 @@ class AgentRunner:
             'source_type': self.record_context.get('source_type'),
             'source_id': self.record_context.get('source_id'),
             'source_title': self.record_context.get('source_title'),
-            'phase': phase,
+            'phase': phase.name,
             'record_phase_context': record_phase_context,
             'prompt': prompt,
             'input': phase_input,
