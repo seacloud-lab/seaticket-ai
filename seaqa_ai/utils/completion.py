@@ -7,6 +7,16 @@ from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import filter_tool_calls_content
 logger = logging.getLogger(__name__)
 
+def gen_completion_format(schema, name='result_parser'):
+    return {
+        'type': 'json_schema',
+        'json_schema': {
+            'name': name,
+            'strict': True,
+            'schema': schema
+        }
+    }
+
 class BasicCompletionUtils:
     @classmethod
     def build_completion_kwargs(cls, memory, context, tool_executor, current_step, has_inserter_max_step_prompt, max_steps_disabled_prompt):

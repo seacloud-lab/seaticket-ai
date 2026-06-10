@@ -21,6 +21,7 @@ from litellm import Message, ChatCompletionMessageToolCall
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
+from seaqa_ai.utils.completion import gen_completion_format
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,8 @@ class AgentRunner:
                 'tools': spec.tools,
                 'tool_choice': 'auto',
             })
+        elif isinstance(spec, AskPhase) and spec.schema:
+            request_kwargs['response_format'] = gen_completion_format(spec.schema)
 
         response, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=request_kwargs,

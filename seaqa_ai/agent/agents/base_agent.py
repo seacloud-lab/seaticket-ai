@@ -165,6 +165,17 @@ class BaseAgent:
         return AskPhase(
             name='prelude',
             system_prompt=PRELUDE_SYSTEM_PROMPT,
+            schema={
+                'type': 'object',
+                'properties': {
+                    'summary': {
+                        'type': 'string',
+                        'description': 'The summary of event that triggered this run'
+                    }
+                },
+                'additionalProperties': False,
+                'required': ['summary']
+            }
         )
 
     def get_analysis_phase(self) -> ReactPhase:
