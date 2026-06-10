@@ -83,12 +83,6 @@ class AgentRunner:
         self.analysis_phase = analysis_phase
         self.handling_phase = handling_phase
 
-    def _phase_by_name(self, name: str) -> Phase | None:
-        for phase in (self.prelude_phase, self.analysis_phase, self.handling_phase):
-            if phase is not None and phase.name == name:
-                return phase
-        return None
-
     def run(self, task: dict) -> None:
         """Drive the prelude, analysis, and handling flow.
 
@@ -319,7 +313,7 @@ class AgentRunner:
             logger.warning(f'Forced {phase.terminator_tool} step {step} returned no tool call.')
             error_message = 'Forced tool call did not produce a tool call.'
             self._record_action(
-                phase=phase.name,
+                phase=phase,
                 result=error_message,
                 action_type='error',
                 action_status='failed',
@@ -338,7 +332,7 @@ class AgentRunner:
         self,
         completion_kwargs: dict,
         step: int,
-        phase: str,
+        phase: Phase,
         tool_name: str | None = None,
     ) -> tuple[object, dict, list[dict]]:
         retry_entries = []
@@ -351,6 +345,13 @@ class AgentRunner:
             try:
                 response = self.llm_client.completion(**completion_kwargs)
                 last_usage = self._extract_usage(response)
+                if isinstance(phase, AskPhase) and phase.schema:
+                    res = parse_json(response)
+                    if not isinstance(res, dict) or not all([
+                        required_field in res
+                        for required_field in phase.schema.get('required')
+                    ]):
+                        raise ValueError("Invalid AI response: invalid format or missing required fields")
                 return response, last_usage, retry_entries
             except Exception as e:
                 last_error = e
@@ -504,7 +505,7 @@ class AgentRunner:
                 'error_message': str(e),
             }, ensure_ascii=False)
             self._record_action(
-                phase=phase.name,
+                phase=phase,
                 result=str(e),
                 action_type='error',
                 action_status='failed',
@@ -583,7 +584,7 @@ class AgentRunner:
         statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
         if tool_failed:
             self._record_action(
-                phase=phase.name,
+                phase=phase,
                 result=json.loads(observation).get('error_message', observation),
                 action_type='error',
                 action_status='failed',
@@ -594,7 +595,7 @@ class AgentRunner:
                 statistics=statistics,
             )
         else:
-            self._record_tool_action(phase.name, step, tool_name, arguments, observation, statistics=statistics,)
+            self._record_tool_action(phase, step, tool_name, arguments, observation, statistics=statistics,)
 
         if is_final_answer:
             return observation
@@ -607,7 +608,7 @@ class AgentRunner:
 
     def _record_tool_action(
         self,
-        phase: str,
+        phase: Phase,
         step: int,
         tool_name: str,
         tool_arguments: dict,
@@ -706,7 +707,6 @@ class AgentRunner:
         if not self.action_recorder:
             return
 
-        phase = self._phase_by_name(phase)
         prompt = phase.system_prompt if phase else ''
         phase_input = phase.input if phase else ''
 
