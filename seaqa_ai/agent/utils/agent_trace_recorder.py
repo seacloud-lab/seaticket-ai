@@ -1,7 +1,7 @@
 import json
 import logging
 from copy import deepcopy
-from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS, THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS
+from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS, THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS, THOUGHT_PROCESS_RECORD_USER_INPUT_RAW
 from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_to_json_str, parse_json
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 from seaqa_ai.seadb_models import SchemaTables
@@ -33,7 +33,9 @@ class AgentActionRecorder:
         source_id,
         source_title,
         phase,
+        record_phase_context,
         prompt,
+        input,
         result,
         action_type,
         action_status,
@@ -60,17 +62,30 @@ class AgentActionRecorder:
 
         # record phase' system prompt
         prompt = prompt or ''
+        input = input or ''
+        if not isinstance(input, str):
+            input = object_to_json_str(input)
+        else:
+            input = _truncate_string(input, MAX_CONTENT_CHARS)
+
         if not THOUGHT_PROCESS_ENABLED or \
             not THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS:
             prompt = ''
+        if not THOUGHT_PROCESS_ENABLED or not THOUGHT_PROCESS_RECORD_USER_INPUT_RAW:
+            input = ''
 
         if action_type not in (
-            'events',
+            'event',
             'analysis',
-            'summary'
+            'summary',
+            'error',
         ):
-            # disable recording system prompt in common tool_call steps
+            # disable recording phase-level prompt/input in common tool_call steps
             prompt = ''
+            input = ''
+        elif action_type == 'error' and not record_phase_context:
+            prompt = ''
+            input = ''
 
         # record tool call detail
         if not THOUGHT_PROCESS_ENABLED or not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
@@ -101,6 +116,7 @@ class AgentActionRecorder:
             'phase': phase,
             'result': str(result) if result is not None else '',
             'prompt': prompt if THOUGHT_PROCESS_RECORD_SYSTEM_PROMPTS and prompt is not None else '',
+            'input': input if THOUGHT_PROCESS_RECORD_USER_INPUT_RAW and input is not None else '',
             'step': step,
             'tool_name': tool_name or '',
             'tool_arguments': tool_arguments or '',

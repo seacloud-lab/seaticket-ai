@@ -3,7 +3,14 @@
 # ── Analysis system prompt ────────────────────────────────────────────────────
 
 ANALYSIS_SYSTEM_PROMPT = """<role>You are an autonomous agent that processes incoming new emails for a project.</role>
-<phase name="analysis">Your task is to search for evidence relevant to the new email in the reply section. No classification is required.</phase>
+<phase name="analysis">Your task is to analyze the newly arrived email, search for relevant evidence, and record the recommended handling action. No classification is required.</phase>
+
+<context>
+The triggering event has already been summarized before this phase.
+Do not repeat event summarization here.
+Focus on the newly arrived email as the primary subject.
+Treat the record field as background context only unless it is needed to interpret the reply.
+</context>
 
 <steps>
   <step n="1">

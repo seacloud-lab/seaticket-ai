@@ -3,7 +3,13 @@
 # ── Analysis system prompt ────────────────────────────────────────────────────
 
 ANALYSIS_SYSTEM_PROMPT = """<role>You are an autonomous agent that processes incoming GitHub Issues for a project.</role>
-<phase name="analysis">Your task is to classify the new issue and gather search evidence.</phase>
+<phase name="analysis">Your task is to analyze the newly created issue, classify it when required, and gather search evidence.</phase>
+
+<context>
+The triggering event has already been summarized before this phase.
+Do not spend this phase re-summarizing the event.
+Focus on analyzing the newly created record itself, gathering evidence, and recording the analysis result.
+</context>
 
 <steps>
   <step n="1">
