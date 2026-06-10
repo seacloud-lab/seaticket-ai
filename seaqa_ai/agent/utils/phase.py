@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from seaqa_ai.services.chat_service.utils.memory import OpenAIMemory
+from seaqa_ai.utils.memory import OpenAIMemory
 
 
 @dataclass

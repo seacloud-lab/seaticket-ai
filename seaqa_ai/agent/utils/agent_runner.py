@@ -84,9 +84,9 @@ class AgentRunner:
         self.handling_phase = handling_phase
 
     def _phase_by_name(self, name: str) -> Phase | None:
-        for spec in (self.prelude_phase, self.analysis_phase, self.handling_phase):
-            if spec is not None and spec.name == name:
-                return spec
+        for phase in (self.prelude_phase, self.analysis_phase, self.handling_phase):
+            if phase is not None and phase.name == name:
+                return phase
         return None
 
     def run(self, task: dict) -> None:
@@ -134,59 +134,59 @@ class AgentRunner:
             task_dict['analysis_summary'] = analysis_result
         self.handling_phase.input = render_task_xml(task_dict)
 
-    def _run_phase(self, spec: Phase) -> None:
-        spec.init_memory()
-        if isinstance(spec, AskPhase):
-            self._run_ask(spec)
+    def _run_phase(self, phase: Phase) -> None:
+        phase.init_memory()
+        if isinstance(phase, AskPhase):
+            self._run_ask(phase)
         else:
-            self._run_react(spec)
+            self._run_react(phase)
 
-    def _run_ask(self, spec: AskPhase) -> None:
+    def _run_ask(self, phase: AskPhase) -> None:
         step_start = time.monotonic()
-        message, usage = self._request_llm_message_for_phase(spec, step=0)
+        message, usage = self._request_llm_message_for_phase(phase, step=0)
         raw_content = (message.content or '').strip()
         parsed = parse_json(raw_content)
-        spec.output = parsed if isinstance(parsed, dict) else {}
+        phase.output = parsed if isinstance(parsed, dict) else {}
 
-        observation = json.dumps(spec.output, ensure_ascii=False)
+        observation = json.dumps(phase.output, ensure_ascii=False)
         self._record_action(
-            phase=spec.name,
-            result=spec.output.get('summary', json.dumps(spec.output, ensure_ascii=False)),
+            phase=phase.name,
+            result=phase.output.get('summary', json.dumps(phase.output, ensure_ascii=False)),
             action_type='event',
             action_status='completed',
             step=0,
-            tool_name=f'generate_{spec.name}',
+            tool_name=f'generate_{phase.name}',
             observation=observation,
             statistics=self._build_statistics(step_start, usage),
         )
 
-    def _run_react(self, spec: ReactPhase) -> None:
+    def _run_react(self, phase: ReactPhase) -> None:
         """Run a single reasoning phase until the terminator tool is called or max steps reached."""
-        for step in range(spec.max_steps):
+        for step in range(phase.max_steps):
             step_start = time.monotonic()
-            message, usage = self._request_llm_message_for_phase(spec, step)
+            message, usage = self._request_llm_message_for_phase(phase, step)
 
             tool_call = self._validate_single_tool_call(message.tool_calls, step)
             assistant_message = self._build_assistant_message(message, tool_call=tool_call)
-            spec.memory += assistant_message
+            phase.memory += assistant_message
 
             if not tool_call:
-                logger.warning(f'{spec.name} step {step} returned no tool call.')
+                logger.warning(f'{phase.name} step {step} returned no tool call.')
                 continue
 
             tool_name = tool_call.function.name
             logger.debug(f'Processing tool call {tool_name} at step {step}')
-            self._process_tool_call(tool_call, spec, step_start=step_start, usage=usage, step=step)
+            self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
 
-            if tool_name == spec.terminator_tool:
-                logger.debug(f'{spec.name} loop completed at step {step} via {tool_name}.')
+            if tool_name == phase.terminator_tool:
+                logger.debug(f'{phase.name} loop completed at step {step} via {tool_name}.')
                 return
 
         logger.warning(
-            f'{spec.name} loop reached max steps ({spec.max_steps}) '
-            f'without calling {spec.terminator_tool!r}.'
+            f'{phase.name} loop reached max steps ({phase.max_steps}) '
+            f'without calling {phase.terminator_tool!r}.'
         )
-        self._force_terminator(spec)
+        self._force_terminator(phase)
 
     def _extract_successful_search_results(self, messages: list[dict]) -> list[dict]:
         search_results = []
@@ -237,11 +237,11 @@ class AgentRunner:
 
     def _request_llm_message_for_phase(
         self,
-        spec: Phase,
+        phase: Phase,
         step: int,
     ) -> tuple[Message, dict]:
-        """Request an LLM message with phase-specific tools."""
-        messages = list(spec.memory)
+        """Request an LLM message with phase-phaseific tools."""
+        messages = list(phase.memory)
         total_chars = 0
         for i, m in enumerate(messages):
             content_len = len(str(m.get('content') or ''))
@@ -250,53 +250,53 @@ class AgentRunner:
         logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
 
         request_kwargs = {
-            'messages': spec.memory,
+            'messages': phase.memory,
             'context': self.ai_stats_context,
         }
-        if isinstance(spec, ReactPhase) and spec.tools:
+        if isinstance(phase, ReactPhase) and phase.tools:
             request_kwargs.update({
-                'tools': spec.tools,
+                'tools': phase.tools,
                 'tool_choice': 'auto',
             })
-        elif isinstance(spec, AskPhase) and spec.schema:
-            request_kwargs['response_format'] = gen_completion_format(spec.schema)
+        elif isinstance(phase, AskPhase) and phase.schema:
+            request_kwargs['response_format'] = gen_completion_format(phase.schema)
 
         response, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=request_kwargs,
             step=step,
-            phase=spec.name,
+            phase=phase.name,
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
         return response.choices[0].message, usage
 
-    def _force_terminator(self, spec: ReactPhase) -> None:
+    def _force_terminator(self, phase: ReactPhase) -> None:
         """Force-call the terminator tool for a phase when max steps is exceeded."""
-        self._force_single_tool_call(spec)
+        self._force_single_tool_call(phase)
 
     def _force_single_tool_call(
         self,
-        spec: ReactPhase,
+        phase: ReactPhase,
     ) -> dict:
         forced_tool = next(
-            (t for t in spec.tools if t.get('function', {}).get('name') == spec.terminator_tool),
+            (t for t in phase.tools if t.get('function', {}).get('name') == phase.terminator_tool),
             None,
         )
         if not forced_tool:
-            logger.warning(f'{spec.terminator_tool} tool not found in phase tools; skipping forced tool call.')
+            logger.warning(f'{phase.terminator_tool} tool not found in phase tools; skipping forced tool call.')
             return {}
 
-        spec.memory += {'role': 'system', 'content': spec.terminator_prompt}
+        phase.memory += {'role': 'system', 'content': phase.terminator_prompt}
 
-        step = spec.max_steps
+        step = phase.max_steps
         completion_kwargs = {
-            'messages': spec.memory,
+            'messages': phase.memory,
             'context': self.ai_stats_context,
             'tools': [forced_tool],
             'tool_choice': {
                 'type': 'function',
                 'function': {
-                    'name': spec.terminator_tool,
+                    'name': phase.terminator_tool,
                 },
             },
         }
@@ -304,8 +304,8 @@ class AgentRunner:
         response, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=completion_kwargs,
             step=step,
-            phase=spec.name,
-            tool_name=spec.terminator_tool,
+            phase=phase.name,
+            tool_name=phase.terminator_tool,
         )
         message = response.choices[0].message
         if retry_entries:
@@ -313,25 +313,25 @@ class AgentRunner:
 
         tool_call = self._validate_single_tool_call(message.tool_calls, step)
         assistant_message = self._build_assistant_message(message, tool_call=tool_call)
-        spec.memory += assistant_message
+        phase.memory += assistant_message
 
         if not tool_call:
-            logger.warning(f'Forced {spec.terminator_tool} step {step} returned no tool call.')
+            logger.warning(f'Forced {phase.terminator_tool} step {step} returned no tool call.')
             error_message = 'Forced tool call did not produce a tool call.'
             self._record_action(
-                phase=spec.name,
+                phase=phase.name,
                 result=error_message,
                 action_type='error',
                 action_status='failed',
                 record_phase_context=True,
                 step=step,
-                tool_name=spec.terminator_tool,
+                tool_name=phase.terminator_tool,
                 statistics=self._build_statistics(step_start, usage),
             )
             raise AgentRetryExceededError(error_message)
 
         arguments = self._parse_tool_arguments(tool_call.function.arguments)
-        self._process_tool_call(tool_call, spec, step_start=step_start, usage=usage, step=step)
+        self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
         return arguments
 
     def _completion_with_retry(
@@ -479,7 +479,7 @@ class AgentRunner:
     def _process_tool_call(
         self,
         tool_call: ChatCompletionMessageToolCall,
-        spec: ReactPhase,
+        phase: ReactPhase,
         step_start: float | None = None,
         usage: dict | None = None,
         step: int | None = None
@@ -504,7 +504,7 @@ class AgentRunner:
                 'error_message': str(e),
             }, ensure_ascii=False)
             self._record_action(
-                phase=spec.name,
+                phase=phase.name,
                 result=str(e),
                 action_type='error',
                 action_status='failed',
@@ -516,7 +516,7 @@ class AgentRunner:
             logger.debug(f'Observation: {observation}')
             if is_final_answer:
                 return observation
-            spec.memory += {
+            phase.memory += {
                 'role': 'tool',
                 'tool_call_id': tool_call.id,
                 'content': observation,
@@ -538,7 +538,7 @@ class AgentRunner:
                     logger.exception(
                         'Tool execution failed for %r at %s step %s retry %s/%s: %s',
                         tool_name,
-                        spec.name,
+                        phase.name,
                         step,
                         current_retry,
                         config.TOOL_CALL_MAX_RETRIES,
@@ -583,7 +583,7 @@ class AgentRunner:
         statistics = self._build_statistics(step_start, usage, tool_token_usage=tool_token_usage)
         if tool_failed:
             self._record_action(
-                phase=spec.name,
+                phase=phase.name,
                 result=json.loads(observation).get('error_message', observation),
                 action_type='error',
                 action_status='failed',
@@ -594,12 +594,12 @@ class AgentRunner:
                 statistics=statistics,
             )
         else:
-            self._record_tool_action(spec.name, step, tool_name, arguments, observation, statistics=statistics,)
+            self._record_tool_action(phase.name, step, tool_name, arguments, observation, statistics=statistics,)
 
         if is_final_answer:
             return observation
 
-        spec.memory += {
+        phase.memory += {
             'role': 'tool',
             'tool_call_id': tool_call.id,
             'content': observation,
@@ -706,9 +706,9 @@ class AgentRunner:
         if not self.action_recorder:
             return
 
-        spec = self._phase_by_name(phase)
-        prompt = spec.system_prompt if spec else ''
-        phase_input = spec.input if spec else ''
+        phase = self._phase_by_name(phase)
+        prompt = phase.system_prompt if phase else ''
+        phase_input = phase.input if phase else ''
 
         action_data = {
             'run_id': self.run_id,

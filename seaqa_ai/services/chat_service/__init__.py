@@ -12,7 +12,7 @@ from seaqa_ai.utils.llm_api import get_llm_client_by_model_id
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionUtils
-from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, OpenAIMemory
+from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
@@ -43,7 +43,7 @@ class BasicChat(object):
                 return build_memory_from_db(self.db_session_class, system_prompts, session_uuid, config.CONTEXT_WINDOW_LIMIT, config.CONTEXT_HISTORY_VALID_TIME, message_model=message_model)
             except Exception as e:
                 logger.warning(f'Failure to build context: {e}')
-        return OpenAIMemory(system_prompts)
+        return ChatMemory(system_prompts)
 
     def _register_tools(self, tool_executor, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])

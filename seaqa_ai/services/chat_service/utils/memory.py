@@ -1,23 +1,19 @@
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 from seaqa_ai.config import THOUGHT_PROCESS_RECORD_USER_INPUT_RAW, THOUGHT_PROCESS_RECORD_USER_INPUT
+from seaqa_ai.utils.memory import OpenAIMemory
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, retrieve_origin_reference_format
 
-class OpenAIMemory:
-    """
-    SeaQA - AI History Memory (ask mode), iterable
-    """
-    def __init__(self, system_prompts):
-        if isinstance(system_prompts, str):
-            system_prompts = [{
-                'role': 'system',
-                'content': system_prompts
-            }]
-        self.system_prompts = [dict(prompt) for prompt in system_prompts]
-        self.reset_steps()
-
-    def reset_steps(self):
-        self.steps = [dict(prompt) for prompt in self.system_prompts]
+class ChatMemory(OpenAIMemory):
+    def __iter__(self):
+        for step in self.steps:
+            new_step = step
+            if 'id' in step: # db record
+                new_step = {
+                    'role': step['role'],
+                    'content': retrieve_origin_reference_format(step['content'], step['sources']) if step['role'] == 'assistant' else combine_attachments_to_message(step['attachments'], step['content'])
+                }
+            yield new_step
 
     @property
     def context_thought_process(self):
@@ -62,28 +58,8 @@ class OpenAIMemory:
                 results.append(result_of_a_step)
         return results
 
-    def __add__(self, steps):
-        if isinstance(steps, dict):
-            self.steps.append(steps)
-        elif isinstance(steps, list):
-            for step in steps:
-                self += step
-        else:
-            raise TypeError('steps only receive two types: dict or list')
-        return self
-
-    def __iter__(self):
-        for step in self.steps:
-            new_step = step
-            if 'id' in step: # db record
-                new_step = {
-                    'role': step['role'],
-                    'content': retrieve_origin_reference_format(step['content'], step['sources']) if step['role'] == 'assistant' else combine_attachments_to_message(step['attachments'], step['content'])
-                }
-            yield new_step
-
 def build_memory_from_db(db_session_class, system_prompts, session_uuid, window_limit, valid_time, message_model):
-    memory = OpenAIMemory(system_prompts)
+    memory = ChatMemory(system_prompts)
     if not session_uuid:
         return memory
 
