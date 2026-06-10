@@ -262,19 +262,12 @@ class AgentRunner:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
         return response.choices[0].message, usage
 
-    def _force_terminator(self, phase: ReactPhase) -> None:
-        """Force-call the terminator tool for a phase when max steps is exceeded."""
-        self._force_single_tool_call(phase)
-
-    def _force_single_tool_call(
-        self,
-        phase: ReactPhase,
-    ) -> dict:
-        forced_tool = next(
+    def _force_terminator(self, phase: ReactPhase) -> dict:
+        terminator_tool = next(
             (t for t in phase.tools if t.get('function', {}).get('name') == phase.terminator_tool),
             None,
         )
-        if not forced_tool:
+        if not terminator_tool:
             logger.warning(f'{phase.terminator_tool} tool not found in phase tools; skipping forced tool call.')
             return {}
 
@@ -284,7 +277,7 @@ class AgentRunner:
         completion_kwargs = {
             'messages': phase.memory,
             'context': self.ai_stats_context,
-            'tools': [forced_tool],
+            'tools': [terminator_tool],
             'tool_choice': {
                 'type': 'function',
                 'function': {
