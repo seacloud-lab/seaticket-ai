@@ -142,7 +142,7 @@ class AgentRunner:
 
         observation = json.dumps(phase.output, ensure_ascii=False)
         self._record_action(
-            phase=phase.name,
+            phase=phase,
             result=phase.output.get('summary', json.dumps(phase.output, ensure_ascii=False)),
             action_type='event',
             action_status='completed',
@@ -256,7 +256,7 @@ class AgentRunner:
         response, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=request_kwargs,
             step=step,
-            phase=phase.name,
+            phase=phase,
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
@@ -289,7 +289,7 @@ class AgentRunner:
         response, usage, retry_entries = self._completion_with_retry(
             completion_kwargs=completion_kwargs,
             step=step,
-            phase=phase.name,
+            phase=phase,
             tool_name=phase.terminator_tool,
         )
         message = response.choices[0].message
