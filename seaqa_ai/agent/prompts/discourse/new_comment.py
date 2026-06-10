@@ -24,11 +24,23 @@ Treat the record field as background context only unless it is needed to interpr
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Treat the record field as background context only.
   </step>
-  <step n="2" tool="record_issue_analysis">
+  <step n="2">
+    Determine the role of the new comment author:
+    - asker: matches record.author and is asking about their own topic.
+    - staff_like: sounds like a maintainer/community staff member trying to resolve the topic.
+    - other_user: another community participant (follow-up, +1, speculation, or peer question).
+
+    Decision rule for no-op:
+    - If role is staff_like, set recommended_action to no_op in record_issue_analysis because no additional handling suggestion is needed.
+    - If role is asker or other_user, continue with a suggest_* recommendation based on evidence.
+    - If unsure between staff_like and other_user, choose other_user (do not skip).
+  </step>
+  <step n="3" tool="record_issue_analysis">
     Call record_issue_analysis to record your detailed analysis and recommended handling action.
     This call MUST happen after all searches and before any handling tool.
     Cite evidence with the exact labels returned by search tools (for example: &lt;reference_0&gt;, &lt;reference_1&gt;).
     Place citations immediately after the supported statement, and do not invent labels that were not returned by tools.
+    If no handling suggestion is needed, set recommended_action to no_op.
   </step>
 </steps>
 
@@ -75,22 +87,7 @@ In addition to the original input sections, this phase receives:
     - analysis_summary: the recorded analysis and recommended action
 </input_details>
 
-<skip_rule priority="important">
-Every comment author falls into exactly one of the three roles below. The input does NOT explicitly mark roles; so you MUST infer the role of the comment's author from the content and tone of that comment. The three roles are defined below:
-    - asker: the original poster (topic author). They opened the record with a question, problem, or request. Identify by matching the comment author against record.author.
-    - staff_like: A comment that reads like it comes from a community staff member or maintainer - i.e. it tries to resolve the asker's problem. Typical signals: explains how something works, gives instructions or a workaround, points to documentation / a related issue / a fix, confirms a bug and describes next steps, or otherwise speaks with authority about the project.                           
-    - other_user: A comment that reads like it comes from other community member rather than staff. Typical signals: asks a follow-up or clarifying question, reports "I have the same problem", speculates without authority, or just adds +1 / "any update?"
-
-Procedure:
-    - Classify that comment's author into exactly one role: asker, staff_like, or other_user using rules above. Base the descision on the comment's content/tone, NOT on author name alone.
-    - If role is staff_like: SKIP. Do NOT call suggest_reply or suggest_create_ticket; go directly to final_answer explaining why skipped.
-    - If role is asker or other_user: proceed normally.
-
-Bias rule:
-- If unsure between staff_like and other_user, choose other_user (do not skip). Missing a useful suggestion is worse than producing one that is not helpful. 
-</skip_rule>
-
-<handling_section label="only when not skipping">
+<handling_section label="only when analysis recommends suggest_* action">
 <steps>
   <step n="1">
     Choose exactly one handling action:
@@ -112,9 +109,8 @@ Bias rule:
   - Be concise and actionable.
   - When using suggest_reply for known/tracked cases, include supporting URLs from search results.
   - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
-  - If skip_rule does not apply, your handling opinion MUST directly answer the newly arrived comment in comment. Do NOT produce a generic summary of the whole topic. Treat the record field as background context only.
-  - When not skipped, prefer suggest_reply written as a direct reply to whoever raised the latest question; only call suggest_create_ticket if a new reply clearly raises an independent new problem not covered by the existing topic.
-  - When the skip rule applies, your final_answer MUST clearly state: who authored it, and why it looks like a community responder is already handling the question.
+  - Your handling opinion MUST directly answer the newly arrived comment in comment. Do NOT produce a generic summary of the whole topic. Treat the record field as background context only.
+  - Prefer suggest_reply written as a direct reply to whoever raised the latest question; only call suggest_create_ticket if a new reply clearly raises an independent new problem not covered by the existing topic.
 </rules>
 
 </handling_section>"""

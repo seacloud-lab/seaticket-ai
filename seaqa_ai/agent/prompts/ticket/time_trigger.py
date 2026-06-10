@@ -68,7 +68,7 @@ In addition to the original input sections, this phase receives:
 
 <handling_section>
 Act on analysis_summary.recommended_action:
-  - no_op: call final_answer immediately and explain why no notification is needed
+  - no_op: handling phase is skipped by the runner; no additional tool call is needed
   - suggest_notify_assignee: call suggest_notify_assignee with a concise reminder, then final_answer
 </handling_section>
 <rules>
