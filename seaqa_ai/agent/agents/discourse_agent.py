@@ -15,6 +15,7 @@ from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
+    MAX_COMMENTS,
     AgentSourceType,
 )
 import seaqa_ai.agent.prompts.discourse as discourse_prompts
@@ -71,7 +72,7 @@ class DiscourseAgent(ConnectionAgent):
             topic_author = first_post.get('author', 'N/A')
             topic_content = (first_post.get('content') or '').strip()[:MAX_CONTENT_CHARS]
             subsequent_comments = comments[1:]
-            recent_comments = [self._format_comment_entry(r) for r in subsequent_comments[-10:]]
+            recent_comments = [self._format_comment_entry(r) for r in subsequent_comments[-MAX_COMMENTS:]]
 
         return {
             'title': item.get('title', 'Untitled'),
@@ -132,10 +133,23 @@ class DiscourseAgent(ConnectionAgent):
         if not topic_id:
             return []
 
-        sql = (
+        first_post_sql = (
             f"SELECT `post_number`, `author`, `modified_time`, `content` "
             f"FROM `{self._replies_table}` "
             f"WHERE `topic_id` = {topic_id} "
-            f"ORDER BY `post_number` ASC"
+            f"ORDER BY `post_number` ASC LIMIT 1"
         )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        first_posts = self.seadb_api.query_rows(self.project_uuid, first_post_sql).get('results', [])
+        if not first_posts:
+            return []
+
+        recent_replies_sql = (
+            f"SELECT `post_number`, `author`, `modified_time`, `content` "
+            f"FROM `{self._replies_table}` "
+            f"WHERE `topic_id` = {topic_id} AND `post_number` > 1 "
+            f"ORDER BY `post_number` DESC LIMIT {MAX_COMMENTS}"
+        )
+        recent_replies = list(reversed(
+            self.seadb_api.query_rows(self.project_uuid, recent_replies_sql).get('results', [])
+        ))
+        return first_posts + recent_replies

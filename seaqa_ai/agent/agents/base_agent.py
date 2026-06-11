@@ -229,6 +229,25 @@ class BaseAgent:
             'record': record,
         }
 
+    def get_executed_actions(self, source_type: str, source_id: str,
+                             tool_name: str | None = None, limit: int = 10) -> list[dict]:
+        """Query executed actions for a source record ordered by newest first."""
+        conditions = [
+            f"`source_type` = '{source_type}'",
+            f"`source_id` = '{source_id}'",
+            "`status` = 'executed'",
+        ]
+        if tool_name:
+            conditions.append(f"`tool_name` = '{tool_name}'")
+
+        where = ' AND '.join(conditions)
+        sql = (
+            f"SELECT `result`, `executed_at`, `created_at` "
+            f"FROM `{SchemaTables.AGENT_ACTIONS.table_name()}` WHERE {where} "
+            f"ORDER BY `created_at` DESC LIMIT {max(1, int(limit))}"
+        )
+        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+
 
     # ── SeaDB run-record helpers ────────────────────────────────────
 

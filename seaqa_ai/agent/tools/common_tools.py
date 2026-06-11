@@ -76,10 +76,18 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                         'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'no_op'],
                         'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
                     },
+                    'relevant_reference_labels': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'string'
+                        },
+                        'description': 'The exact search-result labels that remain relevant to the final handling decision, for example ["<reference_0>", "<reference_3>"]. Use an empty array when no search result should be passed to handling.'
+                    },
                 },
                 'required': [
                     'summary',
-                    'recommended_action'
+                    'recommended_action',
+                    'relevant_reference_labels'
                 ]
             }
         }

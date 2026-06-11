@@ -28,6 +28,7 @@ Focus on analyzing the newly created topic itself, gathering evidence, and recor
     This call MUST happen after all searches and before any handling tool.
     Cite evidence with the exact labels returned by search tools (for example: &lt;reference_0&gt;, &lt;reference_1&gt;).
     Place citations immediately after the supported statement, and do not invent labels that were not returned by tools.
+    In relevant_reference_labels, include only the labels that are still relevant to the final handling decision. Use [] when no search result should be passed to handling.
   </step>
 </steps>
 
@@ -68,7 +69,7 @@ HANDLING_SYSTEM_PROMPT = """<role>You are an autonomous agent that processes inc
 <input_details>
 In addition to the original input sections, this phase receives:
     - event_summary: concise summary of input event
-    - search_results: evidence gathered from searches in the analysis phase (if any). Each entry with tool_name and content
+    - search_results: relevant sources selected during analysis (if any)
     - analysis_summary: recorded analysis including classification and recommendation
 </input_details>
 
