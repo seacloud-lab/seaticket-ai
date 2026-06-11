@@ -4,12 +4,16 @@
 
 FORCED_RECORD_ANALYSIS_PROMPT = (
     'Analysis loop reached max steps without calling the required analysis tool.\n'
-    'Now call it immediately with the best available evidence.\n'
-    'Fill all required fields. If some detail is uncertain, be explicit and use conservative defaults.'
+    'Now call it immediately using only the best available evidence from the input and prior search results.\n'
+    'Fill all required fields.\n'
+    'If evidence is insufficient, explicitly state what is uncertain instead of implying confidence.\n'
+    'Do not introduce claims that were not supported by the input or prior search results.\n'
+    'Use conservative defaults when needed.'
 )
 
 FORCED_FINAL_ANSWER_PROMPT = (
     'Handling loop reached max steps without calling final_answer.\n'
     'Now call final_answer immediately.\n'
-    'Provide a concise summary of what was done and any remaining uncertainty.'
+    'Summarize only what was actually done and any remaining uncertainty.\n'
+    'Do not introduce new claims that were not supported by the input or prior tool results.'
 )
