@@ -63,7 +63,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 },
                 'classified_issue_type': {
                     'type': 'string',
-                    'enum': ['Bug', 'Feature', 'Question'],
+                    'enum': ['Bug', 'Feature', 'Question', 'Spam'],
                     'description': 'Optional agent-classified issue type based on title/content. Include it when the scenario requires issue classification.'
                 },
                 'original_issue_type': {
@@ -72,7 +72,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 },
                 'recommended_action': {
                     'type': 'string',
-                    'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'no_op'],
+                    'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'suggest_move_to_spam', 'no_op'],
                     'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
                 },
                 'relevant_reference_labels': {
