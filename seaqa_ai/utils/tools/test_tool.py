@@ -19,7 +19,7 @@ class TestTool(BasicTool):
             },
             'required': []
         },
-        'strict': False,
+        'strict': True,
     }
 
     def execute(self, paramters=None, error=None):

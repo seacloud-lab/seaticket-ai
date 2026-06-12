@@ -40,7 +40,7 @@ Seafile docker based installation consist of the following components (docker im
             },
             'required': ['file_name', 'content']
         },
-        'strict': False,
+        'strict': True,
     }
 
     def execute(self, file_name, content):
@@ -89,7 +89,7 @@ LDAP_SERVER_URL = 'ldap://your-server'
             },
             'required': ['title', 'content']
         },
-        'strict': False,
+        'strict': True,
     }
 
     def execute(self, title, content, context):

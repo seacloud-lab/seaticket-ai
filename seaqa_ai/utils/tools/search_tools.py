@@ -85,7 +85,7 @@ class DocumentsSearch(BasicSearchTool):
             },
             'required': ['query']
         },
-        'strict': False,
+        'strict': True,
     }
 
     def execute(self, query, context, app, tool_executor, call_back):
@@ -115,7 +115,7 @@ class IssuesSearch(BasicSearchTool):
             },
             'required': ['query']
         },
-        'strict': False,
+        'strict': True,
     }
 
     def execute(self, query, context, app, tool_executor, call_back):

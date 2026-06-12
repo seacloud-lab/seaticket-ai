@@ -81,7 +81,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 'recommended_action'
             ]
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'analysis'
@@ -142,7 +142,7 @@ class SuggestReplyTool(BaseAgentTool):
             },
             'required': ['reply']
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -188,7 +188,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
             },
             'required': ['reason']
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -230,7 +230,7 @@ class FinalAnswerTool(BasicTool):
                 }
             }
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'summary'

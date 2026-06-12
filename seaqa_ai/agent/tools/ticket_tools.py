@@ -39,7 +39,7 @@ class RecordTicketAnalysisTool(BaseAgentTool):
             },
             'required': ['analysis', 'recommended_action']
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'analysis'
@@ -77,7 +77,7 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
             },
             'required': ['message']
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'suggestion'

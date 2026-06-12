@@ -15,11 +15,11 @@ import json
 import logging
 import time
 from seaqa_ai import config
-from seaqa_ai.utils.llm_api import ResponsesAPI, ResponsesResult
+from seaqa_ai.utils.llm_api import CompletionAPI, ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
-from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources
+from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,8 @@ class AgentRunner:
     def __init__(
         self,
         tool_executor: OpenAIToolExecutor,
-        llm_client: ResponsesAPI,
+        completion_client: CompletionAPI,
+        responses_client: ResponsesAPI,
         record_context: dict,
         ai_stats_context: dict | None = None,
         action_recorder=None,
@@ -57,7 +58,8 @@ class AgentRunner:
         """
         Args:
             tool_executor: OpenAIToolExecutor with all tools already registered.
-            llm_client: ResponsesAPI client used for LLM calls.
+            completion_client: CompletionAPI client used for AskPhase calls.
+            responses_client: ResponsesAPI client used for ReactPhase calls.
             record_context: dict with keys source_type, source_id, source_title.
             ai_stats_context: dict with keys used for AI usage statistics logging
                             (e.g. org_id, project_uuid).
@@ -71,7 +73,8 @@ class AgentRunner:
             handling_phase: ReactPhase for the handling phase.
         """
         self.tool_executor = tool_executor
-        self.llm_client = llm_client
+        self.completion_client = completion_client
+        self.responses_client = responses_client
         self.record_context = record_context
         self.ai_stats_context = ai_stats_context or {}
         self.action_recorder = action_recorder
@@ -150,8 +153,8 @@ class AgentRunner:
 
     def _run_ask(self, phase: AskPhase) -> None:
         step_start = time.monotonic()
-        result, usage = self._request_llm_message_for_phase(phase, step=0)
-        raw_content = (result.content or '').strip()
+        content, usage = self._request_ask_phase_llm_result(phase, step=0)
+        raw_content = (content or '').strip()
         parsed = parse_json(raw_content)
         phase.output = parsed if isinstance(parsed, dict) else {}
 
@@ -171,7 +174,7 @@ class AgentRunner:
         """Run a single reasoning phase until the terminator tool is called or max steps reached."""
         for step in range(phase.max_steps):
             step_start = time.monotonic()
-            result, usage = self._request_llm_message_for_phase(phase, step)
+            result, usage = self._request_react_phase_llm_result(phase, step)
 
             tool_call = self._validate_single_tool_call(result.tool_calls, step)
             phase.memory += self._build_assistant_items(result, tool_call=tool_call)
@@ -238,12 +241,12 @@ class AgentRunner:
                 return self._parse_tool_arguments(msg.get('arguments'))
         return {}
 
-    def _request_llm_message_for_phase(
+    def _request_ask_phase_llm_result(
         self,
-        phase: Phase,
+        phase: AskPhase,
         step: int,
-    ) -> tuple[ResponsesResult, dict]:
-        """Request an LLM turn with phase-specific tools."""
+    ) -> tuple[str, dict]:
+        """Request the single-turn AskPhase result through Chat Completions."""
         messages = list(phase.memory)
         total_chars = 0
         for i, m in enumerate(messages):
@@ -252,27 +255,48 @@ class AgentRunner:
             total_chars += content_len
         logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
 
-        request_kwargs = {
+        completion_kwargs = {
+            'messages': messages,
+            'context': self.ai_stats_context,
+        }
+        if phase.schema:
+            completion_kwargs['response_format'] = gen_completion_format(phase.schema)
+
+        content, usage, retry_entries = self._ask_completion_with_retry(
+            completion_kwargs=completion_kwargs,
+            step=step,
+            phase=phase,
+        )
+        if retry_entries:
+            usage = self._merge_retry_entries_into_usage(usage, retry_entries)
+        return content, usage
+
+    def _request_react_phase_llm_result(
+        self,
+        phase: ReactPhase,
+        step: int,
+    ) -> tuple[ResponsesResult, dict]:
+        """Request one ReAct LLM step through Responses."""
+        messages = list(phase.memory)
+        total_chars = 0
+        for i, m in enumerate(messages):
+            content_len = len(str(m.get('content') or ''))
+            logger.debug('[AgentRunner] step=%d msg[%d] role=%s content_chars=%d', step, i, m.get('role'), content_len)
+            total_chars += content_len
+        logger.debug('[AgentRunner] step=%d len(messages)=%d total_chars=%d (~%d tokens)', step, len(messages), total_chars, total_chars // 4)
+
+        responses_kwargs = {
             'input': messages,
             'context': self.ai_stats_context,
         }
-        if isinstance(phase, ReactPhase) and phase.tools:
-            request_kwargs.update({
+        if phase.tools:
+            responses_kwargs.update({
                 'tools': phase.tools,
                 'tool_choice': 'auto',
             })
-        elif isinstance(phase, AskPhase) and phase.schema:
-            request_kwargs['text'] = {
-                'format': {
-                    'type': 'json_schema',
-                    'name': f'{phase.name}_result',
-                    'strict': True,
-                    'schema': phase.schema,
-                }
-            }
 
-        result, usage, retry_entries = self._responses_with_retry(
-            responses_kwargs=request_kwargs,
+        result, usage, retry_entries = self._react_responses_with_retry(
+            responses_kwargs=responses_kwargs,
             step=step,
             phase=phase,
         )
@@ -302,7 +326,7 @@ class AgentRunner:
             },
         }
         step_start = time.monotonic()
-        result, usage, retry_entries = self._responses_with_retry(
+        result, usage, retry_entries = self._react_responses_with_retry(
             responses_kwargs=responses_kwargs,
             step=step,
             phase=phase,
@@ -333,11 +357,70 @@ class AgentRunner:
         self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
         return arguments
 
-    def _responses_with_retry(
+    def _ask_completion_with_retry(
+        self,
+        completion_kwargs: dict,
+        step: int,
+        phase: AskPhase,
+    ) -> tuple[str, dict, list[dict]]:
+        retry_entries = []
+        last_error = None
+        last_usage = {}
+
+        for current_retry in range(config.COMPLETION_MAX_RETRIES + 1):
+            llm_start = time.monotonic()
+            response = None
+            try:
+                response = self.completion_client.completion(**completion_kwargs)
+                content = response.choices[0].message.content or ''
+                last_usage = self._extract_usage(response)
+                if phase.schema:
+                    schema_output = parse_json(content)
+                    required_fields = phase.schema.get('required') or []
+                    if not isinstance(schema_output, dict) or not all(
+                        required_field in schema_output
+                        for required_field in required_fields
+                    ):
+                        raise ValueError('Invalid AI response: invalid format or missing required fields')
+                return content, last_usage, retry_entries
+            except Exception as e:
+                last_error = e
+                duration_ms = int((time.monotonic() - llm_start) * 1000)
+                logger.exception(
+                    'LLM completion call failed at %s step %s retry %s/%s: %s',
+                    phase.name,
+                    step,
+                    current_retry,
+                    config.COMPLETION_MAX_RETRIES,
+                    e,
+                )
+                retry_entries.append({
+                    'retry': current_retry,
+                    'error': repr(e),
+                    'duration_ms': duration_ms,
+                    'token_usage': self._extract_usage(response),
+                })
+                if current_retry < config.COMPLETION_MAX_RETRIES:
+                    time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                    continue
+
+        usage_with_retries = self._merge_retry_entries_into_usage(last_usage, retry_entries)
+        self._record_action(
+            phase=phase,
+            result=str(last_error) if last_error else 'LLM completion call failed after retries.',
+            action_type='error',
+            action_status='failed',
+            record_phase_context=True,
+            step=step,
+            statistics=self._build_statistics(None, usage_with_retries),
+        )
+        raise AgentRetryExceededError(str(last_error) if last_error else 'LLM completion call failed after retries.')
+
+    def _react_responses_with_retry(
         self,
         responses_kwargs: dict,
         step: int,
-        phase: Phase,
+        phase: ReactPhase,
         tool_name: str | None = None,
     ) -> tuple[ResponsesResult, dict, list[dict]]:
         retry_entries = []
@@ -348,16 +431,8 @@ class AgentRunner:
             llm_start = time.monotonic()
             result = None
             try:
-                result = self.llm_client.responses(**responses_kwargs)
+                result = self.responses_client.responses(**responses_kwargs)
                 last_usage = result.usage
-                if isinstance(phase, AskPhase) and phase.schema:
-                    schema_output = parse_json(result.content)
-                    required_fields = phase.schema.get('required') or []
-                    if not isinstance(schema_output, dict) or not all(
-                        required_field in schema_output
-                        for required_field in required_fields
-                    ):
-                        raise ValueError('Invalid AI response: invalid format or missing required fields')
                 return result, last_usage, retry_entries
             except Exception as e:
                 last_error = e
@@ -392,6 +467,18 @@ class AgentRunner:
             statistics=self._build_statistics(None, usage_with_retries),
         )
         raise AgentRetryExceededError(str(last_error) if last_error else 'LLM responses call failed after retries.')
+
+    @staticmethod
+    def _extract_usage(response) -> dict:
+        try:
+            usage = response.usage
+            return {
+                'input_tokens': usage.prompt_tokens,
+                'output_tokens': usage.completion_tokens,
+                'total_tokens': usage.total_tokens,
+            }
+        except AttributeError:
+            return {}
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments) -> dict:

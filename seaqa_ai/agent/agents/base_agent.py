@@ -36,7 +36,7 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import Project, Workspace
 from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
-from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
+from seaqa_ai.utils.llm_api import get_llm_client_by_model_id, get_responses_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
 from seaqa_ai.agent.utils.phase import AskPhase, ReactPhase
@@ -356,7 +356,9 @@ class BaseAgent:
         task_dict = self.build_user_message_dict(item, item_context)
 
         tool_executor, tool_metadata = self._create_tool_executor(record_context)
-        llm_client = get_responses_client_by_model_id(self.app.data_logger, self.agent_settings.get('model'))
+        model_id = self.agent_settings.get('model')
+        completion_client = get_llm_client_by_model_id(self.app.data_logger, model_id)
+        responses_client = get_responses_client_by_model_id(self.app.data_logger, model_id)
 
         analysis_phase = self.get_analysis_phase()
         handling_phase = self.get_handling_phase()
@@ -377,7 +379,8 @@ class BaseAgent:
 
         agent_runner = AgentRunner(
             tool_executor=tool_executor,
-            llm_client=llm_client,
+            completion_client=completion_client,
+            responses_client=responses_client,
             record_context=record_context,
             ai_stats_context=self._build_ai_stats_context(),
             action_recorder=AgentActionRecorder(self.project_uuid, self.seadb_api),

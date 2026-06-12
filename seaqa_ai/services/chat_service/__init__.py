@@ -11,7 +11,7 @@ from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
-from seaqa_ai.utils.completion import BasicCompletionUtils, StreamingCompletionUtils
+from seaqa_ai.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
@@ -130,7 +130,7 @@ class SyncChat(BasicChat):
                 time_begin = time.time()
                 response_token_usage = {}
                 try:
-                    completion_kwargs, has_inserter_max_step_prompt = BasicCompletionUtils.build_completion_kwargs(
+                    completion_kwargs, has_inserter_max_step_prompt = BasicChatUtils.build_completion_kwargs(
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
 
@@ -141,7 +141,7 @@ class SyncChat(BasicChat):
                     llm_message = result
                     if llm_message.tool_calls and current_step >= config.MAX_STEPS:
                         time_usage = time.time() - time_begin
-                        completion_retries.append(BasicCompletionUtils.build_completion_retry_entry(
+                        completion_retries.append(BasicChatUtils.build_completion_retry_entry(
                             current_step,
                             current_retry,
                             'tool_calls_at_max_steps',
@@ -170,7 +170,7 @@ class SyncChat(BasicChat):
                     raise
                 except Exception as e:
                     time_usage = time.time() - time_begin
-                    completion_retries.append(BasicCompletionUtils.build_completion_retry_entry(
+                    completion_retries.append(BasicChatUtils.build_completion_retry_entry(
                         current_step,
                         current_retry,
                         'completion_error',
@@ -194,7 +194,7 @@ class SyncChat(BasicChat):
                 if completion_retries:
                     tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
                 for tool_call in llm_message.tool_calls:
-                    BasicCompletionUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+                    BasicChatUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
                 tool_executor.thought_process.update_last_group_tokens_usage(result.usage)
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
@@ -262,13 +262,13 @@ class StreamingChat(BasicChat):
                 time_begin = time.time()
                 token_usage = {}
                 try:
-                    completion_kwargs, has_inserter_max_step_prompt = StreamingCompletionUtils.build_completion_kwargs(
+                    completion_kwargs, has_inserter_max_step_prompt = StreamingChatUtils.build_completion_kwargs(
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
                     response_stream = llm_client.responses_stream(**completion_kwargs)
                 except Exception as e:
                     time_usage = time.time() - time_begin
-                    completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
+                    completion_retries.append(StreamingChatUtils.build_completion_retry_entry(
                         current_step,
                         current_retry,
                         'completion_error',
@@ -317,7 +317,7 @@ class StreamingChat(BasicChat):
                     if tool_calls or content:
                         raise AssertionError('Cannot deal with invalid response')
                     time_usage = time.time() - time_begin
-                    completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
+                    completion_retries.append(StreamingChatUtils.build_completion_retry_entry(
                         current_step,
                         current_retry,
                         'completion_error',
@@ -337,7 +337,7 @@ class StreamingChat(BasicChat):
                 if not tool_calls and not content:
                     time_usage = time.time() - time_begin
                     completion_retries.append({
-                        **StreamingCompletionUtils.build_completion_retry_entry(
+                        **StreamingChatUtils.build_completion_retry_entry(
                             current_step,
                             current_retry,
                             'empty_visible_output',
@@ -378,7 +378,7 @@ class StreamingChat(BasicChat):
                 if tool_calls:
                     if current_step >= config.MAX_STEPS:
                         time_usage = time.time() - time_begin
-                        completion_retries.append(StreamingCompletionUtils.build_completion_retry_entry(
+                        completion_retries.append(StreamingChatUtils.build_completion_retry_entry(
                             current_step,
                             current_retry,
                             'tool_calls_at_max_steps',
@@ -417,7 +417,7 @@ class StreamingChat(BasicChat):
                         tool_name = tool_call.get('name', '')
                         if tool_name in SEARCH_TOOL_NAMES:
                             has_search_tool = True
-                        yield from StreamingCompletionUtils.execute_tool_with_retry(
+                        yield from StreamingChatUtils.execute_tool_with_retry(
                             tool_executor,
                             tool_call,
                             ChatCallBacker,

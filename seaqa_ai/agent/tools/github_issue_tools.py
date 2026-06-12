@@ -52,7 +52,7 @@ class SuggestModifyTypeTool(BaseAgentTool):
             },
             'required': ['current_issue_type', 'suggested_type', 'reason']
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -117,7 +117,7 @@ class SuggestAssignLabelsTool(BaseAgentTool):
             },
             'required': ['suggested_labels', 'reason'],
         },
-        'strict': False,
+        'strict': True,
     }
 
     action_type = 'suggestion'
