@@ -11,7 +11,7 @@ from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
-from seaqa_ai.utils.chat_utils import BasicChatUtils, StreamingChatUtils
+from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
