@@ -1,10 +1,10 @@
 import logging
-import json
 import time
 from seaqa_ai import config
 from seaqa_ai.utils import parse_json
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import filter_tool_calls_content
+from seaqa_ai.services.chat_service.tools.chat_pseudo_tool import ChatPseudoTool
 logger = logging.getLogger(__name__)
 
 
@@ -52,13 +52,14 @@ class BasicChatUtils:
         call_backer = call_backer_factory()
         for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
             try:
-                tool_output = tool_executor.execute(tool_call, call_backer)
+                raw_output = tool_executor.execute(tool_call, call_backer)
+                tool_output = ChatPseudoTool.enrich_tool_output(tool_name, raw_output, tool_executor)
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, raw_output))
                 memory += {
                     'type': 'function_call_output',
                     'call_id': tool_call.get('call_id', ''),
-                    'output': json.dumps(tool_output)
+                    'output': tool_output
                 }
                 return
             except Exception as e:
@@ -100,13 +101,14 @@ class StreamingChatUtils(BasicChatUtils):
                 detail += f', retring {current_retry + 1}'
             yield SSE.status('Calling tools', detail)
             try:
-                tool_output = tool_executor.execute(tool_call, call_backer)
+                raw_output = tool_executor.execute(tool_call, call_backer)
+                tool_output = ChatPseudoTool.enrich_tool_output(tool_name, raw_output, tool_executor)
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, raw_output))
                 memory += {
                     'type': 'function_call_output',
                     'call_id': tool_call.get('call_id', ''),
-                    'output': json.dumps(tool_output)
+                    'output': tool_output
                 }
                 return
             except Exception as e:

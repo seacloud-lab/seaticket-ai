@@ -15,6 +15,7 @@ from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, Stre
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
+from seaqa_ai.services.chat_service.tools.chat_pseudo_tool import ChatPseudoTool
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
@@ -161,6 +162,7 @@ class SyncChat(BasicChat):
                             json.dumps(llm_message.tool_calls, ensure_ascii=True, default=str)
                         )
                         if current_retry < config.COMPLETION_MAX_RETRIES:
+                            ChatPseudoTool.inject_max_step_retry_message(memory)
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
                         tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
@@ -401,6 +403,7 @@ class StreamingChat(BasicChat):
                         if current_retry < config.COMPLETION_MAX_RETRIES:
                             current_retry += 1
                             current_step -= 1
+                            ChatPseudoTool.inject_max_step_retry_message(memory)
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
                         tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)

@@ -1,4 +1,5 @@
 import logging
+from seaqa_ai import config
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ExtraSourceType
 
@@ -30,8 +31,8 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
 """
 
 class BasicSearchTool(BasicTool):
-    MAX_SOURCES_COUNT = 10
-    SINGLE_TOOL_MAX_SOURCES_COUNT = 5
+    MAX_SOURCES_COUNT = config.MAX_SEARCH_SOURCES_COUNT
+    SINGLE_TOOL_MAX_SOURCES_COUNT = config.MAX_SINGLE_TOOL_SOURCES_COUNT
 
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
