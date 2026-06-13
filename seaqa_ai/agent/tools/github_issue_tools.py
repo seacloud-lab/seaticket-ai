@@ -24,36 +24,35 @@ class SuggestModifyTypeTool(BaseAgentTool):
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'suggest_modify_type',
-            'description': (
-                'Suggest that the user update how this issue is categorized '
-                '(Bug, Feature, or Question). '
-                'Only call this when you can clearly explain why the current type is less suitable.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'current_issue_type': {
-                        'type': 'string',
-                        'description': 'The current issue_type label from input.'
-                    },
-                    'suggested_type': {
-                        'type': 'string',
-                        'enum': ['Bug', 'Feature', 'Question'],
-                        'description': 'Your suggested user-facing type for this issue.'
-                    },
-                    'reason': {
-                        'type': 'string',
-                        'description': (
-                            'Explain why the current issue type is less appropriate and '
-                            'why the suggested type is a better fit. Additionally, you should clearly specify the suggested type.'
-                        )
-                    }
+        'name': 'suggest_modify_type',
+        'description': (
+            'Suggest that the user update how this issue is categorized '
+            '(Bug, Feature, or Question). '
+            'Only call this when you can clearly explain why the current type is less suitable.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'current_issue_type': {
+                    'type': 'string',
+                    'description': 'The current issue_type label from input.'
                 },
-                'required': ['current_issue_type', 'suggested_type', 'reason']
-            }
-        }
+                'suggested_type': {
+                    'type': 'string',
+                    'enum': ['Bug', 'Feature', 'Question'],
+                    'description': 'Your suggested user-facing type for this issue.'
+                },
+                'reason': {
+                    'type': 'string',
+                    'description': (
+                        'Explain why the current issue type is less appropriate and '
+                        'why the suggested type is a better fit. Additionally, you should clearly specify the suggested type.'
+                    )
+                }
+            },
+            'required': ['current_issue_type', 'suggested_type', 'reason']
+        },
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -93,33 +92,32 @@ class SuggestAssignLabelsTool(BaseAgentTool):
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'suggest_assign_labels',
-            'description': (
-                'Suggest labels for this GitHub issue. '
-                'Only choose from available_labels in input and avoid inventing labels.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'current_labels': {
-                        'type': 'array',
-                        'items': {'type': 'string'},
-                        'description': 'Current labels on the GitHub issue.',
-                    },
-                    'suggested_labels': {
-                        'type': 'array',
-                        'items': {'type': 'string'},
-                        'description': 'Suggested labels picked from available_labels.',
-                    },
-                    'reason': {
-                        'type': 'string',
-                        'description': 'Explain why these labels are suitable for this issue.',
-                    },
+        'name': 'suggest_assign_labels',
+        'description': (
+            'Suggest labels for this GitHub issue. '
+            'Only choose from available_labels in input and avoid inventing labels.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'current_labels': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Current labels on the GitHub issue.',
                 },
-                'required': ['suggested_labels', 'reason'],
+                'suggested_labels': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Suggested labels picked from available_labels.',
+                },
+                'reason': {
+                    'type': 'string',
+                    'description': 'Explain why these labels are suitable for this issue.',
+                },
             },
+            'required': ['suggested_labels', 'reason'],
         },
+        'strict': True,
     }
 
     action_type = 'suggestion'

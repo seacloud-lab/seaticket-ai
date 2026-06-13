@@ -71,6 +71,16 @@ def build_system_prompt(base_prompt: str, project_prompt: str = '') -> str:
 
     return f"{project_block}\n{base_prompt}"
 
+def gen_completion_format(schema, name='result_parser'):
+    return {
+        'type': 'json_schema',
+        'json_schema': {
+            'name': name,
+            'strict': True,
+            'schema': schema
+        }
+    }
+
 def parse_datetime(dt_str):
     if not dt_str:
         return None

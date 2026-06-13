@@ -50,7 +50,7 @@ class ConnectionAgent(BaseAgent):
         return tools
 
     def get_tool_registration_kwargs(self, tool_instance, record_context: dict) -> dict:
-        tool_name = tool_instance.tool.get('function', {}).get('name', '')
+        tool_name = tool_instance.tool.get('name', '')
         if tool_name not in SEARCH_TOOL_NAMES:
             return {}
         return {

@@ -48,41 +48,40 @@ class RecordIssueAnalysisTool(BaseAgentTool):
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'record_issue_analysis',
-            'description': (
-                'Record your structured source record analysis after search and before handling tools. '
-                'Include evidence gathered by searches, the recommended next action, '
-                'and classification when the current scenario requires it.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'summary': {
-                        'type': 'string',
-                        'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Cite search evidence with returned labels like <reference_0> whenever applicable. For multiple citations, place labels directly next to each other, like <reference_0><reference_1>; do not combine them inside one tag. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
-                    },
-                    'classified_issue_type': {
-                        'type': 'string',
-                        'enum': ['Bug', 'Feature', 'Question'],
-                        'description': 'Optional agent-classified issue type based on title/content. Include it when the scenario requires issue classification.'
-                    },
-                    'original_issue_type': {
-                        'type': 'string',
-                        'description': 'The original issue_type value from input, used as a candidate label.'
-                    },
-                    'recommended_action': {
-                        'type': 'string',
-                        'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'no_op'],
-                        'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
-                    },
+        'name': 'record_issue_analysis',
+        'description': (
+            'Record your structured source record analysis after search and before handling tools. '
+            'Include evidence gathered by searches, the recommended next action, '
+            'and classification when the current scenario requires it.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'summary': {
+                    'type': 'string',
+                    'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Cite search evidence with returned labels like <reference_0> whenever applicable. For multiple citations, place labels directly next to each other, like <reference_0><reference_1>; do not combine them inside one tag. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
                 },
-                'required': [
-                    'summary',
-                    'recommended_action'
-                ]
-            }
-        }
+                'classified_issue_type': {
+                    'type': 'string',
+                    'enum': ['Bug', 'Feature', 'Question'],
+                    'description': 'Optional agent-classified issue type based on title/content. Include it when the scenario requires issue classification.'
+                },
+                'original_issue_type': {
+                    'type': 'string',
+                    'description': 'The original issue_type value from input, used as a candidate label.'
+                },
+                'recommended_action': {
+                    'type': 'string',
+                    'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'no_op'],
+                    'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
+                },
+            },
+            'required': [
+                'summary',
+                'recommended_action'
+            ]
+        },
+        'strict': True,
     }
 
     action_type = 'analysis'
@@ -117,34 +116,33 @@ class SuggestReplyTool(BaseAgentTool):
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'suggest_reply',
-            'description': (
-                'Suggest a reply for a source record that can be answered by search evidence '
-                '(known issue, tracked request, or direct support answer). '
-                'Include supporting URLs from relevant records whenever available. '
-                'The suggestion requires user confirmation before being acted upon.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'reply': {
-                        'type': 'string',
-                        'description': (
-                            'The proposed reply or answer to the issue. '
-                            'Write it as if it were a helpful reply to the issue author. '
-                            'For known/tracked cases, include URLs to the supporting records '
-                            '(GitHub issue, forum topic, email thread, ticket, or docs).'
-                        )
-                    },
-                    'reasoning': {
-                        'type': 'string',
-                        'description': 'Brief explanation of why this issue is considered a known problem.'
-                    }
+        'name': 'suggest_reply',
+        'description': (
+            'Suggest a reply for a source record that can be answered by search evidence '
+            '(known issue, tracked request, or direct support answer). '
+            'Include supporting URLs from relevant records whenever available. '
+            'The suggestion requires user confirmation before being acted upon.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'reply': {
+                    'type': 'string',
+                    'description': (
+                        'The proposed reply or answer to the issue. '
+                        'Write it as if it were a helpful reply to the issue author. '
+                        'For known/tracked cases, include URLs to the supporting records '
+                        '(GitHub issue, forum topic, email thread, ticket, or docs).'
+                    )
                 },
-                'required': ['reply']
-            }
-        }
+                'reasoning': {
+                    'type': 'string',
+                    'description': 'Brief explanation of why this issue is considered a known problem.'
+                }
+            },
+            'required': ['reply']
+        },
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -174,24 +172,23 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'suggest_create_ticket',
-            'description': (
-                'Suggest creating an internal ticket from this source record. '
-                'Call this when search evidence is insufficient to resolve directly and the issue should be tracked. '
-                'The ticket creation requires user confirmation.'
-            ),
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'reason': {
-                        'type': 'string',
-                        'description': 'Explain why this record should become an internal ticket.'
-                    }
-                },
-                'required': ['reason']
-            }
-        }
+        'name': 'suggest_create_ticket',
+        'description': (
+            'Suggest creating an internal ticket from this source record. '
+            'Call this when search evidence is insufficient to resolve directly and the issue should be tracked. '
+            'The ticket creation requires user confirmation.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'reason': {
+                    'type': 'string',
+                    'description': 'Explain why this record should become an internal ticket.'
+                }
+            },
+            'required': ['reason']
+        },
+        'strict': True,
     }
 
     action_type = 'suggestion'
@@ -216,24 +213,24 @@ class SuggestCreateTicketTool(BaseAgentTool):
             f'Reason: {preview}'
         )
 
+
 class FinalAnswerTool(BasicTool):
     """Signals the end of the agent reasoning loop with a brief summary."""
 
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'final_answer',
-            'description': 'Provide the final answer/summary when you have completed all tasks.',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'summary': {
-                        'type': 'string',
-                        'description': 'A brief summary of what was done.'
-                    }
+        'name': 'final_answer',
+        'description': 'Provide the final answer/summary when you have completed all tasks.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'summary': {
+                    'type': 'string',
+                    'description': 'A brief summary of what was done.'
                 }
             }
-        }
+        },
+        'strict': True,
     }
 
     action_type = 'summary'
