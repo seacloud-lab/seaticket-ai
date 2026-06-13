@@ -162,7 +162,7 @@ class SyncChat(BasicChat):
                             json.dumps(llm_message.tool_calls, ensure_ascii=True, default=str)
                         )
                         if current_retry < config.COMPLETION_MAX_RETRIES:
-                            ChatPseudoTool.inject_max_step_retry_message(memory)
+                            ChatPseudoTool.inject_max_step_pseudo_outputs(llm_message.tool_calls, memory)
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
                         tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, response_token_usage, time_usage, retry=completion_retries)
@@ -403,7 +403,7 @@ class StreamingChat(BasicChat):
                         if current_retry < config.COMPLETION_MAX_RETRIES:
                             current_retry += 1
                             current_step -= 1
-                            ChatPseudoTool.inject_max_step_retry_message(memory)
+                            ChatPseudoTool.inject_max_step_pseudo_outputs(tool_calls, memory)
                             time.sleep(config.COMPLETION_RETRY_INTERVAL)
                             continue
                         tool_executor.thought_process.set_final_answer('', current_step >= config.MAX_STEPS, token_usage, time_usage, retry=completion_retries)

@@ -54,3 +54,7 @@ class BasicPseudoTool:
             return cls.EMPTY_SEARCH_MESSAGE
 
         return cls._serialize(output)
+
+    @classmethod
+    def inject_max_step_pseudo_outputs(cls, *args, **kwargs) -> None:
+        raise NotImplementedError

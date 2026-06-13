@@ -178,10 +178,6 @@ class AgentRunner:
             tool_call = self._validate_single_tool_call(result.tool_calls, step)
             phase.memory += self._build_assistant_items(result, tool_call=tool_call)
 
-            if not tool_call:
-                logger.warning(f'{phase.name} step {step} returned no tool call.')
-                continue
-
             tool_name = tool_call['name']
             logger.debug(f'Processing tool call {tool_name} at step {step}')
             self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
@@ -353,28 +349,13 @@ class AgentRunner:
             responses_kwargs=responses_kwargs,
             step=step,
             phase=phase,
-            tool_name=phase.terminator_tool,
+            terminator_tool=phase.terminator_tool,
         )
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
 
-        tool_call = self._validate_single_tool_call(result.tool_calls, step)
+        tool_call = result.tool_calls[0]
         phase.memory += self._build_assistant_items(result, tool_call=tool_call)
-
-        if not tool_call:
-            logger.warning(f'Forced {phase.terminator_tool} step {step} returned no tool call.')
-            error_message = 'Forced tool call did not produce a tool call.'
-            self._record_action(
-                phase=phase,
-                result=error_message,
-                action_type='error',
-                action_status='failed',
-                record_phase_context=True,
-                step=step,
-                tool_name=phase.terminator_tool,
-                statistics=self._build_statistics(step_start, usage),
-            )
-            raise AgentRetryExceededError(error_message)
 
         arguments = self._parse_tool_arguments(tool_call.get('arguments'))
         self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
@@ -444,7 +425,7 @@ class AgentRunner:
         responses_kwargs: dict,
         step: int,
         phase: ReactPhase,
-        tool_name: str | None = None,
+        terminator_tool: str | None = None,
     ) -> tuple[ResponsesResult, dict, list[dict]]:
         retry_entries = []
         last_error = None
@@ -456,6 +437,58 @@ class AgentRunner:
             try:
                 result = self.responses_client.responses(**responses_kwargs)
                 last_usage = result.usage
+
+                tool_call = self._validate_single_tool_call(result.tool_calls, step)
+
+                if not tool_call:
+                    duration_ms = int((time.monotonic() - llm_start) * 1000)
+                    logger.warning(
+                        'LLM responses returned no tool call at %s step %s retry %s/%s',
+                        phase.name,
+                        step,
+                        current_retry,
+                        config.COMPLETION_MAX_RETRIES,
+                    )
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        retry_entries.append({
+                            'retry': current_retry,
+                            'error': 'LLM returned no tool call',
+                            'duration_ms': duration_ms,
+                            'token_usage': last_usage,
+                        })
+                        phase.memory += self._build_assistant_items(result)
+                        phase.memory += {'role': 'user', 'content': 'You must call a tool. Do not respond with text only.'}
+                        responses_kwargs['input'] = list(phase.memory)
+                        time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                        continue
+                    raise Exception('LLM returned no tool call after retries.')
+
+                if terminator_tool and tool_call.get('name') != terminator_tool:
+                    actual = tool_call.get('name')
+                    duration_ms = int((time.monotonic() - llm_start) * 1000)
+                    logger.warning(
+                        'LLM responses returned unexpected tool_call at %s step %s retry %s/%s: expected %r, got %r',
+                        phase.name,
+                        step,
+                        current_retry,
+                        config.COMPLETION_MAX_RETRIES,
+                        terminator_tool,
+                        actual,
+                    )
+                    if current_retry < config.COMPLETION_MAX_RETRIES:
+                        retry_entries.append({
+                            'retry': current_retry,
+                            'error': f'Unexpected tool_call: expected {terminator_tool!r}, got {actual!r}',
+                            'duration_ms': duration_ms,
+                            'token_usage': last_usage,
+                        })
+                        phase.memory += self._build_assistant_items(result, tool_call=tool_call)
+                        AgentPseudoTool.inject_max_step_pseudo_outputs(phase.memory, terminator_tool)
+                        responses_kwargs['input'] = list(phase.memory)
+                        time.sleep(config.COMPLETION_RETRY_INTERVAL)
+                        continue
+                    raise Exception(f'Unexpected tool_call: expected {terminator_tool!r}, got {actual!r}')
+
                 return result, last_usage, retry_entries
             except Exception as e:
                 last_error = e
@@ -486,7 +519,7 @@ class AgentRunner:
             action_status='failed',
             record_phase_context=True,
             step=step,
-            tool_name=tool_name,
+            tool_name=terminator_tool,
             statistics=self._build_statistics(None, usage_with_retries),
         )
         raise AgentRetryExceededError(str(last_error) if last_error else 'LLM responses call failed after retries.')

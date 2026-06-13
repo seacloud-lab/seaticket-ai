@@ -13,12 +13,18 @@ class ChatPseudoTool(BasicPseudoTool):
         'or provide your final answer based on the information already collected.'
     )
 
-    MAX_STEP_RETRY_MESSAGE = (
-        'You returned tool calls despite tool access being disabled '
-        'at the maximum step. You must now provide a final text-only '
-        'answer based on available information. DO NOT return any tool calls.'
+    MAX_STEP_PSEUDO_OUTPUT = (
+        'Tool calls are not allowed at this step. '
+        'You must now provide a final text answer based on '
+        'available information. DO NOT return any tool calls.'
     )
 
     @classmethod
-    def inject_max_step_retry_message(cls, memory: list) -> None:
-        memory.append({'role': 'system', 'content': cls.MAX_STEP_RETRY_MESSAGE})
+    def inject_max_step_pseudo_outputs(cls, tool_calls: list, memory: list) -> None:
+        memory += list(tool_calls)
+        for tool_call in tool_calls:
+            memory.append({
+                'type': 'function_call_output',
+                'call_id': tool_call.get('call_id', ''),
+                'output': cls.MAX_STEP_PSEUDO_OUTPUT,
+            })
