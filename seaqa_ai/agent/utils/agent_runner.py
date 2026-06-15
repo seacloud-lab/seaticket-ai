@@ -14,12 +14,13 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
+import re
 from seaqa_ai import config
 from seaqa_ai.utils.llm_api import CompletionAPI, ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
-from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format
+from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format, expand_grouped_reference_markers
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,7 @@ class AgentRunner:
             f'without calling {phase.terminator_tool!r}.'
         )
         self._force_terminator(phase)
-
+  
     def _get_relevant_search_results(self, analysis_result: dict) -> list[dict]:
         if not isinstance(analysis_result, dict):
             return []
@@ -201,6 +202,13 @@ class AgentRunner:
         labels = analysis_result.get('relevant_reference_labels') or []
         if not isinstance(labels, list):
             return []
+
+        # expand grouped labels to compatible with <reference_1, reference_2, ...>
+        labels = [
+            expanded_label
+            for label in labels
+            for expanded_label in self._expand_grouped_reference_label(label)
+        ]
 
         sources_results = self.tool_executor.cache.get('sources_results', [])
         selected_results = []
@@ -221,6 +229,18 @@ class AgentRunner:
             selected_results.append(source)
 
         return selected_results
+
+    @staticmethod
+    def _expand_grouped_reference_label(label) -> list[str]:
+        """<reference_1, reference_2, ...> -> [<reference_1>, <reference_2>, ...]"""
+        pattern = re.compile(r'\<reference_\d+(?:\s*,\s*reference_\d+)+\>')
+    
+        def replacer(match):
+            indexes = re.findall(r'reference_(\d+)', match.group(0))
+            return ', '.join(f'<reference_{idx}>' for idx in indexes)
+
+        expanded = re.sub(pattern, replacer, label)
+        return re.findall(r'<reference_\d+>', expanded)
 
     @staticmethod
     def _parse_reference_label(label: str) -> int | None:
