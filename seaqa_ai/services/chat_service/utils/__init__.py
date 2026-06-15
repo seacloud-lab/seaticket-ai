@@ -101,21 +101,19 @@ def build_user_message_content(attachments, message):
     """
     Returns the message content:
     - No images: a plain text string.
-    - With images: a multimodal parts list (text + image_url) following
-      the LiteLLM-unified message schema, translated by LiteLLM to each provider.
+    - With images: a Responses multimodal parts list (input_text + input_image).
     """
     text = combine_attachments_to_message(attachments, message)
     images = extract_images_from_attachments(attachments)
     if not images:
         return text
     return [
-        {'type': 'text', 'text': text},
+        {'type': 'input_text', 'text': text},
         *[
             {
-                'type': 'image_url',
-                'image_url': {
-                    'url': f"data:{img['mime_type']};base64,{img['data']}"
-                }
+                'type': 'input_image',
+                'image_url': f"data:{img['mime_type']};base64,{img['data']}",
+                'detail': 'auto',
             }
             for img in images
         ],

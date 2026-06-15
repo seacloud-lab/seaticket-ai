@@ -73,20 +73,19 @@ class BasicSearchTool(BasicTool):
 class DocumentsSearch(BasicSearchTool):
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'documents_search',
-            'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
-            'parameters':{
-                'type': 'object',
-                'properties': {
-                    'query': {
-                        'type': 'string',
-                        'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
-                    }
+        'name': 'documents_search',
+        'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+        'parameters':{
+            'type': 'object',
+            'properties': {
+                'query': {
+                    'type': 'string',
+                    'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
                 },
-                'required': ['query']
-            }
-        }
+            },
+            'required': ['query']
+        },
+        'strict': True,
     }
 
     def execute(self, query, context, app, tool_executor, call_back):
@@ -97,27 +96,26 @@ class DocumentsSearch(BasicSearchTool):
 class IssuesSearch(BasicSearchTool):
     tool = {
         'type': 'function',
-        'function': {
-            'name': 'issues_search',
-            'description': (
-                f'This is a search tool for relative issues. You can use a query (a short sentence) '
-                f'to find relative issues and past solutions. Relevance decreases from beginning to end. '
-                f'Results may include structured status fields (e.g. state/resolved/linked_ticket_state) '
-                f'when available. {_SEARCH_TOOLS_RESULT_FORMAT}. '
-                '**Note: Not every sentence can be searched for relevant results. '
-                'Regardless of whether there are results or not, you should not make random searches.**'
-            ),
-            'parameters':{
-                'type': 'object',
-                'properties': {
-                    'query': {
-                        'type': 'string',
-                        'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
-                    }
+        'name': 'issues_search',
+        'description': (
+            f'This is a search tool for relative issues. You can use a query (a short sentence) '
+            f'to find relative issues and past solutions. Relevance decreases from beginning to end. '
+            f'Results may include structured status fields (e.g. state/resolved/linked_ticket_state) '
+            f'when available. {_SEARCH_TOOLS_RESULT_FORMAT}. '
+            '**Note: Not every sentence can be searched for relevant results. '
+            'Regardless of whether there are results or not, you should not make random searches.**'
+        ),
+        'parameters':{
+            'type': 'object',
+            'properties': {
+                'query': {
+                    'type': 'string',
+                    'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
                 },
-                'required': ['query']
-            }
-        }
+            },
+            'required': ['query']
+        },
+        'strict': True,
     }
 
     def execute(self, query, context, app, tool_executor, call_back):

@@ -8,7 +8,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMARY_PROMPTS_MAP
 from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
-from seaqa_ai.utils.completion import gen_completion_format
+from seaqa_ai.utils import gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
