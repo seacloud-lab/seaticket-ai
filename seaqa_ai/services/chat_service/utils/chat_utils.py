@@ -52,14 +52,14 @@ class BasicChatUtils:
         call_backer = call_backer_factory()
         for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
             try:
-                raw_output = tool_executor.execute(tool_call, call_backer)
-                tool_output = ChatPseudoTool.enrich_tool_output(tool_name, raw_output, tool_executor)
+                output = tool_executor.execute(tool_call, call_backer)
+                output = ChatPseudoTool.enrich_tool_output(tool_name, output, tool_executor)
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, raw_output))
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, output))
                 memory += {
                     'type': 'function_call_output',
                     'call_id': tool_call.get('call_id', ''),
-                    'output': tool_output
+                    'output': output
                 }
                 return
             except Exception as e:
@@ -101,14 +101,14 @@ class StreamingChatUtils(BasicChatUtils):
                 detail += f', retring {current_retry + 1}'
             yield SSE.status('Calling tools', detail)
             try:
-                raw_output = tool_executor.execute(tool_call, call_backer)
-                tool_output = ChatPseudoTool.enrich_tool_output(tool_name, raw_output, tool_executor)
+                output = tool_executor.execute(tool_call, call_backer)
+                output = ChatPseudoTool.enrich_tool_output(tool_name, output, tool_executor)
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
-                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, raw_output))
+                tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, output))
                 memory += {
                     'type': 'function_call_output',
                     'call_id': tool_call.get('call_id', ''),
-                    'output': tool_output
+                    'output': output
                 }
                 return
             except Exception as e:
