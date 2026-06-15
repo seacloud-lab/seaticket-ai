@@ -65,8 +65,8 @@ class EmailAgent(ConnectionAgent):
         first_email_content = (first_email.get('content') or '').strip()[:MAX_CONTENT_CHARS]
 
         recent_emails = []
-        for email in emails[-MAX_COMMENTS:]:
-            recent_emails.append(self._format_email_entry(email))
+        subsequent_emails = emails[1:]
+        recent_emails = [self._format_email_entry(email) for email in subsequent_emails[-MAX_COMMENTS:]
 
         return {
             'title': item.get('title', 'Untitled'),
