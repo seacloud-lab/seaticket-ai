@@ -59,13 +59,13 @@ class AgentManager:
         event_listener.start()
         self.worker_list.append(event_listener)
 
-        due_soon_scanner = threading.Thread(
-            target=self._due_soon_scanner,
-            name='agent_due_soon_scanner',
+        due_scanner = threading.Thread(
+            target=self._due_scanner,
+            name='agent_due_scanner',
             daemon=True,
         )
-        due_soon_scanner.start()
-        self.worker_list.append(due_soon_scanner)
+        due_scanner.start()
+        self.worker_list.append(due_scanner)
 
         logger.info('Agent manager started.')
 
@@ -318,16 +318,16 @@ class AgentManager:
         state.events.clear()
         state.last_enqueue_time = now_time
 
-    def _due_soon_scanner(self):
+    def _due_scanner(self):
         while not self.should_stop.is_set():
             try:
-                self._enqueue_due_soon_scan_events()
+                self._enqueue_due_scan_events()
             except Exception as e:
                 logger.exception('Due-soon scan failed: %s', e)
             if self.should_stop.wait(config.AGENT_TIMED_SCAN_INTERVAL):
                 return
 
-    def _enqueue_due_soon_scan_events(self):
+    def _enqueue_due_scan_events(self):
         projects = self.app.seaqa_db.get_enabled_agent_projects()
         now = datetime.now(timezone.utc)
         for project in projects:
