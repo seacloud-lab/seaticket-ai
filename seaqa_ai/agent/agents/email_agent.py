@@ -11,6 +11,7 @@ from seaqa_ai.agent.agents.connection_agent import ConnectionAgent
 from seaqa_ai.agent.tools.email_tools import EMAIL_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
+    MAX_COMMENTS,
     AgentSourceType,
 )
 from seaqa_ai.seadb_models import SchemaTables
@@ -64,14 +65,16 @@ class EmailAgent(ConnectionAgent):
         first_email_content = (first_email.get('content') or '').strip()[:MAX_CONTENT_CHARS]
 
         recent_emails = []
-        for email in emails[-10:]:
-            recent_emails.append(self._format_email_entry(email))
+        subsequent_emails = emails[1:]
+        recent_emails = [self._format_email_entry(email) for email in subsequent_emails[-MAX_COMMENTS:]]
 
         return {
             'title': item.get('title', 'Untitled'),
             'first_email': {
                 'email_from': first_email.get('email_from', ''),
                 'email_to': first_email.get('email_to', ''),
+                'cc': first_email.get('cc', ''),
+                'is_sender': bool(first_email.get('is_sender')),
                 'content': first_email_content,
                 'modified_time': first_email.get('modified_time', 'N/A'),
             },
@@ -100,11 +103,31 @@ class EmailAgent(ConnectionAgent):
         if not thread_id:
             return []
 
-        sql = (
+        first_email_sql = (
             f"SELECT `message_id`, `email_from`, `email_to`, `cc`, "
             f"`modified_time`, `is_sender`, `content` "
             f"FROM `{self._emails_table}` "
             f"WHERE `thread_id` = {thread_id} "
-            f"ORDER BY `modified_time` ASC"
+            f"ORDER BY `modified_time` ASC LIMIT 1"
         )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        first_emails = self.seadb_api.query_rows(self.project_uuid, first_email_sql).get('results', [])
+        if not first_emails:
+            return []
+
+        first_email = first_emails[0]
+        first_message_id = first_email.get('message_id')
+        recent_emails_sql = (
+            f"SELECT `message_id`, `email_from`, `email_to`, `cc`, "
+            f"`modified_time`, `is_sender`, `content` "
+            f"FROM `{self._emails_table}` "
+            f"WHERE `thread_id` = {thread_id} "
+            f"ORDER BY `modified_time` DESC LIMIT {MAX_COMMENTS}"
+        )
+        recent_emails = list(reversed(
+            self.seadb_api.query_rows(self.project_uuid, recent_emails_sql).get('results', [])
+        ))
+        if first_message_id is None:
+            return recent_emails
+        if any(email.get('message_id') == first_message_id for email in recent_emails):
+            return recent_emails
+        return [first_email] + recent_emails

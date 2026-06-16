@@ -14,12 +14,13 @@ Actions are recorded to SeaDB via the action_recorder callback.
 import json
 import logging
 import time
+import re
 from seaqa_ai import config
 from seaqa_ai.utils.llm_api import CompletionAPI, ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
-from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format
+from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format, expand_grouped_reference_markers
 
 logger = logging.getLogger(__name__)
 
@@ -129,17 +130,14 @@ class AgentRunner:
 
     def _update_handling_input(self, task: dict) -> None:
         messages = list(self.analysis_phase.memory)
-        search_results = self._extract_successful_search_results(messages)
         analysis_result = self._extract_analysis_result(messages)
         task_dict = dict(task)
         prelude_output = self.prelude_phase.output or {}
         if prelude_output.get('summary'):
             task_dict['event_summary'] = prelude_output['summary']
+        search_results = self._get_relevant_search_results(analysis_result)
         if search_results:
-            task_dict['search_results'] = [
-                {'tool_name': sr['tool_name'], 'content': parse_json(sr['content'])}
-                for sr in search_results
-            ]
+            task_dict['search_results'] = search_results
         if analysis_result:
             task_dict['analysis_summary'] = analysis_result
         self.handling_phase.input = render_task_xml(task_dict)
@@ -196,40 +194,64 @@ class AgentRunner:
             f'without calling {phase.terminator_tool!r}.'
         )
         self._force_terminator(phase)
+  
+    def _get_relevant_search_results(self, analysis_result: dict) -> list[dict]:
+        if not isinstance(analysis_result, dict):
+            return []
 
-    def _extract_successful_search_results(self, messages: list[dict]) -> list[dict]:
-        search_results = []
+        labels = analysis_result.get('relevant_reference_labels') or []
+        if not isinstance(labels, list):
+            return []
 
-        for i, msg in enumerate(messages):
-            if msg.get('type') != 'function_call':
+        # expand grouped labels to compatible with <reference_1, reference_2, ...>
+        labels = [
+            expanded_label
+            for label in labels
+            for expanded_label in self._expand_grouped_reference_label(label)
+        ]
+
+        sources_results = self.tool_executor.cache.get('sources_results', [])
+        selected_results = []
+        seen_indexes = set()
+
+        for label in labels:
+            source_index = self._parse_reference_label(label)
+            if source_index is None or source_index in seen_indexes:
+                continue
+            if source_index < 0 or source_index >= len(sources_results):
+                logger.warning('Ignoring out-of-range relevant reference label: %s', label)
                 continue
 
-            tool_name = msg.get('name', '')
-            if not tool_name.endswith('_search'):
+            seen_indexes.add(source_index)
+            source = sources_results[source_index]
+            if not isinstance(source, dict):
                 continue
+            selected_results.append(source)
 
-            tool_call_id = msg.get('call_id', '')
-            for next_msg in messages[i + 1:]:
-                if (next_msg.get('type') == 'function_call_output' and
-                        next_msg.get('call_id') == tool_call_id):
-                    content = next_msg.get('output', '')
-                    if not self._is_search_failed(content):
-                        search_results.append({
-                            'tool_name': tool_name,
-                            'content': content,
-                        })
-                    break
+        return selected_results
 
-        return search_results
+    @staticmethod
+    def _expand_grouped_reference_label(label) -> list[str]:
+        """<reference_1, reference_2, ...> -> [<reference_1>, <reference_2>, ...]"""
+        pattern = re.compile(r'\<reference_\d+(?:\s*,\s*reference_\d+)+\>')
+    
+        def replacer(match):
+            indexes = re.findall(r'reference_(\d+)', match.group(0))
+            return ', '.join(f'<reference_{idx}>' for idx in indexes)
 
-    def _is_search_failed(self, content: str) -> bool:
+        expanded = re.sub(pattern, replacer, label)
+        return re.findall(r'<reference_\d+>', expanded)
+
+    @staticmethod
+    def _parse_reference_label(label: str) -> int | None:
+        if not isinstance(label, str):
+            return None
+        if not label.startswith('<reference_') or not label.endswith('>'):
+            return None
         try:
-            result = json.loads(content)
-            if isinstance(result, dict):
-                return result.get('status') == 'error'
-        except (json.JSONDecodeError, TypeError):
-            pass
-        return False
+            return int(label[len('<reference_'):-1])
+        except ValueError:
+            return None
 
     def _extract_analysis_result(self, messages: list[dict]) -> dict:
         for msg in reversed(messages):

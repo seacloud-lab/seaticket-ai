@@ -42,6 +42,10 @@ class AgentSourceType(Enum):
 # Maximum body characters sent to the LLM to avoid excessive token usage
 MAX_CONTENT_CHARS, MAX_COMMENT_CHARS = 5000, 5000
 
+# Maximum number of recent context entries exposed to the LLM
+MAX_COMMENTS = 10
+TICKET_MAX_ACTIVITIES = 10
+
 
 # Minimum similarity score to consider a related record as a known issue
 RELATED_RECORD_SCORE_THRESHOLD = 0.5

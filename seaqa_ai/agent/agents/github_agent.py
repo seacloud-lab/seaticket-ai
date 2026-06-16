@@ -11,6 +11,7 @@ from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     MAX_CONTENT_CHARS,
     MAX_COMMENT_CHARS,
+    MAX_COMMENTS,
     AgentSourceType,
 )
 import seaqa_ai.agent.prompts.github_issue as github_issue_prompts
@@ -61,7 +62,7 @@ class GithubIssueAgent(ConnectionAgent):
         comments = item_context.get('comments', [])
         available_labels = self._get_available_labels()
 
-        recent_comments = [self._format_comment_entry(c) for c in comments[-10:]]
+        recent_comments = [self._format_comment_entry(c) for c in comments[-MAX_COMMENTS:]]
 
         return {
             'title': item.get('title', 'Untitled'),
@@ -98,9 +99,9 @@ class GithubIssueAgent(ConnectionAgent):
             f"SELECT `comment_id`, `author`, `created_time`, `content` "
             f"FROM `{self._comments_table}` "
             f"WHERE `issue_id` = {issue_id} "
-            f"ORDER BY `created_time` ASC"
+            f"ORDER BY `created_time` DESC LIMIT {MAX_COMMENTS}"
         )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        return list(reversed(self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])))
 
     def _get_available_labels(self) -> list[str]:
         cached = getattr(self, '_available_labels_cache', None)

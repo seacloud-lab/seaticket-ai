@@ -12,6 +12,12 @@ from seaqa_ai.utils import now_iso
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
+from seaqa_ai.agent.utils.constants import (
+    MAX_COMMENT_CHARS,
+    MAX_COMMENTS,
+    MAX_CONTENT_CHARS,
+    TICKET_MAX_ACTIVITIES,
+)
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
@@ -91,21 +97,21 @@ class TicketAgent(BaseAgent):
             f"FROM `{SchemaTables.TICKET_COMMENTS.table_name()}` "
             f"WHERE `ticket_id` = {ticket_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
-            f"ORDER BY `_pk` ASC LIMIT 100"
+            f"ORDER BY `_pk` DESC LIMIT {MAX_COMMENTS}"
         )
-        comments = self.seadb_api.query_rows(
-            self.project_uuid, comments_sql
-        ).get('results', [])
+        comments = list(reversed(
+            self.seadb_api.query_rows(self.project_uuid, comments_sql).get('results', [])
+        ))
 
         activities_sql = (
             f"SELECT `activity_type`, `created_time`, `detail` "
             f"FROM `{SchemaTables.TICKET_ACTIVITIES.table_name()}` "
             f"WHERE `ticket_id` = {ticket_id} "
-            f"ORDER BY `created_time` ASC LIMIT 100"
+            f"ORDER BY `created_time` DESC LIMIT {TICKET_MAX_ACTIVITIES}"
         )
-        activities = self.seadb_api.query_rows(
-            self.project_uuid, activities_sql
-        ).get('results', [])
+        activities = list(reversed(
+            self.seadb_api.query_rows(self.project_uuid, activities_sql).get('results', [])
+        ))
 
         # Query historical executed notifications for this ticket
         executed_notifications = self.get_executed_actions(
@@ -120,54 +126,27 @@ class TicketAgent(BaseAgent):
             'executed_notifications': executed_notifications,
         }
 
-    def get_executed_actions(self, source_type: str, source_id: str, tool_name: str = None) -> list[dict]:
-        """Query executed/confirmed actions for a source record.
-        
-        Args:
-            source_type: Type of the source (e.g., 'ticket')
-            source_id: ID of the source record
-            tool_name: Optional filter by tool name (e.g., 'suggest_notify_assignee')
-        
-        Returns:
-            List of action records ordered by created_at DESC
-        """
-        conditions = [
-            f"`source_type` = '{source_type}'",
-            f"`source_id` = '{source_id}'",
-            "`status` = 'executed'",
-        ]
-        if tool_name:
-            conditions.append(f"`tool_name` = '{tool_name}'")
-        
-        where = ' AND '.join(conditions)
-        sql = (
-            f"SELECT `result`, `executed_at`, `created_at` "
-            f"FROM `{SchemaTables.AGENT_ACTIONS.table_name()}` WHERE {where} "
-            f"ORDER BY `created_at` DESC LIMIT 10"
-        )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
-
     def build_record_payload(self, item: dict, item_context: dict) -> dict:
         comments = item_context.get('comments', [])
         formatted_comments = []
         if comments:
-            for c in comments[-10:]:
+            for c in comments[-MAX_COMMENTS:]:
                 creator = self.username_resolver.email2nickname(c.get('creator', '?'))
                 formatted_comments.append({
                     'creator': creator or '?',
                     'created_time': c.get('created_time', '?'),
-                    'content': c.get('content') or ''
+                    'content': (c.get('content') or '')[:MAX_COMMENT_CHARS]
                 })
         
         activities = item_context.get('activities', [])
         formatted_activities = []
         if activities:
-            for a in activities[-10:]:
+            for a in activities[-TICKET_MAX_ACTIVITIES:]:
                 detail = self.username_resolver.convert_usernames_fields_to_nicknames(a.get('detail', ''))
                 formatted_activities.append({
                     'activity_type': a.get('activity_type', '?'),
                     'created_time': a.get('created_time', '?'),
-                    'detail': detail
+                    'detail': detail[:MAX_CONTENT_CHARS]
                 })
         
         executed_notifications = item_context.get('executed_notifications', [])
@@ -175,7 +154,7 @@ class TicketAgent(BaseAgent):
         if executed_notifications:
             for n in executed_notifications:
                 formatted_notifications.append({
-                    'reason': n.get('content', ''),
+                    'reason': n.get('result', ''),
                     'executed_at': n.get('executed_at') or n.get('created_at', '?'),
                 })
         
@@ -192,7 +171,7 @@ class TicketAgent(BaseAgent):
             'created_time': item.get('created_time', 'N/A'),
             'last_modified': item.get('modified_time', 'N/A'),
             'due_date': item.get('due_date', 'N/A'),
-            'content': item.get('content', '')[:5000] if item.get('content') else '',
+            'content': item.get('content', '')[:MAX_CONTENT_CHARS] if item.get('content') else '',
             'recent_comments': formatted_comments,
             'recent_activities': formatted_activities,
             'previous_notifications': formatted_notifications,

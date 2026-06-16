@@ -1,3 +1,9 @@
+from seaqa_ai import config
+
+
+ANALYSIS_SEARCH_BUDGET = max(1, config.AGENT_MAX_ANALYSIS_STEPS - 2)
+
+
 PRELUDE_SYSTEM_PROMPT = """<role>You are an event summarization assistant for an autonomous support agent.</role>
 <phase name="prelude">Summarize only the event that triggered this run.</phase>
 
@@ -30,6 +36,8 @@ Priority:
 
 If the event is a creation event with no separate comment or reply payload, summarize the newly created record at a high level as the triggering event.
 If the event is a follow-up event, focus on the newly added content, not the entire historical record.
+If record history conflicts with the newly arrived payload, summarize the newly arrived payload first and mention older context only when it changes the interpretation of that event.
+Do not let historical record details replace the newly arrived payload as the main subject of the summary.
 </input_rules>
 
 <output_rules>
