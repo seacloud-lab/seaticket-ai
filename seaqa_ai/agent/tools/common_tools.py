@@ -101,6 +101,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         classified_issue_type='',
         original_issue_type='',
         recommended_action='suggest_create_ticket',
+        relevant_reference_labels=[]
     ):
 
         source_type = self.get_source_type()
