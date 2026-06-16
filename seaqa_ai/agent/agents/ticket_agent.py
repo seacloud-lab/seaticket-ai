@@ -8,7 +8,7 @@ Responsibilities:
 """
 import logging
 
-from seaqa_ai.utils import now_iso
+from seaqa_ai.utils import now_iso, sanitize_project_prompt
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
@@ -43,6 +43,20 @@ class TicketAgent(BaseAgent):
         """
         super().__init__(app, project, event)
         self.record_id = record_id
+
+    def get_custom_rules_prompt(self) -> str:
+        rules_text = (self.agent_settings.get('ticket_rules') or '').strip()
+        if not rules_text:
+            return ''
+        safe_rules_text = sanitize_project_prompt(rules_text)
+        return (
+            '<custom_ticket_rules priority="highest">\n'
+            'The project owner defined the following Ticket Agent rules.\n'
+            'When a rule matches, it overrides default behavior in this prompt.\n'
+            'Do not ignore tool-call constraints. In analysis, explicitly cite which rule was applied.\n'
+            f'{safe_rules_text}\n'
+            '</custom_ticket_rules>'
+        )
 
     # ── Abstract method implementations ────────────────────────────
 

@@ -230,7 +230,7 @@ class AgentManager:
         Currently covers:
         - github_issue_updated / github_issue_closed / github_issue_reopened
         - discourse_topic_updated
-        - ticket events except ticket_due_soon
+        - ticket events except ticket_due_soon / ticket_over_due
         - github_issue_comment_added events whose new_value.author is a
           '*[bot]' account (GitHub App convention).
         """
@@ -249,7 +249,10 @@ class AgentManager:
         elif source_type == AgentSourceType.DISCOURSE_FORUM.value:
             return event_type == DataEventType.DISCOURSE_TOPIC_UPDATED.value
         elif source_type == AgentSourceType.TICKET.value:
-            return event_type != DataEventType.TICKET_DUE_SOON.value
+            return event_type not in {
+                DataEventType.TICKET_DUE_SOON.value,
+                DataEventType.TICKET_OVER_DUE.value,
+            }
         return False
 
     def _register_pending_event(
@@ -344,41 +347,73 @@ class AgentManager:
                     continue
 
             try:
-                tickets = self._get_due_soon_tickets(project_uuid, project)
+                due_soon_tickets = self._get_due_soon_tickets(project_uuid, project, now)
+                over_due_tickets = self._get_over_due_tickets(project_uuid, now)
             except Exception as e:
-                logger.exception('Failed to get due-soon tickets for project %s: %s', project_uuid, e)
+                logger.exception('Failed to get timed tickets for project %s: %s', project_uuid, e)
                 continue
-            for ticket in tickets:
-                ticket_pk = ticket.get('_pk')
-                if ticket_pk is None:
-                    continue
-                self.add_to_task_queue(
-                    project_uuid=project_uuid,
-                    source_type=AgentSourceType.TICKET.value,
-                    record_id=ticket_pk,
-                    connection_id=None,
-                    event={
-                        'type': DataEventType.TICKET_DUE_SOON.value,
-                        'new_value': {},
-                        'old_value': {},
-                    },
-                )
+
+            self._enqueue_timed_ticket_events(
+                project_uuid,
+                due_soon_tickets,
+                DataEventType.TICKET_DUE_SOON.value,
+            )
+            self._enqueue_timed_ticket_events(
+                project_uuid,
+                over_due_tickets,
+                DataEventType.TICKET_OVER_DUE.value,
+            )
             self.app.seaqa_db.update_project_agent_scanned_at(project_uuid)
 
-    def _get_due_soon_tickets(self, project_uuid: str, project: dict) -> list[dict]:
+    def _enqueue_timed_ticket_events(self, project_uuid: str, tickets: list[dict], event_type: str):
+        for ticket in tickets:
+            ticket_pk = ticket.get('_pk')
+            if ticket_pk is None:
+                continue
+            self.add_to_task_queue(
+                project_uuid=project_uuid,
+                source_type=AgentSourceType.TICKET.value,
+                record_id=ticket_pk,
+                connection_id=None,
+                event={
+                    'type': event_type,
+                    'new_value': {},
+                    'old_value': {},
+                },
+            )
+
+    def _get_due_soon_tickets(self, project_uuid: str, project: dict, now: datetime) -> list[dict]:
         """Query tickets that are due soon and have not been recently processed."""
         agent_settings = project.get('settings', {}).get('agent', {})
         notify_before_due_hours = int(agent_settings.get('notify_before_due_hours', 48))
         min_reprocess_hours = 24
 
-        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
         threshold = (now + timedelta(hours=notify_before_due_hours)).isoformat()
         min_reprocess_before = (now - timedelta(hours=min_reprocess_hours)).isoformat()
 
         tickets_table = SchemaTables.TICKETS.table_name()
         sql = (
             f"SELECT `_pk` FROM `{tickets_table}` "
-            f"WHERE `due_date` IS NOT NULL AND `due_date` < '{threshold}' "
+            f"WHERE `due_date` IS NOT NULL AND `due_date` >= '{now_iso}' AND `due_date` < '{threshold}' "
+            f"AND (`state` != 'closed' OR `state` IS NULL) "
+            f"AND (`deleted` = False OR `deleted` IS NULL) "
+            f"AND (`last_agent_processed_at` IS NULL OR `last_agent_processed_at` < '{min_reprocess_before}') "
+            f"ORDER BY `due_date` ASC "
+            f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
+        )
+        return self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+
+    def _get_over_due_tickets(self, project_uuid: str, now: datetime) -> list[dict]:
+        """Query tickets that are over due and have not been recently processed."""
+        min_reprocess_hours = 24
+        now_iso = now.isoformat()
+        min_reprocess_before = (now - timedelta(hours=min_reprocess_hours)).isoformat()
+
+        tickets_table = SchemaTables.TICKETS.table_name()
+        sql = (
+            f"SELECT `_pk` FROM `{tickets_table}` "
+            f"WHERE `due_date` IS NOT NULL AND `due_date` < '{now_iso}' "
             f"AND (`state` != 'closed' OR `state` IS NULL) "
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"AND (`last_agent_processed_at` IS NULL OR `last_agent_processed_at` < '{min_reprocess_before}') "

@@ -357,10 +357,18 @@ class BaseAgent:
             'scenario': AIScenario.AGENT.value,
         }
 
+    def get_custom_rules_prompt(self) -> str:
+        """Return optional custom rules block to prepend to system prompts."""
+        return ''
+
     def _build_system_prompt(self, base_prompt: str) -> str:
         """Merge project-level prompt from project settings with base prompt."""
         project_prompt = (self.project.get('settings') or {}).get('prompt', '')
-        return build_system_prompt(base_prompt, project_prompt)
+        merged_prompt = build_system_prompt(base_prompt, project_prompt)
+        custom_rules_prompt = self.get_custom_rules_prompt()
+        if not custom_rules_prompt:
+            return merged_prompt
+        return f'{custom_rules_prompt.strip()}\n\n{merged_prompt}'
 
     # ── Per-item processing ─────────────────────────────────────────
 
