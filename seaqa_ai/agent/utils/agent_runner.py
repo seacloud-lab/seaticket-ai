@@ -21,7 +21,7 @@ from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.tools.agent_pseudo_tool import AgentPseudoTool
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
-from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format, expand_grouped_reference_markers
+from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format
 
 logger = logging.getLogger(__name__)
 

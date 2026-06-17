@@ -362,6 +362,8 @@ def gen_record_hash(source_type, connection_id, record_id):
     return f'{source_type}-{connection_id}-{record_id}'
 
 def remove_sources_content_and_snippets(sources):
+    if not isinstance(sources, list):
+        return sources
     for source in sources:
         if not isinstance(source, dict):
             continue

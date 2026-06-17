@@ -30,7 +30,7 @@ class BasicPseudoTool:
         tool_name: str,
         output: Any,
         tool_executor: OpenAIToolExecutor,
-    ) -> str:
+    ) -> Any:
         if not tool_name in SEARCH_TOOL_NAMES:
             return output
 
