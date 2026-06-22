@@ -43,6 +43,7 @@ class AgentActionRecorder:
         tool_name,
         tool_arguments,
         observation,
+        suggestion_text='',
         suggestion_content='',
         sources=None,
         statistics=''
@@ -122,6 +123,7 @@ class AgentActionRecorder:
             'tool_arguments': tool_arguments or '',
             'observation': new_observation or '',
             'status': action_status,
+            'suggestion_text': suggestion_text or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources_payload,
             'statistics': statistics or '',
