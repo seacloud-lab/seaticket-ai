@@ -62,7 +62,7 @@ class GithubIssueAgent(ConnectionAgent):
         comments = item_context.get('comments', [])
         available_labels = self._get_available_labels()
 
-        recent_comments = [self._format_comment_entry(c) for c in comments[-MAX_COMMENTS:]]
+        recent_comments = [self._format_comment_entry(c) for c in comments]
 
         return {
             'title': item.get('title', 'Untitled'),
@@ -90,18 +90,39 @@ class GithubIssueAgent(ConnectionAgent):
         }
 
     def _get_issue_comments(self, issue: dict) -> list[dict]:
-        """Fetch comments for a single issue ordered by creation time."""
+        """Fetch first comment plus recent comments for a single issue."""
         issue_id = issue.get('issue_id')
         if not issue_id:
             return []
 
-        sql = (
-            f"SELECT `comment_id`, `author`, `created_time`, `content` "
-            f"FROM `{self._comments_table}` "
-            f"WHERE `issue_id` = {issue_id} "
-            f"ORDER BY `created_time` DESC LIMIT {MAX_COMMENTS}"
+        first_comments = self.seadb_api.get_first_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._comments_table,
+            topic_ids=[issue_id],
+            topic_id_field_name='issue_id',
+            fields_str='comment_id, author, created_time, content',
+            has_deleted_field=False,
+            order_by_field='comment_id',
         )
-        return list(reversed(self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])))
+        latest_comments_map = self.seadb_api.get_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._comments_table,
+            topic_ids=[issue_id],
+            topic_id_field_name='issue_id',
+            fields_str='comment_id, author, created_time, content',
+            has_deleted_field=False,
+            order_by_field='comment_id',
+            limit_for_each_topic=MAX_COMMENTS,
+        )
+
+        comments_by_id = {
+            comment['comment_id']: comment
+            for comment in latest_comments_map.get(issue_id, [])
+        }
+        first_comment = first_comments.get(issue_id)
+        if first_comment:
+            comments_by_id[first_comment['comment_id']] = first_comment
+        return [comments_by_id[comment_id] for comment_id in sorted(comments_by_id)]
 
     def _get_available_labels(self) -> list[str]:
         cached = getattr(self, '_available_labels_cache', None)

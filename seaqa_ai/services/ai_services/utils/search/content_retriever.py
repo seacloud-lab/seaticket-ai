@@ -4,7 +4,6 @@ from html import unescape
 from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS, \
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
 from seaqa_ai.utils import url_to_filename, extract_markdown_image_url, normalize_image_url
-from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.services.ai_services.utils.search import remap_comments_by_record_id
@@ -13,6 +12,11 @@ logger = logging.getLogger(__name__)
 
 MARKDOWN_IMAGE_URL_RE = re.compile(r'!\[[^\]]*\]\(([^)\s]+(?:\s+"[^"]*")?)\)')
 HTML_IMAGE_URL_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+COMMENTS_OMITTED_NOTICE = '[comments omitted due to content limit]'
+MORE_COMMENTS_OMITTED_NOTICE = '[more comments omitted due to content limit]'
+MORE_REPLIES_OMITTED_NOTICE = '[more replies omitted due to content limit]'
+MORE_EMAILS_OMITTED_NOTICE = '[more emails omitted due to content limit]'
 
 
 def extract_image_urls(content):
@@ -52,6 +56,40 @@ def merge_image_urls(contents):
             seen.add(image_url)
             image_urls.append(image_url)
     return image_urls
+
+
+def build_ticket_comment_notice(content):
+    return {
+        'creator': None,
+        'content': content,
+    }
+
+
+def build_github_comment_notice(content):
+    return {
+        'author': None,
+        'content': content,
+    }
+
+
+def build_discourse_reply_notice(content):
+    return {
+        'author': None,
+        'post_number': None,
+        'content': content,
+    }
+
+
+def build_email_notice(content):
+    return {
+        'title': None,
+        'email_from': None,
+        'email_to': None,
+        'cc': None,
+        'content': content,
+        'message_id': None,
+        'modified_time': None,
+    }
 
 class ContentRetriever:
     def __init__(self, username_resolver, seadb_api, project_uuid):
@@ -151,15 +189,28 @@ class ContentRetriever:
             fields_str='creator, assignees, content, state, substate, type, tags, participants, priority'
         )
 
-        # query comments/replies
-        # for ticket topic_id_to_comments also present as record_id_to_comments due to same topic id field
-        record_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+        initial_content_lengths = {
+            record_id: len((record_id_to_topics[record_id]['content'] or ''))
+            for record_id in record_ids
+            if record_id in record_id_to_topics
+        }
+
+        # query comments/replies with first + latest attachment selection semantics
+        record_id_to_comments = self.seadb_api.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=record_ids,
             topic_id_field_name='ticket_id',
-            fields_str='creator, content',
-            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
+            fields_str='_pk, creator, content',
+            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            first_order_by_field='_pk',
+            latest_order_by_field='_pk',
+            dedupe_key_fields=['_pk'],
+            sort_key_fields=['_pk'],
+            initial_content_lengths=initial_content_lengths,
+            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
+            omitted_notice_builder=lambda: build_ticket_comment_notice(COMMENTS_OMITTED_NOTICE),
+            more_omitted_notice_builder=lambda: build_ticket_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
 
         # get all the usernames need to be resolved
@@ -208,16 +259,12 @@ class ContentRetriever:
             total_content_size = len(content['content'])
             for comment in comments:
                 comment_content = comment['content'] or ''
-                total_content_size += len(comment_content)
-
-                # break if exceed maximum content size
-                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
-                    break
                 image_source_contents.append(comment_content)
                 content['comments'].append({
                     'creator': username_nickname_map.get(comment['creator'], ''),
                     'content': comment_content
                 })
+                total_content_size += len(comment_content)
             record['content'] = content
             record['images'] = merge_image_urls(image_source_contents)
         return record_id_record_map
@@ -240,14 +287,26 @@ class ContentRetriever:
             record['issue_id']: record_id
             for record_id, record in record_id_to_topics.items()
         }
-        issue_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+        initial_content_lengths = {
+            record['issue_id']: len((record.get('content') or ''))
+            for record in record_id_to_topics.values()
+        }
+        issue_id_to_comments = self.seadb_api.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=issue_id_to_record_id.keys(),
             topic_id_field_name='issue_id',
-            fields_str='author, content',
+            fields_str='comment_id, author, content',
             has_deleted_field=False,
-            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
+            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            first_order_by_field='comment_id',
+            latest_order_by_field='comment_id',
+            dedupe_key_fields=['comment_id'],
+            sort_key_fields=['comment_id'],
+            initial_content_lengths=initial_content_lengths,
+            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
+            omitted_notice_builder=lambda: build_github_comment_notice(COMMENTS_OMITTED_NOTICE),
+            more_omitted_notice_builder=lambda: build_github_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
 
         record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
@@ -274,17 +333,13 @@ class ContentRetriever:
 
             total_content_size = len(content['content'])
             for comment in comments:
-                comment_content = comment['content']
-                total_content_size += len(comment_content)
-
-                # break if exceed maximum content size
-                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
-                    break
+                comment_content = comment['content'] or ''
 
                 content['comments'].append({
                     'author': comment['author'],
                     'content': comment_content
                 })
+                total_content_size += len(comment_content)
             record['content'] = content
         return record_id_record_map
 
@@ -306,14 +361,21 @@ class ContentRetriever:
             record['topic_id']: record_id
             for record_id, record in record_id_to_topics.items()
         }
-        topic_id_to_comments = self.seadb_api.get_comments_by_topic_ids(
+        topic_id_to_comments = self.seadb_api.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=topic_id_to_record_id.keys(),
             topic_id_field_name='topic_id',
             fields_str='author, post_number, content',
             has_deleted_field=False,
-            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
+            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            first_order_by_field='post_number',
+            latest_order_by_field='post_number',
+            dedupe_key_fields=['post_number'],
+            sort_key_fields=['post_number'],
+            initial_content_lengths={topic_id: 0 for topic_id in topic_id_to_record_id.keys()},
+            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
+            more_omitted_notice_builder=lambda: build_discourse_reply_notice(MORE_REPLIES_OMITTED_NOTICE),
         )
 
         record_id_to_comments = remap_comments_by_record_id(topic_id_to_record_id, topic_id_to_comments)
@@ -332,18 +394,14 @@ class ContentRetriever:
 
             total_content_size = 0
             for comment in comments:
-                comment_content = comment['content']
-                total_content_size += len(comment_content)
-
-                # break if exceed maximum content size
-                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
-                    break
+                comment_content = comment['content'] or ''
 
                 content['comments'].append({
                     'author': comment['author'],
                     'post_number': comment['post_number'],
                     'content': comment_content
                 })
+                total_content_size += len(comment_content)
             record['content'] = content
         return record_id_record_map
 
@@ -361,15 +419,21 @@ class ContentRetriever:
             fields_str='tags'
         )
 
-        # query emails
-        # for email thread_id_to_comments also present as record_id_to_emails due to same topic id field
-        record_id_to_emails = self.seadb_api.get_comments_by_topic_ids(
+        # query emails with first + latest attachment selection semantics
+        record_id_to_emails = self.seadb_api.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=replies_table_name,
             topic_ids=record_ids,
             topic_id_field_name='thread_id',
-            fields_str='title, email_from, email_to, cc, content',
-            max_comments_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS
+            fields_str='title, email_from, email_to, cc, content, message_id, modified_time',
+            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            first_order_by_field='modified_time',
+            latest_order_by_field='modified_time',
+            dedupe_key_fields=['message_id', 'modified_time', 'email_from', 'email_to', 'content'],
+            sort_key_fields=['modified_time', 'message_id'],
+            initial_content_lengths={record_id: 0 for record_id in record_ids},
+            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
+            more_omitted_notice_builder=lambda: build_email_notice(MORE_EMAILS_OMITTED_NOTICE),
         )
 
         # set content from topic and comments
@@ -385,11 +449,6 @@ class ContentRetriever:
             total_content_size = 0
             for email in emails:
                 email_content = email['content'] or ""
-                total_content_size += len(email_content)
-
-                # break if exceed maximum content size
-                if total_content_size > SEARCH_TOOL_CONTENT_MAX_SIZE:
-                    break
 
                 content['emails'].append({
                     'title': email['title'],
@@ -398,6 +457,7 @@ class ContentRetriever:
                     'cc': email['cc'],
                     'content': email_content
                 })
+                total_content_size += len(email_content)
             record['content'] = content
         return record_id_record_map
 

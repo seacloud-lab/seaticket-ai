@@ -133,23 +133,32 @@ class DiscourseAgent(ConnectionAgent):
         if not topic_id:
             return []
 
-        first_post_sql = (
-            f"SELECT `post_number`, `author`, `modified_time`, `content` "
-            f"FROM `{self._replies_table}` "
-            f"WHERE `topic_id` = {topic_id} "
-            f"ORDER BY `post_number` ASC LIMIT 1"
+        first_posts = self.seadb_api.get_first_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._replies_table,
+            topic_ids=[topic_id],
+            topic_id_field_name='topic_id',
+            fields_str='post_number, author, modified_time, content',
+            has_deleted_field=False,
+            order_by_field='post_number',
         )
-        first_posts = self.seadb_api.query_rows(self.project_uuid, first_post_sql).get('results', [])
-        if not first_posts:
+        first_post = first_posts.get(topic_id)
+        if not first_post:
             return []
 
-        recent_replies_sql = (
-            f"SELECT `post_number`, `author`, `modified_time`, `content` "
-            f"FROM `{self._replies_table}` "
-            f"WHERE `topic_id` = {topic_id} AND `post_number` > 1 "
-            f"ORDER BY `post_number` DESC LIMIT {MAX_COMMENTS}"
+        recent_replies_map = self.seadb_api.get_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._replies_table,
+            topic_ids=[topic_id],
+            topic_id_field_name='topic_id',
+            fields_str='post_number, author, modified_time, content',
+            has_deleted_field=False,
+            order_by_field='post_number',
+            limit_for_each_topic=MAX_COMMENTS,
         )
-        recent_replies = list(reversed(
-            self.seadb_api.query_rows(self.project_uuid, recent_replies_sql).get('results', [])
-        ))
-        return first_posts + recent_replies
+        replies_by_post_number = {
+            reply['post_number']: reply
+            for reply in recent_replies_map.get(topic_id, [])
+        }
+        replies_by_post_number[first_post['post_number']] = first_post
+        return [replies_by_post_number[post_number] for post_number in sorted(replies_by_post_number)]
