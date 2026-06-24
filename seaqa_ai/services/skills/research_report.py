@@ -48,17 +48,15 @@ Use this report structure by default. Adapt section names, add relevant sections
 
 ## Summary
 
-## Scope and Research Questions
+## Problem Scope
 
 ## Key Findings
 
-## Likely Causes
+## Possible Causes
 
 ## Recommended Actions
 
 ## Evidence and References
-
-## Open Questions
 
 The Markdown filename must be lowercase, end with `.md`, and describe the issue, for example `permission-denied-403-downloads-report.md`."""
 
