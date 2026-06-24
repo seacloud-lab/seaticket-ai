@@ -49,7 +49,7 @@ Treat the record field as background context only unless it is needed to interpr
     This call MUST happen after all searches and before any handling tool.
     Cite evidence with the exact labels returned by search tools (for example: &lt;reference_0&gt;, &lt;reference_1&gt;).
     Place citations immediately after the supported statement, and do not invent labels that were not returned by tools.
-    If no handling suggestion is needed, set recommended_action to no_op and explain briefly what the new comment already accomplished and why no assistant help is needed.
+    If no handling suggestion is needed, set recommended_actions to ["no_op"] and explain briefly what the new comment already accomplished and why no assistant help is needed.
     In relevant_reference_labels, include only the labels that are still relevant to the final handling decision. Use [] when no search result should be passed to handling.
   </step>
 </steps>
@@ -102,7 +102,7 @@ HANDLING_SYSTEM_PROMPT = """<role>You are an autonomous agent that processes new
 In addition to the original input sections, this phase receives:
     - event_summary: concise summary of the input event
     - search_results: relevant sources selected during analysis (if any)
-    - analysis_summary: the recorded analysis and recommended action
+    - analysis_summary: the recorded analysis and recommended actions
 </input_details>
 
 <handling_section label="only when analysis recommends suggest_* action">

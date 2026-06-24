@@ -114,11 +114,34 @@ class AgentRunner:
 
     def _should_skip_handling_phase(self) -> bool:
         analysis_result = self._extract_analysis_result(list(self.analysis_phase.memory))
-        recommended_action = str(analysis_result.get('recommended_action') or '').strip()
-        if recommended_action == 'no_op':
+        recommended_actions = self._extract_recommended_actions(analysis_result)
+        if not recommended_actions or set(recommended_actions) == {'no_op'}:
             logger.info('Analysis recommended no handling action; skipping handling phase.')
             return True
         return False
+
+    @staticmethod
+    def _extract_recommended_actions(analysis_result: dict) -> list[str]:
+        if not isinstance(analysis_result, dict):
+            return []
+        actions = []
+        primary = str(analysis_result.get('recommended_action') or '').strip()
+        if primary:
+            actions.append(primary)
+        extra = analysis_result.get('recommended_actions')
+        if isinstance(extra, list):
+            for value in extra:
+                item = str(value or '').strip()
+                if item:
+                    actions.append(item)
+        deduped = []
+        seen = set()
+        for action in actions:
+            if action in seen:
+                continue
+            seen.add(action)
+            deduped.append(action)
+        return deduped
 
     def _run_handling_phase(self, task: dict) -> None:
         self._update_handling_input(task)
@@ -764,6 +787,7 @@ class AgentRunner:
         metadata = self.tool_metadata.get(tool_name, {})
         action_type = metadata.get('action_type', 'tool_call')
         action_status = metadata.get('action_status', 'completed')
+        recorded_tool_name = tool_name
         if action_type == 'suggestion':
             getter = metadata.get('get_suggestion_text')
             if callable(getter):
@@ -800,25 +824,44 @@ class AgentRunner:
             # use observation for common tool_call
             result = ''
 
+        target_source_type = None
+        target_source_id = None
+        target_source_title = None
+        resolver = metadata.get('resolve_action_target')
+        if callable(resolver):
+            try:
+                target = resolver(**tool_arguments)
+            except Exception as e:
+                logger.warning('Failed to resolve action target. tool=%s error=%s', tool_name, e)
+                target = {}
+            if isinstance(target, dict):
+                target_source_type = target.get('source_type') or None
+                target_source_id = target.get('source_id') or None
+                target_source_title = target.get('source_title') or None
+                recorded_tool_name = target.get('tool_name') or None
+
         action_id = self._record_action(
             phase=phase,
             result=result,
             action_type=action_type,
             action_status=action_status,
             step=step,
-            tool_name=tool_name,
+            tool_name=recorded_tool_name,
             tool_arguments=tool_arguments,
             observation=observation,
             suggestion_text=suggestion_text if action_type == 'suggestion' else '',
             suggestion_content=content if action_type == 'suggestion' else '',
             sources=sources,
-            statistics=statistics
+            statistics=statistics,
+            source_type_override=target_source_type,
+            source_id_override=target_source_id,
+            source_title_override=target_source_title,
         )
 
         if action_id and action_type == 'suggestion' and action_status == 'pending':
             self.pending_suggestion_actions.append({
                 'action_id': action_id,
-                'tool_name': tool_name,
+                'tool_name': recorded_tool_name,
             })
 
     def _record_action(
@@ -836,6 +879,9 @@ class AgentRunner:
         sources=None,
         statistics=None,
         record_phase_context=False,
+        source_type_override=None,
+        source_id_override=None,
+        source_title_override=None,
     ):
         """Record an action to SeaDB via the action_recorder callback.
 
@@ -849,9 +895,9 @@ class AgentRunner:
 
         action_data = {
             'run_id': self.run_id,
-            'source_type': self.record_context.get('source_type'),
-            'source_id': self.record_context.get('source_id'),
-            'source_title': self.record_context.get('source_title'),
+            'source_type': source_type_override or self.record_context.get('source_type'),
+            'source_id': source_id_override or self.record_context.get('source_id'),
+            'source_title': source_title_override or self.record_context.get('source_title'),
             'phase': phase.name,
             'record_phase_context': record_phase_context,
             'prompt': prompt,

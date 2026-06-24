@@ -70,10 +70,13 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                     'type': 'string',
                     'description': 'The original issue_type value from input, used as a candidate label.'
                 },
-                'recommended_action': {
-                    'type': 'string',
-                    'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'suggest_move_to_spam', 'no_op'],
-                    'description': 'The next action recommendation. Use no_op when no handling suggestion is needed.'
+                'recommended_actions': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'string',
+                        'enum': ['suggest_modify_type', 'suggest_assign_labels', 'suggest_reply', 'suggest_create_ticket', 'suggest_move_to_spam', 'no_op'],
+                    },
+                    'description': 'List of next action recommendations. Use ["no_op"] when no handling suggestion is needed.'
                 },
                 'relevant_reference_labels': {
                     'type': 'array',
@@ -85,7 +88,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
             },
             'required': [
                 'summary',
-                'recommended_action',
+                'recommended_actions',
                 'relevant_reference_labels'
             ]
         },
@@ -98,9 +101,9 @@ class RecordIssueAnalysisTool(BaseAgentTool):
     def execute(
         self,
         summary,
+        recommended_actions,
         classified_issue_type='',
         original_issue_type='',
-        recommended_action='suggest_create_ticket',
         relevant_reference_labels=[]
     ):
 
@@ -112,7 +115,9 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         )
         if classified_issue_type:
             result += f'Classified as {classified_issue_type}. '
-        result += f'Recommended next action: {recommended_action}.'
+        actions = recommended_actions if isinstance(recommended_actions, list) else []
+        actions_display = ', '.join([str(action) for action in actions]) if actions else 'no_op'
+        result += f'Recommended next actions: {actions_display}.'
         return result
 
 

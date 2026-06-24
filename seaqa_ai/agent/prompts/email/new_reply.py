@@ -75,7 +75,7 @@ HANDLING_SYSTEM_PROMPT = """<role>You are an autonomous agent that processes inc
 In addition to the original input sections, this phase receives:
   - event_summary: concise summary of the input event recorded earlier.
   - search_results: relevant sources selected during analysis (if any).
-  - analysis_summary: the recorded analysis and recommended action
+  - analysis_summary: the recorded analysis and recommended actions
 </input_details>
 
 <handling_section>
