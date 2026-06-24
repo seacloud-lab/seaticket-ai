@@ -67,9 +67,9 @@ RESEARCH_REPORT_SKILL = SkillSpec(
     id='research_report',
     name='Research Report',
     description=(
-        'Use when the user asks to research, investigate, analyze, diagnose, or summarize evidence '
-        'about an issue, bug, error, incident, product behavior, known problem, past case, or likely cause, '
-        'and the task should produce an evidence-backed structured Markdown research report artifact.'
+        'Use when the user explicitly asks to research, investigate, or analyze an issue, bug, error, '
+        'incident, product behavior, known problem, past case, or likely cause, or asks to create a '
+        'structured Markdown research/investigation report artifact.'
     ),
     system_prompt=RESEARCH_REPORT_PROMPT,
     required_tools=(
