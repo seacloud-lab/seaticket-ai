@@ -32,7 +32,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, available_skills_prompt=''):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -52,6 +52,12 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
             'content': CHAT_OUTPUT_FORMAT_RULES,
         },
     ]
+
+    if available_skills_prompt:
+        prompts.append({
+            'role': 'system',
+            'content': available_skills_prompt,
+        })
 
     if project_prompt and project_prompt.strip():
         prompts.append({

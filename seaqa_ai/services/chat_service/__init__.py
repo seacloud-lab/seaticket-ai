@@ -19,6 +19,8 @@ from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
+from seaqa_ai.services.skills.registry import SkillRegistry
+from seaqa_ai.services.skills.tool import SkillTool
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ class BasicChat(object):
             KnowledgeBaseEntryCreator(),
         )
         self.test_tool = TestTool()
+        self.skill_tool = SkillTool()
 
     def _prepare_chat_memory(self, system_prompts, session_uuid, context):
         if session_uuid and not config.DISABLE_CONTEXT:
@@ -45,16 +48,17 @@ class BasicChat(object):
                 logger.warning(f'Failure to build context: {e}')
         return ChatMemory(system_prompts)
 
-    def _register_tools(self, tool_executor, context):
+    def _load_connections(self, context):
         project_uuid = uuid_str_to_32_chars(context['project_uuid'])
         connection_ids = context.get('connection_ids')
 
         doc_types = set(ConnectionType.get_document_connection_types())
         issue_types = set(ConnectionType.get_issue_connection_types())
-
-        document_connections = []
-        issue_connections = []
+        if 'document_connections' in context and 'issue_connections' in context:
+            return
         if connection_ids is not None:
+            document_connections = []
+            issue_connections = []
             if connection_ids:
                 with self.db_session_class() as db_session:
                     connections = ProjectConnection.get_connections_by_ids(
@@ -68,13 +72,20 @@ class BasicChat(object):
             context.update({
                 'document_connections': document_connections,
                 'issue_connections': issue_connections,
-            })
-        else:
-            with self.db_session_class() as db_session:
-                context.update({
-                    'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
-                    'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
                 })
+            return
+
+        with self.db_session_class() as db_session:
+            context.update({
+                'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
+                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
+            })
+
+    def _register_tools(self, tool_executor, context):
+        self._load_connections(context)
+        tool_executor.clean()
+        if not context.get('skill_id') and SkillRegistry.available_skills(context):
+            self.skill_tool.register(tool_executor, context=context)
 
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
@@ -106,6 +117,7 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
+            available_skills_prompt=SkillRegistry.available_skills_prompt(context),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -121,6 +133,7 @@ class SyncChat(BasicChat):
         has_inserter_max_step_prompt = False
         while current_step < config.MAX_STEPS:
             current_step += 1
+            self._register_tools(tool_executor, context)
             result = None
             llm_message = None
             completion_retries = []
@@ -238,6 +251,7 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
+                available_skills_prompt=SkillRegistry.available_skills_prompt(context),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -255,6 +269,7 @@ class StreamingChat(BasicChat):
             has_inserter_max_step_prompt = False
             while current_step < config.MAX_STEPS:
                 current_step += 1
+                self._register_tools(tool_executor, context)
                 detail = f'step {current_step}'
                 if current_retry:
                     detail += f', retrying {current_retry}'
