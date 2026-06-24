@@ -1,5 +1,3 @@
-from typing import Optional
-
 from seaqa_ai import config
 from seaqa_ai.services.skills.research_report import RESEARCH_REPORT_SKILL
 from seaqa_ai.services.skills.spec import SkillSpec
@@ -12,13 +10,13 @@ class SkillRegistry:
     }
 
     @classmethod
-    def get(cls, skill_id: Optional[str]):
+    def get(cls, skill_id):
         if not skill_id:
             return None
         return cls._skills.get(skill_id)
 
     @classmethod
-    def has(cls, skill_id: Optional[str]) -> bool:
+    def has(cls, skill_id):
         return bool(cls.get(skill_id))
 
     @classmethod
@@ -26,7 +24,7 @@ class SkillRegistry:
         return list(cls._skills.values())
 
     @classmethod
-    def available_tool_names(cls, context: Optional[dict] = None) -> set[str]:
+    def available_tool_names(cls, context=None):
         context = context or {}
         tool_names = set(SEARCH_TOOL_NAMES)
         if not context.get('is_external_portal'):
@@ -39,7 +37,7 @@ class SkillRegistry:
         return tool_names
 
     @classmethod
-    def is_available(cls, skill_id: Optional[str], context: Optional[dict] = None) -> bool:
+    def is_available(cls, skill_id, context=None):
         skill = cls.get(skill_id)
         if skill is None:
             return False
@@ -52,7 +50,7 @@ class SkillRegistry:
         return required_tools.issubset(cls.available_tool_names(context))
 
     @classmethod
-    def available_skills(cls, context: Optional[dict] = None) -> list[SkillSpec]:
+    def available_skills(cls, context=None):
         return [
             skill
             for skill in cls.all()
@@ -60,7 +58,7 @@ class SkillRegistry:
         ]
 
     @classmethod
-    def available_skills_prompt(cls, context: Optional[dict] = None) -> str:
+    def available_skills_prompt(cls, context=None):
         described = [
             skill
             for skill in cls.available_skills(context)
