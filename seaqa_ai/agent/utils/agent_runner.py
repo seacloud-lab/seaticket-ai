@@ -766,9 +766,7 @@ class AgentRunner:
                 sources = []
 
         result = content
-        if action_type == 'suggestion':
-            result = suggestion_text
-        elif action_type == 'tool_call':
+        if action_type == 'tool_call':
             # use observation for common tool_call
             result = ''
 
@@ -781,6 +779,7 @@ class AgentRunner:
             tool_name=tool_name,
             tool_arguments=tool_arguments,
             observation=observation,
+            suggestion_text=suggestion_text if action_type == 'suggestion' else '',
             suggestion_content=content if action_type == 'suggestion' else '',
             sources=sources,
             statistics=statistics
@@ -796,6 +795,7 @@ class AgentRunner:
         tool_name=None,
         tool_arguments=None,
         observation=None,
+        suggestion_text=None,
         suggestion_content=None,
         sources=None,
         statistics=None,
@@ -824,6 +824,7 @@ class AgentRunner:
             'tool_name': tool_name,
             'tool_arguments': tool_arguments,
             'observation': observation or '',
+            'suggestion_text': suggestion_text or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources or [],
             'statistics': statistics,
