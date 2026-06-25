@@ -15,9 +15,10 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
 
 <steps>
   <step n="1">
-    Classify the email thread type from title/content into one of: Bug, Feature, Question.
+    Classify the email thread type from title/content into one of: Bug, Feature, Question, Spam.
 
     Classification guidance:
+    - Marketing/promotional/advertisement/newsletter emails should be classified as Spam.
     - If the user is asking for help because something is broken, failing, incorrect, or unexpectedly behaving, classify as Bug rather than Question.
     - If the user asks whether a capability exists or requests a new capability, classify as Feature even if it is phrased as a question.
     - Use Question only when the user is primarily asking for explanation, documentation, how-to guidance, or clarification rather than reporting broken behavior or requesting new functionality.
@@ -28,6 +29,7 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
     Search based on the record field:
     - For Bug or Feature: call issues_search first. If that evidence is still insufficient, then use documents_search.
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
+    - For Spam: skip search tools and proceed directly to record_issue_analysis with recommended_action set to suggest_move_to_spam.
     - If content is ambiguous, you may use both tools.
     - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
@@ -55,7 +57,7 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
 
 <rules>
   - ONE tool call per step. Never call multiple tools in the same step.
-  - Do NOT call record_issue_analysis before finishing required searches.
+  - Do NOT call record_issue_analysis before finishing required searches for Bug/Feature/Question cases.
   - record_issue_analysis MUST be your final tool call in this phase.
 </rules>
 
@@ -97,8 +99,10 @@ In addition to the original input sections, this phase receives:
     Choose exactly one action:
     - suggest_reply
     - suggest_create_ticket
+    - suggest_move_to_spam
 
     Decision guide:
+    - For Spam: call suggest_move_to_spam.
     - For Bug/Feature: if search evidence shows clear duplicate or known tracked case, call suggest_reply; otherwise call suggest_create_ticket.
     - For Question: if search evidence can directly answer, call suggest_reply; otherwise call suggest_create_ticket.
   </step>
@@ -107,7 +111,7 @@ In addition to the original input sections, this phase receives:
 
 <rules>
   - ONE tool call per step. Never call multiple tools in the same step.
-  - Call either suggest_reply OR suggest_create_ticket, never both.
+  - Call exactly one of suggest_reply, suggest_create_ticket, suggest_move_to_spam.
   - final_answer MUST be the last call. Do NOT call any tool after final_answer.
   - Be concise and actionable.
   - When using suggest_reply for known/tracked cases, include supporting URLs from search results.
