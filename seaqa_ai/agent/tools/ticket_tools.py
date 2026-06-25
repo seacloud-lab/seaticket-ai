@@ -13,6 +13,10 @@ from seaqa_ai.agent.tools.common_tools import BaseAgentTool
 logger = logging.getLogger(__name__)
 
 
+class InvalidValueException(Exception):
+    """Raised when a required tool argument is missing or invalid."""
+
+
 class RecordTicketAnalysisTool(BaseAgentTool):
     """Records the agent's analysis of a ticket before taking any action."""
 
@@ -141,16 +145,11 @@ class SuggestCloseTicketTool(BaseAgentTool):
         reason = (reason or '').strip()
         rule = (rule or '').strip()
         if not reason:
-            return 'Cannot suggest closing ticket: empty reason.'
+            raise InvalidValueException('Cannot suggest closing ticket: empty reason.')
 
-        if rule:
-            return (
-                f'Close-ticket suggestion prepared for ticket #{source_id} - {source_title}. '
-                f'Reason: {reason}. Rule: {rule}'
-            )
         return (
             f'Close-ticket suggestion prepared for ticket #{source_id} - {source_title}. '
-            f'Reason: {reason}'
+            f'Reason: {reason}. Rule: {rule}'
         )
 
 
