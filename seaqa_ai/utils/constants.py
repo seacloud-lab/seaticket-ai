@@ -66,6 +66,7 @@ class ConnectionType(Enum):
     GENERAL_TASK = 'general_task'
     LINEAR = 'linear'
     DISCORD = 'discord'
+    JIRA_ISSUE = 'jira_issue'
 
     @classmethod
     def is_valid(cls, value):
@@ -132,7 +133,8 @@ class SOURCES_TYPE(Enum):
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.DISCORD.value,
-        ConnectionType.EMAIL.value
+        ConnectionType.EMAIL.value,
+        ConnectionType.JIRA_ISSUE.value
     )
     TASKS = (
         ConnectionType.GENERAL_TASK.value,
