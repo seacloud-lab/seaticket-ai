@@ -192,7 +192,6 @@ class AIServices:
             response = llm_client.completion(
                 messages=messages,
                 context=context or {},
-                max_tokens=100
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
