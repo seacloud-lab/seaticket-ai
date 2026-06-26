@@ -1,12 +1,12 @@
 from seaqa_ai import config
-from seaqa_ai.services.skills.research_report import RESEARCH_REPORT_SKILL
+from seaqa_ai.services.skills.issue_research import ISSUE_RESEARCH_SKILL
 from seaqa_ai.services.skills.spec import SkillSpec
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 
 
 class SkillRegistry:
     _skills = {
-        RESEARCH_REPORT_SKILL.id: RESEARCH_REPORT_SKILL,
+        ISSUE_RESEARCH_SKILL.id: ISSUE_RESEARCH_SKILL,
     }
 
     @classmethod

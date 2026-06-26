@@ -1,10 +1,10 @@
 from seaqa_ai.services.skills.spec import SkillSpec
 
 
-RESEARCH_REPORT_PROMPT = """Skill: research_report
+ISSUE_RESEARCH_PROMPT = """Skill: issue_research
 
 Purpose:
-You are running a research-report skill. The user's request is to research an issue and create a Markdown report artifact.
+You are running an issue-research skill. The user's request is to research an issue and create a Markdown report artifact.
 
 Workflow:
 1. Clarify the concrete issue being researched from the user's request.
@@ -44,7 +44,7 @@ Report quality requirements:
 
 Use this report structure by default. Adapt section names, add relevant sections, or omit sections when the user's request or available evidence makes that more appropriate. Keep the report structured and complete, and do not add filler sections with no meaningful content:
 
-# Research Report: <issue>
+# Issue Research Report: <issue>
 
 ## Summary
 
@@ -61,15 +61,15 @@ Use this report structure by default. Adapt section names, add relevant sections
 The Markdown filename must be lowercase, end with `.md`, and describe the issue, for example `permission-denied-403-downloads-report.md`."""
 
 
-RESEARCH_REPORT_SKILL = SkillSpec(
-    id='research_report',
-    name='Research Report',
+ISSUE_RESEARCH_SKILL = SkillSpec(
+    id='issue_research',
+    name='Issue Research',
     description=(
         'Use when the user explicitly asks to research, investigate, or analyze an issue, bug, error, '
         'incident, product behavior, known problem, past case, or likely cause, or asks to create a '
         'structured Markdown research/investigation report artifact.'
     ),
-    system_prompt=RESEARCH_REPORT_PROMPT,
+    system_prompt=ISSUE_RESEARCH_PROMPT,
     required_tools=(
         'documents_search',
         'issues_search',
