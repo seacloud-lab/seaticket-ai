@@ -77,8 +77,8 @@ Act on analysis_summary.recommended_action:
   - suggest_close_ticket: call suggest_close_ticket with a concise reason, then final_answer
 </handling_section>
 <rules>
-  - ONE tool call per step. Never call multiple tools in the same step.
   - final_answer MUST be the last call. Do NOT call any tool after final_answer.
+  - Do NOT call final_answer in the same response as suggestion tools; after observing suggestion tool outputs, call final_answer as the only tool call.
   - Do NOT send a notification if previous_notifications already shows a recent execution for this ticket.
 </rules>
 """

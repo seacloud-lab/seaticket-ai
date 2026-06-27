@@ -174,20 +174,23 @@ class AgentRunner:
             step_start = time.monotonic()
             result, usage = self._request_react_phase_llm_result(phase, step)
 
-            tool_call = self._validate_single_tool_call(result.tool_calls, step)
-            phase.memory += self._build_assistant_items(result, tool_call=tool_call)
+            tool_calls = self._validate_tool_calls(result.tool_calls, phase, step)
+            phase.memory += self._build_assistant_items(result, tool_calls=tool_calls)
 
-            if not tool_call:
+            if not tool_calls:
                 logger.warning(f'{phase.name} step {step} returned no tool call.')
                 continue
 
-            tool_name = tool_call['name']
-            logger.debug(f'Processing tool call {tool_name} at step {step}')
-            self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
+            for tool_index, tool_call in enumerate(tool_calls):
+                tool_name = tool_call['name']
+                logger.debug(f'Processing tool call {tool_name} at step {step}')
+                tool_usage = usage if tool_index == 0 else {}
+                tool_step_start = step_start if tool_index == 0 else time.monotonic()
+                self._process_tool_call(tool_call, phase, step_start=tool_step_start, usage=tool_usage, step=step)
 
-            if tool_name == phase.terminator_tool:
-                logger.debug(f'{phase.name} loop completed at step {step} via {tool_name}.')
-                return
+                if tool_name == phase.terminator_tool:
+                    logger.debug(f'{phase.name} loop completed at step {step} via {tool_name}.')
+                    return
 
         logger.warning(
             f'{phase.name} loop reached max steps ({phase.max_steps}) '
@@ -357,8 +360,8 @@ class AgentRunner:
         if retry_entries:
             usage = self._merge_retry_entries_into_usage(usage, retry_entries)
 
-        tool_call = self._validate_single_tool_call(result.tool_calls, step)
-        phase.memory += self._build_assistant_items(result, tool_call=tool_call)
+        tool_call = self._validate_tool_calls(result.tool_calls, phase, step)[0] if result.tool_calls else None
+        phase.memory += self._build_assistant_items(result, tool_calls=[tool_call] if tool_call else [])
 
         if not tool_call:
             logger.warning(f'Forced {phase.terminator_tool} step {step} returned no tool call.')
@@ -510,35 +513,59 @@ class AgentRunner:
             return {}
         return parsed_arguments if isinstance(parsed_arguments, dict) else {}
 
-    def _validate_single_tool_call(
+    def _validate_tool_calls(
         self,
         tool_calls: list[dict] | None,
+        phase: ReactPhase,
         step: int,
-    ) -> dict | None:
-        """Keep only one tool call per step and warn when model returns more."""
+    ) -> list[dict]:
+        """Return executable tool calls and preserve terminator phase boundaries."""
         if not tool_calls:
-            return None
-        if len(tool_calls) == 1:
-            return tool_calls[0]
+            return []
 
         tool_names = [tool_call.get('name', '') for tool_call in tool_calls]
+        terminator_indexes = [
+            index
+            for index, tool_call in enumerate(tool_calls)
+            if tool_call.get('name') == phase.terminator_tool
+        ]
+        if not terminator_indexes:
+            return tool_calls
+
+        first_terminator_index = terminator_indexes[0]
+        if first_terminator_index == 0:
+            if len(tool_calls) > 1:
+                ignored_names = tool_names[1:]
+                logger.warning(
+                    'Agent %s step %s returned tool calls after terminator %r; ignoring trailing tools. ignored_tool_names=%s',
+                    phase.name,
+                    step,
+                    phase.terminator_tool,
+                    ignored_names,
+                )
+                return tool_calls[:1]
+            return tool_calls
+
+        ignored_names = tool_names[first_terminator_index:]
         logger.warning(
-            'Agent step %s returned %s tool calls; keeping only the first one. tool_names=%s',
+            'Agent %s step %s returned terminator %r with other tool calls. '
+            'Ignoring the premature terminator so it can be called after tool outputs. ignored_tool_names=%s',
+            phase.name,
             step,
-            len(tool_calls),
-            tool_names,
+            phase.terminator_tool,
+            ignored_names,
         )
-        return tool_calls[0]
+        return tool_calls[:first_terminator_index]
 
     @staticmethod
     def _build_assistant_items(
         message: ResponsesResult,
-        tool_call: dict | None = None,
+        tool_calls: list[dict] | None = None,
     ) -> list[dict]:
         items = []
         if message.content:
             items.append({'role': 'assistant', 'content': message.content})
-        if tool_call:
+        for tool_call in tool_calls or []:
             items.append(tool_call)
         return items
 
