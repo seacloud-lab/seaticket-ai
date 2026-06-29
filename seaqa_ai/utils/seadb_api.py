@@ -139,22 +139,54 @@ class SeaDBAPI:
 
         return ', '.join(normalized_fields)
 
-    def _build_topic_entry_sql(self, table_name, topic_id, topic_id_field_name, fields_str='*',
-                               has_deleted_field=True, order_by_field=None, descending=False, limit=None):
-        sql = f'SELECT {fields_str} FROM {table_name} WHERE {topic_id_field_name} = '
-        sql += str(topic_id) if not isinstance(topic_id, str) else f'"{topic_id}"'
+    def _format_sql_literal(self, value):
+        return str(value) if not isinstance(value, str) else f'"{value}"'
+
+    def _build_topic_entries_sql(self, table_name, topic_ids, topic_id_field_name, fields_str='*',
+                                 has_deleted_field=True, order_by_fields=None):
+        condition_str = ', '.join([
+            self._format_sql_literal(topic_id)
+            for topic_id in topic_ids
+        ])
+
+        sql = f'SELECT {fields_str} FROM {table_name} WHERE {topic_id_field_name} IN ({condition_str})'
 
         if has_deleted_field:
             sql += ' AND (`deleted` = False OR `deleted` IS NULL)'
 
-        if order_by_field:
-            order_direction = 'DESC' if descending else 'ASC'
-            sql += f' ORDER BY `{order_by_field}` {order_direction}'
-
-        if limit is not None:
-            sql += f' LIMIT {int(limit)}'
+        normalized_order_by_fields = [field for field in (order_by_fields or []) if field]
+        if normalized_order_by_fields:
+            sql += ' ORDER BY ' + ', '.join([
+                f'`{field}` ASC'
+                for field in normalized_order_by_fields
+            ])
 
         return sql
+
+    def _get_topic_entries_grouped(self, base_id, table_name, topic_ids, topic_id_field_name,
+                                   fields_str='*', has_deleted_field=True, order_by_fields=None):
+        topic_ids = list(topic_ids or [])
+        if not topic_ids:
+            return {}
+
+        sql = self._build_topic_entries_sql(
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            order_by_fields=[topic_id_field_name, *(order_by_fields or [])],
+        )
+        rows = self.query_rows(base_id, sql).get('results', [])
+
+        result = {}
+        for row in rows:
+            topic_id = row.get(topic_id_field_name)
+            if topic_id not in result:
+                result[topic_id] = []
+            result[topic_id].append(row)
+
+        return result
 
     def _make_record_key(self, record, key_fields):
         if not key_fields:
@@ -169,19 +201,32 @@ class SeaDBAPI:
 
         fields_str = self._normalize_fields_str(fields_str, [topic_id_field_name, order_by_field])
 
-        result = {}
-        for topic_id in topic_ids:
-            sql = self._build_topic_entry_sql(
+        if not order_by_field:
+            result = {}
+            for topic_id, rows in self._get_topic_entries_grouped(
+                base_id=base_id,
                 table_name=table_name,
-                topic_id=topic_id,
+                topic_ids=topic_ids,
                 topic_id_field_name=topic_id_field_name,
                 fields_str=fields_str,
                 has_deleted_field=has_deleted_field,
-                order_by_field=order_by_field,
-                descending=False,
-                limit=1,
-            )
-            rows = self.query_rows(base_id, sql).get('results', [])
+            ).items():
+                if rows:
+                    result[topic_id] = rows[0]
+            return result
+
+        grouped_rows = self._get_topic_entries_grouped(
+            base_id=base_id,
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            order_by_fields=[order_by_field],
+        )
+
+        result = {}
+        for topic_id, rows in grouped_rows.items():
             if rows:
                 result[topic_id] = rows[0]
         return result
@@ -195,19 +240,33 @@ class SeaDBAPI:
 
         fields_str = self._normalize_fields_str(fields_str, [topic_id_field_name, order_by_field])
 
-        result = {}
-        for topic_id in topic_ids:
-            sql = self._build_topic_entry_sql(
+        if not order_by_field:
+            grouped_rows = self._get_topic_entries_grouped(
+                base_id=base_id,
                 table_name=table_name,
-                topic_id=topic_id,
+                topic_ids=topic_ids,
                 topic_id_field_name=topic_id_field_name,
                 fields_str=fields_str,
                 has_deleted_field=has_deleted_field,
-                order_by_field=order_by_field,
-                descending=True,
-                limit=limit_for_each_topic,
             )
-            result[topic_id] = self.query_rows(base_id, sql).get('results', [])
+            return {
+                topic_id: grouped_rows.get(topic_id, [])[-limit_for_each_topic:]
+                for topic_id in topic_ids
+            }
+
+        grouped_rows = self._get_topic_entries_grouped(
+            base_id=base_id,
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            order_by_fields=[order_by_field],
+        )
+
+        result = {}
+        for topic_id in topic_ids:
+            result[topic_id] = grouped_rows.get(topic_id, [])[-limit_for_each_topic:]
         return result
 
     def get_selected_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
