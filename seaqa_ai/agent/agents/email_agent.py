@@ -103,31 +103,17 @@ class EmailAgent(ConnectionAgent):
         if not thread_id:
             return []
 
-        first_email_sql = (
-            f"SELECT `message_id`, `email_from`, `email_to`, `cc`, "
-            f"`modified_time`, `is_sender`, `content` "
-            f"FROM `{self._emails_table}` "
-            f"WHERE `thread_id` = {thread_id} "
-            f"ORDER BY `modified_time` ASC LIMIT 1"
+        emails_map = self.seadb_api.get_first_and_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._emails_table,
+            topic_ids=[thread_id],
+            topic_id_field_name='thread_id',
+            fields_str='message_id, email_from, email_to, cc, modified_time, is_sender, content',
+            has_deleted_field=True,
+            first_order_by_field='modified_time',
+            latest_order_by_field='modified_time',
+            limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['message_id', 'modified_time', 'email_from', 'email_to', 'content'],
+            sort_key_fields=['modified_time', 'message_id'],
         )
-        first_emails = self.seadb_api.query_rows(self.project_uuid, first_email_sql).get('results', [])
-        if not first_emails:
-            return []
-
-        first_email = first_emails[0]
-        first_message_id = first_email.get('message_id')
-        recent_emails_sql = (
-            f"SELECT `message_id`, `email_from`, `email_to`, `cc`, "
-            f"`modified_time`, `is_sender`, `content` "
-            f"FROM `{self._emails_table}` "
-            f"WHERE `thread_id` = {thread_id} "
-            f"ORDER BY `modified_time` DESC LIMIT {MAX_COMMENTS}"
-        )
-        recent_emails = list(reversed(
-            self.seadb_api.query_rows(self.project_uuid, recent_emails_sql).get('results', [])
-        ))
-        if first_message_id is None:
-            return recent_emails
-        if any(email.get('message_id') == first_message_id for email in recent_emails):
-            return recent_emails
-        return [first_email] + recent_emails
+        return emails_map.get(thread_id, [])

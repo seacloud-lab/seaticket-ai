@@ -91,17 +91,20 @@ class TicketAgent(BaseAgent):
     def get_item_context(self, item: dict) -> dict:
         """Fetch comments, activities, and historical notifications for a ticket."""
         ticket_id = item['_pk']
-
-        comments_sql = (
-            f"SELECT `creator`, `created_time`, `content` "
-            f"FROM `{SchemaTables.TICKET_COMMENTS.table_name()}` "
-            f"WHERE `ticket_id` = {ticket_id} "
-            f"AND (`deleted` = False OR `deleted` IS NULL) "
-            f"ORDER BY `_pk` DESC LIMIT {MAX_COMMENTS}"
+        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=SchemaTables.TICKET_COMMENTS.table_name(),
+            topic_ids=[ticket_id],
+            topic_id_field_name='ticket_id',
+            fields_str='_pk, creator, created_time, content',
+            has_deleted_field=True,
+            first_order_by_field='_pk',
+            latest_order_by_field='_pk',
+            limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['_pk'],
+            sort_key_fields=['_pk'],
         )
-        comments = list(reversed(
-            self.seadb_api.query_rows(self.project_uuid, comments_sql).get('results', [])
-        ))
+        comments = comments_map.get(ticket_id, [])
 
         activities_sql = (
             f"SELECT `activity_type`, `created_time`, `detail` "
@@ -130,7 +133,7 @@ class TicketAgent(BaseAgent):
         comments = item_context.get('comments', [])
         formatted_comments = []
         if comments:
-            for c in comments[-MAX_COMMENTS:]:
+            for c in comments:
                 creator = self.username_resolver.email2nickname(c.get('creator', '?'))
                 formatted_comments.append({
                     'creator': creator or '?',

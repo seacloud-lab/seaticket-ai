@@ -62,7 +62,7 @@ class GithubIssueAgent(ConnectionAgent):
         comments = item_context.get('comments', [])
         available_labels = self._get_available_labels()
 
-        recent_comments = [self._format_comment_entry(c) for c in comments[-MAX_COMMENTS:]]
+        recent_comments = [self._format_comment_entry(c) for c in comments]
 
         return {
             'title': item.get('title', 'Untitled'),
@@ -90,18 +90,25 @@ class GithubIssueAgent(ConnectionAgent):
         }
 
     def _get_issue_comments(self, issue: dict) -> list[dict]:
-        """Fetch comments for a single issue ordered by creation time."""
+        """Fetch first comment plus recent comments for a single issue."""
         issue_id = issue.get('issue_id')
         if not issue_id:
             return []
 
-        sql = (
-            f"SELECT `comment_id`, `author`, `created_time`, `content` "
-            f"FROM `{self._comments_table}` "
-            f"WHERE `issue_id` = {issue_id} "
-            f"ORDER BY `created_time` DESC LIMIT {MAX_COMMENTS}"
+        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=self._comments_table,
+            topic_ids=[issue_id],
+            topic_id_field_name='issue_id',
+            fields_str='comment_id, author, created_time, content',
+            has_deleted_field=False,
+            first_order_by_field='comment_id',
+            latest_order_by_field='comment_id',
+            limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['comment_id'],
+            sort_key_fields=['comment_id'],
         )
-        return list(reversed(self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])))
+        return comments_map.get(issue_id, [])
 
     def _get_available_labels(self) -> list[str]:
         cached = getattr(self, '_available_labels_cache', None)
