@@ -7,17 +7,6 @@ from seaqa_ai.utils import uuid_str_to_36_chars
 logger = logging.getLogger(__name__)
 SEADB_COMPONENT_USERNAME = 'seaqa-ai'
 
-
-def _truncate_content_with_ellipsis(content, max_length):
-    content = content or ''
-    if max_length <= 0:
-        return ''
-    if len(content) <= max_length:
-        return content
-    if max_length <= 3:
-        return '.' * max_length
-    return content[:max_length - 3] + '...'
-
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
         raise ConnectionError(response.status_code, response.text)
@@ -27,6 +16,8 @@ def parse_response(response):
         except:
             pass
 
+
+class SeaDBSQLGenerator: ...
 
 
 class SeaDBAPI:
@@ -117,7 +108,8 @@ class SeaDBAPI:
             for record in records
         }
 
-    def _normalize_fields_str(self, fields_str, required_fields):
+    @staticmethod
+    def _normalize_fields_str(fields_str, required_fields):
         if fields_str == '*':
             return fields_str
 
@@ -139,13 +131,11 @@ class SeaDBAPI:
 
         return ', '.join(normalized_fields)
 
-    def _format_sql_literal(self, value):
-        return str(value) if not isinstance(value, str) else f'"{value}"'
-
-    def _build_topic_entries_sql(self, table_name, topic_ids, topic_id_field_name, fields_str='*',
+    @staticmethod
+    def _build_topic_entries_sql(table_name, topic_ids, topic_id_field_name, fields_str='*',
                                  has_deleted_field=True, order_by_fields=None):
         condition_str = ', '.join([
-            self._format_sql_literal(topic_id)
+            str(topic_id) if not isinstance(topic_id, str) else f'"{topic_id}"'
             for topic_id in topic_ids
         ])
 
@@ -188,7 +178,8 @@ class SeaDBAPI:
 
         return result
 
-    def _make_record_key(self, record, key_fields):
+    @staticmethod
+    def _make_record_key(record, key_fields):
         if not key_fields:
             return None
         return tuple(record.get(field) for field in key_fields)
@@ -269,6 +260,17 @@ class SeaDBAPI:
             result[topic_id] = grouped_rows.get(topic_id, [])[-limit_for_each_topic:]
         return result
 
+    @staticmethod
+    def _truncate_content_with_ellipsis(content, max_length):
+        content = content or ''
+        if max_length <= 0:
+            return ''
+        if len(content) <= max_length:
+            return content
+        if max_length <= 3:
+            return '.' * max_length
+        return content[:max_length - 3] + '...'
+
     def get_selected_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
                                    fields_str='*', has_deleted_field=True, limit_for_each_topic=20,
                                    first_order_by_field=None, latest_order_by_field=None,
@@ -325,7 +327,7 @@ class SeaDBAPI:
             first_content = first_entry.get(content_field_name) or ''
             if remaining_size is not None and len(first_content) > remaining_size:
                 selected_entries = []
-                truncated_content = _truncate_content_with_ellipsis(first_content, remaining_size)
+                truncated_content = self._truncate_content_with_ellipsis(first_content, remaining_size)
                 if truncated_content:
                     truncated_entry = dict(first_entry)
                     truncated_entry[content_field_name] = truncated_content
@@ -388,7 +390,7 @@ class SeaDBAPI:
                     break
 
                 if len(content) > remaining_size:
-                    truncated_content = _truncate_content_with_ellipsis(content, remaining_size)
+                    truncated_content = self._truncate_content_with_ellipsis(content, remaining_size)
                     if truncated_content:
                         truncated_entry = dict(entry)
                         truncated_entry[content_field_name] = truncated_content
