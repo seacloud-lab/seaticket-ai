@@ -95,34 +95,20 @@ class GithubIssueAgent(ConnectionAgent):
         if not issue_id:
             return []
 
-        first_comments = self.seadb_api.get_first_topic_entries(
+        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=self._comments_table,
             topic_ids=[issue_id],
             topic_id_field_name='issue_id',
             fields_str='comment_id, author, created_time, content',
             has_deleted_field=False,
-            order_by_field='comment_id',
-        )
-        latest_comments_map = self.seadb_api.get_latest_topic_entries(
-            base_id=self.project_uuid,
-            table_name=self._comments_table,
-            topic_ids=[issue_id],
-            topic_id_field_name='issue_id',
-            fields_str='comment_id, author, created_time, content',
-            has_deleted_field=False,
-            order_by_field='comment_id',
+            first_order_by_field='comment_id',
+            latest_order_by_field='comment_id',
             limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['comment_id'],
+            sort_key_fields=['comment_id'],
         )
-
-        comments_by_id = {
-            comment['comment_id']: comment
-            for comment in latest_comments_map.get(issue_id, [])
-        }
-        first_comment = first_comments.get(issue_id)
-        if first_comment:
-            comments_by_id[first_comment['comment_id']] = first_comment
-        return [comments_by_id[comment_id] for comment_id in sorted(comments_by_id)]
+        return comments_map.get(issue_id, [])
 
     def _get_available_labels(self) -> list[str]:
         cached = getattr(self, '_available_labels_cache', None)

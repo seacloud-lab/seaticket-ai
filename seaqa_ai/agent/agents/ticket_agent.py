@@ -91,33 +91,20 @@ class TicketAgent(BaseAgent):
     def get_item_context(self, item: dict) -> dict:
         """Fetch comments, activities, and historical notifications for a ticket."""
         ticket_id = item['_pk']
-        first_comments = self.seadb_api.get_first_topic_entries(
+        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=SchemaTables.TICKET_COMMENTS.table_name(),
             topic_ids=[ticket_id],
             topic_id_field_name='ticket_id',
             fields_str='_pk, creator, created_time, content',
             has_deleted_field=True,
-            order_by_field='_pk',
-        )
-        latest_comments_map = self.seadb_api.get_latest_topic_entries(
-            base_id=self.project_uuid,
-            table_name=SchemaTables.TICKET_COMMENTS.table_name(),
-            topic_ids=[ticket_id],
-            topic_id_field_name='ticket_id',
-            fields_str='_pk, creator, created_time, content',
-            has_deleted_field=True,
-            order_by_field='_pk',
+            first_order_by_field='_pk',
+            latest_order_by_field='_pk',
             limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['_pk'],
+            sort_key_fields=['_pk'],
         )
-        comments_by_pk = {
-            comment['_pk']: comment
-            for comment in latest_comments_map.get(ticket_id, [])
-        }
-        first_comment = first_comments.get(ticket_id)
-        if first_comment:
-            comments_by_pk[first_comment['_pk']] = first_comment
-        comments = [comments_by_pk[pk] for pk in sorted(comments_by_pk)]
+        comments = comments_map.get(ticket_id, [])
 
         activities_sql = (
             f"SELECT `activity_type`, `created_time`, `detail` "

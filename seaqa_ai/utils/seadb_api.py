@@ -184,6 +184,157 @@ class SeaDBAPI:
             return None
         return tuple(record.get(field) for field in key_fields)
 
+    def _select_first_and_latest_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
+                                               fields_str='*', has_deleted_field=True,
+                                               first_order_by_field=None, latest_order_by_field=None,
+                                               limit_for_each_topic=20, dedupe_key_fields=None,
+                                               sort_key_fields=None):
+        topic_ids = list(topic_ids or [])
+        if not topic_ids:
+            return {}
+
+        dedupe_key_fields = list(dedupe_key_fields or [])
+        sort_key_fields = list(sort_key_fields or dedupe_key_fields or [])
+        required_fields = [
+            topic_id_field_name,
+            first_order_by_field,
+            latest_order_by_field,
+            *dedupe_key_fields,
+            *sort_key_fields,
+        ]
+        fields_str = self._normalize_fields_str(fields_str, required_fields)
+
+        # Single-query fast path for the common case where both selections use
+        # the same ordering semantics.
+        if first_order_by_field == latest_order_by_field:
+            grouped_rows = self._get_topic_entries_grouped(
+                base_id=base_id,
+                table_name=table_name,
+                topic_ids=topic_ids,
+                topic_id_field_name=topic_id_field_name,
+                fields_str=fields_str,
+                has_deleted_field=has_deleted_field,
+                order_by_fields=[first_order_by_field] if first_order_by_field else None,
+            )
+            return self._build_selected_topic_entries_from_grouped_rows(
+                topic_ids=topic_ids,
+                grouped_rows=grouped_rows,
+                limit_for_each_topic=limit_for_each_topic,
+                dedupe_key_fields=dedupe_key_fields,
+                sort_key_fields=sort_key_fields,
+            )
+
+        first_entries = self.get_first_topic_entries(
+            base_id=base_id,
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            order_by_field=first_order_by_field,
+        )
+        latest_entries_map = self.get_latest_topic_entries(
+            base_id=base_id,
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            order_by_field=latest_order_by_field,
+            limit_for_each_topic=limit_for_each_topic,
+        )
+        return self._merge_first_and_latest_topic_entries(
+            topic_ids=topic_ids,
+            first_entries=first_entries,
+            latest_entries_map=latest_entries_map,
+            dedupe_key_fields=dedupe_key_fields,
+            sort_key_fields=sort_key_fields,
+        )
+
+    def _build_selected_topic_entries_from_grouped_rows(self, topic_ids, grouped_rows, limit_for_each_topic,
+                                                        dedupe_key_fields=None, sort_key_fields=None):
+        first_entries = {}
+        latest_entries_map = {}
+        for topic_id in topic_ids:
+            rows = grouped_rows.get(topic_id, [])
+            if rows:
+                first_entries[topic_id] = rows[0]
+                latest_entries_map[topic_id] = rows[-limit_for_each_topic:] if limit_for_each_topic > 0 else []
+            else:
+                latest_entries_map[topic_id] = []
+
+        return self._merge_first_and_latest_topic_entries(
+            topic_ids=topic_ids,
+            first_entries=first_entries,
+            latest_entries_map=latest_entries_map,
+            dedupe_key_fields=dedupe_key_fields,
+            sort_key_fields=sort_key_fields,
+        )
+
+    def _merge_first_and_latest_topic_entries(self, topic_ids, first_entries, latest_entries_map,
+                                              dedupe_key_fields=None, sort_key_fields=None):
+        dedupe_key_fields = list(dedupe_key_fields or [])
+        sort_key_fields = list(sort_key_fields or dedupe_key_fields or [])
+        result = {}
+
+        for topic_id in topic_ids:
+            first_entry = first_entries.get(topic_id)
+            latest_entries = latest_entries_map.get(topic_id, [])
+            if not first_entry and not latest_entries:
+                result[topic_id] = []
+                continue
+
+            entries_by_key = {}
+            for entry in latest_entries:
+                record_key = self._make_record_key(entry, dedupe_key_fields)
+                if record_key is None:
+                    record_key = id(entry)
+                entries_by_key[record_key] = entry
+
+            if first_entry:
+                first_entry_key = self._make_record_key(first_entry, dedupe_key_fields)
+                if first_entry_key is None:
+                    first_entry_key = id(first_entry)
+                entries_by_key[first_entry_key] = first_entry
+
+            entries = list(entries_by_key.values())
+            if sort_key_fields:
+                entries = sorted(
+                    entries,
+                    key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
+                )
+            result[topic_id] = entries
+
+        return result
+
+    @staticmethod
+    def _pick_first_entry(entries, first_order_by_field=None):
+        entries = list(entries or [])
+        if not entries:
+            return None
+        if not first_order_by_field:
+            return entries[0]
+        return min(entries, key=lambda entry: entry.get(first_order_by_field) or '')
+
+    def get_first_and_latest_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
+                                           fields_str='*', has_deleted_field=True,
+                                           first_order_by_field=None, latest_order_by_field=None,
+                                           limit_for_each_topic=20, dedupe_key_fields=None,
+                                           sort_key_fields=None):
+        return self._select_first_and_latest_topic_entries(
+            base_id=base_id,
+            table_name=table_name,
+            topic_ids=topic_ids,
+            topic_id_field_name=topic_id_field_name,
+            fields_str=fields_str,
+            has_deleted_field=has_deleted_field,
+            first_order_by_field=first_order_by_field,
+            latest_order_by_field=latest_order_by_field,
+            limit_for_each_topic=limit_for_each_topic,
+            dedupe_key_fields=dedupe_key_fields,
+            sort_key_fields=sort_key_fields,
+        )
+
     def get_first_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
                                 fields_str='*', has_deleted_field=True, order_by_field=None):
         topic_ids = list(topic_ids or [])
@@ -300,30 +451,34 @@ class SeaDBAPI:
         ]
         fields_str = self._normalize_fields_str(fields_str, required_fields)
 
-        first_entries = self.get_first_topic_entries(
+        selected_entries_map = self._select_first_and_latest_topic_entries(
             base_id=base_id,
             table_name=table_name,
             topic_ids=topic_ids,
             topic_id_field_name=topic_id_field_name,
             fields_str=fields_str,
             has_deleted_field=has_deleted_field,
-            order_by_field=first_order_by_field,
+            first_order_by_field=first_order_by_field,
+            latest_order_by_field=latest_order_by_field,
+            limit_for_each_topic=limit_for_each_topic,
+            dedupe_key_fields=dedupe_key_fields,
+            sort_key_fields=sort_key_fields,
         )
 
         result = {}
-        latest_query_topic_ids = []
         for topic_id in topic_ids:
             initial_content_length = int(initial_content_lengths.get(topic_id, 0) or 0)
             if max_total_content_size is not None and initial_content_length >= max_total_content_size:
                 result[topic_id] = [omitted_notice_builder()] if omitted_notice_builder else []
                 continue
 
-            first_entry = first_entries.get(topic_id)
-            if not first_entry:
+            entries = list(selected_entries_map.get(topic_id, []))
+            if not entries:
                 result[topic_id] = []
                 continue
 
             remaining_size = None if max_total_content_size is None else max_total_content_size - initial_content_length
+            first_entry = self._pick_first_entry(entries, first_order_by_field=first_order_by_field)
             first_content = first_entry.get(content_field_name) or ''
             if remaining_size is not None and len(first_content) > remaining_size:
                 selected_entries = []
@@ -340,42 +495,6 @@ class SeaDBAPI:
             if limit_for_each_topic <= 1:
                 result[topic_id] = [first_entry]
                 continue
-
-            latest_query_topic_ids.append(topic_id)
-
-        latest_entries_map = self.get_latest_topic_entries(
-            base_id=base_id,
-            table_name=table_name,
-            topic_ids=latest_query_topic_ids,
-            topic_id_field_name=topic_id_field_name,
-            fields_str=fields_str,
-            has_deleted_field=has_deleted_field,
-            order_by_field=latest_order_by_field,
-            limit_for_each_topic=limit_for_each_topic,
-        )
-
-        for topic_id in latest_query_topic_ids:
-            first_entry = first_entries.get(topic_id)
-            latest_entries = latest_entries_map.get(topic_id, [])
-            entries_by_key = {}
-
-            for entry in latest_entries:
-                record_key = self._make_record_key(entry, dedupe_key_fields)
-                if record_key is None:
-                    record_key = id(entry)
-                entries_by_key[record_key] = entry
-
-            first_entry_key = self._make_record_key(first_entry, dedupe_key_fields)
-            if first_entry_key is None:
-                first_entry_key = id(first_entry)
-            entries_by_key[first_entry_key] = first_entry
-
-            entries = list(entries_by_key.values())
-            if sort_key_fields:
-                entries = sorted(
-                    entries,
-                    key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
-                )
 
             if max_total_content_size is None:
                 result[topic_id] = entries

@@ -103,48 +103,17 @@ class EmailAgent(ConnectionAgent):
         if not thread_id:
             return []
 
-        first_emails = self.seadb_api.get_first_topic_entries(
+        emails_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=self._emails_table,
             topic_ids=[thread_id],
             topic_id_field_name='thread_id',
             fields_str='message_id, email_from, email_to, cc, modified_time, is_sender, content',
             has_deleted_field=True,
-            order_by_field='modified_time',
-        )
-        first_email = first_emails.get(thread_id)
-        if not first_email:
-            return []
-
-        recent_emails_map = self.seadb_api.get_latest_topic_entries(
-            base_id=self.project_uuid,
-            table_name=self._emails_table,
-            topic_ids=[thread_id],
-            topic_id_field_name='thread_id',
-            fields_str='message_id, email_from, email_to, cc, modified_time, is_sender, content',
-            has_deleted_field=True,
-            order_by_field='modified_time',
+            first_order_by_field='modified_time',
+            latest_order_by_field='modified_time',
             limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['message_id', 'modified_time', 'email_from', 'email_to', 'content'],
+            sort_key_fields=['modified_time', 'message_id'],
         )
-        emails_by_key = {}
-        for email in recent_emails_map.get(thread_id, []):
-            key = (
-                email.get('message_id') or '',
-                email.get('modified_time') or '',
-                email.get('email_from') or '',
-                email.get('email_to') or '',
-                email.get('content') or '',
-            )
-            emails_by_key[key] = email
-        first_key = (
-            first_email.get('message_id') or '',
-            first_email.get('modified_time') or '',
-            first_email.get('email_from') or '',
-            first_email.get('email_to') or '',
-            first_email.get('content') or '',
-        )
-        emails_by_key[first_key] = first_email
-        return sorted(
-            emails_by_key.values(),
-            key=lambda email: (email.get('modified_time') or '', email.get('message_id') or ''),
-        )
+        return emails_map.get(thread_id, [])
