@@ -22,10 +22,11 @@ Focus on assessing the due-soon situation and deciding whether notification is n
 
 <rules>
   - ONE tool call per step. Never call multiple tools in the same step.
-  - record_ticket_analysis MUST be your final tool call in this phase.
-  - If previous_notifications already contains a recent due-soon notification, recommend no_op.
-  - If a custom rule says no reminder is needed, recommend no_op and cite the matched rule in analysis.
-  - If a custom rule says this ticket should be closed, recommend suggest_close_ticket and cite the matched rule in analysis.
+  - record_ticket_analysis MUST be your only tool call in this phase.
+  - Do NOT call suggest_notify_assignee or suggest_close_ticket here. Those are handling tools; in this phase only set recommended_action on record_ticket_analysis.
+  - If previous_notifications already contains a recent due-soon notification, set recommended_action to no_op.
+  - If a custom rule says no reminder is needed, set recommended_action to no_op and cite the matched rule in analysis.
+  - If a custom rule says this ticket should be closed, set recommended_action to suggest_close_ticket and cite the matched rule in analysis.
 </rules>
 
 <input_format>
