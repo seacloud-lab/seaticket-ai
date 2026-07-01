@@ -19,8 +19,8 @@ from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
-from seaqa_ai.services.skills.registry import SkillRegistry
-from seaqa_ai.services.skills.tool import SkillTool
+from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
+from seaqa_ai.services.chat_service.skills.tool import SkillTool
 
 logger = logging.getLogger(__name__)
 

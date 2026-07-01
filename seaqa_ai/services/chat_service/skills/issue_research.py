@@ -1,4 +1,4 @@
-from seaqa_ai.services.skills.spec import SkillSpec
+from seaqa_ai.services.chat_service.skills.spec import SkillSpec
 
 
 ISSUE_RESEARCH_PROMPT = """Skill: issue_research

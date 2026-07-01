@@ -1,6 +1,6 @@
 from seaqa_ai import config
-from seaqa_ai.services.skills.issue_research import ISSUE_RESEARCH_SKILL
-from seaqa_ai.services.skills.spec import SkillSpec
+from seaqa_ai.services.chat_service.skills.issue_research import ISSUE_RESEARCH_SKILL
+from seaqa_ai.services.chat_service.skills.spec import SkillSpec
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 
 
