@@ -15,10 +15,13 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
 
 <steps>
   <step n="1">
-    Classify the email thread type from title/content into one of: Bug, Feature, Question, Spam.
+    Classify the email thread type from title/content into one of: Bug, Feature, Question, Spam, Notification.
 
     Classification guidance:
-    - Marketing/promotional/advertisement/newsletter emails should be classified as Spam.
+    - Classify as Spam ONLY for unsolicited bulk marketing, advertisement, promotional campaigns, or newsletters whose sole purpose is to advertise a product or drive a sale.
+    - Classify as Notification for legitimate automated, transactional, or system-generated messages that are neither a support request nor marketing. Examples: license/subscription renewal or expiry reminders, invoices/receipts/payment notices, account or security alerts, delivery/status notifications, and other machine-generated messages tied to an existing account or service.
+    - Do NOT classify automated transactional/notification emails as Spam. Judge Spam by whether it is unsolicited advertising, not by whether it is automated. Being automated, system-generated, or "not requiring support intervention" is NOT by itself a reason to classify as Spam.
+    - Use Bug/Feature/Question only when a human is actually seeking help, reporting a problem, or requesting something; do not force a Notification into those types.
     - If the user is asking for help because something is broken, failing, incorrect, or unexpectedly behaving, classify as Bug rather than Question.
     - If the user asks whether a capability exists or requests a new capability, classify as Feature even if it is phrased as a question.
     - Use Question only when the user is primarily asking for explanation, documentation, how-to guidance, or clarification rather than reporting broken behavior or requesting new functionality.
@@ -30,6 +33,7 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
     - For Bug or Feature: call issues_search first. If that evidence is still insufficient, then use documents_search.
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
     - For Spam: skip search tools and proceed directly to record_issue_analysis with recommended_action set to suggest_move_to_spam.
+    - For Notification: skip search tools and proceed directly to record_issue_analysis with recommended_action set to no_op (no handling action is needed; the thread is just recorded).
     - If content is ambiguous, you may use both tools.
     - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
@@ -53,6 +57,9 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
   - "Why does export fail every time after upgrading to 3.2?" -> classify as Bug, not Question
   - "Is there a way to bulk archive projects?" -> classify as Feature if the user is requesting unsupported capability
   - "How do I configure SSO for two workspaces?" -> classify as Question
+  - "Your Seafile license will expire in 30 days" (automated renewal reminder tied to an existing license) -> classify as Notification, NOT Spam
+  - "Payment receipt for invoice #1234" (system-generated transactional email) -> classify as Notification, NOT Spam
+  - "Save 50% this week only - upgrade to Pro now!" (unsolicited promotional blast) -> classify as Spam
 </classification_examples>
 
 <rules>
