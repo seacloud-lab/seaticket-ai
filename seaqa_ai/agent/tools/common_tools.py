@@ -63,7 +63,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 },
                 'classified_issue_type': {
                     'type': 'string',
-                    'enum': ['Bug', 'Feature', 'Question', 'Spam'],
+                    'enum': ['Bug', 'Feature', 'Question', 'Spam', 'Notification'],
                     'description': 'Optional agent-classified issue type based on title/content. Include it when the scenario requires issue classification.'
                 },
                 'original_issue_type': {
