@@ -13,6 +13,10 @@ from seaqa_ai.agent.tools.common_tools import BaseAgentTool
 logger = logging.getLogger(__name__)
 
 
+class InvalidValueException(Exception):
+    """Raised when a required tool argument is missing or invalid."""
+
+
 class RecordTicketAnalysisTool(BaseAgentTool):
     """Records the agent's analysis of a ticket before taking any action."""
 
@@ -33,7 +37,7 @@ class RecordTicketAnalysisTool(BaseAgentTool):
                 },
                 'recommended_action': {
                     'type': 'string',
-                    'enum': ['suggest_notify_assignee', 'no_op'],
+                    'enum': ['suggest_notify_assignee', 'suggest_close_ticket', 'no_op'],
                     'description': 'The recommended action to take next.'
                 }
             },
@@ -104,8 +108,54 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
         )
 
 
+class SuggestCloseTicketTool(BaseAgentTool):
+    """Suggests closing a ticket; requires user confirmation."""
+
+    tool = {
+        'type': 'function',
+        'name': 'suggest_close_ticket',
+        'description': (
+            'Suggest closing the current ticket with a concise reason. '
+            'This suggestion requires user confirmation before execution.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'reason': {
+                    'type': 'string',
+                    'description': 'The reason for closing this ticket'
+                },
+                'rule': {
+                    'type': 'string',
+                    'description': 'Optional matched custom rule text'
+                }
+            },
+            'required': ['reason']
+        },
+        'strict': True,
+    }
+
+    action_type = 'suggestion'
+    action_status = 'pending'
+    suggestion_text = 'Close this ticket.'
+
+    def execute(self, reason, rule=None):
+        source_id = self.get_source_id()
+        source_title = self.get_source_title()
+        reason = (reason or '').strip()
+        rule = (rule or '').strip()
+        if not reason:
+            raise InvalidValueException('Cannot suggest closing ticket: empty reason.')
+
+        return (
+            f'Close-ticket suggestion prepared for ticket #{source_id} - {source_title}. '
+            f'Reason: {reason}. Rule: {rule}'
+        )
+
+
 # All ticket tools for registration by TicketAgentWorker
 TICKET_TOOL_CLASSES = [
     RecordTicketAnalysisTool,
     SuggestNotifyAssigneeTool,
+    SuggestCloseTicketTool,
 ]

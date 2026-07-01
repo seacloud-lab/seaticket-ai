@@ -324,17 +324,27 @@ class BaseAgent:
 
     @staticmethod
     def _compute_phase_tools(tool_executor: OpenAIToolExecutor, spec: ReactPhase, *,
-                             exclude_terminators: set, filter_search: bool):
-        tools = [
-            tool
-            for tool in tool_executor.get()
-            if tool.get('name') not in exclude_terminators
-        ]
-        if filter_search:
-            tools = [
-                tool for tool in tools
-                if not tool.get('name', '').endswith('_search')
-            ]
+                             exclude_terminators: set, filter_search: bool,
+                             tool_metadata: dict | None = None):
+        tools = []
+        for tool in tool_executor.get():
+            name = tool.get('name', '')
+            if name in exclude_terminators:
+                continue
+
+            action_type = (tool_metadata or {}).get(name, {}).get('action_type', 'tool_call')
+            if spec.name == 'analysis':
+                if action_type in ('suggestion', 'summary'):
+                    continue
+                if filter_search and name.endswith('_search'):
+                    continue
+            elif spec.name == 'handling':
+                if action_type == 'analysis':
+                    continue
+                if name.endswith('_search'):
+                    continue
+
+            tools.append(tool)
         spec.tools = tools
 
     def _get_project_org_id(self):
@@ -357,10 +367,18 @@ class BaseAgent:
             'scenario': AIScenario.AGENT.value,
         }
 
+    def get_custom_rules_prompt(self) -> str:
+        """Return optional custom rules block to prepend to system prompts."""
+        return ''
+
     def _build_system_prompt(self, base_prompt: str) -> str:
         """Merge project-level prompt from project settings with base prompt."""
         project_prompt = (self.project.get('settings') or {}).get('prompt', '')
-        return build_system_prompt(base_prompt, project_prompt)
+        merged_prompt = build_system_prompt(base_prompt, project_prompt)
+        custom_rules_prompt = self.get_custom_rules_prompt()
+        if not custom_rules_prompt:
+            return merged_prompt
+        return f'{custom_rules_prompt.strip()}\n\n{merged_prompt}'
 
     # ── Per-item processing ─────────────────────────────────────────
 
@@ -389,11 +407,13 @@ class BaseAgent:
             tool_executor, analysis_phase,
             exclude_terminators={handling_phase.terminator_tool},
             filter_search=not self.SEARCH_ENABLED,
+            tool_metadata=tool_metadata,
         )
         self._compute_phase_tools(
             tool_executor, handling_phase,
             exclude_terminators={analysis_phase.terminator_tool},
             filter_search=False,
+            tool_metadata=tool_metadata,
         )
 
         agent_runner = AgentRunner(
