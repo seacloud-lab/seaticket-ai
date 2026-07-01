@@ -52,7 +52,6 @@ from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
 
-
 class BaseAgent:
     """
     Abstract base class for agents.
@@ -367,6 +366,15 @@ class BaseAgent:
             'scenario': AIScenario.AGENT.value,
         }
 
+    def _auto_confirm_tools(self) -> set[str]:
+        configured = self.agent_settings.get('auto_confirm') or {}
+        if not isinstance(configured, dict):
+            return set()
+        return {
+            tool_name for tool_name, enabled in configured.items()
+            if isinstance(enabled, bool) and enabled
+        }
+
     def get_custom_rules_prompt(self) -> str:
         """Return optional custom rules block to prepend to system prompts."""
         return ''
@@ -422,7 +430,12 @@ class BaseAgent:
             responses_client=responses_client,
             record_context=record_context,
             ai_stats_context=self._build_ai_stats_context(),
-            action_recorder=AgentActionRecorder(self.project_uuid, self.seadb_api),
+            action_recorder=AgentActionRecorder(
+                self.project_uuid,
+                self.seadb_api,
+                mq=self.app.redis_client.connection if self.app.redis_client else None,
+                auto_confirm_tools=self._auto_confirm_tools(),
+            ),
             run_id=run_id,
             tool_metadata=tool_metadata,
             prelude_phase=self.get_prelude_phase(),

@@ -65,7 +65,8 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
             'Send a notification to the assignees of a ticket. '
             'Use this when a ticket is approaching its due date, '
             'has been inactive for too long, or needs attention. '
-            'It needs user confirmation. Thus the action status should be pending.'
+            'This action is usually pending for user confirmation, '
+            'but some projects may configure it to auto-execute.'
         ),
         'parameters': {
             'type': 'object',
