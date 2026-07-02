@@ -65,9 +65,11 @@ ISSUE_RESEARCH_SKILL = SkillSpec(
     id='issue_research',
     name='Issue Research',
     description=(
-        'Use when the user explicitly asks to research, investigate, or analyze an issue, bug, error, '
-        'incident, product behavior, known problem, past case, or likely cause, or asks to create a '
-        'structured Markdown research/investigation report artifact.'
+        'Use only when the user explicitly requests deep research, in-depth investigation, '
+        'or thorough analysis of a specific issue/problem, where the task requires evidence '
+        'from documentation and/or past cases and should be synthesized into a structured '
+        'Markdown research report. Do not use for quick explanations, ordinary troubleshooting, '
+        'simple bug/error analysis, generic questions, or direct fix suggestions.'
     ),
     system_prompt=ISSUE_RESEARCH_PROMPT,
     required_tools=(
