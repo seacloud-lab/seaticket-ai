@@ -433,7 +433,7 @@ class BaseAgent:
             action_recorder=AgentActionRecorder(
                 self.project_uuid,
                 self.seadb_api,
-                mq=self.app.redis_client.connection if self.app.redis_client else None,
+                seaqa_web_api=self.app.seaqa_web_api,
                 auto_confirm_tools=self._auto_confirm_tools(),
             ),
             run_id=run_id,

@@ -2,7 +2,6 @@ from enum import Enum
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
 AGENT_TASK_QUEUE_NAME = 'agent_task'
-AGENT_AUTO_ACTION_QUEUE_NAME = 'agent_auto_action'
 
 DATA_EVENTS_CHANNEL = 'data_events'
 
