@@ -94,7 +94,7 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
                     'description': 'The reason for the notification (e.g., "approaching_due_date")'
                 }
             },
-            'required': ['message']
+            'required': ['message', 'reason']
         },
         'strict': True,
     }

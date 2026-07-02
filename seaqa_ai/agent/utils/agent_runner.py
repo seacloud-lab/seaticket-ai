@@ -813,39 +813,33 @@ class AgentRunner:
                 suggestion_text = metadata.get('suggestion_text', '')
         else:
             suggestion_text = ''
-        content = (
-            tool_arguments.get('thought') or
-            tool_arguments.get('analysis') or
-            tool_arguments.get('summary') or
-            tool_arguments.get('message') or
-            tool_arguments.get('comment') or
-            tool_arguments.get('reply') or
-            tool_arguments.get('reason') or
-            tool_arguments.get('rationale') or
-            tool_arguments.get('content') or
-            ''
-        )
-        if not content and isinstance(tool_arguments, dict) and tool_arguments:
-            content = json.dumps(tool_arguments, ensure_ascii=False)
+
         sources = []
-        if action_type == 'analysis' and content:
+        if action_type == 'analysis':
             try:
-                content, sources = get_answer_and_sources(self.tool_executor, content)
+                result, sources = get_answer_and_sources(self.tool_executor, tool_arguments.get('analysis'))
                 sources = remove_sources_content_and_snippets(sources)
             except Exception as e:
                 logger.warning('Failed to parse analysis references, keep raw content. tool=%s error=%s', tool_name, e)
+                result = tool_arguments.get('analysis') or ''
                 sources = []
+        else:
+            # For documents_search & issues_search, use observation instead of result
+            # For suggestion tools, use result to store execution result.
+            result = ''
 
+        content = (
+            tool_arguments.get('analysis') or
+            tool_arguments.get('reply') or
+            tool_arguments.get('message') or
+            ''
+        )
+        
         suggestion_content = content if action_type == 'suggestion' else ''
         if tool_name == 'suggest_create_ticket':
             suggestion_content = ''
             if isinstance(raw_result, dict):
                 suggestion_content = raw_result.get('suggestion_content')
-
-        result = content
-        if action_type == 'tool_call':
-            # use observation for common tool_call
-            result = ''
 
         if self._try_record_multi_target_suggestion_actions(
             phase=phase,
@@ -874,6 +868,7 @@ class AgentRunner:
             tool_name=recorded_tool_name,
             tool_arguments=tool_arguments,
             observation=observation,
+            suggestion_reason=tool_arguments.get('reason') if action_type == 'suggestion' else '',
             suggestion_text=suggestion_text if action_type == 'suggestion' else '',
             suggestion_content=suggestion_content,
             sources=sources,
@@ -992,6 +987,7 @@ class AgentRunner:
         tool_name=None,
         tool_arguments=None,
         observation=None,
+        suggestion_reason=None,
         suggestion_text=None,
         suggestion_content=None,
         sources=None,
@@ -1027,6 +1023,7 @@ class AgentRunner:
             'tool_name': tool_name,
             'tool_arguments': tool_arguments,
             'observation': observation or '',
+            'suggestion_reason': suggestion_reason or '',
             'suggestion_text': suggestion_text or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources or [],
