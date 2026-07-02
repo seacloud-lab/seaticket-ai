@@ -1,6 +1,52 @@
+import copy
 from enum import Enum
 
 MODEL_USAGE_STATISTIC_CHANNEL_NAME = 'log_ai_model_usage'
+
+
+DEFAULT_AGENT_AUTO_CONFIRM = {
+    'suggest_notify_assignee': True,
+    'suggest_create_ticket': False,
+}
+
+DEFAULT_AGENT_SETTINGS = {
+    'enabled': True,
+    'model': 'gemini-3-flash',
+    'notify_before_due_hours': 48,
+    'github_issue_type_mapping': {
+        'Bug': 'Bug',
+        'Feature': 'Feature',
+    },
+    'ticket_rules': '',
+    'auto_confirm': DEFAULT_AGENT_AUTO_CONFIRM,
+}
+
+
+def merge_project_agent_settings_defaults(project_settings):
+    if not isinstance(project_settings, dict):
+        project_settings = {}
+
+    result = copy.deepcopy(project_settings)
+    result['agent'] = _merge_agent_settings_defaults(result.get('agent'))
+    return result
+
+
+def _merge_agent_settings_defaults(agent_settings):
+    if not isinstance(agent_settings, dict):
+        agent_settings = {}
+
+    result = copy.deepcopy(DEFAULT_AGENT_SETTINGS)
+    _deep_update(result, agent_settings)
+    return result
+
+
+def _deep_update(target, source):
+    for key, value in source.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            _deep_update(target[key], value)
+        else:
+            target[key] = value
+    return target
 
 
 LANGUAGE = {

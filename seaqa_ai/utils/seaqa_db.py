@@ -31,7 +31,7 @@ class SeaqaDB(object):
         agent_settings = settings.get('agent')
         if not isinstance(agent_settings, dict):
             return True
-        return bool(agent_settings.get('enabled', True))
+        return bool(agent_settings.get('enabled'))
     
     def get_project_by_uuid(self, project_uuid: str) -> dict | None:
         with self.db_session_class() as db_session:

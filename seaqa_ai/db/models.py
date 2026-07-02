@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import Column, BigInteger, Enum, String, DateTime, Text, Boolean, Index, Integer, SmallInteger
 from seaqa_ai.db import Base
 from seaqa_ai.utils import localize_time
+from seaqa_ai.utils.constants import merge_project_agent_settings_defaults
 from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class Project(Base):
                     settings = json.loads(project.settings or '{}')
                 except (json.JSONDecodeError, TypeError):
                     settings = {}
+                settings = merge_project_agent_settings_defaults(settings)
                 projects.append({
                     'uuid': str(project.uuid),
                     'settings': settings,
@@ -73,6 +75,7 @@ class Project(Base):
                 settings = json.loads(project.settings or '{}')
             except (json.JSONDecodeError, TypeError):
                 settings = {}
+            settings = merge_project_agent_settings_defaults(settings)
             
             return {
                 'uuid': str(project.uuid),

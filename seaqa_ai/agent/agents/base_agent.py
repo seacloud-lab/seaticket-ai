@@ -368,8 +368,6 @@ class BaseAgent:
 
     def _auto_confirm_tools(self) -> set[str]:
         configured = self.agent_settings.get('auto_confirm') or {}
-        if not isinstance(configured, dict):
-            return set()
         return {
             tool_name for tool_name, enabled in configured.items()
             if isinstance(enabled, bool) and enabled
