@@ -24,7 +24,7 @@ class SeaQAAIApp(object):
         self.data_logger = DataLogging(self.redis_client)
         self.ai_services = AIServices(self)
         self.seaqa_indexer_api = SeaQAIndexerAPI(config.SEAQA_INDEXER_INNER_SERVER_URL, config.JWT_PRIVATE_KEY)
-        self.seadb_api = SeaDBAPI(config.SEADB_SERVER_ACCESS_TOKEN, config.SEADB_SERVER_URL)
+        self.seadb_api = SeaDBAPI(config.SEADB_SERVER_URL, config.SEADB_USER, config.SEADB_PASSWORD)
         self.seaqa_db = SeaqaDB(self.db_session_class)
         self.embedding_api = EmbeddingAPI(self.data_logger, config.EMBEDDING_MODEL.get('model'), config.EMBEDDING_MODEL.get('type', 'openai'), config.EMBEDDING_MODEL.get('url'), config.EMBEDDING_MODEL.get('key'))
         self.agent_manager = AgentManager(self)

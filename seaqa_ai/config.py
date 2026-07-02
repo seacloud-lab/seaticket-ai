@@ -190,7 +190,6 @@ JWT_PRIVATE_KEY = configs.get('JWT_PRIVATE_KEY', '')
 
 # SeaDB
 SEADB_SERVER_URL = configs.get('SEADB_SERVER_URL', 'http://seadb:8888')
-SEADB_SERVER_ACCESS_TOKEN = configs.get('SEADB_SERVER_ACCESS_TOKEN', '')
 
 # S3
 S3_HOST = configs.get('S3_HOST', '')
@@ -223,3 +222,6 @@ AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE = AGENT_CONFIG.get('enqueue_ticket_initial
 ### For timed scan
 AGENT_TIMED_SCAN_INTERVAL = AGENT_CONFIG.get('timed_scan_interval', 3600)  # Timed scanner execution interval
 AGENT_TIMED_SCAN_PROJECT_COOLDOWN = AGENT_CONFIG.get('timed_scan_project_cooldown', 86400)  # Cooldown before re-scanning the same project
+
+SEADB_USER = configs.get('SEADB_USER', '')
+SEADB_PASSWORD = configs.get('SEADB_PASSWORD', '')
