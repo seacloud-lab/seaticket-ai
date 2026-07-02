@@ -83,7 +83,8 @@ class DocumentsSearch(BasicSearchTool):
                     'description': 'The query is a short sentence (not keywords) related to the documents. For example, when a user asks "what\'s seafile", you should use \'introduction of seafile\' instead of the simple keyword \'seafile\' as `query`.'
                 },
             },
-            'required': ['query']
+            'required': ['query'],
+            'additionalProperties': False,
         },
         'strict': True,
     }
@@ -113,7 +114,8 @@ class IssuesSearch(BasicSearchTool):
                     'description': 'The query is a short sentence related to the issues. A short sentence means, for example, when a user reports a bug or issue, you should use a single sentence instead of several keywords.'
                 },
             },
-            'required': ['query']
+            'required': ['query'],
+            'additionalProperties': False,
         },
         'strict': True,
     }

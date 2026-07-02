@@ -17,7 +17,8 @@ class TestTool(BasicTool):
                     'description': 'Providing this parameter will raise a related error'
                 }
             },
-            'required': []
+            'required': [],
+            'additionalProperties': False,
         },
         'strict': True,
     }

@@ -10,6 +10,18 @@ logger = logging.getLogger(__name__)
 
 class BasicChatUtils:
     @classmethod
+    def _append_skill_activation_prompt(cls, memory, tool_name, tool_output):
+        if tool_name != 'skill' or not isinstance(tool_output, dict):
+            return
+        memory += {
+            'role': 'system',
+            'content': (
+                f'The skill "{tool_output.get("name", "")}" is now active for this request. '
+                'Use the loaded skill instructions when deciding how to proceed.'
+            )
+        }
+
+    @classmethod
     def build_completion_kwargs(cls, memory, context, tool_executor, current_step, has_inserter_max_step_prompt, max_steps_disabled_prompt):
         completion_kwargs = {
             'context': context,
@@ -60,6 +72,7 @@ class BasicChatUtils:
                     'call_id': tool_call.get('call_id', ''),
                     'output': json.dumps(tool_output)
                 }
+                cls._append_skill_activation_prompt(memory, tool_name, tool_output)
                 return
             except Exception as e:
                 logger.exception(f'Execute tool call failure: {e}')
@@ -108,6 +121,7 @@ class StreamingChatUtils(BasicChatUtils):
                     'call_id': tool_call.get('call_id', ''),
                     'output': json.dumps(tool_output)
                 }
+                cls._append_skill_activation_prompt(memory, tool_name, tool_output)
                 return
             except Exception as e:
                 logger.exception(f'Execute tool call failure: {e}')

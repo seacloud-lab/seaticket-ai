@@ -38,7 +38,8 @@ Seafile docker based installation consist of the following components (docker im
     """
                 }
             },
-            'required': ['file_name', 'content']
+            'required': ['file_name', 'content'],
+            'additionalProperties': False,
         },
         'strict': True,
     }
@@ -87,7 +88,8 @@ LDAP_SERVER_URL = 'ldap://your-server'
 """
                 }
             },
-            'required': ['title', 'content']
+            'required': ['title', 'content'],
+            'additionalProperties': False,
         },
         'strict': True,
     }
