@@ -117,9 +117,9 @@ In addition to the original input sections, this phase receives:
 </steps>
 
 <rules>
-  - ONE tool call per step. Never call multiple tools in the same step.
   - Call exactly one of suggest_reply, suggest_create_ticket, suggest_move_to_spam.
   - final_answer MUST be the last call. Do NOT call any tool after final_answer.
+  - Do NOT call final_answer in the same response as suggestion tools; after observing suggestion tool outputs, call final_answer as the only tool call.
   - Be concise and actionable.
   - When using suggest_reply for known/tracked cases, include supporting URLs from search results.
   - URLs from github_issue / discourse_forum / email / ticket / documents are all allowed in the reply.
