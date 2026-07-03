@@ -4,7 +4,7 @@ ConnectionAgent: intermediate base class for connection-backed agents.
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.common_tools import RecordIssueAnalysisTool
-from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch, SEARCH_TOOL_NAMES
+from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch, TasksSearch, SEARCH_TOOL_NAMES
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
 
@@ -15,7 +15,7 @@ class ConnectionAgent(BaseAgent):
     project connection (e.g. GitHub Issue, Discourse Forum, Email Thread).
 
     Adds search-tool injection on top of BaseAgent's tool assembly:
-    search tools (DocumentsSearch, IssuesSearch) are appended via
+    search tools (DocumentsSearch, IssuesSearch, TasksSearch) are appended via
     get_tool_classes() when SEARCH_ENABLED is True for this agent.
     """
 
@@ -23,7 +23,7 @@ class ConnectionAgent(BaseAgent):
     SEARCH_ENABLED = True
     ANALYSIS_TERMINATOR_TOOL = RecordIssueAnalysisTool
 
-    _SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
+    _SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch, TasksSearch]
 
     def __init__(self, app, project, connection_id: int, record_id=None, event=None):
         super().__init__(app, project, event)
@@ -70,9 +70,11 @@ class ConnectionAgent(BaseAgent):
         if not isinstance(cached, dict):
             doc_types = ConnectionType.get_document_connection_types()
             issue_types = ConnectionType.get_issue_connection_types()
+            task_types = ConnectionType.get_task_connection_types()
 
             document_connections = []
             issue_connections = []
+            task_connections = []
             with self.db_session_class() as db_session:
                 project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
                 if doc_types:
@@ -83,6 +85,10 @@ class ConnectionAgent(BaseAgent):
                     issue_connections = ProjectConnection.get_connections_by_project_and_types(
                         db_session, project_uuid_32, issue_types
                     )
+                if task_types:
+                    task_connections = ProjectConnection.get_connections_by_project_and_types(
+                        db_session, project_uuid_32, task_types
+                    )
 
             cached = self._build_ai_stats_context()
             cached.update({
@@ -90,6 +96,7 @@ class ConnectionAgent(BaseAgent):
                 'username': 'agent',
                 'document_connections': document_connections,
                 'issue_connections': issue_connections,
+                'task_connections': task_connections,
             })
             self._search_context_cache = cached
 

@@ -125,3 +125,36 @@ class IssuesSearch(BasicSearchTool):
         if context.get('extra_sources') is not None:
             extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
         return self._search(query, context['issue_connections'], extra_sources, context, app, tool_executor, call_back)
+
+class TasksSearch(BasicSearchTool):
+    tool = {
+        'type': 'function',
+        'name': 'tasks_search',
+        'description': (
+            f'This is a search tool for related task records. Use it when the user explicitly asks '
+            f'to find related tasks, matching tasks, task records, or corresponding tasks for a described problem. '
+            f'Relevance decreases from beginning to end. {_SEARCH_TOOLS_RESULT_FORMAT}. '
+            'Use this tool based only on the user instruction type; do not include it in the automatic '
+            'documents_search/issues_search priority or fallback order. '
+            '**Note: Not every sentence can be searched for relevant results. '
+            'Regardless of whether there are results or not, you should not make random searches.**'
+        ),
+        'parameters':{
+            'type': 'object',
+            'properties': {
+                'query': {
+                    'type': 'string',
+                    'description': 'The query is a short sentence describing the problem or work item for which related tasks should be found.'
+                },
+            },
+            'required': ['query'],
+            'additionalProperties': False,
+        },
+        'strict': True,
+    }
+
+    def execute(self, query, context, app, tool_executor, call_back):
+        extra_sources = ExtraSourceType.get_task_extra_source_types()
+        if context.get('extra_sources') is not None:
+            extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
+        return self._search(query, context['task_connections'], extra_sources, context, app, tool_executor, call_back)

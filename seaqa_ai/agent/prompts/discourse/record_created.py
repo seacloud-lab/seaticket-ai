@@ -26,10 +26,12 @@ Focus on analyzing the newly created topic itself, gathering evidence, and recor
   </step>
   <step n="2">
     Search based on the record field:
+    - If the record explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks, call tasks_search with a query that describes the problem or request. This task-search decision is based only on that explicit task-lookup request.
+    - Do not call tasks_search because documents_search/issues_search was insufficient, because task connections are available, or as part of the Bug/Feature/Question priority order.
     - For Bug or Feature: call issues_search first. If that evidence is still insufficient, then use documents_search.
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
-    - If content is ambiguous, you may use both tools.
-    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
+    - If content is ambiguous, you may use both documents_search and issues_search.
+    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search, issues_search, and tasks_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Search until you have enough evidence to justify one concrete handling recommendation, then stop.
     - For duplicate or known-tracked-case handling, prefer at least one strong match with overlapping symptoms, request, or root problem, plus a usable URL.

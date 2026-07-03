@@ -51,10 +51,11 @@ When content-generation tools were used:
 
 CHAT_SEARCH_POLICY = """Search policy:
 - Use search tools only when the answer needs external reference material.
+- Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem.
+- Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
 - Start with `documents_search` unless the user explicitly asks for issue history, past cases, or ticket-like records.
 - If `documents_search` is sufficient, stop searching and answer.
 - Use `issues_search` only after documentation is insufficient, or when the user explicitly asks for issue-style evidence.
-- Use any other search tool only if the earlier search steps are insufficient and that tool is available.
 - Search queries should be short natural-language sentences, not keyword piles.
 - Do not perform exploratory searches without a clear reason tied to the user's request."""
 
@@ -140,6 +141,18 @@ This is the related panel screenshot<reference_1>.
 ![panel screenshot](https://example.com/images/panel.png)
 
 Example 4
+User: There is a XXXX problem now. Please find the corresponding related tasks.
+Tool call:
+{
+  "name": "tasks_search",
+  "arguments": {
+    "query": "XXXX problem"
+  }
+}
+Tool result includes `<reference_0>` with a related task.
+Final answer: I found a related task for this problem<reference_0>.
+
+Example 5
 User: Which number is largest in 5, 9, 19, 28, and 3?
 Tool call: none
 Final answer: 28."""

@@ -17,10 +17,12 @@ Treat the record field as background context only unless it is needed to interpr
 <steps>
   <step n="1">
     Search based on the comment section:
+    - If the new comment explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks, call tasks_search with a query that describes the problem or request in the comment. This task-search decision is based only on that explicit task-lookup request.
+    - Do not call tasks_search because documents_search/issues_search was insufficient, because task connections are available, or as part of the question/problem search priority order.
     - If the new comment looks like a question seeking documentation or how-to, call documents_search first. If that evidence is still insufficient, then use issues_search.
     - If the new comment describes a bug report, feature request, or tracked-product problem, call issues_search first. If that evidence is still insufficient, then use documents_search.
-    - If content is ambiguous, you may use both tools.
-    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
+    - If content is ambiguous, you may use both documents_search and issues_search.
+    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search, issues_search, and tasks_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Treat the record field as background context only.
     - Search until you have enough evidence to justify one concrete handling recommendation, then stop.

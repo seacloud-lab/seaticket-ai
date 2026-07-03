@@ -8,7 +8,8 @@ from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
 SEARCH_TOOL_NAMES = (
     'documents_search',
-    'issues_search'
+    'issues_search',
+    'tasks_search',
 )
 
 def filter_tool_calls_content(tool_name, results):
@@ -29,7 +30,7 @@ class BasicTool(object):
 class InvalidToolException(Exception):
     pass
 
-from .search_tools import DocumentsSearch, IssuesSearch
+from .search_tools import DocumentsSearch, IssuesSearch, TasksSearch
 from .test_tool import TestTool
 
 class BasicToolExecutor(object):

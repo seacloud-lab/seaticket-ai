@@ -65,7 +65,7 @@ def build_ticket_comment_notice(content):
     }
 
 
-def build_github_comment_notice(content):
+def build_author_comment_notice(content):
     return {
         'author': None,
         'content': content,
@@ -305,8 +305,8 @@ class ContentRetriever:
             sort_key_fields=['comment_id'],
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            omitted_notice_builder=lambda: build_github_comment_notice(COMMENTS_OMITTED_NOTICE),
-            more_omitted_notice_builder=lambda: build_github_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
+            omitted_notice_builder=lambda: build_author_comment_notice(COMMENTS_OMITTED_NOTICE),
+            more_omitted_notice_builder=lambda: build_author_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
 
         record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
@@ -476,4 +476,70 @@ class ContentRetriever:
         for record_id, record in record_id_record_map.items():
             record['content'] = (results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         
+        return record_id_record_map
+
+    ## linear
+    def _get_linear_content(self, record_id_record_map, connection_id):
+        issues_table_name = SchemaTables.LINEAR_ISSUES.table_name(connection_id)
+        comments_table_name = SchemaTables.LINEAR_ISSUE_COMMENTS.table_name(connection_id)
+
+        record_id_to_issues = self.seadb_api.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=issues_table_name,
+            pks=record_id_record_map.keys(),
+            fields_str='issue_id, identifier, content, state, labels, author, assignees, priority, due_date, linked_ticket'
+        )
+
+        issue_id_to_record_id = {
+            record['issue_id']: record_id
+            for record_id, record in record_id_to_issues.items()
+        }
+        initial_content_lengths = {
+            record['issue_id']: len((record.get('content') or ''))
+            for record in record_id_to_issues.values()
+        }
+        issue_id_to_comments = self.seadb_api.get_selected_topic_entries(
+            base_id=self.project_uuid,
+            table_name=comments_table_name,
+            topic_ids=issue_id_to_record_id.keys(),
+            topic_id_field_name='issue_id',
+            fields_str='comment_id, author, content, created_time',
+            has_deleted_field=False,
+            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            first_order_by_field='created_time',
+            latest_order_by_field='created_time',
+            dedupe_key_fields=['comment_id'],
+            sort_key_fields=['created_time'],
+            initial_content_lengths=initial_content_lengths,
+            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
+            omitted_notice_builder=lambda: build_author_comment_notice(COMMENTS_OMITTED_NOTICE),
+            more_omitted_notice_builder=lambda: build_author_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
+        )
+        record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)
+
+        for record_id, record in record_id_record_map.items():
+            record_from_seadb = record_id_to_issues[record_id]
+            comments = record_id_to_comments.get(record_id, [])
+
+            content = {
+                'issue_id': record_from_seadb['issue_id'],
+                'identifier': record_from_seadb['identifier'],
+                'state': record_from_seadb['state'],
+                'labels': record_from_seadb['labels'],
+                'author': record_from_seadb['author'],
+                'assignees': record_from_seadb['assignees'],
+                'priority': record_from_seadb['priority'],
+                'due_date': record_from_seadb['due_date'],
+                'linked_ticket': record_from_seadb['linked_ticket'],
+                'content': (record_from_seadb['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE],
+                'comments': []
+            }
+
+            for comment in comments:
+                content['comments'].append({
+                    'author': comment['author'],
+                    'created_time': comment.get('created_time'),
+                    'content': comment['content'] or ''
+                })
+            record['content'] = content
         return record_id_record_map
