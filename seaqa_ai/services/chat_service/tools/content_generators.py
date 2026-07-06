@@ -100,8 +100,9 @@ LDAP_SERVER_URL = 'ldap://your-server'
         """
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         seadb_api = SeaDBAPI(
-            secret_key=config.SEADB_SERVER_ACCESS_TOKEN,
-            server_url=config.SEADB_SERVER_URL
+            config.SEADB_SERVER_URL,
+            config.SEADB_USER,
+            config.SEADB_PASSWORD
         )
 
         row = {

@@ -2,10 +2,12 @@ import time
 import jwt
 import logging
 import requests
+import base64
+
 from seaqa_ai.utils import uuid_str_to_36_chars
 
 logger = logging.getLogger(__name__)
-SEADB_COMPONENT_USERNAME = 'seaqa-ai'
+
 
 def parse_response(response):
     if response.status_code >= 400 or response.status_code < 200:
@@ -19,31 +21,30 @@ def parse_response(response):
 
 class SeaDBSQLGenerator: ...
 
-
 class SeaDBAPI:
-    def __init__(self, secret_key, server_url, timeout=30, username=SEADB_COMPONENT_USERNAME):
+    def __init__(self, server_url, seadb_user, seadb_passwd, timeout=30):
         self.timeout = timeout
-        self.secret_key = secret_key
         self.server_url = server_url
-        self.username = username
 
-    def gen_headers(self, base_id):
-        payload = {
-            'exp': int(time.time()) + 3600,
-            'base_id': base_id,
-            'username': self.username,
+        self.seadb_user = seadb_user
+        self.seadb_passwd = seadb_passwd
+        self.headers = None
+        self.gen_headers()
+
+    def gen_headers(self):
+        auth_str = f"{self.seadb_user}:{self.seadb_passwd}"
+        b64 = base64.b64encode(auth_str.encode("utf-8")).decode()
+        self.headers = {
+            "Authorization": f"Basic {b64}"
         }
-        token = jwt.encode(payload, self.secret_key, algorithm='HS256')
-        return {"Authorization": "Bearer %s" % token}
 
     def ping(self):
         url = f'{self.server_url}/ping'
         response = requests.get(url, timeout=self.timeout)
         return parse_response(response)
-    
+
     def query_rows(self, base_id, sql, params=[], convert_keys=True):
         base_id = uuid_str_to_36_chars(base_id)
-        headers = self.gen_headers(base_id)
         post_data = {
             'sql': sql,
             'convert_keys': convert_keys
@@ -51,36 +52,33 @@ class SeaDBAPI:
         if params:
             post_data['params'] = params
         url = f'{self.server_url}/api/v1/{base_id}/query'
-        response = requests.post(url, json=post_data, headers=headers, timeout=self.timeout)
+        response = requests.post(url, json=post_data, headers=self.headers, timeout=self.timeout)
         return parse_response(response)
     
     def insert_rows(self, base_id, table_name, rows):
         base_id = uuid_str_to_36_chars(base_id)
-        headers = self.gen_headers(base_id)
         url = f'{self.server_url}/api/v1/{base_id}/rows'
         data = {
             'table_name': str(table_name),
             'rows': rows
         }
-        response = requests.post(url, json=data, headers=headers, timeout=self.timeout)
+        response = requests.post(url, json=data, headers=self.headers, timeout=self.timeout)
         return parse_response(response)
 
     def update_rows(self, base_id, table_name, rows):
         base_id = uuid_str_to_36_chars(base_id)
-        headers = self.gen_headers(base_id)
         url = f'{self.server_url}/api/v1/{base_id}/rows'
         data = {
             'table_name': table_name,
             'updates': rows
         }
-        response = requests.put(url, json=data, headers=headers, timeout=self.timeout)
+        response = requests.put(url, json=data, headers=self.headers, timeout=self.timeout)
         return parse_response(response)
 
     def get_base_metadata(self, base_id):
         base_id = uuid_str_to_36_chars(base_id)
-        headers = self.gen_headers(base_id)
         url = f'{self.server_url}/api/v1/{base_id}/metadata'
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = requests.get(url, headers=self.headers, timeout=self.timeout)
         return parse_response(response)
 
     def get_records_by_pks(self, base_id, table_name, pks, fields_str='*'):
