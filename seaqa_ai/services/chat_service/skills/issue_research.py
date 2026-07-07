@@ -34,6 +34,9 @@ Evidence policy:
 - Do not invent references, URLs, files, records, or source content.
 - Separate evidence from inference. Make clear when a likely cause is inferred rather than directly proven.
 - If available evidence is weak, incomplete, or conflicting, state that clearly in the report.
+- In the `Evidence and References` section, list the relevant sources as Markdown links using each source's actual title and `inner_url`, for example `- [<source title>](<inner_url>)`.
+- Use only `inner_url` for these source links. Do not use the `url` field and do not invent links.
+- If no relevant source has an `inner_url`, omit the `Evidence and References` section.
 
 Report quality requirements:
 - Write a useful engineering research report, not a brief chat answer.

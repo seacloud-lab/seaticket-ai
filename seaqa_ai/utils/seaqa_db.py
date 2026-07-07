@@ -41,6 +41,15 @@ class SeaqaDB(object):
             except Exception as e:
                 logger.exception(f'Failed to query project {project_uuid}: {e}')
         return None
+
+    def get_project_metadata(self, project_uuid: str) -> dict:
+        with self.db_session_class() as db_session:
+            try:
+                project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+                return Project.get_project_metadata(db_session, project_uuid_32)
+            except Exception as e:
+                logger.exception(f'Failed to query project metadata {project_uuid}: {e}')
+        return {'name': None, 'workspace_id': None}
     
     def get_all_projects(self, page_size: int = 50) -> Iterator[dict]:
         with self.db_session_class() as db_session:
