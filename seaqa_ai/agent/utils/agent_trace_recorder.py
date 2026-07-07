@@ -19,11 +19,9 @@ def _truncate_string(value, max_chars):
     return value[:max_chars] + f'\n... [truncated, original_length={len(value)}]'
 
 class AgentActionRecorder:
-    def __init__(self, project_uuid, seadb_api, seaqa_web_api=None, auto_confirm_tools=None):
+    def __init__(self, project_uuid, seadb_api):
         self.project_uuid = project_uuid
         self.seadb_api = seadb_api
-        self.seaqa_web_api = seaqa_web_api
-        self.auto_confirm_tools = set(auto_confirm_tools or set())
 
     def __bool__(self):
         return True
@@ -136,45 +134,6 @@ class AgentActionRecorder:
             pks = res.get('pks', [])
             assert len(pks) == 1, f'Expected 1 PK, got {len(pks)}'
             action_id = pks[0]
-            self._trigger_auto_action_if_needed(
-                action_id=action_id,
-                tool_name=tool_name,
-                action_status=action_status,
-            )
             return action_id
         except Exception as e:
             logger.warning(f'Failure to record agent action: {e}')
-
-    def _trigger_auto_action_if_needed(
-        self,
-        action_id,
-        tool_name,
-        action_status,
-    ):
-        """
-        Trigger auto-execution via HTTP call to seaqa-web.
-
-        This is a blocking call that executes the action synchronously.
-        On failure, the action remains in 'pending' state for manual confirmation.
-        """
-        if action_status != 'pending':
-            return
-        if not tool_name or tool_name not in self.auto_confirm_tools:
-            return
-        if self.seaqa_web_api is None:
-            return
-
-        try:
-            self.seaqa_web_api.execute_auto_action(
-                project_uuid=self.project_uuid,
-                action_id=action_id,
-            )
-        except Exception as e:
-            # Log warning but don't fail - action remains pending for manual confirmation
-            logger.warning(
-                'Failed to trigger auto action %s for project %s: %s. '
-                'Action remains pending for manual confirmation.',
-                action_id,
-                self.project_uuid,
-                e,
-            )

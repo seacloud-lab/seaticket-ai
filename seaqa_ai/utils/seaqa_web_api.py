@@ -23,16 +23,17 @@ class SeaQAWebAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def execute_auto_action(self, project_uuid, action_id):
+    def execute_auto_actions(self, project_uuid, action_ids):
         """
-        Trigger auto-execution of an agent action in seaqa-web.
+        Trigger auto-execution of one or more agent actions in seaqa-web in a
+        single request.
 
         Args:
             project_uuid: The project UUID
-            action_id: The action ID to execute
+            action_ids: List of action IDs to execute
 
         Returns:
-            dict with keys: success, action_id, status, result
+            dict with keys: success, results (per-action outcome list)
 
         Raises:
             Exception: On HTTP error or unexpected response
@@ -40,7 +41,7 @@ class SeaQAWebAPI:
         url = urljoin(self.server_url, '/api/v1/internal/agent/auto-action/execute/')
         params = {
             'project_uuid': project_uuid,
-            'action_id': action_id,
+            'action_ids': list(action_ids),
         }
         headers = self.gen_headers()
 
@@ -51,8 +52,8 @@ class SeaQAWebAPI:
             raise Exception('Permission denied: invalid JWT token')
 
         if resp.status_code == 404:
-            logger.warning('Action or project not found for auto-action execution')
-            raise Exception('Action or project not found')
+            logger.warning('Project not found for auto-action execution')
+            raise Exception('Project not found')
 
         if resp.status_code >= 400:
             logger.warning(
