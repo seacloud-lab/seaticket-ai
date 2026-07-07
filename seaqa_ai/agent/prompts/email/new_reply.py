@@ -19,7 +19,7 @@ Treat the record field as background context only unless it is needed to interpr
     Search based on the reply section:
     - If the new email looks like a question seeking documentation or how-to, call documents_search first. If that evidence is still insufficient, then use issues_search.
     - If the new email describes a bug report, feature request, or tracked-product problem, call issues_search first. If that evidence is still insufficient, then use documents_search.
-    - If content is ambiguous, you may use both documents_search and issues_search.
+    - If content is ambiguous, you may use both tools.
     - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Treat the record field as background context only.

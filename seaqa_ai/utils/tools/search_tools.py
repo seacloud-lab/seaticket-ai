@@ -131,7 +131,7 @@ class TasksSearch(BasicSearchTool):
         'type': 'function',
         'name': 'tasks_search',
         'description': (
-            f'This is a search tool for related task records. Use it when the user explicitly asks '
+            f'This is a search tool for related task records (including but not limited to feature development handling tasks and requirement design tasks). Use it when the user explicitly asks '
             f'to find related tasks, matching tasks, task records, or corresponding tasks for a described problem. '
             f'Relevance decreases from beginning to end. {_SEARCH_TOOLS_RESULT_FORMAT}. '
             'Use this tool based only on the user instruction type; do not include it in the automatic '

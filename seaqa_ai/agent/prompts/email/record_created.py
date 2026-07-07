@@ -34,7 +34,7 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
     - For Spam: skip search tools and proceed directly to record_issue_analysis with recommended_action set to suggest_move_to_spam.
     - For Notification: skip search tools and proceed directly to record_issue_analysis with recommended_action set to no_op (no handling action is needed; the thread is just recorded).
-    - If content is ambiguous, you may use both documents_search and issues_search.
+    - If content is ambiguous, you may use both tools.
     - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Search until you have enough evidence to justify one concrete handling recommendation, then stop.

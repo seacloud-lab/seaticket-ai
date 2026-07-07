@@ -28,7 +28,7 @@ Focus on analyzing the newly created topic itself, gathering evidence, and recor
     Search based on the record field:
     - For Bug or Feature: call issues_search first. If that evidence is still insufficient, then use documents_search.
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
-    - If content is ambiguous, you may use both documents_search and issues_search.
+    - If content is ambiguous, you may use both tools.
     - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Search until you have enough evidence to justify one concrete handling recommendation, then stop.
