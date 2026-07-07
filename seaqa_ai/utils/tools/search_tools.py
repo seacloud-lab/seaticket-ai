@@ -1,6 +1,9 @@
 import logging
+from urllib.parse import quote
+
+from seaqa_ai import config
 from seaqa_ai.utils.tools import BasicTool
-from seaqa_ai.utils.constants import ExtraSourceType
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,50 @@ class BasicSearchTool(BasicTool):
     MAX_SOURCES_COUNT = 10
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
 
+    @staticmethod
+    def _build_project_base_url(context, app, tool_executor):
+        cache_key = 'project_base_url'
+        if cache_key in tool_executor.cache:
+            return tool_executor.cache[cache_key]
+
+        seaqa_web_service_url = (config.SEAQA_WEB_SERVICE_URL or '').strip().rstrip('/')
+        project_uuid = context.get('project_uuid')
+        if not seaqa_web_service_url or not project_uuid or not getattr(app, 'seaqa_db', None):
+            return ''
+
+        project_metadata = app.seaqa_db.get_project_metadata(project_uuid)
+        workspace_id = project_metadata.get('workspace_id')
+        project_name = project_metadata.get('name')
+        if workspace_id is None or not project_name:
+            return ''
+
+        project_name = quote(str(project_name), safe='')
+        project_base_url = f'{seaqa_web_service_url}/workspace/{workspace_id}/project/{project_name}'
+        tool_executor.cache[cache_key] = project_base_url
+        return project_base_url
+
+    @staticmethod
+    def _build_product_record_url(search_result, project_base_url):
+        if not project_base_url:
+            return ''
+
+        source_type = search_result.get('type')
+        record_id = search_result.get('_id')
+        connection_id = search_result.get('connection_id')
+        if record_id is None:
+            return ''
+
+        if source_type == ExtraSourceType.TICKET.value:
+            record_path = f'/tickets/{record_id}/'
+        elif source_type == ExtraSourceType.KNOWLEDGE_BASE.value:
+            record_path = f'/knowledge-base/{record_id}/'
+        elif ConnectionType.is_valid(source_type) and connection_id:
+            record_path = f'/connections/{connection_id}/records/{record_id}/'
+        else:
+            return ''
+
+        return f'{project_base_url}{record_path}'
+
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
         sources_results = tool_executor.cache.get('sources_results', [])
@@ -49,6 +96,11 @@ class BasicSearchTool(BasicTool):
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
+        project_base_url = (
+            self._build_project_base_url(context, app, tool_executor)
+            if context.get('skill_id') == 'issue_research' and not context.get('is_external_portal')
+            else ''
+        )
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
             doc = {
@@ -60,6 +112,10 @@ class BasicSearchTool(BasicTool):
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
+            inner_url = self._build_product_record_url(search_result, project_base_url)
+            if inner_url:
+                doc['inner_url'] = inner_url
+                search_result['inner_url'] = inner_url
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
