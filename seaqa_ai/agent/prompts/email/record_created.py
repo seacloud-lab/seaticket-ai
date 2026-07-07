@@ -34,10 +34,8 @@ Focus on analyzing the newly created thread itself, gathering evidence, and reco
     - For Question: call documents_search first. If that evidence is still insufficient, then use issues_search.
     - For Spam: skip search tools and proceed directly to record_issue_analysis with recommended_action set to suggest_move_to_spam.
     - For Notification: skip search tools and proceed directly to record_issue_analysis with recommended_action set to no_op (no handling action is needed; the thread is just recorded).
-    - If a Bug/Feature/Question thread explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks, call tasks_search with a query that describes the problem or request. This task-search decision is based only on that explicit task-lookup request.
-    - Do not call tasks_search because documents_search/issues_search was insufficient, because task connections are available, or as part of the Bug/Feature/Question priority order.
     - If content is ambiguous, you may use both documents_search and issues_search.
-    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search, issues_search, and tasks_search.
+    - You may make up to {ANALYSIS_SEARCH_BUDGET} total search calls across documents_search and issues_search.
     - You may rewrite queries between retries; avoid random or redundant searches.
     - Search until you have enough evidence to justify one concrete handling recommendation, then stop.
     - For duplicate or known-tracked-case handling, prefer at least one strong match with overlapping symptoms, request, or root problem, plus a usable URL.
