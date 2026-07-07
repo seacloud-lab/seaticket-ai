@@ -15,7 +15,6 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
         "title": "Title",
         "content": "Search result's content",
         "url": "Record URL (if available)",
-        "inner_url": "SeaQA product record URL",
         "state": "open/closed (when available)",
         "state_reason": "state reason for GitHub issue (when available)",
         "resolved": true,
@@ -27,8 +26,7 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
         "type": "github_issue | discourse_forum | email | ticket | ...",
         "title": "Title",
         "content": "Search result's content",
-        "url": "Record URL (if available)",
-        "inner_url": "SeaQA product record URL"
+        "url": "Record URL (if available)"
         // ... Other useful information, e.g., snippets ...
     }
 ]
@@ -98,7 +96,11 @@ class BasicSearchTool(BasicTool):
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
-        project_base_url = self._build_project_base_url(context, app, tool_executor)
+        project_base_url = (
+            self._build_project_base_url(context, app, tool_executor)
+            if context.get('skill_id') == 'issue_research' and not context.get('is_external_portal')
+            else ''
+        )
         to_observation = []
         for i, search_result in enumerate(current_search_results, existed_search_records_num):
             doc = {
