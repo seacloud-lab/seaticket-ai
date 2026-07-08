@@ -32,7 +32,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, available_skills_prompt=''):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, skill_system_prompt=''):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -53,10 +53,10 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
         },
     ]
 
-    if available_skills_prompt:
+    if skill_system_prompt:
         prompts.append({
             'role': 'system',
-            'content': available_skills_prompt,
+            'content': skill_system_prompt,
         })
 
     if project_prompt and project_prompt.strip():
@@ -70,6 +70,17 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
         })
 
     return prompts
+
+def extract_skill_id_from_attachments(attachments):
+    if not isinstance(attachments, list):
+        return None
+    for attachment in attachments:
+        if not isinstance(attachment, dict) or attachment.get('type') != 'skill':
+            continue
+        skill_id = attachment.get('skill_id')
+        if isinstance(skill_id, str) and skill_id:
+            return skill_id
+    return None
 
 def combine_attachments_to_message(attachments, message):
     document_attachments = []

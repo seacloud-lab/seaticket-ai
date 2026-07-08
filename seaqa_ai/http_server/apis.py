@@ -65,6 +65,7 @@ def get_ai_reply():
         'skip_search_record_hashes': [
             gen_record_hash(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
+            if isinstance(attachment, dict) and attachment.get('record_id') is not None
         ],
         'scenario': scenario,
     }

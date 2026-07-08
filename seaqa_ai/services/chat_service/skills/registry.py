@@ -11,7 +11,7 @@ class SkillRegistry:
 
     @classmethod
     def get(cls, skill_id):
-        if not skill_id:
+        if not skill_id or not isinstance(skill_id, str):
             return None
         return cls._skills.get(skill_id)
 
@@ -80,4 +80,20 @@ class SkillRegistry:
                 '  </skill>',
             ])
         lines.append('</available_skills>')
+        return '\n'.join(lines)
+
+    @classmethod
+    def skill_system_prompt(cls, skill_id, context=None):
+        skill = cls.get(skill_id)
+        if skill is None or not cls.is_available(skill_id, context):
+            return ''
+
+        lines = [
+            f'The skill "{skill.id}" is active for this request. Use these specialized instructions when deciding how to proceed.',
+            f'<skill_content name="{skill.id}">',
+            f'# Skill: {skill.name}',
+            '',
+            skill.system_prompt.strip(),
+            '</skill_content>',
+        ]
         return '\n'.join(lines)

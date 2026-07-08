@@ -1,7 +1,7 @@
 from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
 from seaqa_ai.utils.tools import BasicTool
 
-
+# Not in use for the time being
 class SkillTool(BasicTool):
     tool = {
         'type': 'function',

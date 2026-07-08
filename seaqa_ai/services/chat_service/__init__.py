@@ -17,10 +17,10 @@ from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksS
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
-    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
+    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
+    extract_skill_id_from_attachments
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
-from seaqa_ai.services.chat_service.skills.tool import SkillTool
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,6 @@ class BasicChat(object):
             KnowledgeBaseEntryCreator(),
         )
         self.test_tool = TestTool()
-        self.skill_tool = SkillTool()
 
     def _prepare_chat_memory(self, system_prompts, session_uuid, context):
         if session_uuid and not config.DISABLE_CONTEXT:
@@ -91,9 +90,6 @@ class BasicChat(object):
     def _register_tools(self, tool_executor, context):
         self._load_connections(context)
         tool_executor.clean()
-        if not context.get('skill_id') and SkillRegistry.available_skills(context):
-            self.skill_tool.register(tool_executor, context=context)
-
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
@@ -104,6 +100,7 @@ class BasicChat(object):
     
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
+        context['skill_id'] = extract_skill_id_from_attachments(attachments)
         self._register_tools(tool_executor, context)
         return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
@@ -124,7 +121,7 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
-            available_skills_prompt=SkillRegistry.available_skills_prompt(context),
+            skill_system_prompt=SkillRegistry.skill_system_prompt(context.get('skill_id'), context),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -258,7 +255,7 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
-                available_skills_prompt=SkillRegistry.available_skills_prompt(context),
+                skill_system_prompt=SkillRegistry.skill_system_prompt(context.get('skill_id'), context),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
