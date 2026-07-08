@@ -820,7 +820,8 @@ class AgentRunner:
                 sources = []
 
         suggestion_content = content if action_type == 'suggestion' else ''
-        if action_type == 'suggestion':
+        if tool_name == 'suggest_create_ticket':
+            suggestion_content = ''
             content_getter = metadata.get('get_suggestion_content')
             if callable(content_getter):
                 try:
