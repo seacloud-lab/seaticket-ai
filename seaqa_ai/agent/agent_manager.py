@@ -385,7 +385,7 @@ class AgentManager:
     def _get_due_soon_tickets(self, project_uuid: str, project: dict, now: datetime) -> list[dict]:
         """Query tickets that are due soon and have not been recently processed."""
         agent_settings = project.get('settings', {}).get('agent', {})
-        notify_before_due_hours = int(agent_settings.get('notify_before_due_hours', 48))
+        notify_before_due_hours = int(agent_settings.get('notify_before_due_hours'))
         min_reprocess_hours = 24
 
         now_iso = now.isoformat()

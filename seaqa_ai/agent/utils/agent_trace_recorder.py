@@ -6,7 +6,7 @@ from seaqa_ai.utils import remove_sources_content_and_snippets, now_iso, object_
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
-    MAX_CONTENT_CHARS
+    MAX_CONTENT_CHARS,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,6 +133,7 @@ class AgentActionRecorder:
             res = self.seadb_api.insert_rows(self.project_uuid, SchemaTables.AGENT_ACTIONS.table_name(), [row])
             pks = res.get('pks', [])
             assert len(pks) == 1, f'Expected 1 PK, got {len(pks)}'
-            return pks[0]
+            action_id = pks[0]
+            return action_id
         except Exception as e:
             logger.warning(f'Failure to record agent action: {e}')

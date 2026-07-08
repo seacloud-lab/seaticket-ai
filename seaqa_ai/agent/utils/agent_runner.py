@@ -84,6 +84,9 @@ class AgentRunner:
         self.prelude_phase = prelude_phase
         self.analysis_phase = analysis_phase
         self.handling_phase = handling_phase
+        # Collect pending suggestion actions produced in this run so the caller
+        # can decide which ones to auto-execute. Each entry: {'action_id', 'tool_name'}.
+        self.pending_suggestion_actions: list[dict] = []
 
     def run(self, task: dict) -> None:
         """Drive the prelude, analysis, and handling flow.
@@ -797,7 +800,7 @@ class AgentRunner:
             # use observation for common tool_call
             result = ''
 
-        self._record_action(
+        action_id = self._record_action(
             phase=phase,
             result=result,
             action_type=action_type,
@@ -811,6 +814,12 @@ class AgentRunner:
             sources=sources,
             statistics=statistics
         )
+
+        if action_id and action_type == 'suggestion' and action_status == 'pending':
+            self.pending_suggestion_actions.append({
+                'action_id': action_id,
+                'tool_name': tool_name,
+            })
 
     def _record_action(
         self,
@@ -828,9 +837,12 @@ class AgentRunner:
         statistics=None,
         record_phase_context=False,
     ):
-        """Record an action to SeaDB via the action_recorder callback."""
+        """Record an action to SeaDB via the action_recorder callback.
+
+        Returns the recorded action_id (pk) when available, else None.
+        """
         if not self.action_recorder:
-            return
+            return None
 
         prompt = phase.system_prompt if phase else ''
         phase_input = phase.input if phase else ''
@@ -858,6 +870,7 @@ class AgentRunner:
         }
             
         try:
-            self.action_recorder(**action_data)
+            return self.action_recorder(**action_data)
         except Exception as e:
             logger.warning(f'Failed to record action: {e}')
+            return None

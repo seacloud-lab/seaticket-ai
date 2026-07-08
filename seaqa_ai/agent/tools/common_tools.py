@@ -185,7 +185,8 @@ class SuggestCreateTicketTool(BaseAgentTool):
         'description': (
             'Suggest creating an internal ticket from this source record. '
             'Call this when search evidence is insufficient to resolve directly and the issue should be tracked. '
-            'The ticket creation requires user confirmation.'
+            'This action is usually pending for user confirmation, '
+            'but some projects may configure it to auto-execute.'
         ),
         'parameters': {
             'type': 'object',

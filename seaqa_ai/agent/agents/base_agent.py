@@ -52,7 +52,6 @@ from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
 
-
 class BaseAgent:
     """
     Abstract base class for agents.
@@ -367,6 +366,13 @@ class BaseAgent:
             'scenario': AIScenario.AGENT.value,
         }
 
+    def _auto_confirm_tools(self) -> set[str]:
+        configs = self.agent_settings.get('auto_confirm') or {}
+        return {
+            tool_name for tool_name, enabled in configs.items()
+            if isinstance(enabled, bool) and enabled
+        }
+
     def get_custom_rules_prompt(self) -> str:
         """Return optional custom rules block to prepend to system prompts."""
         return ''
@@ -422,7 +428,10 @@ class BaseAgent:
             responses_client=responses_client,
             record_context=record_context,
             ai_stats_context=self._build_ai_stats_context(),
-            action_recorder=AgentActionRecorder(self.project_uuid, self.seadb_api),
+            action_recorder=AgentActionRecorder(
+                self.project_uuid,
+                self.seadb_api,
+            ),
             run_id=run_id,
             tool_metadata=tool_metadata,
             prelude_phase=self.get_prelude_phase(),
@@ -438,6 +447,46 @@ class BaseAgent:
                 f'{record_context.get("source_id")}: {e}'
             )
             raise
+
+        self._trigger_auto_actions(agent_runner.pending_suggestion_actions)
+
+    def _trigger_auto_actions(self, pending_suggestion_actions: list[dict]) -> None:
+        """Batch-trigger auto-execution for pending suggestions whose tool is
+        enabled for auto-confirm. A single blocking request is sent to seaqa-web.
+
+        On failure the actions remain 'pending' for manual confirmation.
+        """
+        if not pending_suggestion_actions:
+            return
+
+        auto_confirm_tools = self._auto_confirm_tools()
+        if not auto_confirm_tools:
+            return
+
+        action_ids = [
+            entry['action_id']
+            for entry in pending_suggestion_actions
+            if entry.get('tool_name') in auto_confirm_tools and entry.get('action_id')
+        ]
+        if not action_ids:
+            return
+
+        if self.app.seaqa_web_api is None:
+            return
+
+        try:
+            self.app.seaqa_web_api.execute_auto_actions(
+                project_uuid=self.project_uuid,
+                action_ids=action_ids,
+            )
+        except Exception as e:
+            logger.warning(
+                'Failed to trigger auto actions %s for project %s: %s. '
+                'Actions remain pending for manual confirmation.',
+                action_ids,
+                self.project_uuid,
+                e,
+            )
 
     def on_run_finished(self, item: dict, success: bool):
         """Hook called after the item run is finalized."""
