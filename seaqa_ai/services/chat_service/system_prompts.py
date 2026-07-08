@@ -51,7 +51,7 @@ When content-generation tools were used:
 
 CHAT_SEARCH_POLICY = """Search policy:
 - Use search tools only when the answer needs external reference material.
-- Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem.
+- Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem, including feature development handling tasks and requirement design tasks.
 - Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
 - Start with `documents_search` unless the user explicitly asks for issue history, past cases, or ticket-like records.
 - If `documents_search` is sufficient, stop searching and answer.
