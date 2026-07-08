@@ -819,6 +819,21 @@ class AgentRunner:
                 logger.warning('Failed to parse analysis references, keep raw content. tool=%s error=%s', tool_name, e)
                 sources = []
 
+        suggestion_content = content if action_type == 'suggestion' else ''
+        if action_type == 'suggestion':
+            content_getter = metadata.get('get_suggestion_content')
+            if callable(content_getter):
+                try:
+                    generated_suggestion_content = content_getter(**tool_arguments)
+                    if generated_suggestion_content:
+                        suggestion_content = generated_suggestion_content
+                except Exception as e:
+                    logger.warning(
+                        'Failed to build suggestion content, keep raw tool arguments. tool=%s error=%s',
+                        tool_name,
+                        e,
+                    )
+
         result = content
         if action_type == 'tool_call':
             # use observation for common tool_call
@@ -850,7 +865,7 @@ class AgentRunner:
             tool_arguments=tool_arguments,
             observation=observation,
             suggestion_text=suggestion_text if action_type == 'suggestion' else '',
-            suggestion_content=content if action_type == 'suggestion' else '',
+            suggestion_content=suggestion_content,
             sources=sources,
             statistics=statistics,
             source_type_override=target_source_type,
