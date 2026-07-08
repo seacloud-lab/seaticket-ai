@@ -251,7 +251,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
         }
         return json.dumps(detail, ensure_ascii=False, indent=2)
 
-    def get_suggestion_content(self, reason=''):
+    def _generate_suggestion_content(self, reason):
         reason = (reason or '').strip()
         if not reason:
             return ''
@@ -299,15 +299,19 @@ class SuggestCreateTicketTool(BaseAgentTool):
         reason = (reason or '').strip()
         if not reason:
             return 'Cannot create ticket suggestion: empty reason.'
+        suggestion_content = self._generate_suggestion_content(reason)
 
         preview = reason[:300]
         if len(reason) > 300:
             preview += '...'
 
-        return (
-            f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
-            f'Reason: {preview}'
-        )
+        return {
+            'message': (
+                f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
+                f'Reason: {preview}'
+            ),
+            'suggestion_content': suggestion_content,
+        }
 
 
 class FinalAnswerTool(BasicTool):
