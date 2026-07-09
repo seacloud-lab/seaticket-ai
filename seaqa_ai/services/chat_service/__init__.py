@@ -13,7 +13,7 @@ from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
-from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch
+from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
@@ -31,6 +31,7 @@ class BasicChat(object):
         self.search_tools = (
             DocumentsSearch(),
             IssuesSearch(),
+            TasksSearch(),
         )
         self.content_generators = (
             MarkdownGenerator(),
@@ -54,11 +55,13 @@ class BasicChat(object):
 
         doc_types = set(ConnectionType.get_document_connection_types())
         issue_types = set(ConnectionType.get_issue_connection_types())
-        if 'document_connections' in context and 'issue_connections' in context:
+        task_types = set(ConnectionType.get_task_connection_types())
+        if 'document_connections' in context and 'issue_connections' in context and 'task_connections' in context:
             return
         if connection_ids is not None:
             document_connections = []
             issue_connections = []
+            task_connections = []
             if connection_ids:
                 with self.db_session_class() as db_session:
                     connections = ProjectConnection.get_connections_by_ids(
@@ -69,16 +72,20 @@ class BasicChat(object):
                         document_connections.append(conn)
                     elif conn['type'] in issue_types:
                         issue_connections.append(conn)
+                    elif conn['type'] in task_types:
+                        task_connections.append(conn)
             context.update({
                 'document_connections': document_connections,
                 'issue_connections': issue_connections,
+                'task_connections': task_connections,
                 })
             return
 
         with self.db_session_class() as db_session:
             context.update({
                 'document_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, doc_types) if doc_types else [],
-                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else []
+                'issue_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, issue_types) if issue_types else [],
+                'task_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, task_types) if task_types else [],
             })
 
     def _register_tools(self, tool_executor, context):

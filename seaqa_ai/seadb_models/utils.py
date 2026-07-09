@@ -9,6 +9,7 @@ SCHEMA_TABLE_CONNECTION = {
     ConnectionType.SEAFILE.value: SchemaTables.SEAFILE,
     ConnectionType.EMAIL.value: SchemaTables.THREAD,
     ConnectionType.GENERAL_TASK.value: SchemaTables.GENERAL_TASK,
+    ConnectionType.LINEAR.value: SchemaTables.LINEAR_ISSUES,
 }
 
 # Mapping from extra source types (no connection_id) to schema table keys

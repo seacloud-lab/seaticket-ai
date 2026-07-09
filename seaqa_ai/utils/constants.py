@@ -64,6 +64,7 @@ class ConnectionType(Enum):
     SITE = 'site'
     SEAFILE = 'seafile'
     GENERAL_TASK = 'general_task'
+    LINEAR = 'linear'
 
     @classmethod
     def is_valid(cls, value):
@@ -81,6 +82,13 @@ class ConnectionType(Enum):
         return [
             item.value
             for item in cls if item.value in SOURCES_TYPE.ISSUES.value
+        ]
+
+    @classmethod
+    def get_task_connection_types(cls):
+        return [
+            item.value
+            for item in cls if item.value in SOURCES_TYPE.TASKS.value
         ]
 
 class ExtraSourceType(Enum):
@@ -125,7 +133,8 @@ class SOURCES_TYPE(Enum):
         ConnectionType.EMAIL.value
     )
     TASKS = (
-        ConnectionType.GENERAL_TASK.value
+        ConnectionType.GENERAL_TASK.value,
+        ConnectionType.LINEAR.value,
     )
 
 class ATTACHMENTS_PROMPTS(Enum):
