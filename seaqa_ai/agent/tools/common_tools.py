@@ -238,7 +238,10 @@ class SuggestCreateTicketTool(BaseAgentTool):
     def _format_ticket_suggestion_content(title, description):
         title = (title or '').strip() or 'Untitled'
         description = (description or '').strip() or 'No description provided.'
-        return f'# {title}\n---------------\n\n{description}'
+        return json.dumps({
+            'title': title,
+            'content': description,
+        }, ensure_ascii=False)
 
     def _build_ticket_generation_detail(self, reason):
         detail = {
