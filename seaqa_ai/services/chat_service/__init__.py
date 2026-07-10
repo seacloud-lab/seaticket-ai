@@ -18,9 +18,10 @@ from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBas
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
-    extract_skill_id_from_attachments
+    extract_skill_command_from_message
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
+from seaqa_ai.services.chat_service.skills.tool import SkillTool
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class BasicChat(object):
             KnowledgeBaseEntryCreator(),
         )
         self.test_tool = TestTool()
+        self.skill_tool = SkillTool()
 
     def _prepare_chat_memory(self, system_prompts, session_uuid, context):
         if session_uuid and not config.DISABLE_CONTEXT:
@@ -97,10 +99,28 @@ class BasicChat(object):
                 tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
-    
+
+    def _load_selected_skill(self, tool_executor, memory, context):
+        skill_id = context.get('selected_skill_id')
+        if not skill_id:
+            return
+
+        self.skill_tool.register(tool_executor, context=context)
+        tool_call = {
+            'type': 'function_call',
+            'call_id': f'selected_skill_{skill_id}',
+            'name': 'skill',
+            'arguments': json.dumps({'name': skill_id}),
+        }
+        memory += tool_call
+        BasicChatUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
-        context['skill_id'] = extract_skill_id_from_attachments(attachments)
+        available_skill_ids = [skill.id for skill in SkillRegistry.available_skills(context)]
+        skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
+        context['selected_skill_id'] = skill_id
+        context['skill_id'] = None
         self._register_tools(tool_executor, context)
         return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
@@ -121,7 +141,6 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
-            skill_system_prompt=SkillRegistry.skill_system_prompt(context.get('skill_id'), context),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -132,6 +151,7 @@ class SyncChat(BasicChat):
             'role': 'user',
             'content': user_message_content
         }
+        self._load_selected_skill(tool_executor, memory, context)
 
         current_step = 0
         has_inserter_max_step_prompt = False
@@ -255,7 +275,6 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
-                skill_system_prompt=SkillRegistry.skill_system_prompt(context.get('skill_id'), context),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -266,6 +285,7 @@ class StreamingChat(BasicChat):
                 'role': 'user',
                 'content': user_message_content
             }
+            self._load_selected_skill(tool_executor, memory, context)
 
             current_step = 0
             current_retry = 0
