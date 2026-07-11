@@ -1,4 +1,5 @@
 import logging
+import re
 from copy import deepcopy
 from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES,
@@ -32,7 +33,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, available_skills_prompt=''):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -53,12 +54,6 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
         },
     ]
 
-    if available_skills_prompt:
-        prompts.append({
-            'role': 'system',
-            'content': available_skills_prompt,
-        })
-
     if project_prompt and project_prompt.strip():
         prompts.append({
             'role': 'system',
@@ -70,6 +65,21 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
         })
 
     return prompts
+
+def extract_skill_command_from_message(message, skill_ids):
+    if not isinstance(message, str) or not skill_ids:
+        return None, message
+
+    skill_id_pattern = '|'.join(re.escape(skill_id) for skill_id in skill_ids if skill_id)
+    if not skill_id_pattern:
+        return None, message
+
+    match = re.search(r'^\s*/(?P<skill_id>' + skill_id_pattern + r')(?=\s|$)', message)
+    if not match:
+        return None, message
+
+    clean_message = message[match.end():].lstrip()
+    return match.group('skill_id'), clean_message
 
 def combine_attachments_to_message(attachments, message):
     document_attachments = []

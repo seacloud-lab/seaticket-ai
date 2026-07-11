@@ -1,7 +1,7 @@
 from seaqa_ai.services.chat_service.skills.spec import SkillSpec
 
 
-ISSUE_RESEARCH_PROMPT = """Skill: issue_research
+ISSUE_RESEARCH_PROMPT = """Skill: issue-research
 
 Purpose:
 You are running an issue-research skill. The user's request is to research an issue and create a Markdown report artifact.
@@ -65,7 +65,7 @@ The Markdown filename must be lowercase, end with `.md`, and describe the issue,
 
 
 ISSUE_RESEARCH_SKILL = SkillSpec(
-    id='issue_research',
+    id='issue-research',
     name='Issue Research',
     description=(
         'Use only when the user explicitly requests deep research, in-depth investigation, '

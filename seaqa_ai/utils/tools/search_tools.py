@@ -98,7 +98,7 @@ class BasicSearchTool(BasicTool):
 
         project_base_url = (
             self._build_project_base_url(context, app, tool_executor)
-            if context.get('skill_id') == 'issue_research' and not context.get('is_external_portal')
+            if context.get('skill_id') == 'issue-research' and not context.get('is_external_portal')
             else ''
         )
         to_observation = []

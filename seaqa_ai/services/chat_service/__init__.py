@@ -17,7 +17,8 @@ from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksS
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
-    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content
+    strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
+    extract_skill_command_from_message
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
 from seaqa_ai.services.chat_service.skills.tool import SkillTool
@@ -91,9 +92,6 @@ class BasicChat(object):
     def _register_tools(self, tool_executor, context):
         self._load_connections(context)
         tool_executor.clean()
-        if not context.get('skill_id') and SkillRegistry.available_skills(context):
-            self.skill_tool.register(tool_executor, context=context)
-
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
@@ -101,9 +99,28 @@ class BasicChat(object):
                 tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
-    
+
+    def _load_selected_skill(self, tool_executor, memory, context):
+        skill_id = context.get('selected_skill_id')
+        if not skill_id:
+            return
+
+        self.skill_tool.register(tool_executor, context=context)
+        tool_call = {
+            'type': 'function_call',
+            'call_id': f'selected_skill_{skill_id}',
+            'name': 'skill',
+            'arguments': json.dumps({'name': skill_id}),
+        }
+        memory += tool_call
+        BasicChatUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
+        available_skill_ids = [skill.id for skill in SkillRegistry.available_skills(context)]
+        skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
+        context['selected_skill_id'] = skill_id
+        context['skill_id'] = None
         self._register_tools(tool_executor, context)
         return self.run(model, tool_executor, message, attachments, context=context, app=self.app)
 
@@ -124,7 +141,6 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
-            available_skills_prompt=SkillRegistry.available_skills_prompt(context),
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -135,6 +151,7 @@ class SyncChat(BasicChat):
             'role': 'user',
             'content': user_message_content
         }
+        self._load_selected_skill(tool_executor, memory, context)
 
         current_step = 0
         has_inserter_max_step_prompt = False
@@ -258,7 +275,6 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
-                available_skills_prompt=SkillRegistry.available_skills_prompt(context),
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -269,6 +285,7 @@ class StreamingChat(BasicChat):
                 'role': 'user',
                 'content': user_message_content
             }
+            self._load_selected_skill(tool_executor, memory, context)
 
             current_step = 0
             current_retry = 0
