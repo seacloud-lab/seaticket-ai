@@ -237,7 +237,7 @@ class AgentReACT:
                         tool_name=record_call['name'], tool_arguments=arguments,
                         observation=observation, result=str(error),
                         statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                            'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                         }, []),
                     )
                 else:
@@ -247,7 +247,7 @@ class AgentReACT:
                         tool_name=record_call['name'], tool_arguments=arguments,
                         observation=observation, result=result,
                         statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                            'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                         }, []),
                     )
                 self._append_tool_output(record_call, observation)
@@ -282,7 +282,7 @@ class AgentReACT:
                 tool_name=skill_call['name'], tool_arguments=arguments,
                 observation=observation, result=self.skill,
                 statistics=self._statistics(started_at, {
-                    'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                    'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                 }, []),
             )
             self.memory += skill_call
@@ -715,7 +715,7 @@ class AgentReACT:
     @staticmethod
     def _statistics(started_at, usage, retries, tool_token_usage=None):
         statistics = dict(usage or {})
-        for key in ('input_tokens', 'output_tokens', 'total_tokens'):
+        for key in ('input_tokens', 'cached_tokens', 'output_tokens', 'total_tokens'):
             if tool_token_usage and tool_token_usage.get(key):
                 statistics[key] = statistics.get(key, 0) + tool_token_usage[key]
         if retries:
