@@ -1,4 +1,5 @@
 import logging
+import hashlib
 
 import litellm
 
@@ -10,6 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class ResponsesAPI(BasicLLMAPI):
+    def __init__(self, *args, prompt_cache_key_enabled=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prompt_cache_key_enabled = prompt_cache_key_enabled
+
     def _client_kwargs(self):
         kwargs = {
             'api_key': self.api_key,
@@ -35,10 +40,29 @@ class ResponsesAPI(BasicLLMAPI):
             kwargs['temperature'] = 1
         return request
 
+    def _build_prompt_cache_key(self, context):
+        if not self.prompt_cache_key_enabled:
+            return ''
+
+        context = context or {}
+        if context.get('scenario') != 'chat':
+            return ''
+
+        session_uuid = context.get('session_uuid')
+        project_uuid = context.get('project_uuid')
+        if not session_uuid or not project_uuid:
+            return ''
+
+        raw_key = f'chat:{project_uuid}:{session_uuid}:{self.model_id}'
+        return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
     def responses(self, **kwargs):
         """Run one non-streaming Responses turn."""
         context = kwargs.pop('context', {})
         request = self._build_responses_request(kwargs)
+        prompt_cache_key = self._build_prompt_cache_key(context)
+        if prompt_cache_key:
+            kwargs.setdefault('prompt_cache_key', prompt_cache_key)
         logger.info(
             'responses LLM responses start. model=%s timeout=%s stream=False session_uuid=%s project_uuid=%s',
             self.model,
@@ -65,6 +89,9 @@ class ResponsesAPI(BasicLLMAPI):
         """Stream one Responses turn."""
         context = kwargs.pop('context', {}) or {}
         request = self._build_responses_request(kwargs)
+        prompt_cache_key = self._build_prompt_cache_key(context)
+        if prompt_cache_key:
+            kwargs.setdefault('prompt_cache_key', prompt_cache_key)
         logger.info(
             'responses LLM responses start. model=%s timeout=%s stream=True session_uuid=%s project_uuid=%s',
             self.model,

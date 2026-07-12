@@ -10,7 +10,7 @@ from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils import gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
-from seaqa_ai.utils.llm_api import get_completion_client_by_model_tier
+from seaqa_ai.utils.llm_api import BasicLLMAPI, get_completion_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
 from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
@@ -204,7 +204,8 @@ class AIServices:
                 return [], {
                     'input_tokens': 0,
                     'output_tokens': 0,
-                    'total_tokens': 0
+                    'total_tokens': 0,
+                    'cached_tokens': 0
                 }
             if isinstance(query_record, dict):
                 query_record = f"""Title: {query_record.get('title', 'N/A')}
@@ -271,7 +272,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             token_usage = {
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens
+                'total_tokens': response.usage.total_tokens,
+                'cached_tokens': BasicLLMAPI._extract_cached_tokens_from_usage(response.usage)
             }
 
             response = response.choices[0].message.content
@@ -314,7 +316,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             return {}, {
                 'input_tokens': 0,
                 'output_tokens': 0,
-                'total_tokens': 0
+                'total_tokens': 0,
+                'cached_tokens': 0
             }
 
         # get rerank required data (title, ai_summary)
@@ -328,7 +331,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             return {}, {
                 'input_tokens': 0,
                 'output_tokens': 0,
-                'total_tokens': 0
+                'total_tokens': 0,
+                'cached_tokens': 0
             }
 
         # rank relevance

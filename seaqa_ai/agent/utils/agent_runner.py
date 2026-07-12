@@ -16,7 +16,7 @@ import logging
 import time
 import re
 from seaqa_ai import config
-from seaqa_ai.utils.llm_api import CompletionAPI, ResponsesAPI, ResponsesResult
+from seaqa_ai.utils.llm_api import BasicLLMAPI, CompletionAPI, ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
@@ -527,6 +527,7 @@ class AgentRunner:
                 'input_tokens': usage.prompt_tokens,
                 'output_tokens': usage.completion_tokens,
                 'total_tokens': usage.total_tokens,
+                'cached_tokens': BasicLLMAPI._extract_cached_tokens_from_usage(usage),
             }
         except AttributeError:
             return {}
@@ -610,7 +611,7 @@ class AgentRunner:
         if usage:
             stats.update(usage)
         if tool_token_usage:
-            for key in ('input_tokens', 'output_tokens', 'total_tokens'):
+            for key in ('input_tokens', 'output_tokens', 'total_tokens', 'cached_tokens'):
                 if tool_token_usage.get(key):
                     stats[key] = stats.get(key, 0) + tool_token_usage[key]
             combined_retries = list(stats.get('retries', []))

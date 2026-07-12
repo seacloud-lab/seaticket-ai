@@ -20,17 +20,28 @@ class BasicLLMAPI:
         self.api_key = api_key
         self.timeout = timeout
 
+    @staticmethod
+    def _extract_cached_tokens_from_usage(usage):
+        prompt_details = getattr(usage, 'prompt_tokens_details', None)
+        cached_tokens = getattr(prompt_details, 'cached_tokens', 0) if prompt_details else 0
+        try:
+            return int(cached_tokens)
+        except (TypeError, ValueError):
+            return 0
+
     def logger_usage(self, token_usage, context, model=None):
         """
         logger token usage manually for compatible to stream response
         """
         try:
+            context = context or {}
             self.data_logger.log_data(MODEL_USAGE_STATISTIC_CHANNEL_NAME, json.dumps({
                 'model': self.model_id if not model else model,
                 'usage': {
-                    'prompt_tokens': token_usage['input_tokens'],
-                    'completion_tokens': token_usage['output_tokens'],
-                    'total_tokens': token_usage['total_tokens']
+                    'prompt_tokens': token_usage.get('input_tokens', 0),
+                    'completion_tokens': token_usage.get('output_tokens', 0),
+                    'total_tokens': token_usage.get('total_tokens', 0),
+                    'cached_tokens': token_usage.get('cached_tokens', 0),
                 },
                 'org_id': context.get('org_id'),
                 'project_uuid': context.get('project_uuid'),
@@ -46,6 +57,7 @@ class BasicLLMAPI:
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens,
                 'total_tokens': response.usage.total_tokens,
+                'cached_tokens': self._extract_cached_tokens_from_usage(response.usage),
             }, context, model)
         except:
             pass
@@ -70,4 +82,11 @@ def get_completion_client_by_model_tier(data_logger, tier):
 
 def get_responses_client_by_model_id(data_logger, model_id):
     model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL) if model_id else DEFAULT_LLM_MODEL
-    return ResponsesAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
+    return ResponsesAPI(
+        data_logger,
+        model_config.get('model'),
+        model_config.get('type', 'openai'),
+        model_config.get('url'),
+        model_config.get('key'),
+        prompt_cache_key_enabled=model_config.get('prompt_cache_key_enabled', False),
+    )
