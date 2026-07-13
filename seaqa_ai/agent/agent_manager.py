@@ -37,6 +37,11 @@ class AgentManager:
 
     _retry_interval = 3
     _no_message_timeout = 5 * 60 # 5 minutes
+    _CONNECTION_TABLE_GETTERS = {
+        AgentSourceType.GITHUB_ISSUE.value: SchemaTables.GITHUB_ISSUES.table_name,
+        AgentSourceType.DISCOURSE_FORUM.value: SchemaTables.DISCOURSE_TOPICS.table_name,
+        AgentSourceType.EMAIL.value: SchemaTables.THREAD.table_name,
+    }
 
     def __init__(self, app):
         self.app = app
@@ -216,6 +221,15 @@ class AgentManager:
             )
             return
 
+        if self.route_to_ticket_agent(
+            project_uuid=project_uuid,
+            source_type=source_type,
+            connection_id=int(connection_id),
+            record_id=int(record_id),
+            event=event,
+        ):
+            return
+
         self.add_to_task_queue(
             project_uuid=project_uuid,
             source_type=source_type,
@@ -223,6 +237,49 @@ class AgentManager:
             connection_id=connection_id,
             event=event,
         )
+
+    def route_to_ticket_agent(
+        self,
+        project_uuid: str,
+        source_type: str,
+        connection_id: int,
+        record_id: int,
+        event: dict,
+    ) -> bool:
+        """Route a connection-record event to the ticket agent when it is linked.
+
+        When the connection record is already linked to a ticket, its follow-up
+        activity is handled by the ticket agent instead of the connection agent.
+
+        Returns True when the event was routed to the ticket agent (the caller
+        should stop further handling), False otherwise.
+        """
+        linked_record_info = self._resolve_record_info(
+            project_uuid=project_uuid,
+            source_type=source_type,
+            connection_id=connection_id,
+            record_id=record_id,
+        )
+        if linked_record_info is None:
+            return False
+
+        # Linked-record activity does not use the ticket pending/debounce
+        # mechanism: the upstream connection sync already throttles these
+        # events, so enqueue the ticket task directly.
+        self.add_to_task_queue(
+            project_uuid=project_uuid,
+            source_type=AgentSourceType.TICKET.value,
+            record_id=int(linked_record_info['linked_ticket']),
+            connection_id=None,
+            event=self._build_linked_record_activity_event(
+                original_source_type=source_type,
+                original_connection_id=connection_id,
+                original_record_id=record_id,
+                original_source_title=linked_record_info.get('title', ''),
+                original_event=event,
+            ),
+        )
+        return True
 
     def _is_noop_event(self, source_type: str, event: dict) -> bool:
         """Return True for events that carry no signal worth enqueuing an agent run.
@@ -252,8 +309,72 @@ class AgentManager:
             return event_type not in {
                 DataEventType.TICKET_DUE_SOON.value,
                 DataEventType.TICKET_OVER_DUE.value,
+                DataEventType.TICKET_LINKED_RECORD_ACTIVITY.value,
             }
         return False
+
+    def _resolve_record_info(
+        self,
+        project_uuid: str,
+        source_type: str,
+        connection_id: int,
+        record_id: int,
+    ) -> dict | None:
+        """Return the linked ticket id and record title when the record is linked.
+
+        Returns None when the record is not linked to a ticket or cannot be loaded.
+        """
+        table_getter = self._CONNECTION_TABLE_GETTERS.get(source_type)
+        if table_getter is None:
+            return None
+
+        table_name = table_getter(connection_id)
+        sql = (
+            f"SELECT `title`, `linked_ticket` FROM `{table_name}` "
+            f"WHERE `_pk` = {record_id} "
+            f"AND (`deleted` = False OR `deleted` IS NULL) "
+            f"LIMIT 1"
+        )
+        results = self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+        if not results:
+            return None
+
+        raw_linked_ticket = results[0].get('linked_ticket')
+        if raw_linked_ticket in (None, ''):
+            return None
+        try:
+            linked_ticket = int(raw_linked_ticket)
+        except (TypeError, ValueError):
+            return None
+
+        return {
+            'title': str(results[0].get('title') or ''),
+            'linked_ticket': linked_ticket,
+        }
+
+    def _build_linked_record_activity_event(
+        self,
+        original_source_type: str,
+        original_connection_id: int,
+        original_record_id: int,
+        original_event: dict,
+        original_source_title: str = '',
+    ) -> dict:
+        original_new_value = (original_event or {}).get('new_value')
+        if not isinstance(original_new_value, dict):
+            original_new_value = {}
+
+        payload = {
+            'type': DataEventType.TICKET_LINKED_RECORD_ACTIVITY.value,
+            'original_source_type': original_source_type,
+            'original_connection_id': original_connection_id,
+            'original_record_id': original_record_id,
+            'original_source_title': original_source_title or '',
+            'original_event_type': (original_event or {}).get('type'),
+            'new_value': original_new_value,
+            'old_value': {},
+        }
+        return payload
 
     def _register_pending_event(
         self,
