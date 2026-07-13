@@ -136,17 +136,20 @@ class SOURCES_TYPE(Enum):
         ConnectionType.GENERAL_TASK.value,
         ConnectionType.LINEAR.value,
     )
+    PAGE_CONTENT = 'page_content'
 
 class ATTACHMENTS_PROMPTS(Enum):
     DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
     ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
     TASK = 'Here are some tasks in Json format with title and content. \n\n'
+    PAGE_CONTENT = 'Here are some pages in Json format with url, title and content. \n\n'
 
 class ATTACHMENTS_TYPE(Enum):
     DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
     ISSUES = SOURCES_TYPE.ISSUES.value
     TASK = SOURCES_TYPE.TASKS.value
     OTHERS = ()
+    PAGE_CONTENT = SOURCES_TYPE.PAGE_CONTENT.value
 
 class MODEL_REASONING_TIER(Enum):
     LOW = 'low'

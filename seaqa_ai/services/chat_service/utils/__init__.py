@@ -85,6 +85,7 @@ def combine_attachments_to_message(attachments, message):
     document_attachments = []
     issues_attachments = []
     task_attachments = []
+    page_content_attachments = []
 
     for attachment in attachments:
         if attachment['type'] in ATTACHMENTS_TYPE.DOCUMENTS.value:
@@ -93,6 +94,8 @@ def combine_attachments_to_message(attachments, message):
             issues_attachments.append(attachment)
         elif attachment['type'] in ATTACHMENTS_TYPE.TASK.value:
             task_attachments.append(attachment)
+        elif attachment['type'] == ATTACHMENTS_TYPE.PAGE_CONTENT.value:
+            page_content_attachments.append(attachment)
     
     final_message = ''
     if document_attachments:
@@ -103,6 +106,9 @@ def combine_attachments_to_message(attachments, message):
 
     if task_attachments:
         final_message += ATTACHMENTS_PROMPTS.TASK.value + convert_to_json_code_block(task_attachments) + '\n\n'
+
+    if page_content_attachments:
+        final_message += ATTACHMENTS_PROMPTS.PAGE_CONTENT.value + convert_to_json_code_block(page_content_attachments) + '\n\n'
 
     return final_message + message
 
@@ -138,6 +144,9 @@ def build_user_message_content(attachments, message):
 def strip_content_details_from_attachments(attachments):
     new_attachments = deepcopy(attachments)
     for attachment in new_attachments:
+        attachment_type = attachment.get('type', '')
+        if attachment_type == 'page_content':
+            continue
         attachment.pop('content', None)
         attachment.pop('comments', None)
         attachment.pop('emails', None)
