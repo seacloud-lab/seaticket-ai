@@ -33,7 +33,7 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
 """
 
 class BasicSearchTool(BasicTool):
-    MAX_SOURCES_COUNT = 10
+    MAX_SOURCES_COUNT = 20
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
 
     @staticmethod

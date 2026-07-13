@@ -143,7 +143,7 @@ CONTEXT_WINDOW_LIMIT = configs.get('CONTEXT_WINDOW_LIMIT', 10)
 CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 
 ## Max steps
-MAX_STEPS = configs.get('MAX_STEPS', 5)
+MAX_STEPS = configs.get('MAX_STEPS', 10)
 assert MAX_STEPS > 0, "MAX_STEPS must larger than 0"
 
 ## Retries
