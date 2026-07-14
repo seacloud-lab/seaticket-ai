@@ -154,14 +154,8 @@ class MODEL_REASONING_TIER(Enum):
     HIGH = 'high'
 
     @classmethod
-    def get_level(cls, tier):
-        if tier.lower() == cls.LOW.value:
-            return 1
-        elif tier.lower() == cls.MEDIUM.value:
-            return 2
-        elif tier.lower() == cls.HIGH.value:
-            return 3
-        return 0
+    def is_valid(cls, value):
+        return value in {item.value for item in cls}
 
 class AIScenario(Enum):
     SUMMARY = 'summary'

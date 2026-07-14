@@ -10,7 +10,7 @@ from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils import gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
-from seaqa_ai.utils.llm_api import get_llm_client_by_model_tier
+from seaqa_ai.utils.llm_api import get_completion_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
 from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
@@ -60,7 +60,7 @@ class AIServices:
                 }
             ]
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
+            llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
                 messages=messages,
@@ -103,7 +103,7 @@ class AIServices:
                 }
             ]
 
-            llm_client = get_llm_client_by_model_tier(
+            llm_client = get_completion_client_by_model_tier(
                 self.app.data_logger,
                 AI_UTILS_TIER.get('generate_kb_record_from_ticket', MODEL_REASONING_TIER.LOW.value)
             )
@@ -147,7 +147,7 @@ class AIServices:
                 }
             ]
 
-            llm_client = get_llm_client_by_model_tier(
+            llm_client = get_completion_client_by_model_tier(
                 self.app.data_logger,
                 AI_UTILS_TIER.get('generate_chat_title', MODEL_REASONING_TIER.LOW.value)
             )
@@ -187,7 +187,7 @@ class AIServices:
                 }
             ]
             
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
+            llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
                 messages=messages,
@@ -260,7 +260,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 }
             ]
 
-            llm_client = get_llm_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
+            llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
 
             response = llm_client.completion(
                 messages=messages,

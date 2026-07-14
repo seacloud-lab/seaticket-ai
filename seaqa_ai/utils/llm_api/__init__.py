@@ -57,21 +57,17 @@ from seaqa_ai.utils.llm_api.responses import ResponsesAPI, ResponsesResult
 from seaqa_ai.utils.llm_api.responses.constants import STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 
 
-def get_llm_client_by_model_id(data_logger, model_id):
+def get_completion_client_by_model_id(data_logger, model_id):
     model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL) if model_id else DEFAULT_LLM_MODEL
     return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
 
+def get_completion_client_by_model_tier(data_logger, tier):
+    if MODEL_REASONING_TIER.is_valid(tier):
+        model_config = LLM_MODEL_TIER_MODELS_MAP.get(tier, DEFAULT_LLM_MODEL)
+    else:
+        model_config = DEFAULT_LLM_MODEL
+    return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
 
 def get_responses_client_by_model_id(data_logger, model_id):
     model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL) if model_id else DEFAULT_LLM_MODEL
     return ResponsesAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
-
-
-def get_llm_client_by_model_tier(data_logger, min_model_tier):
-    filtered_tier_model_map = {MODEL_REASONING_TIER.get_level(tier): model for tier, model in LLM_MODEL_TIER_MODELS_MAP.items() if MODEL_REASONING_TIER.get_level(tier) >= MODEL_REASONING_TIER.get_level(min_model_tier)}
-    if not filtered_tier_model_map:
-        model_config = DEFAULT_LLM_MODEL
-    else:
-        available_min_tier = min(filtered_tier_model_map.keys())
-        model_config = filtered_tier_model_map[available_min_tier]
-    return CompletionAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
