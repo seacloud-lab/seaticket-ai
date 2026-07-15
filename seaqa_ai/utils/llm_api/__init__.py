@@ -82,11 +82,4 @@ def get_completion_client_by_model_tier(data_logger, tier):
 
 def get_responses_client_by_model_id(data_logger, model_id):
     model_config = LLM_MODEL_ID_MODELS_MAP.get(model_id, DEFAULT_LLM_MODEL) if model_id else DEFAULT_LLM_MODEL
-    return ResponsesAPI(
-        data_logger,
-        model_config.get('model'),
-        model_config.get('type', 'openai'),
-        model_config.get('url'),
-        model_config.get('key'),
-        prompt_cache_key_enabled=model_config.get('prompt_cache_key_enabled', False),
-    )
+    return ResponsesAPI(data_logger, model_config.get('model'), model_config.get('type', 'openai'), model_config.get('url'), model_config.get('key'))
