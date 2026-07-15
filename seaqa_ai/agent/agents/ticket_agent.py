@@ -8,9 +8,11 @@ Responsibilities:
 """
 import logging
 
-from seaqa_ai.utils import now_iso, sanitize_project_prompt
+from seaqa_ai.utils import now_iso, sanitize_project_prompt, uuid_str_to_32_chars
 from seaqa_ai.seadb_models import SchemaTables
+from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
+from seaqa_ai.agent.utils import _parse_int
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import (
     MAX_COMMENT_CHARS,
@@ -20,6 +22,7 @@ from seaqa_ai.agent.utils.constants import (
     DataEventType,
     AgentSourceType
 )
+from seaqa_ai.utils.constants import ConnectionType
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,10 @@ class TicketAgent(BaseAgent):
     def _is_linked_record_activity(self) -> bool:
         return self.event_type == DataEventType.TICKET_LINKED_RECORD_ACTIVITY
 
+    @property
+    def _is_task_finished_event(self) -> bool:
+        return self.event_type == DataEventType.TICKET_TASK_FINISHED
+
     def get_custom_rules_prompt(self) -> str:
         rules_text = (self.agent_settings.get('ticket_rules') or '').strip()
         if not rules_text:
@@ -66,11 +73,12 @@ class TicketAgent(BaseAgent):
 
     # ── Abstract method implementations ────────────────────────────
 
-    def build_record_context(self, item: dict) -> dict:
+    def build_record_context(self, item: dict, item_context: dict | None = None) -> dict:
         context = {
             'source_type': self.SOURCE_TYPE,
             'source_id': str(item['_pk']),
             'source_title': item.get('title', 'Untitled'),
+            'external_reply_targets': [],
         }
         if self._is_linked_record_activity:
             original_source_type = str(self.event.get('original_source_type') or '').strip()
@@ -81,11 +89,18 @@ class TicketAgent(BaseAgent):
             if original_connection_id is not None and original_record_id is not None:
                 original_source_id = f'{original_connection_id}_{original_record_id}'
 
-            context.update({
-                'original_source_type': original_source_type,
-                'original_source_id': original_source_id,
-                'original_source_title': str(self.event.get('original_source_title') or ''),
-            })
+            if original_source_type and original_source_id:
+                context['external_reply_targets'] = [
+                    {
+                        'source_type': original_source_type,
+                        'source_id': original_source_id,
+                        'source_title': str(self.event.get('original_source_title') or ''),
+                    }
+                ]
+        if self._is_task_finished_event:
+            context['external_reply_targets'] = (
+                (item_context or {}).get('external_reply_targets') or []
+            )
         return context
 
     def get_item(self) -> dict | None:
@@ -95,12 +110,14 @@ class TicketAgent(BaseAgent):
         # Process closed tickets whose linked connection records have new activity,
         # such as new comments on the associated GitHub issue,
         # so that the linked connection record can be replied to.
+        # Also handle closed tickets when task finishes (rare but possible).
         state_filter = "AND (`state` != 'closed' OR `state` IS NULL)"
-        if self._is_linked_record_activity:
+        if self._is_linked_record_activity or self._is_task_finished_event:
             state_filter = ''
         sql = (
             f"SELECT `_pk`, `title`, `state`, `substate`, `type`, `tags`, `priority`, "
-            f"`assignees`, `participants`, `created_time`, `modified_time`, `due_date`, `content` "
+            f"`assignees`, `participants`, `linked_connection_records`, "
+            f"`created_time`, `modified_time`, `due_date`, `content` "
             f"FROM `{SchemaTables.TICKETS.table_name()}` "
             f"WHERE _pk = {self.record_id} "
             f"{state_filter} "
@@ -171,6 +188,8 @@ class TicketAgent(BaseAgent):
         }
         if self._is_linked_record_activity:
             context['linked_record_context'] = self._build_linked_record_context(ticket_id)
+        if self._is_task_finished_event:
+            context['external_reply_targets'] = self._build_external_reply_targets(item)
         return context
 
     def build_record_payload(self, item: dict, item_context: dict) -> dict:
@@ -226,23 +245,87 @@ class TicketAgent(BaseAgent):
         linked_record_context = item_context.get('linked_record_context')
         if isinstance(linked_record_context, dict) and linked_record_context:
             message_dict['linked_record_activity'] = linked_record_context
+        if self._is_task_finished_event:
+            message_dict['has_external_reply_targets'] = bool(item_context.get('external_reply_targets'))
         return message_dict
+
+    @staticmethod
+    def _parse_linked_connection_records(linked_connection_records) -> dict[int, set[int]]:
+        connection_map: dict[int, set[int]] = {}
+        for linked_key in (linked_connection_records or []):
+            if not isinstance(linked_key, str):
+                continue
+            try:
+                connection_id_str, record_id_str = linked_key.split('_', 1)
+            except ValueError:
+                continue
+            if connection_id_str == 'portal':
+                continue
+            connection_id = _parse_int(connection_id_str)
+            record_id = _parse_int(record_id_str)
+            if connection_id is None or record_id is None:
+                continue
+            connection_map.setdefault(connection_id, set()).add(record_id)
+        return connection_map
+
+    def _build_external_reply_targets(self, item: dict) -> list[dict]:
+        linked_connection_records = item.get('linked_connection_records') or []
+        connection_record_ids = self._parse_linked_connection_records(linked_connection_records)
+        if not connection_record_ids:
+            return []
+
+        connection_ids = list(connection_record_ids.keys())
+        project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+        with self.db_session_class() as db_session:
+            connections = ProjectConnection.get_connections_by_ids(
+                db_session,
+                project_uuid_32,
+                connection_ids,
+            )
+        github_connection_ids = {
+            int(connection['id'])
+            for connection in connections
+            if connection.get('type') == ConnectionType.GITHUB_ISSUE.value
+        }
+        if not github_connection_ids:
+            return []
+
+        external_reply_targets = []
+        for connection_id in sorted(github_connection_ids):
+            record_ids = sorted(connection_record_ids.get(connection_id) or [])
+            issue_rows = self.seadb_api.get_records_by_pks(
+                base_id=self.project_uuid,
+                table_name=SchemaTables.GITHUB_ISSUES.table_name(connection_id),
+                pks=record_ids,
+                fields_str='title',
+            )
+            for record_id in record_ids:
+                issue = (issue_rows or {}).get(record_id) or {}
+                external_reply_targets.append({
+                    'source_type': ConnectionType.GITHUB_ISSUE.value,
+                    'source_id': f'{connection_id}_{record_id}',
+                    'source_title': issue.get('title') or 'Untitled',
+                })
+        return external_reply_targets
 
     def _build_linked_record_context(self, ticket_id: int) -> dict:
         original_source_type = str(self.event.get('original_source_type') or '').strip()
         original_connection_id = self.event.get('original_connection_id')
         original_record_id = self.event.get('original_record_id')
         original_event_type = str(self.event.get('original_event_type') or '').strip()
+        original_source_title = str(self.event.get('original_source_title') or '').strip()
+        original_source_id = (
+            f'{original_connection_id}_{original_record_id}'
+            if original_connection_id is not None and original_record_id is not None
+            else ''
+        )
 
         context = {
             'source_type': original_source_type,
             'connection_id': original_connection_id,
             'record_id': original_record_id,
-            'source_id': (
-                f'{original_connection_id}_{original_record_id}'
-                if original_connection_id is not None and original_record_id is not None
-                else ''
-            ),
+            'source_id': original_source_id,
+            'source_title': original_source_title,
             'event_type': original_event_type,
         }
 

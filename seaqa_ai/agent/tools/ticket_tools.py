@@ -43,7 +43,7 @@ class RecordTicketAnalysisTool(BaseAgentTool):
                         'enum': [
                             'suggest_notify_assignee',
                             'suggest_close_ticket',
-                            'suggest_reply_linked_record',
+                            'suggest_reply_external_targets',
                             'no_op',
                         ],
                     },
@@ -168,16 +168,15 @@ class SuggestCloseTicketTool(BaseAgentTool):
         )
 
 
-class SuggestLinkedRecordReplyTool(BaseAgentTool):
-    """Suggests a public reply on a linked external source record."""
+class SuggestReplyExternalTargetsTool(BaseAgentTool):
+    """Suggests public replies to system-provided external targets."""
 
     tool = {
         'type': 'function',
-        'name': 'suggest_reply_linked_record',
+        'name': 'suggest_reply_external_targets',
         'description': (
-            'Suggest replying to an external source record linked to this ticket. '
-            'Use this for public-facing updates (e.g. GitHub issue comments) while '
-            'keeping internal ticket details private.'
+            'Suggest replying to the external targets prepared by the system for this ticket event. '
+            'Use this for public-facing updates while keeping internal ticket details private.'
         ),
         'parameters': {
             'type': 'object',
@@ -200,44 +199,49 @@ class SuggestLinkedRecordReplyTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Send a reply'
 
-    def get_suggestion_text(self, **kwargs):
-        target = str((self.record_context or {}).get('original_source_type') or '').strip()
-        if target == AgentSourceType.GITHUB_ISSUE.value:
-            return f'Send a reply to the linked GitHub issue'
-        return self.suggestion_text
-
-    def resolve_action_target(self, **kwargs) -> dict:
-        target_source_type = str((self.record_context or {}).get('original_source_type') or '').strip()
-        target_source_id = str((self.record_context or {}).get('original_source_id') or '').strip()
-        target_source_title = str((self.record_context or {}).get('original_source_title') or '').strip()
-        if not target_source_type or not target_source_id:
-            return {}
-        return {
-            'source_type': target_source_type,
-            'source_id': target_source_id,
-            'source_title': target_source_title,
-            # Reuse existing executor logic for source-specific reply suggestions.
-            'tool_name': 'suggest_reply',
-        }
+    def resolve_action_targets(self, **kwargs) -> list[dict]:
+        external_reply_targets = (self.record_context or {}).get('external_reply_targets') or []
+        targets = []
+        for target in external_reply_targets:
+            if not isinstance(target, dict):
+                continue
+            target_source_type = str(target.get('source_type') or '').strip()
+            target_source_id = str(target.get('source_id') or '').strip()
+            target_source_title = str(
+                target.get('source_title') or target.get('title') or ''
+            ).strip()
+            if not target_source_type or not target_source_id:
+                continue
+            suggestion_text = self.suggestion_text
+            if target_source_type == AgentSourceType.GITHUB_ISSUE.value:
+                suggestion_text = 'Send a reply to the linked GitHub issue'
+            targets.append({
+                'source_type': target_source_type,
+                'source_id': target_source_id,
+                'source_title': target_source_title,
+                'tool_name': 'suggest_reply',
+                'suggestion_text': suggestion_text,
+            })
+        return targets
 
     def execute(self, reply, reason=''):
         source_id = self.get_source_id()
         source_title = self.get_source_title()
-        target_source_type = str((self.record_context or {}).get('original_source_type') or '').strip()
-        target_source_id = str((self.record_context or {}).get('original_source_id') or '').strip()
-        if not target_source_type or not target_source_id:
-            return 'Cannot create linked-record reply suggestion: missing linked target.'
+        targets = self.resolve_action_targets()
+        if not targets:
+            return 'Cannot create external-target reply suggestion: no external targets available.'
         reply = (reply or '').strip()
         if not reply:
-            return 'Cannot create linked-record reply suggestion: empty reply.'
+            return 'Cannot create external-target reply suggestion: empty reply.'
 
         preview = reply[:300]
         if len(reply) > 300:
             preview += '...'
 
-        target_label = f'{target_source_type} {target_source_id}'.strip()
+        target_count = len(targets)
+        target_label = '1 external target' if target_count == 1 else f'{target_count} external targets'
         return (
-            f'Linked-record reply suggestion prepared from ticket #{source_id} - {source_title} '
+            f'External-target reply suggestion prepared from ticket #{source_id} - {source_title} '
             f'to {target_label}: {preview}'
         )
 
@@ -247,5 +251,5 @@ TICKET_TOOL_CLASSES = [
     RecordTicketAnalysisTool,
     SuggestNotifyAssigneeTool,
     SuggestCloseTicketTool,
-    SuggestLinkedRecordReplyTool,
+    SuggestReplyExternalTargetsTool,
 ]

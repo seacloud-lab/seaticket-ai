@@ -17,6 +17,13 @@ EVENT_TYPE_ONLY = {
 }
 
 
+def _parse_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def render_task_xml(task: dict) -> str:
     """Render a task dict as an XML-enveloped string."""
 

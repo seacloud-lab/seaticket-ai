@@ -847,21 +847,23 @@ class AgentRunner:
             # use observation for common tool_call
             result = ''
 
-        target_source_type = None
-        target_source_id = None
-        target_source_title = None
-        resolver = metadata.get('resolve_action_target')
-        if callable(resolver):
-            try:
-                target = resolver(**tool_arguments)
-            except Exception as e:
-                logger.warning('Failed to resolve action target. tool=%s error=%s', tool_name, e)
-                target = {}
-            if isinstance(target, dict):
-                target_source_type = target.get('source_type') or None
-                target_source_id = target.get('source_id') or None
-                target_source_title = target.get('source_title') or None
-                recorded_tool_name = target.get('tool_name') or None
+        if self._try_record_multi_target_suggestion_actions(
+            phase=phase,
+            step=step,
+            tool_name=tool_name,
+            tool_arguments=tool_arguments,
+            metadata=metadata,
+            action_type=action_type,
+            action_status=action_status,
+            observation=observation,
+            content=content,
+            result=result,
+            sources=sources,
+            statistics=statistics,
+            default_tool_name=recorded_tool_name,
+            default_suggestion_text=suggestion_text,
+        ):
+            return
 
         action_id = self._record_action(
             phase=phase,
@@ -876,9 +878,6 @@ class AgentRunner:
             suggestion_content=suggestion_content,
             sources=sources,
             statistics=statistics,
-            source_type_override=target_source_type,
-            source_id_override=target_source_id,
-            source_title_override=target_source_title,
         )
 
         if action_id and action_type == 'suggestion' and action_status == 'pending':
@@ -886,6 +885,102 @@ class AgentRunner:
                 'action_id': action_id,
                 'tool_name': recorded_tool_name,
             })
+
+    def _try_record_multi_target_suggestion_actions(
+        self,
+        *,
+        phase: Phase,
+        step: int,
+        tool_name: str,
+        tool_arguments: dict,
+        metadata: dict,
+        action_type: str,
+        action_status: str,
+        observation: str,
+        content: str,
+        result: str,
+        sources: list,
+        statistics: str | None,
+        default_tool_name: str,
+        default_suggestion_text: str,
+    ) -> bool:
+        multi_target_resolver = metadata.get('resolve_action_targets')
+        if action_type != 'suggestion' or not callable(multi_target_resolver):
+            return False
+
+        try:
+            targets = multi_target_resolver(**tool_arguments)
+        except Exception as e:
+            logger.warning('Failed to resolve action targets. tool=%s error=%s', tool_name, e)
+            return False
+
+        if not targets:
+            return False
+
+        self._record_multi_target_suggestion_actions(
+            phase=phase,
+            step=step,
+            action_type=action_type,
+            action_status=action_status,
+            tool_arguments=tool_arguments,
+            observation=observation,
+            content=content,
+            result=result,
+            sources=sources,
+            statistics=statistics,
+            targets=targets,
+            default_tool_name=default_tool_name,
+            default_suggestion_text=default_suggestion_text,
+        )
+        return True
+    
+    def _record_multi_target_suggestion_actions(
+        self,
+        *,
+        phase: Phase,
+        step: int,
+        action_type: str,
+        action_status: str,
+        tool_arguments: dict,
+        observation: str,
+        content: str,
+        result: str,
+        sources: list,
+        statistics: str | None,
+        targets,
+        default_tool_name: str,
+        default_suggestion_text: str,
+    ) -> None:
+        for target in targets:
+            if not isinstance(target, dict):
+                continue
+            target_source_type = target.get('source_type') or None
+            target_source_id = target.get('source_id') or None
+            target_source_title = target.get('source_title') or None
+            target_tool_name = target.get('tool_name') or default_tool_name
+            target_suggestion_text = target.get('suggestion_text') or default_suggestion_text
+            action_id = self._record_action(
+                phase=phase,
+                result=result,
+                action_type=action_type,
+                action_status=action_status,
+                step=step,
+                tool_name=target_tool_name,
+                tool_arguments=tool_arguments,
+                observation=observation,
+                suggestion_text=target_suggestion_text,
+                suggestion_content=content,
+                sources=sources,
+                statistics=statistics,
+                source_type_override=target_source_type,
+                source_id_override=target_source_id,
+                source_title_override=target_source_title,
+            )
+            if action_id and action_status == 'pending':
+                self.pending_suggestion_actions.append({
+                    'action_id': action_id,
+                    'tool_name': target_tool_name,
+                })
 
     def _record_action(
         self,
