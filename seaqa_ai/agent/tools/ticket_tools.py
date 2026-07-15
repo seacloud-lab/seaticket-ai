@@ -190,6 +190,18 @@ class SuggestLinkedRecordReplyTool(BaseAgentTool):
                     'type': 'string',
                     'description': 'Brief rationale for why this reply is appropriate.',
                 },
+                'target_source_type': {
+                    'type': 'string',
+                    'description': 'Optional explicit target source type, such as "github_issue".',
+                },
+                'target_source_id': {
+                    'type': 'string',
+                    'description': 'Optional explicit target source id, such as "12_345".',
+                },
+                'target_source_title': {
+                    'type': 'string',
+                    'description': 'Optional explicit target title used in action logs.',
+                },
             },
             'required': ['reply'],
         },
@@ -200,16 +212,32 @@ class SuggestLinkedRecordReplyTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Send a reply.'
 
+    def _resolve_target(self, **kwargs) -> tuple[str, str, str]:
+        target_source_type = str(
+            kwargs.get('target_source_type')
+            or (self.record_context or {}).get('original_source_type')
+            or ''
+        ).strip()
+        target_source_id = str(
+            kwargs.get('target_source_id')
+            or (self.record_context or {}).get('original_source_id')
+            or ''
+        ).strip()
+        target_source_title = str(
+            kwargs.get('target_source_title')
+            or (self.record_context or {}).get('original_source_title')
+            or ''
+        ).strip()
+        return target_source_type, target_source_id, target_source_title
+
     def get_suggestion_text(self, **kwargs):
-        target = str((self.record_context or {}).get('original_source_type') or '').strip()
-        if target == AgentSourceType.GITHUB_ISSUE.value:
+        target_source_type, _, _ = self._resolve_target(**kwargs)
+        if target_source_type == AgentSourceType.GITHUB_ISSUE.value:
             return f'Send a reply to the linked GitHub issue.'
         return self.suggestion_text
 
     def resolve_action_target(self, **kwargs) -> dict:
-        target_source_type = str((self.record_context or {}).get('original_source_type') or '').strip()
-        target_source_id = str((self.record_context or {}).get('original_source_id') or '').strip()
-        target_source_title = str((self.record_context or {}).get('original_source_title') or '').strip()
+        target_source_type, target_source_id, target_source_title = self._resolve_target(**kwargs)
         if not target_source_type or not target_source_id:
             return {}
         return {
@@ -220,11 +248,21 @@ class SuggestLinkedRecordReplyTool(BaseAgentTool):
             'tool_name': 'suggest_reply',
         }
 
-    def execute(self, reply, reason=''):
+    def execute(
+        self,
+        reply,
+        reason='',
+        target_source_type='',
+        target_source_id='',
+        target_source_title='',
+    ):
         source_id = self.get_source_id()
         source_title = self.get_source_title()
-        target_source_type = str((self.record_context or {}).get('original_source_type') or '').strip()
-        target_source_id = str((self.record_context or {}).get('original_source_id') or '').strip()
+        target_source_type, target_source_id, _ = self._resolve_target(
+            target_source_type=target_source_type,
+            target_source_id=target_source_id,
+            target_source_title=target_source_title,
+        )
         if not target_source_type or not target_source_id:
             return 'Cannot create linked-record reply suggestion: missing linked target.'
         reply = (reply or '').strip()

@@ -16,6 +16,7 @@ class DataEventType(Enum):
     TICKET_DUE_SOON = 'ticket_due_soon'
     TICKET_OVER_DUE = 'ticket_over_due'
     TICKET_LINKED_RECORD_ACTIVITY = 'ticket_linked_record_activity'
+    TICKET_TASK_FINISHED = 'ticket_task_finished'
     GITHUB_ISSUE_ADDED  = 'github_issue_added'
     GITHUB_ISSUE_UPDATED = 'github_issue_updated'
     GITHUB_ISSUE_CLOSED = 'github_issue_closed'
@@ -26,6 +27,7 @@ class DataEventType(Enum):
     DISCOURSE_TOPIC_COMMENT_ADDED = 'discourse_topic_comment_added'
     EMAIL_THREAD_ADDED = 'email_thread_added'
     EMAIL_MESSAGE_ADDED = 'email_message_added'
+    GENERAL_TASK_UPDATED = 'general_task_updated'
 
     @classmethod
     def is_valid(cls, value):

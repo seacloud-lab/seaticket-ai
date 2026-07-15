@@ -8,8 +8,9 @@ Responsibilities:
 """
 import logging
 
-from seaqa_ai.utils import now_iso, sanitize_project_prompt
+from seaqa_ai.utils import now_iso, sanitize_project_prompt, uuid_str_to_32_chars
 from seaqa_ai.seadb_models import SchemaTables
+from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import (
@@ -20,6 +21,7 @@ from seaqa_ai.agent.utils.constants import (
     DataEventType,
     AgentSourceType
 )
+from seaqa_ai.utils.constants import ConnectionType
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,10 @@ class TicketAgent(BaseAgent):
     @property
     def _is_linked_record_activity(self) -> bool:
         return self.event_type == DataEventType.TICKET_LINKED_RECORD_ACTIVITY
+
+    @property
+    def _is_task_finished_event(self) -> bool:
+        return self.event_type == DataEventType.TICKET_TASK_FINISHED
 
     def get_custom_rules_prompt(self) -> str:
         rules_text = (self.agent_settings.get('ticket_rules') or '').strip()
@@ -100,7 +106,8 @@ class TicketAgent(BaseAgent):
             state_filter = ''
         sql = (
             f"SELECT `_pk`, `title`, `state`, `substate`, `type`, `tags`, `priority`, "
-            f"`assignees`, `participants`, `created_time`, `modified_time`, `due_date`, `content` "
+            f"`assignees`, `participants`, `linked_connection_records`, "
+            f"`created_time`, `modified_time`, `due_date`, `content` "
             f"FROM `{SchemaTables.TICKETS.table_name()}` "
             f"WHERE _pk = {self.record_id} "
             f"{state_filter} "
@@ -171,6 +178,9 @@ class TicketAgent(BaseAgent):
         }
         if self._is_linked_record_activity:
             context['linked_record_context'] = self._build_linked_record_context(ticket_id)
+        if self._is_task_finished_event:
+            context['finished_task'] = self._build_finished_task_context(ticket_id)
+            context['linked_github_issues'] = self._build_linked_github_issues_context(item)
         return context
 
     def build_record_payload(self, item: dict, item_context: dict) -> dict:
@@ -226,7 +236,153 @@ class TicketAgent(BaseAgent):
         linked_record_context = item_context.get('linked_record_context')
         if isinstance(linked_record_context, dict) and linked_record_context:
             message_dict['linked_record_activity'] = linked_record_context
+        finished_task = item_context.get('finished_task')
+        if isinstance(finished_task, dict) and finished_task:
+            message_dict['finished_task'] = finished_task
+        linked_github_issues = item_context.get('linked_github_issues')
+        if isinstance(linked_github_issues, list) and linked_github_issues:
+            message_dict['linked_external_issues'] = linked_github_issues
         return message_dict
+
+    @staticmethod
+    def _parse_int(value) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _is_github_issue_closed(issue_state) -> bool:
+        if issue_state in (None, ''):
+            return False
+        normalized_state = str(issue_state).strip().lower()
+        return normalized_state in {'closed', '0002'}
+
+    @staticmethod
+    def _parse_linked_connection_records(linked_connection_records) -> dict[int, set[int]]:
+        connection_map: dict[int, set[int]] = {}
+        for linked_key in (linked_connection_records or []):
+            if not isinstance(linked_key, str):
+                continue
+            try:
+                connection_id_str, record_id_str = linked_key.split('_', 1)
+            except ValueError:
+                continue
+            if connection_id_str == 'portal':
+                continue
+            connection_id = TicketAgent._parse_int(connection_id_str)
+            record_id = TicketAgent._parse_int(record_id_str)
+            if connection_id is None or record_id is None:
+                continue
+            connection_map.setdefault(connection_id, set()).add(record_id)
+        return connection_map
+
+    def _build_finished_task_context(self, ticket_id: int) -> dict:
+        task_connection_id = self._parse_int(self.event.get('task_connection_id'))
+        task_record_id = self._parse_int(self.event.get('task_record_id'))
+        if task_connection_id is None or task_record_id is None:
+            return {}
+
+        tasks_table = SchemaTables.GENERAL_TASK.table_name(task_connection_id)
+        sql = (
+            f"SELECT `_pk`, `source_task_id`, `title`, `status`, `size`, `priority`, "
+            f"`assignees`, `participants`, `version`, `content`, `due_date`, "
+            f"`created_time`, `modified_time`, `url`, `linked_ticket` "
+            f"FROM `{tasks_table}` "
+            f"WHERE `_pk` = {task_record_id} "
+            f"AND (`deleted` = False OR `deleted` IS NULL) "
+            f"LIMIT 1"
+        )
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        if not results:
+            return {}
+
+        task = results[0]
+        linked_ticket = self._parse_int(task.get('linked_ticket'))
+        if linked_ticket is not None and linked_ticket != ticket_id:
+            return {}
+
+        return {
+            'source_type': ConnectionType.GENERAL_TASK.value,
+            'source_id': f'{task_connection_id}_{task_record_id}',
+            'task_id': task_record_id,
+            'source_task_id': str(task.get('source_task_id') or ''),
+            'title': task.get('title', 'Untitled'),
+            'status': task.get('status', 'N/A'),
+            'previous_status': str(self.event.get('task_previous_status') or ''),
+            'current_status': str(self.event.get('task_current_status') or ''),
+            'size': task.get('size', 'N/A'),
+            'priority': task.get('priority', 'N/A'),
+            'assignees': self.username_resolver.emails2nicknames(task.get('assignees')),
+            'participants': self.username_resolver.emails2nicknames(task.get('participants')),
+            'version': task.get('version', 'N/A'),
+            'created_time': task.get('created_time', 'N/A'),
+            'last_modified': task.get('modified_time', 'N/A'),
+            'due_date': task.get('due_date', 'N/A'),
+            'url': task.get('url', 'N/A'),
+            'content': (task.get('content') or '')[:MAX_CONTENT_CHARS],
+        }
+
+    def _build_linked_github_issues_context(self, item: dict) -> list[dict]:
+        linked_connection_records = item.get('linked_connection_records') or []
+        connection_record_ids = self._parse_linked_connection_records(linked_connection_records)
+        if not connection_record_ids:
+            return []
+
+        connection_ids = list(connection_record_ids.keys())
+        project_uuid_32 = uuid_str_to_32_chars(self.project_uuid)
+        with self.db_session_class() as db_session:
+            connections = ProjectConnection.get_connections_by_ids(
+                db_session,
+                project_uuid_32,
+                connection_ids,
+            )
+        github_connection_ids = {
+            int(connection['id'])
+            for connection in connections
+            if connection.get('type') == ConnectionType.GITHUB_ISSUE.value
+        }
+        if not github_connection_ids:
+            return []
+
+        ticket_id = self._parse_int(item.get('_pk'))
+        linked_issues: list[dict] = []
+
+        for connection_id in sorted(github_connection_ids):
+            record_ids = sorted(connection_record_ids.get(connection_id) or [])
+            if not record_ids:
+                continue
+
+            issues_table = SchemaTables.GITHUB_ISSUES.table_name(connection_id)
+            issue_rows = self.seadb_api.get_records_by_pks(
+                base_id=self.project_uuid,
+                table_name=issues_table,
+                pks=record_ids,
+                fields_str='title, issue_number, state, linked_ticket',
+            )
+            if not issue_rows:
+                continue
+
+            for record_id in record_ids:
+                issue = issue_rows.get(record_id)
+                if not issue:
+                    continue
+                linked_ticket = self._parse_int(issue.get('linked_ticket'))
+                if ticket_id is not None and linked_ticket not in (None, ticket_id):
+                    continue
+                if self._is_github_issue_closed(issue.get('state')):
+                    continue
+
+                linked_issues.append({
+                    'source_type': ConnectionType.GITHUB_ISSUE.value,
+                    'source_id': f'{connection_id}_{record_id}',
+                    'source_title': issue.get('title', 'Untitled'),
+                    'title': issue.get('title', 'Untitled'),
+                    'issue_number': issue.get('issue_number', 'N/A'),
+                    'state': issue.get('state', 'N/A'),
+                })
+
+        return linked_issues
 
     def _build_linked_record_context(self, ticket_id: int) -> dict:
         original_source_type = str(self.event.get('original_source_type') or '').strip()
