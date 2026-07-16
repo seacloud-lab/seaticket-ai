@@ -142,7 +142,7 @@ class ATTACHMENTS_PROMPTS(Enum):
     DOCUMENTS = 'Here are some documents in Json format with title, URL or path, and content. \n\n'
     ISSUES = 'Here are some tickets, issues or email in Json format with title, content and comments. \n\n'
     TASK = 'Here are some tasks in Json format with title and content. \n\n'
-    PAGE_CONTENT = 'Here are some pages in Json format with url, title and content. \n\n'
+    PAGE_CONTENT = 'Here are some pages in Json format with url, title, content and others info. \n\n'
 
 class ATTACHMENTS_TYPE(Enum):
     DOCUMENTS = SOURCES_TYPE.DOCUMENTS.value
