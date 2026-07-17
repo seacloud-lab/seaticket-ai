@@ -201,13 +201,15 @@ class AgentRunner:
             result, usage = self._request_react_phase_llm_result(phase, step)
 
             tool_calls = self._validate_tool_calls(result.tool_calls, phase, step)
-            phase.memory += self._build_assistant_items(result, tool_calls=tool_calls)
+            phase.memory += self._build_assistant_items(result)
 
             if not tool_calls:
                 logger.warning(f'{phase.name} step {step} returned no tool call.')
                 continue
 
             for tool_index, tool_call in enumerate(tool_calls):
+                # Add calls incrementally so every call in memory receives a matching output.
+                phase.memory += tool_call
                 tool_name = tool_call['name']
                 logger.debug(f'Processing tool call {tool_name} at step {step}')
                 tool_usage = usage if tool_index == 0 else {}
