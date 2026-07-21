@@ -35,6 +35,13 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
 class BasicSearchTool(BasicTool):
     MAX_SOURCES_COUNT = 10
     SINGLE_TOOL_MAX_SOURCES_COUNT = 5
+    STATUS_FIELDS = (
+        'state',
+        'state_reason',
+        'substate',
+        'resolved',
+        'linked_ticket',
+    )
 
     @staticmethod
     def _build_project_base_url(context, app, tool_executor):
@@ -112,6 +119,12 @@ class BasicSearchTool(BasicTool):
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
+            content = search_result.get('content')
+            if isinstance(content, dict):
+                for field in self.STATUS_FIELDS:
+                    value = content.get(field)
+                    if value is not None:
+                        doc[field] = value
             inner_url = self._build_product_record_url(search_result, project_base_url)
             if inner_url:
                 doc['inner_url'] = inner_url
