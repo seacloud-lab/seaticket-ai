@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timezone
+
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.seadb_models.utils import get_connection_table_name
@@ -6,8 +8,43 @@ from seaqa_ai.seadb_models.utils import get_connection_table_name
 logger = logging.getLogger(__name__)
 
 
+def _parse_utc_datetime(value):
+    if value is None:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
 
-def search_records_to_map(search_records, search_results, skip_search_record_hashes=[]):
+
+def _is_within_time_window(modified_time, time_from, time_to):
+    """Return True if modified_time is usable under the given window.
+
+    When a time window is active, missing/invalid timestamps are excluded.
+    When no window is set, all records are kept.
+    """
+    if time_from is None and time_to is None:
+        return True
+
+    modified_dt = _parse_utc_datetime(modified_time)
+    if modified_dt is None:
+        return False
+
+    if time_from is not None:
+        time_from_dt = _parse_utc_datetime(time_from)
+        if time_from_dt is not None and modified_dt < time_from_dt:
+            return False
+    if time_to is not None:
+        time_to_dt = _parse_utc_datetime(time_to)
+        if time_to_dt is not None and modified_dt > time_to_dt:
+            return False
+    return True
+
+
+def search_records_to_map(search_records, search_results, skip_search_record_hashes=[], time_from=None, time_to=None):
     """
     func:  convert a search_records (from seaqa-indexer) to a map {conection_id: {record_id: ...}} (i.e., search_results)
 
@@ -16,7 +53,11 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
     search_results: previous search results
 
     skip_search_record_hashes: If the hash value of a search record appears in this list, it will not be recorded.
+
+    time_from/time_to: optional ISO/UTC bounds; when set, missing or out-of-range
+    modified_time values are excluded.
     """
+    skipped_invalid_time = 0
     for record in search_records:
         try:
             connection_id = int(record.get('connection_id', 'unknown'))
@@ -35,6 +76,11 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         if record_hex in skip_search_record_hashes:
             continue
 
+        modified_time = record.get('modified_time')
+        if not _is_within_time_window(modified_time, time_from, time_to):
+            skipped_invalid_time += 1
+            continue
+
         # Retrieve or create a dictionary for the given connection_id from search_results
         connection_dict = search_results.setdefault(connection_id, {})
 
@@ -43,7 +89,7 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             'type': record['type'],
             'connection_id': connection_id,
             '_id': record_id,
-            'modified_time': record['modified_time']
+            'modified_time': modified_time
         })
 
         # Check if the record contains a 'content' field
@@ -54,6 +100,15 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         if 'snippet' in record:
             snippets = record_dict.setdefault('snippets', [])
             snippets.append(record['snippet'])
+
+    if skipped_invalid_time:
+        logger.info(
+            'Excluded %s search records due to missing/invalid/out-of-range modified_time '
+            '(time_from=%s time_to=%s)',
+            skipped_invalid_time,
+            time_from,
+            time_to,
+        )
 
     return search_results
 

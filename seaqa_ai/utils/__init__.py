@@ -369,3 +369,56 @@ def remove_sources_content_and_snippets(sources):
         source.pop('snippets', None)
         source.pop('images', None)
     return sources
+
+
+def _subtract_calendar_years(dt, years):
+    """Subtract calendar years from an aware datetime, handling Feb 29."""
+    try:
+        return dt.replace(year=dt.year - years)
+    except ValueError:
+        return dt.replace(year=dt.year - years, month=2, day=28)
+
+def normalize_issues_recent_years(value):
+    """Normalize issues_recent_years to None or a positive int.
+
+    Invalid legacy/stock values fall back to None (unlimited) with a warning.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        logger.warning('Invalid search.issues_recent_years=%r; falling back to unlimited', value)
+        return None
+    return value
+
+def normalize_issues_recent_years_from_settings(project_settings):
+    """Extract and normalize issues_recent_years from project settings dict/JSON."""
+    if isinstance(project_settings, str):
+        try:
+            project_settings = json.loads(project_settings) if project_settings else {}
+        except (json.JSONDecodeError, TypeError):
+            logger.warning('Failed to parse project settings for search.issues_recent_years')
+            return None
+    if not isinstance(project_settings, dict):
+        return None
+    search_settings = project_settings.get('search')
+    if not isinstance(search_settings, dict):
+        return None
+    return normalize_issues_recent_years(search_settings.get('issues_recent_years'))
+
+def resolve_issues_search_time_bounds(years, now=None):
+    """Return (time_from, time_to) ISO UTC strings, or (None, None) if unlimited.
+
+    Window is inclusive [now - years, now] on modified_time semantics.
+    """
+    years = normalize_issues_recent_years(years)
+    if years is None:
+        return None, None
+
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    else:
+        now_utc = now_utc.astimezone(timezone.utc)
+
+    time_from = _subtract_calendar_years(now_utc, years)
+    return time_from.isoformat(), now_utc.isoformat()

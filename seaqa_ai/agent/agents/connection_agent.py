@@ -7,6 +7,7 @@ from seaqa_ai.agent.tools.common_tools import RecordIssueAnalysisTool
 from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch, SEARCH_TOOL_NAMES
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils import normalize_issues_recent_years_from_settings
 
 
 class ConnectionAgent(BaseAgent):
@@ -90,6 +91,7 @@ class ConnectionAgent(BaseAgent):
                 'username': 'agent',
                 'document_connections': document_connections,
                 'issue_connections': issue_connections,
+                'issues_search_recent_years': normalize_issues_recent_years_from_settings(self.project.get('settings') if isinstance(self.project, dict) else None),
             })
             self._search_context_cache = cached
 
