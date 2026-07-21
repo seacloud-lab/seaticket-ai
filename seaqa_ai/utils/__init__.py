@@ -386,7 +386,7 @@ def normalize_issues_recent_years(value):
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-        logger.warning('Invalid search.issues_recent_years=%r; falling back to unlimited', value)
+        logger.warning('Invalid ai_search.issues_recent_years=%r; falling back to unlimited', value)
         return None
     return value
 
@@ -396,14 +396,14 @@ def normalize_issues_recent_years_from_settings(project_settings):
         try:
             project_settings = json.loads(project_settings) if project_settings else {}
         except (json.JSONDecodeError, TypeError):
-            logger.warning('Failed to parse project settings for search.issues_recent_years')
+            logger.warning('Failed to parse project settings for ai_search.issues_recent_years')
             return None
     if not isinstance(project_settings, dict):
         return None
-    search_settings = project_settings.get('search')
-    if not isinstance(search_settings, dict):
+    ai_search_settings = project_settings.get('ai_search')
+    if not isinstance(ai_search_settings, dict):
         return None
-    return normalize_issues_recent_years(search_settings.get('issues_recent_years'))
+    return normalize_issues_recent_years(ai_search_settings.get('issues_recent_years'))
 
 def resolve_issues_search_time_bounds(years, now=None):
     """Return (time_from, time_to) ISO UTC strings, or (None, None) if unlimited.
