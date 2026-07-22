@@ -65,6 +65,7 @@ class ConnectionType(Enum):
     SEAFILE = 'seafile'
     GENERAL_TASK = 'general_task'
     LINEAR = 'linear'
+    DISCORD = 'discord'
 
     @classmethod
     def is_valid(cls, value):
@@ -130,6 +131,7 @@ class SOURCES_TYPE(Enum):
         ExtraSourceType.TICKET.value,
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
+        ConnectionType.DISCORD.value,
         ConnectionType.EMAIL.value
     )
     TASKS = (

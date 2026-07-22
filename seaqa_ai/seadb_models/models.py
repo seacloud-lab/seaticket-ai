@@ -24,3 +24,5 @@ class SchemaTables:
     GENERAL_TASK_USER = SCHEMA.GeneralTaskUserTable
     LINEAR_ISSUES = SCHEMA.LinearIssuesTable
     LINEAR_ISSUE_COMMENTS = SCHEMA.LinearIssueCommentsTable
+    DISCORD_THREADS = SCHEMA.DiscordThreadsTable
+    DISCORD_THREAD_MESSAGES = SCHEMA.DiscordThreadMessagesTable
