@@ -122,3 +122,97 @@ LDAP_SERVER_URL = 'ldap://your-server'
 
         kb_pk = pks[0]
         return f'<seaqa-kb-entry id="{kb_pk}" title="{escape(title, quote=True)}" />'
+
+
+class TicketCreator(BasicTool):
+    tool = {
+        'type': 'function',
+        'name': 'create_ticket',
+        'description': """This tool creates an internal ticket from the current chat content. Use this tool only when the user explicitly requests to create, open, or file a ticket. The output is returned as content wrapped within `<seaqa-ticket>` HTML tags, which will be processed by the system to generate a clickable ticket link.""",
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'title': {
+                    'type': 'string',
+                    'description': 'Ticket title. Keep it concise and specific.'
+                },
+                'content': {
+                    'type': 'string',
+                    'description': 'Ticket description in Markdown format. Keep sections and bullet points readable.'
+                },
+                'type': {
+                    'type': 'string',
+                    'description': 'Optional ticket type name, such as Bug, Feature, or Question. If omitted, it will be empty.'
+                },
+                'priority': {
+                    'type': 'integer',
+                    'description': 'Optional ticket priority from 0 to 5. If omitted, defaults to 0 (No priority). 1 means urgent; 2 means high; 3 means medium; 4 means low.'
+                },
+                'state': {
+                    'type': 'string',
+                    'description': 'Ticket state, typically open'
+                },
+            },
+            'required': ['title', 'content', 'state'],
+            'additionalProperties': False,
+        },
+        'strict': True,
+    }
+
+    def execute(self, title, content, state, context, app, type='', priority=0):
+        """
+        Create ticket and return <seaqa-ticket> HTML tag with title and pk.
+        """
+        title = str(title or '').strip()
+        content = str(content or '').strip()
+        type_name = str(type or '').strip()
+        state_name = str(state or '').strip()
+
+        if not title:
+            raise AssertionError('Ticket title is required')
+        if not content:
+            raise AssertionError('Ticket content is required')
+        try:
+            priority_value = int(priority)
+        except Exception as e:
+            raise AssertionError('Ticket priority must be an integer') from e
+        if priority_value < 0:
+            priority_value = 0
+        elif priority_value > 5:
+            priority_value = 5
+
+        if not state_name:
+            state_name = 'open'
+
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        seadb_api = SeaDBAPI(
+            config.SEADB_SERVER_URL,
+            config.SEADB_USER,
+            config.SEADB_PASSWORD
+        )
+
+        row = {
+            'title': title,
+            'content': content,
+            'state': state_name,
+            'substate': 'New' if state_name.lower() == 'open' else '',
+            'type': type_name,
+            'tags': [],
+            'assignees': [],
+            'participants': [context['username']],
+            'linked_connection_records': [],
+            'priority': priority_value,
+            'creator': context['username'],
+            'comment_count': 0,
+            'created_time': now,
+            'modified_time': now,
+            'deleted': False,
+            'due_date': '',
+        }
+        res = seadb_api.insert_rows(context['project_uuid'], SchemaTables.TICKETS.table_name(), [row])
+        pks = res.get('pks', [])
+        if len(pks) != 1:
+            raise AssertionError('Failed to create ticket')
+        ticket_id = pks[0]
+
+        return f'<seaqa-ticket id="{ticket_id}" title="{escape(title, quote=True)}" />'
