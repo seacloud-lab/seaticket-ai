@@ -44,7 +44,7 @@ class SuggestMoveToSpamTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Move this email thread to the spam folder.'
+    suggestion_text = 'Move this email thread to the spam folder'
 
     def execute(self, reason):
         source_type = self.get_source_type()

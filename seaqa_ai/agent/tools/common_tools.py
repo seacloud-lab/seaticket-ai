@@ -185,7 +185,7 @@ class SuggestReplyTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Send a reply.'
+    suggestion_text = 'Send a reply'
 
     def execute(self, reply, reasoning=None):
         source_type = self.get_source_type()
@@ -232,7 +232,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Create an internal ticket from this record.'
+    suggestion_text = 'Create an internal ticket from this record'
 
     @staticmethod
     def _format_ticket_suggestion_content(title, description):
