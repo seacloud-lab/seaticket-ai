@@ -1,7 +1,8 @@
-import json
 import inspect
+import json
 from abc import abstractmethod
 from copy import deepcopy
+from difflib import get_close_matches
 from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
@@ -29,6 +30,31 @@ class BasicTool(object):
     
 class InvalidToolException(Exception):
     pass
+
+
+class InvalidToolArgumentsException(InvalidToolException):
+    """Raised when model-provided arguments do not match a tool's schema."""
+
+    def __init__(self, tool_name, missing_fields=None, unexpected_fields=None, suggestions=None):
+        self.tool_name = tool_name
+        self.missing_fields = missing_fields or []
+        self.unexpected_fields = unexpected_fields or []
+        self.suggestions = suggestions or {}
+
+        details = []
+        if self.missing_fields:
+            details.append(f"missing required fields: {', '.join(self.missing_fields)}")
+        if self.unexpected_fields:
+            unexpected = []
+            for field in self.unexpected_fields:
+                suggestion = self.suggestions.get(field)
+                unexpected.append(f"{field} (did you mean {suggestion}?)" if suggestion else field)
+            details.append(f"unexpected fields: {', '.join(unexpected)}")
+
+        message = f"Invalid arguments for tool {tool_name!r}: {'; '.join(details)}. "
+        message += 'Call the tool again with all required fields and only schema-defined fields.'
+        super().__init__(message)
+
 
 from .search_tools import DocumentsSearch, IssuesSearch, TasksSearch
 from .test_tool import TestTool
@@ -87,7 +113,34 @@ class OpenAIToolExecutor(BasicToolExecutor):
             tool['tool_info']
             for tool in self.tools.values()
         ]
-    
+
+    def validate_arguments(self, name, params):
+        """Validate top-level model arguments against the registered tool schema."""
+        parameters = self.tools[name]['tool_info'].get('parameters') or {}
+        properties = parameters.get('properties')
+        if not isinstance(properties, dict):
+            return
+
+        valid_fields = set(properties)
+        required_fields = parameters.get('required') or []
+        missing_fields = sorted(field for field in required_fields if field not in params)
+        unexpected_fields = sorted(field for field in params if field not in valid_fields)
+        if not (missing_fields or unexpected_fields):
+            return
+
+        suggestions = {}
+        for field in unexpected_fields:
+            matches = get_close_matches(field, sorted(valid_fields), n=1, cutoff=0.75)
+            if matches:
+                suggestions[field] = matches[0]
+
+        raise InvalidToolArgumentsException(
+            name,
+            missing_fields=missing_fields,
+            unexpected_fields=unexpected_fields,
+            suggestions=suggestions,
+        )
+
     def execute(self, tool_call, call_back=lambda: None):
         name = tool_call['name']
         raw_arguments = tool_call.get('arguments')
@@ -97,6 +150,8 @@ class OpenAIToolExecutor(BasicToolExecutor):
             params = raw_arguments or {}
         if not isinstance(params, dict):
             raise InvalidToolException(tool_call)
+        self.validate_arguments(name, params)
+
         constant_kwargs = self.tools[name]['constant_kwargs']
         available_params = inspect.signature(self.tools[name]['func']).parameters
         params.update({

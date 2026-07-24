@@ -17,7 +17,7 @@ import time
 import re
 from seaqa_ai import config
 from seaqa_ai.utils.llm_api import CompletionAPI, ResponsesAPI, ResponsesResult
-from seaqa_ai.utils.tools import OpenAIToolExecutor
+from seaqa_ai.utils.tools import InvalidToolArgumentsException, OpenAIToolExecutor
 from seaqa_ai.agent.utils import render_task_xml
 from seaqa_ai.agent.utils.phase import Phase, AskPhase, ReactPhase
 from seaqa_ai.utils import parse_json, remove_sources_content_and_snippets, get_answer_and_sources, gen_completion_format
@@ -201,18 +201,26 @@ class AgentRunner:
             result, usage = self._request_react_phase_llm_result(phase, step)
 
             tool_calls = self._validate_tool_calls(result.tool_calls, phase, step)
-            phase.memory += self._build_assistant_items(result, tool_calls=tool_calls)
+            phase.memory += self._build_assistant_items(result)
 
             if not tool_calls:
                 logger.warning(f'{phase.name} step {step} returned no tool call.')
                 continue
 
             for tool_index, tool_call in enumerate(tool_calls):
+                # Add calls incrementally so every call in memory receives a matching output.
+                phase.memory += tool_call
                 tool_name = tool_call['name']
                 logger.debug(f'Processing tool call {tool_name} at step {step}')
                 tool_usage = usage if tool_index == 0 else {}
                 tool_step_start = step_start if tool_index == 0 else time.monotonic()
-                self._process_tool_call(tool_call, phase, step_start=tool_step_start, usage=tool_usage, step=step)
+                tool_succeeded = self._process_tool_call(tool_call, phase, step_start=tool_step_start, usage=tool_usage, step=step)
+
+                if not tool_succeeded:
+                    logger.warning(f'{phase.name} tool call {tool_name} at step {step} failed.')
+                    # Stop this batch so the next step can correct it using the error observation.
+                    # Especially important for invalid tool arguments which need to be corrected.
+                    break
 
                 if tool_name == phase.terminator_tool:
                     logger.debug(f'{phase.name} loop completed at step {step} via {tool_name}.')
@@ -405,7 +413,9 @@ class AgentRunner:
             raise AgentRetryExceededError(error_message)
 
         arguments = self._parse_tool_arguments(tool_call.get('arguments'))
-        self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
+        tool_succeeded = self._process_tool_call(tool_call, phase, step_start=step_start, usage=usage, step=step)
+        if not tool_succeeded:
+            raise AgentRetryExceededError(f'Forced {phase.terminator_tool} tool call failed after the agent exhausted its steps.')
         return arguments
 
     def _ask_completion_with_retry(
@@ -635,9 +645,8 @@ class AgentRunner:
         step_start: float | None = None,
         usage: dict | None = None,
         step: int | None = None,
-    ) -> str | None:
+    ) -> bool:
         tool_name = tool_call['name']
-        is_final_answer = tool_name == 'final_answer'
         usage = usage or {}
 
         try:
@@ -666,14 +675,12 @@ class AgentRunner:
                 statistics=self._build_statistics(step_start, usage),
             )
             logger.debug(f'Observation: {observation}')
-            if is_final_answer:
-                return observation
             phase.memory += {
                 'type': 'function_call_output',
                 'call_id': tool_call.get('call_id', ''),
                 'output': observation,
             }
-            return None
+            return False
 
         logger.debug(f"Calling tool: '{tool_name}' with arguments: {arguments}")
         self.tool_executor.thought_process.add_tool_calls_group()
@@ -686,6 +693,9 @@ class AgentRunner:
                 try:
                     result = self.tool_executor.execute(tool_call)
                     break
+                except InvalidToolArgumentsException as e:
+                    logger.warning('Invalid model arguments for %r at %s step %s: %s', tool_name, phase.name, step, e)
+                    raise
                 except Exception as e:
                     logger.exception(
                         'Tool execution failed for %r at %s step %s retry %s/%s: %s',
@@ -748,14 +758,12 @@ class AgentRunner:
         else:
             self._record_tool_action(phase, step, tool_name, arguments, observation, statistics=statistics,)
 
-        if is_final_answer:
-            return observation
-
         phase.memory += {
             'type': 'function_call_output',
             'call_id': tool_call.get('call_id', ''),
             'output': observation,
         }
+        return not tool_failed
 
     def _record_tool_action(
         self,
