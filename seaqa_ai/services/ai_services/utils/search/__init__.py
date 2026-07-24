@@ -44,7 +44,7 @@ def _is_within_time_window(modified_time, time_from, time_to):
     return True
 
 
-def search_records_to_map(search_records, search_results, skip_search_record_hashes=[], time_from=None, time_to=None):
+def search_records_to_map(search_records, search_results, skip_search_record_hashes=[]):
     """
     func:  convert a search_records (from seaqa-indexer) to a map {conection_id: {record_id: ...}} (i.e., search_results)
 
@@ -54,10 +54,7 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
 
     skip_search_record_hashes: If the hash value of a search record appears in this list, it will not be recorded.
 
-    time_from/time_to: optional ISO/UTC bounds; when set, missing or out-of-range
-    modified_time values are excluded.
     """
-    skipped_invalid_time = 0
     for record in search_records:
         try:
             connection_id = int(record.get('connection_id', 'unknown'))
@@ -77,9 +74,6 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             continue
 
         modified_time = record.get('modified_time')
-        if not _is_within_time_window(modified_time, time_from, time_to):
-            skipped_invalid_time += 1
-            continue
 
         # Retrieve or create a dictionary for the given connection_id from search_results
         connection_dict = search_results.setdefault(connection_id, {})
@@ -100,15 +94,6 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         if 'snippet' in record:
             snippets = record_dict.setdefault('snippets', [])
             snippets.append(record['snippet'])
-
-    if skipped_invalid_time:
-        logger.info(
-            'Excluded %s search records due to missing/invalid/out-of-range modified_time '
-            '(time_from=%s time_to=%s)',
-            skipped_invalid_time,
-            time_from,
-            time_to,
-        )
 
     return search_results
 
