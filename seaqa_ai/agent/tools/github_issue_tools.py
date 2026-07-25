@@ -57,17 +57,17 @@ class SuggestModifyTypeTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest a more suitable issue type for this GitHub issue.'
+    suggestion_text = 'Suggest a more suitable issue type for this GitHub issue'
 
     def get_suggestion_text(self, **kwargs):
         current = kwargs.get('current_issue_type', '')
         suggested = kwargs.get('suggested_type', '')
         if current:
             if current == 'null' or current == 'Null' or current == 'NULL' or current == 'None' or current == 'none' or current == 'NONE':
-                return f'Suggest changing the type to "{suggested}" for this GitHub issue.'
-            return f'Suggest changing the type from "{current}" to "{suggested}" for this GitHub issue.'
+                return f'Suggest changing the type to "{suggested}" for this GitHub issue'
+            return f'Suggest changing the type from "{current}" to "{suggested}" for this GitHub issue'
         else:
-            return f'Suggest changing the type to "{suggested}" for this GitHub issue.'
+            return f'Suggest changing the type to "{suggested}" for this GitHub issue'
 
     def execute(self, current_issue_type, suggested_type, reason):
         source_id = self.get_source_id()
@@ -122,7 +122,7 @@ class SuggestAssignLabelsTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest assigning labels to this GitHub issue.'
+    suggestion_text = 'Suggest assigning labels to this GitHub issue'
 
     def get_suggestion_text(self, **kwargs):
         labels = kwargs.get('suggested_labels') or []
@@ -134,7 +134,7 @@ class SuggestAssignLabelsTool(BaseAgentTool):
             if name:
                 normalized.append(name)
         serialized = json.dumps(normalized, ensure_ascii=True)
-        return f'Suggest assigning labels {serialized} to this GitHub issue.'
+        return f'Suggest assigning labels {serialized} to this GitHub issue'
 
     def execute(self, suggested_labels, reason, current_labels=None):
         source_id = self.get_source_id()

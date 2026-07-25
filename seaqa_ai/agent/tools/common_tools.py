@@ -7,8 +7,10 @@ Provides:
 - SuggestReplyTool: suggest a user-facing reply
 - SuggestCreateTicketTool: suggest creating an internal ticket
 """
+import json
 import logging
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.utils.constants import AIScenario
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,28 @@ class BaseAgentTool(BasicTool):
     def get_source_title(self):
         """Return the human-readable title of the source record."""
         return (self.record_context or {}).get('source_title', 'Untitled')
+
+    def get_project_uuid(self):
+        """Return the current project UUID when available."""
+        return (self.record_context or {}).get('project_uuid', '')
+
+    def get_org_id(self):
+        """Return the current org id when available."""
+        return (self.record_context or {}).get('org_id', -1)
+
+    def get_record_payload(self):
+        """Return the structured record payload exposed to the agent."""
+        record_payload = (self.record_context or {}).get('record_payload', {})
+        return record_payload if isinstance(record_payload, dict) else {}
+
+    def get_event_payload(self):
+        """Return the triggering event payload exposed to the agent."""
+        event_payload = (self.record_context or {}).get('event_payload', {})
+        return event_payload if isinstance(event_payload, dict) else {}
+
+    def get_app(self):
+        """Return the runtime app when available."""
+        return (self.record_context or {}).get('app')
 
     def get_suggestion_text(self, **kwargs):
         """Return the suggestion_text for this tool, optionally using call arguments."""
@@ -161,7 +185,7 @@ class SuggestReplyTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Send a reply.'
+    suggestion_text = 'Send a reply'
 
     def execute(self, reply, reasoning=None):
         source_type = self.get_source_type()
@@ -208,7 +232,67 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Create an internal ticket from this record.'
+    suggestion_text = 'Create an internal ticket from this record'
+
+    @staticmethod
+    def _format_ticket_suggestion_content(title, description):
+        title = (title or '').strip() or 'Untitled'
+        description = (description or '').strip() or 'No description provided.'
+        return json.dumps({
+            'title': title,
+            'content': description,
+        }, ensure_ascii=False)
+
+    def _build_ticket_generation_detail(self, reason):
+        detail = {
+            'source_type': self.get_source_type(),
+            'source_id': self.get_source_id(),
+            'source_title': self.get_source_title(),
+            'reason': (reason or '').strip(),
+            'event': self.get_event_payload(),
+            'record': self.get_record_payload(),
+        }
+        return json.dumps(detail, ensure_ascii=False, indent=2)
+
+    def _generate_suggestion_content(self, reason):
+        reason = (reason or '').strip()
+        if not reason:
+            return ''
+
+        app = self.get_app()
+        project_uuid = self.get_project_uuid()
+        if app is None or not project_uuid:
+            logger.warning(
+                'Cannot generate ticket draft suggestion for %s %s: missing app or project_uuid.',
+                self.get_source_type(),
+                self.get_source_id(),
+            )
+            return ''
+
+        context = {
+            'org_id': self.get_org_id(),
+            'project_uuid': project_uuid,
+            'scenario': AIScenario.RECORD_GENERATION.value,
+        }
+        record_detail = self._build_ticket_generation_detail(reason)
+
+        try:
+            title, description = app.ai_services.gen_ticket_from_record(record_detail, context)
+        except Exception as e:
+            logger.warning(
+                'Failed to generate ticket draft suggestion for %s %s: %s',
+                self.get_source_type(),
+                self.get_source_id(),
+                e,
+            )
+            return ''
+
+        title = (title or self.get_source_title() or '').strip()
+        description = (description or '').strip()
+        if not title and not description:
+            return ''
+
+        return self._format_ticket_suggestion_content(title, description)
 
     def execute(self, reason):
         source_type = self.get_source_type()
@@ -218,15 +302,19 @@ class SuggestCreateTicketTool(BaseAgentTool):
         reason = (reason or '').strip()
         if not reason:
             return 'Cannot create ticket suggestion: empty reason.'
+        suggestion_content = self._generate_suggestion_content(reason)
 
         preview = reason[:300]
         if len(reason) > 300:
             preview += '...'
 
-        return (
-            f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
-            f'Reason: {preview}'
-        )
+        return {
+            'message': (
+                f'Create-ticket suggestion prepared for {source_type} {source_id} - {source_title}. '
+                f'Reason: {preview}'
+            ),
+            'suggestion_content': suggestion_content,
+        }
 
 
 class FinalAnswerTool(BasicTool):

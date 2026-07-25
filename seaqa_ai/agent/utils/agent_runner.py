@@ -686,6 +686,7 @@ class AgentRunner:
         self.tool_executor.thought_process.add_tool_calls_group()
         retry_entries = []
         tool_failed = False
+        raw_result = None
         try:
             result = None
             for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
@@ -717,14 +718,21 @@ class AgentRunner:
                         continue
                     raise
 
-            if result is None:
+            raw_result = result
+            if raw_result is None:
                 observation = ''
-            elif isinstance(result, str):
-                observation = result.strip()
-            elif isinstance(result, (dict, list)):
-                observation = json.dumps(result, ensure_ascii=False)
+            elif isinstance(raw_result, str):
+                observation = raw_result.strip()
+            elif isinstance(raw_result, dict):
+                message = raw_result.get('message') or raw_result.get('result') or ''
+                if isinstance(message, str) and message.strip():
+                    observation = message.strip()
+                else:
+                    observation = json.dumps(raw_result, ensure_ascii=False)
+            elif isinstance(raw_result, list):
+                observation = json.dumps(raw_result, ensure_ascii=False)
             else:
-                observation = str(result).strip()
+                observation = str(raw_result).strip()
         except Exception as e:
             tool_failed = True
             observation = json.dumps({
@@ -756,7 +764,7 @@ class AgentRunner:
                 statistics=statistics,
             )
         else:
-            self._record_tool_action(phase, step, tool_name, arguments, observation, statistics=statistics,)
+            self._record_tool_action(phase, step, tool_name, arguments, observation, raw_result=raw_result, statistics=statistics)
 
         phase.memory += {
             'type': 'function_call_output',
@@ -772,6 +780,7 @@ class AgentRunner:
         tool_name: str,
         tool_arguments: dict,
         observation: str,
+        raw_result=None,
         statistics: str | None = None
     ):
         if not (self.action_recorder and self.run_id):
@@ -827,6 +836,12 @@ class AgentRunner:
                 logger.warning('Failed to parse analysis references, keep raw content. tool=%s error=%s', tool_name, e)
                 sources = []
 
+        suggestion_content = content if action_type == 'suggestion' else ''
+        if tool_name == 'suggest_create_ticket':
+            suggestion_content = ''
+            if isinstance(raw_result, dict):
+                suggestion_content = raw_result.get('suggestion_content')
+
         result = content
         if action_type == 'tool_call':
             # use observation for common tool_call
@@ -858,7 +873,7 @@ class AgentRunner:
             tool_arguments=tool_arguments,
             observation=observation,
             suggestion_text=suggestion_text if action_type == 'suggestion' else '',
-            suggestion_content=content if action_type == 'suggestion' else '',
+            suggestion_content=suggestion_content,
             sources=sources,
             statistics=statistics,
             source_type_override=target_source_type,

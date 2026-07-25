@@ -314,6 +314,7 @@ class BaseAgent:
                     'action_status': getattr(tool_instance, 'action_status', 'completed'),
                     'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
                     'get_suggestion_text': getattr(tool_instance, 'get_suggestion_text', None),
+                    'get_suggestion_content': getattr(tool_instance, 'get_suggestion_content', None),
                     'resolve_action_target': getattr(tool_instance, 'resolve_action_target', None),
                 }
 
@@ -398,6 +399,13 @@ class BaseAgent:
         record_context = self.build_record_context(item)
         item_context = self.get_item_context(item)
         task_dict = self.build_user_message_dict(item, item_context)
+        record_context.update({
+            'project_uuid': self.project_uuid,
+            'org_id': self.project_org_id if self.project_org_id is not None else -1,
+            'record_payload': task_dict.get('record', {}),
+            'event_payload': task_dict.get('event', {}),
+            'app': self.app,
+        })
 
         tool_executor, tool_metadata = self._create_tool_executor(record_context)
         model_id = self.agent_settings.get('model')

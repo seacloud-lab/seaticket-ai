@@ -101,7 +101,7 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Notify assignees of the ticket.'
+    suggestion_text = 'Notify assignees of the ticket'
 
     def execute(self, message, reason=None):
         source_id = self.get_source_id()
@@ -152,7 +152,7 @@ class SuggestCloseTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Close this ticket.'
+    suggestion_text = 'Close this ticket'
 
     def execute(self, reason, rule=None):
         source_id = self.get_source_id()
@@ -198,12 +198,12 @@ class SuggestLinkedRecordReplyTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Send a reply.'
+    suggestion_text = 'Send a reply'
 
     def get_suggestion_text(self, **kwargs):
         target = str((self.record_context or {}).get('original_source_type') or '').strip()
         if target == AgentSourceType.GITHUB_ISSUE.value:
-            return f'Send a reply to the linked GitHub issue.'
+            return f'Send a reply to the linked GitHub issue'
         return self.suggestion_text
 
     def resolve_action_target(self, **kwargs) -> dict:
