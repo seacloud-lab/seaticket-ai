@@ -10,6 +10,7 @@ from redis.exceptions import ConnectionError as NoMQAvailable, ResponseError, Ti
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
+from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.utils import compact_events
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.seadb_models import SchemaTables
@@ -41,6 +42,7 @@ class AgentManager:
         AgentSourceType.GITHUB_ISSUE.value: SchemaTables.GITHUB_ISSUES.table_name,
         AgentSourceType.DISCOURSE_FORUM.value: SchemaTables.DISCOURSE_TOPICS.table_name,
         AgentSourceType.EMAIL.value: SchemaTables.THREAD.table_name,
+        AgentSourceType.GENERAL_TASK.value: SchemaTables.GENERAL_TASK.table_name,
     }
 
     def __init__(self, app):
@@ -188,11 +190,6 @@ class AgentManager:
             logger.warning('Ignore event with invalid project_uuid: %s', raw_data)
             return
 
-        record_id = data.get('record_id')
-        if record_id is None:
-            logger.warning('Ignore event without record_id: %s', raw_data)
-            return
-
         modified_time = data.get('modified_time')
         if modified_time is not None:
             try:
@@ -212,20 +209,27 @@ class AgentManager:
             return
 
         connection_id = data.get('connection_id')
-        if source_type == AgentSourceType.TICKET.value:
-            self._register_pending_event(
-                project_uuid=project_uuid,
-                record_id=record_id,
-                event=event,
-                now_time=now_time,
+        record_id = data.get('record_id')
+        if connection_id is None or record_id is None:
+            logger.warning('Ignore event without connection_id or record_id: %s', raw_data)
+            return
+        try:
+            connection_id = int(connection_id)
+            record_id = int(record_id)
+        except (TypeError, ValueError):
+            logger.warning(
+                'Ignore event with invalid connection_id=%r or record_id=%r: %s',
+                connection_id,
+                record_id,
+                raw_data,
             )
             return
 
         if self.route_to_ticket_agent(
             project_uuid=project_uuid,
             source_type=source_type,
-            connection_id=int(connection_id),
-            record_id=int(record_id),
+            connection_id=connection_id,
+            record_id=record_id,
             event=event,
         ):
             return
@@ -238,6 +242,22 @@ class AgentManager:
             event=event,
         )
 
+    @staticmethod
+    def _is_general_task_finished_event(event: dict) -> bool:
+        if event.get('type') != DataEventType.GENERAL_TASK_UPDATED.value:
+            return False
+
+        old_value = event.get('old_value')
+        if not isinstance(old_value, dict):
+            old_value = {}
+        new_value = event.get('new_value')
+        if not isinstance(new_value, dict):
+            new_value = {}
+
+        old_status = str(old_value.get('status') or '').strip().lower()
+        new_status = str(new_value.get('status') or '').strip().lower()
+        return new_status == 'done' and old_status != 'done'
+
     def route_to_ticket_agent(
         self,
         project_uuid: str,
@@ -248,8 +268,9 @@ class AgentManager:
     ) -> bool:
         """Route a connection-record event to the ticket agent when it is linked.
 
-        When the connection record is already linked to a ticket, its follow-up
-        activity is handled by the ticket agent instead of the connection agent.
+        Handles both:
+        - external linked-record follow-up activity, and
+        - internal General Task completion routed into a ticket-centric event.
 
         Returns True when the event was routed to the ticket agent (the caller
         should stop further handling), False otherwise.
@@ -263,6 +284,26 @@ class AgentManager:
         if linked_record_info is None:
             return False
 
+        if source_type == AgentSourceType.GENERAL_TASK.value:
+            ticket_id = int(linked_record_info['linked_ticket'])
+            if not self._are_all_linked_general_tasks_done(project_uuid, ticket_id):
+                logger.info('Skip ticket_task_finished for ticket %s: linked tasks are not all done.', ticket_id)
+                return True
+            routed_event = self._build_internal_task_finished_event(
+                task_connection_id=connection_id,
+                task_record_id=record_id,
+                task_source_title=linked_record_info.get('title', ''),
+                original_event=event,
+            )
+        else:
+            routed_event = self._build_external_linked_record_activity_event(
+                original_source_type=source_type,
+                original_connection_id=connection_id,
+                original_record_id=record_id,
+                original_source_title=linked_record_info.get('title', ''),
+                original_event=event,
+            )
+
         # Linked-record activity does not use the ticket pending/debounce
         # mechanism: the upstream connection sync already throttles these
         # events, so enqueue the ticket task directly.
@@ -271,15 +312,46 @@ class AgentManager:
             source_type=AgentSourceType.TICKET.value,
             record_id=int(linked_record_info['linked_ticket']),
             connection_id=None,
-            event=self._build_linked_record_activity_event(
-                original_source_type=source_type,
-                original_connection_id=connection_id,
-                original_record_id=record_id,
-                original_source_title=linked_record_info.get('title', ''),
-                original_event=event,
-            ),
+            event=routed_event,
         )
         return True
+
+    def _are_all_linked_general_tasks_done(
+        self,
+        project_uuid: str,
+        ticket_id: int,
+    ) -> bool:
+        """Return whether every active General Task linked to the ticket is done."""
+        project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+        with self.db_session_class() as db_session:
+            connections = ProjectConnection.get_connections_by_project_and_type(
+                db_session,
+                project_uuid_32,
+                AgentSourceType.GENERAL_TASK.value,
+            )
+        if not connections:
+            return False
+
+        has_linked_task = False
+        for connection in connections:
+            connection_id = int(connection['id'])
+            table_name = SchemaTables.GENERAL_TASK.table_name(connection_id)
+            sql = (
+                f"SELECT `status` FROM `{table_name}` "
+                f"WHERE `linked_ticket` = {int(ticket_id)} "
+                f"AND (`deleted` = False OR `deleted` IS NULL)"
+            )
+            tasks = self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+            if not tasks:
+                continue
+            has_linked_task = True
+            if any(
+                str(task.get('status') or '').strip().lower() != 'done'
+                for task in tasks
+            ):
+                return False
+
+        return has_linked_task
 
     def _is_noop_event(self, source_type: str, event: dict) -> bool:
         """Return True for events that carry no signal worth enqueuing an agent run.
@@ -305,12 +377,9 @@ class AgentManager:
             return False
         elif source_type == AgentSourceType.DISCOURSE_FORUM.value:
             return event_type == DataEventType.DISCOURSE_TOPIC_UPDATED.value
-        elif source_type == AgentSourceType.TICKET.value:
-            return event_type not in {
-                DataEventType.TICKET_DUE_SOON.value,
-                DataEventType.TICKET_OVER_DUE.value,
-                DataEventType.TICKET_LINKED_RECORD_ACTIVITY.value,
-            }
+        elif source_type == AgentSourceType.GENERAL_TASK.value:
+            return not self._is_general_task_finished_event(event)
+
         return False
 
     def _resolve_record_info(
@@ -352,7 +421,7 @@ class AgentManager:
             'linked_ticket': linked_ticket,
         }
 
-    def _build_linked_record_activity_event(
+    def _build_external_linked_record_activity_event(
         self,
         original_source_type: str,
         original_connection_id: int,
@@ -375,6 +444,34 @@ class AgentManager:
             'old_value': {},
         }
         return payload
+
+    def _build_internal_task_finished_event(
+        self,
+        task_connection_id: int,
+        task_record_id: int,
+        original_event: dict,
+        task_source_title: str = '',
+    ) -> dict:
+        original_old_value = (original_event or {}).get('old_value')
+        if not isinstance(original_old_value, dict):
+            original_old_value = {}
+        original_new_value = (original_event or {}).get('new_value')
+        if not isinstance(original_new_value, dict):
+            original_new_value = {}
+
+        previous_status = str(original_old_value.get('status') or '').strip()
+        current_status = str(original_new_value.get('status') or '').strip()
+
+        return {
+            'type': DataEventType.TICKET_TASK_FINISHED.value,
+            'task_source_type': AgentSourceType.GENERAL_TASK.value,
+            'task_connection_id': task_connection_id,
+            'task_record_id': task_record_id,
+            'task_source_title': task_source_title or '',
+            'task_event_type': (original_event or {}).get('type'),
+            'task_previous_status': previous_status,
+            'task_current_status': current_status,
+        }
 
     def _register_pending_event(
         self,

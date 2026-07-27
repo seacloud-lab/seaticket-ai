@@ -32,7 +32,7 @@ class ConnectionAgent(BaseAgent):
 
     # ── BaseAgent hook implementations ─────────────────────────────
 
-    def build_record_context(self, item: dict) -> dict:
+    def build_record_context(self, item: dict, item_context: dict | None = None) -> dict:
         return {
             'source_type': self.SOURCE_TYPE,
             'source_id': f'{self.connection_id}_{item["_pk"]}',

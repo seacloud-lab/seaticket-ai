@@ -25,10 +25,10 @@ Focus on:
     Set recommended_actions only.
     Allowed action values:
     - suggest_notify_assignee
-    - suggest_reply_linked_record
+    - suggest_reply_external_targets
     - no_op
     Example when both are needed:
-      recommended_actions = ["suggest_notify_assignee", "suggest_reply_linked_record"]
+      recommended_actions = ["suggest_notify_assignee", "suggest_reply_external_targets"]
     If no action is needed, set recommended_actions = ["no_op"].
   </step>
 </steps>
@@ -37,7 +37,7 @@ Focus on:
   - ONE tool call per step. Never call multiple tools in the same step.
   - record_ticket_analysis MUST be your only tool call in this phase.
   - Prefer no_op for low-signal noise (+1/emoji-only/duplicate status pings).
-  - Prefer suggest_reply_linked_record when commenter expects visible acknowledgment/status.
+  - Prefer suggest_reply_external_targets when the external commenter expects visible acknowledgment/status.
   - Add suggest_notify_assignee when new technical details, regressions, urgency, or blocker signal likely requires owner attention.
   - If ticket is closed, prefer public clarification reply and avoid assignee notification unless the new activity clearly indicates reopening risk.
 </rules>
@@ -67,9 +67,8 @@ Act as follows:
   - no_op: handling phase is skipped by the runner.
   - if suggest_notify_assignee is included:
       1) call suggest_notify_assignee(message, reason)
-  - if suggest_reply_linked_record is included:
-      1) call suggest_reply_linked_record(reply, reason)
-         The linked target is resolved automatically from event context.
+  - if suggest_reply_external_targets is included:
+      1) call suggest_reply_external_targets(reply, reason)
   - after all required suggestion calls are completed, call final_answer.
 </handling_section>
 

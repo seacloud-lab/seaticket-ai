@@ -116,7 +116,7 @@ class BaseAgent:
         return list(self.SOURCE_TOOL_CLASSES) + [FinalAnswerTool]
 
     @abstractmethod
-    def build_record_context(self, item: dict) -> dict:
+    def build_record_context(self, item: dict, item_context: dict | None = None) -> dict:
         """Build the record_context dict (source_type, source_id, source_title) for an item."""
         raise NotImplementedError
 
@@ -212,12 +212,11 @@ class BaseAgent:
             if key != 'old_value'
         }
 
-    def build_user_message_dict(self, item: dict, item_context: dict) -> dict:
+    def build_user_message_dict(self, item: dict, item_context: dict, record_context: dict) -> dict:
         """Return the task payload as a plain dict.
 
         Structure: {source_id, event, record}
         """
-        record_context = self.build_record_context(item)
         source_id = record_context.get('source_id', '')
 
         record = self.build_record_payload(item, item_context)
@@ -315,7 +314,7 @@ class BaseAgent:
                     'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
                     'get_suggestion_text': getattr(tool_instance, 'get_suggestion_text', None),
                     'get_suggestion_content': getattr(tool_instance, 'get_suggestion_content', None),
-                    'resolve_action_target': getattr(tool_instance, 'resolve_action_target', None),
+                    'resolve_action_targets': getattr(tool_instance, 'resolve_action_targets', None),
                 }
 
             registration_kwargs = self.get_tool_registration_kwargs(tool_instance, record_context)
@@ -396,9 +395,9 @@ class BaseAgent:
         Builds context, creates an AgentRunner with the appropriate tools and prompts,
         and runs it. Actions are recorded to SeaDB via create_action_record.
         """
-        record_context = self.build_record_context(item)
         item_context = self.get_item_context(item)
-        task_dict = self.build_user_message_dict(item, item_context)
+        record_context = self.build_record_context(item, item_context)
+        task_dict = self.build_user_message_dict(item, item_context, record_context)
         record_context.update({
             'project_uuid': self.project_uuid,
             'org_id': self.project_org_id if self.project_org_id is not None else -1,
