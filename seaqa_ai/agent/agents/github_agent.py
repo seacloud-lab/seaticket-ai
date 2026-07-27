@@ -14,14 +14,11 @@ from seaqa_ai.agent.utils.constants import (
     MAX_COMMENTS,
     AgentSourceType,
 )
-import seaqa_ai.agent.prompts.github_issue as github_issue_prompts
 
 class GithubIssueAgent(ConnectionAgent):
     """Processes a GitHub issue for a single GitHub connection within a project."""
 
     SOURCE_TYPE = AgentSourceType.GITHUB_ISSUE.value
-
-    EVENT_TYPE_PROMPTS = github_issue_prompts.PROMPTS
 
     SOURCE_TOOL_CLASSES = GITHUB_ISSUE_TOOL_CLASSES
 

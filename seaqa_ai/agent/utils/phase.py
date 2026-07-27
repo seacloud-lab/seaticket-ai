@@ -1,5 +1,10 @@
 from dataclasses import dataclass, field
 
+from seaqa_ai.agent.prompts._forced import (
+    FORCED_FINAL_ANSWER_PROMPT,
+    FORCED_RECORD_ANALYSIS_PROMPT,
+)
+from seaqa_ai.agent.skills.spec import AgentSkillSpec
 from seaqa_ai.utils.memory import OpenAIMemory
 
 
@@ -55,3 +60,45 @@ class ReactPhase(Phase):
     terminator_prompt: str = ''
     max_steps: int = 10
     tools: list[dict] = field(default_factory=list)
+
+
+def build_analysis_phase(skill: AgentSkillSpec, prompt_builder) -> ReactPhase:
+    return ReactPhase(
+        name='analysis',
+        system_prompt=prompt_builder(skill.analysis.prompt),
+        terminator_tool=skill.analysis.terminator,
+        terminator_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
+        max_steps=skill.analysis.max_steps,
+    )
+
+
+def build_handling_phase(skill: AgentSkillSpec, prompt_builder) -> ReactPhase:
+    return ReactPhase(
+        name='handling',
+        system_prompt=prompt_builder(skill.handling.prompt),
+        terminator_tool=skill.handling.terminator,
+        terminator_prompt=FORCED_FINAL_ANSWER_PROMPT,
+        max_steps=skill.handling.max_steps,
+    )
+
+
+def resolve_phase_tools(available_tools: list[dict], tool_names: tuple[str, ...]) -> list[dict]:
+    tools_by_name = {}
+    for tool in available_tools:
+        name = str(tool.get('name') or '').strip()
+        if name and name not in tools_by_name:
+            tools_by_name[name] = tool
+
+    resolved_tools = []
+    missing_tools = []
+    for tool_name in tool_names:
+        tool = tools_by_name.get(tool_name)
+        if not tool:
+            missing_tools.append(tool_name)
+            continue
+        resolved_tools.append(tool)
+
+    if missing_tools:
+        missing = ', '.join(missing_tools)
+        raise ValueError(f'Missing required tools: {missing}')
+    return resolved_tools

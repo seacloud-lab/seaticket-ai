@@ -13,7 +13,7 @@ from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
 from seaqa_ai.agent.utils import _parse_int
-from seaqa_ai.agent.tools.ticket_tools import RecordTicketAnalysisTool, TICKET_TOOL_CLASSES
+from seaqa_ai.agent.tools.ticket_tools import TICKET_TOOL_CLASSES
 from seaqa_ai.agent.utils.constants import (
     MAX_COMMENT_CHARS,
     MAX_COMMENTS,
@@ -23,7 +23,6 @@ from seaqa_ai.agent.utils.constants import (
     AgentSourceType
 )
 from seaqa_ai.utils.constants import ConnectionType
-import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +32,7 @@ class TicketAgent(BaseAgent):
 
     SOURCE_TYPE = AgentSourceType.TICKET.value
 
-    EVENT_TYPE_PROMPTS = ticket_prompts.PROMPTS
-
     SOURCE_TOOL_CLASSES = TICKET_TOOL_CLASSES
-    ANALYSIS_TERMINATOR_TOOL = RecordTicketAnalysisTool
 
     def __init__(self, app, project, record_id=None, event=None):
         """

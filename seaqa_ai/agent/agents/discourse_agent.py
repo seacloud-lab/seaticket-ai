@@ -18,7 +18,6 @@ from seaqa_ai.agent.utils.constants import (
     MAX_COMMENTS,
     AgentSourceType,
 )
-import seaqa_ai.agent.prompts.discourse as discourse_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +26,6 @@ class DiscourseAgent(ConnectionAgent):
     """Processes a Discourse topic for a single Discourse connection within a project."""
 
     SOURCE_TYPE = AgentSourceType.DISCOURSE_FORUM.value
-
-    EVENT_TYPE_PROMPTS = discourse_prompts.PROMPTS
 
     SOURCE_TOOL_CLASSES = DISCOURSE_TOOL_CLASSES
 

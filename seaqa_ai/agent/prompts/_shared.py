@@ -1,9 +1,3 @@
-from seaqa_ai import config
-
-
-ANALYSIS_SEARCH_BUDGET = max(1, config.AGENT_MAX_ANALYSIS_STEPS - 2)
-
-
 PRELUDE_SYSTEM_PROMPT = """<role>You are an event summarization assistant for an autonomous support agent.</role>
 <phase name="prelude">Summarize only the event that triggered this run.</phase>
 

@@ -16,13 +16,10 @@ and the LLM reasoning loop invocation, so subclasses only implement domain logic
 
 Event-centric design
 ----------------------
-event.type resolves to one DataEventType. The resolved event type selects
-the prompt module from EVENT_TYPE_PROMPTS, which determines:
-  - ANALYSIS_SYSTEM_PROMPT / HANDLING_SYSTEM_PROMPT
-
-The source-specific agent class determines the analysis terminator tool via its
-ANALYSIS_TERMINATOR_TOOL attribute, and whether search tools are available via
-its SEARCH_ENABLED attribute.
+event.type resolves to one DataEventType. The resolved source + event pair
+selects a skill definition from registry, which provides:
+  - analysis prompt / handling prompt
+  - allowed tools and terminators for each phase
 
 The user message is structured as {source_id, event, record} so the LLM always
 knows exactly which event to focus on, rather than re-processing the whole record.
@@ -30,7 +27,6 @@ knows exactly which event to focus on, rather than re-processing the whole recor
 import json
 import logging
 from abc import abstractmethod
-from types import ModuleType
 
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
@@ -39,11 +35,20 @@ from seaqa_ai.utils import now_iso, uuid_str_to_32_chars, build_system_prompt
 from seaqa_ai.utils.llm_api import get_completion_client_by_model_id, get_responses_client_by_model_id
 from seaqa_ai.utils.tools import OpenAIToolExecutor
 from seaqa_ai.agent.utils.agent_runner import AgentRunner
-from seaqa_ai.agent.utils.phase import AskPhase, ReactPhase
+from seaqa_ai.agent.utils.phase import (
+    AskPhase,
+    ReactPhase,
+    build_analysis_phase,
+    build_handling_phase,
+    resolve_phase_tools,
+)
 from seaqa_ai.agent.utils.agent_trace_recorder import AgentActionRecorder
 from seaqa_ai.agent.tools.common_tools import FinalAnswerTool
 from seaqa_ai.agent.prompts._shared import PRELUDE_SYSTEM_PROMPT
-from seaqa_ai.agent.prompts._forced import FORCED_RECORD_ANALYSIS_PROMPT, FORCED_FINAL_ANSWER_PROMPT
+from seaqa_ai.agent.skills import (
+    get_default_skill_registry,
+)
+from seaqa_ai.agent.skills.spec import AgentSkillSpec
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.agent.utils.constants import (
     DataEventType,
@@ -61,18 +66,14 @@ class BaseAgent:
 
     Tool assembly contract
     ----------------------
-    Subclasses declare the static, source-specific tools in SOURCE_TOOL_CLASSES,
-    including the analysis terminator tool declared by ANALYSIS_TERMINATOR_TOOL.
+    Subclasses declare the static, source-specific tools in SOURCE_TOOL_CLASSES.
     Subclasses with dynamic tool needs should override get_tool_classes().
     """
 
-    # Subclasses set this to the source-specific prompts package __init__,
-    # which exposes PROMPTS: dict[DataEventType, ModuleType].
-    EVENT_TYPE_PROMPTS: dict[DataEventType, ModuleType] = {}
+    SOURCE_TYPE: str = ''
 
     # Static, source-specific tool classes, including the analysis terminator.
     SOURCE_TOOL_CLASSES: list = []
-    ANALYSIS_TERMINATOR_TOOL: type | None = None
     SEARCH_ENABLED: bool = False
 
     def __init__(self, app, project, event: dict | None = None):
@@ -138,27 +139,15 @@ class BaseAgent:
         except ValueError:
             return None
 
-    # ── Prompt resolution ───────────────────────────────────────────
+    # ── Skill resolution ────────────────────────────────────────────
 
-    def _prompt_module(self) -> ModuleType | None:
-        return self.EVENT_TYPE_PROMPTS.get(self.event_type)
-
-    def get_analysis_system_prompt(self) -> str:
-        module = self._prompt_module()
-        if module is None:
-            logger.warning('No prompt module for %s + %s', type(self).__name__, self.event_type)
-            return ''
-        return self._build_system_prompt(module.ANALYSIS_SYSTEM_PROMPT)
-
-    def get_handling_system_prompt(self) -> str:
-        module = self._prompt_module()
-        if module is None:
-            return ''
-        return self._build_system_prompt(module.HANDLING_SYSTEM_PROMPT)
-
-    @staticmethod
-    def _get_tool_name(tool_cls: type) -> str:
-        return tool_cls.tool['name']
+    def get_skill_spec(self, source_type: str) -> AgentSkillSpec | None:
+        if self.event_type is None:
+            return None
+        skill = get_default_skill_registry().resolve(source_type, self.event_type.value)
+        if skill is None:
+            logger.warning('No skill for %s + %s', source_type, self.event_type.value)
+        return skill
 
     def get_prelude_phase(self) -> AskPhase:
         return AskPhase(
@@ -177,23 +166,11 @@ class BaseAgent:
             }
         )
 
-    def get_analysis_phase(self) -> ReactPhase:
-        return ReactPhase(
-            name='analysis',
-            system_prompt=self.get_analysis_system_prompt(),
-            terminator_tool=self._get_tool_name(self.ANALYSIS_TERMINATOR_TOOL),
-            terminator_prompt=FORCED_RECORD_ANALYSIS_PROMPT,
-            max_steps=config.AGENT_MAX_ANALYSIS_STEPS,
-        )
+    def get_analysis_phase(self, skill: AgentSkillSpec) -> ReactPhase:
+        return build_analysis_phase(skill, self._build_system_prompt)
 
-    def get_handling_phase(self) -> ReactPhase:
-        return ReactPhase(
-            name='handling',
-            system_prompt=self.get_handling_system_prompt(),
-            terminator_tool=self._get_tool_name(FinalAnswerTool),
-            terminator_prompt=FORCED_FINAL_ANSWER_PROMPT,
-            max_steps=config.AGENT_MAX_HANDLING_STEPS,
-        )
+    def get_handling_phase(self, skill: AgentSkillSpec) -> ReactPhase:
+        return build_handling_phase(skill, self._build_system_prompt)
 
     # ── User message assembly ───────────────────────────────────────
 
@@ -322,31 +299,6 @@ class BaseAgent:
 
         return tool_executor, tool_metadata
 
-    @staticmethod
-    def _compute_phase_tools(tool_executor: OpenAIToolExecutor, spec: ReactPhase, *,
-                             exclude_terminators: set, filter_search: bool,
-                             tool_metadata: dict | None = None):
-        tools = []
-        for tool in tool_executor.get():
-            name = tool.get('name', '')
-            if name in exclude_terminators:
-                continue
-
-            action_type = (tool_metadata or {}).get(name, {}).get('action_type', 'tool_call')
-            if spec.name == 'analysis':
-                if action_type in ('suggestion', 'summary'):
-                    continue
-                if filter_search and name.endswith('_search'):
-                    continue
-            elif spec.name == 'handling':
-                if action_type == 'analysis':
-                    continue
-                if name.endswith('_search'):
-                    continue
-
-            tools.append(tool)
-        spec.tools = tools
-
     def _get_project_org_id(self):
         with self.db_session_class() as db_session:
             try:
@@ -411,24 +363,19 @@ class BaseAgent:
         completion_client = get_completion_client_by_model_id(self.app.data_logger, model_id)
         responses_client = get_responses_client_by_model_id(self.app.data_logger, model_id)
 
-        analysis_phase = self.get_analysis_phase()
-        handling_phase = self.get_handling_phase()
+        skill = self.get_skill_spec(record_context.get('source_type', self.SOURCE_TYPE))
+        if skill is None:
+            logger.warning('No skill found for %s event=%s. Skip running agent.', record_context.get('source_type'), self.event_type)
+            return
+
+        analysis_phase = self.get_analysis_phase(skill)
+        handling_phase = self.get_handling_phase(skill)
         if not analysis_phase.system_prompt or not handling_phase.system_prompt:
             logger.warning(f'No analysis or handling system prompt for {record_context.get("source_type")}. Skip running agent.')
             return
 
-        self._compute_phase_tools(
-            tool_executor, analysis_phase,
-            exclude_terminators={handling_phase.terminator_tool},
-            filter_search=not self.SEARCH_ENABLED,
-            tool_metadata=tool_metadata,
-        )
-        self._compute_phase_tools(
-            tool_executor, handling_phase,
-            exclude_terminators={analysis_phase.terminator_tool},
-            filter_search=False,
-            tool_metadata=tool_metadata,
-        )
+        analysis_phase.tools = resolve_phase_tools(tool_executor.get(), skill.analysis.tools)
+        handling_phase.tools = resolve_phase_tools(tool_executor.get(), skill.handling.tools)
 
         agent_runner = AgentRunner(
             tool_executor=tool_executor,

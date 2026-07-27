@@ -223,8 +223,6 @@ AGENT_CONFIG = configs.get('AGENT', {})
 ## Max records counter
 AGENT_MAX_TICKETS_PER_RUN = AGENT_CONFIG.get('max_tickets_per_run', 100)
 AGENT_MAX_GITHUB_ISSUES_PER_RUN = AGENT_CONFIG.get('max_github_issues_per_run', 100)
-AGENT_MAX_ANALYSIS_STEPS = AGENT_CONFIG.get('max_analysis_steps', 10)
-AGENT_MAX_HANDLING_STEPS = AGENT_CONFIG.get('max_handling_steps', 5)
 
 ## Agent manager timing (in unit of second)
 

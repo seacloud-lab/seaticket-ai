@@ -3,7 +3,6 @@ ConnectionAgent: intermediate base class for connection-backed agents.
 """
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.agent.agents.base_agent import BaseAgent
-from seaqa_ai.agent.tools.common_tools import RecordIssueAnalysisTool
 from seaqa_ai.utils.tools import DocumentsSearch, IssuesSearch, SEARCH_TOOL_NAMES
 from seaqa_ai.utils import uuid_str_to_32_chars, gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType
@@ -21,7 +20,6 @@ class ConnectionAgent(BaseAgent):
 
     SOURCE_TYPE: str = ''
     SEARCH_ENABLED = True
-    ANALYSIS_TERMINATOR_TOOL = RecordIssueAnalysisTool
 
     _SEARCH_TOOL_CLASSES: list = [DocumentsSearch, IssuesSearch]
 

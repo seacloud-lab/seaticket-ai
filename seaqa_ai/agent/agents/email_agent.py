@@ -15,7 +15,6 @@ from seaqa_ai.agent.utils.constants import (
     AgentSourceType,
 )
 from seaqa_ai.seadb_models import SchemaTables
-import seaqa_ai.agent.prompts.email as email_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,6 @@ class EmailAgent(ConnectionAgent):
     """Processes an email thread for a single email connection within a project."""
 
     SOURCE_TYPE = AgentSourceType.EMAIL.value
-
-    EVENT_TYPE_PROMPTS = email_prompts.PROMPTS
 
     SOURCE_TOOL_CLASSES = EMAIL_TOOL_CLASSES
 
