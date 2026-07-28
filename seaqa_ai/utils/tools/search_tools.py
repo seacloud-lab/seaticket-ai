@@ -183,7 +183,7 @@ class IssuesSearch(BasicSearchTool):
             extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
         time_from, time_to = resolve_issues_search_time_bounds(context.get('issues_search_recent_years'))
         if time_from:
-            logger.info('issues_search time window project_uuid=%s years=%s time_from=%s time_to=%s', context.get('project_uuid'), context.get('issues_search_recent_years'), time_from, time_to)
+            logger.debug('issues_search time window project_uuid=%s years=%s time_from=%s time_to=%s', context.get('project_uuid'), context.get('issues_search_recent_years'), time_from, time_to)
         return self._search(query, context['issue_connections'], extra_sources, context, app, tool_executor, call_back, time_from=time_from, time_to=time_to)
 
 class TasksSearch(BasicSearchTool):
