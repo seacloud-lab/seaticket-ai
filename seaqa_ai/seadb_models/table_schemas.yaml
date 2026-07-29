@@ -1101,6 +1101,8 @@ tables:
         column_type: single-select
       due_date:
         column_type: datetime
+        column_data:
+          format: YYYY-MM-DD
       created_time:
         column_type: datetime
       modified_time:
@@ -1159,4 +1161,5 @@ tables:
     indexes:
     - - issue_id
     - - comment_id
+    - - issue_key
     table_name: jira_issue_comments_{connection_id}
