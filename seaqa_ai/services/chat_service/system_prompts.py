@@ -47,7 +47,7 @@ When search tools were used:
 When content-generation tools were used:
 - You may add one short user-facing sentence before the generated content.
 - Then output the returned tag block exactly as the tool returned it.
-- Do not rewrite, wrap, or handcraft tool output tags such as <seaqa-markdown> or <seaqa-kb-entry>."""
+- Do not rewrite, wrap, or handcraft tool output tags such as <seaqa-markdown>, <seaqa-kb-entry>, or <seaqa-ticket>."""
 
 CHAT_SEARCH_POLICY = """Search policy:
 - Use search tools only when the answer needs external reference material.
@@ -80,6 +80,7 @@ CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
 - Do not use content-generation tools for ordinary discussion, explanation, brainstorming, or recommendation requests.
 - `generate_markdown` is for producing a Markdown document artifact.
 - `create_knowledge_base_entry` is for creating a knowledge-base record from the current discussion.
+- `create_ticket` is for creating an internal ticket record from the current discussion.
 - After a content-generation tool returns its result, preserve that returned tag block exactly.
 - If content-generation tools are not available, answer in normal text and do not pretend that content was created."""
 
@@ -197,6 +198,25 @@ Tool result:
 <seaqa-kb-entry id="1234" title="How to install Seafile with Docker" />
 Final answer:
 I created the knowledge base entry.
-<seaqa-kb-entry id="1234" title="How to install Seafile with Docker" />"""
+<seaqa-kb-entry id="1234" title="How to install Seafile with Docker" />
+
+Example 3
+User: Create a ticket for this bug report.
+Tool call:
+{
+  "name": "create_ticket",
+  "arguments": {
+    "title": "Multi-page webform required fields validation",
+    "content": "## Problem\\nUsers can proceed without required fields.",
+    "type": "Bug",
+    "priority": 3,
+    "state": "open"
+  }
+}
+Tool result:
+<seaqa-ticket id="4567" title="Multi-page webform required fields validation" />
+Final answer:
+I created the ticket.
+<seaqa-ticket id="4567" title="Multi-page webform required fields validation" />"""
 
 MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT = f'WARNING: You have reached step {MAX_STEPS}. Tool access has been physically disabled for this request. Please provide your final response based on existing information. DO NOT RESPONSE ANY TOOL CALLS IN THIS STEP!!! (Even if the tools list is not empty and tool_choice is not none)'

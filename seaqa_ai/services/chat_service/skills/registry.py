@@ -31,6 +31,7 @@ class SkillRegistry:
             tool_names.update({
                 'generate_markdown',
                 'create_knowledge_base_entry',
+                'create_ticket',
             })
         if config.ENABLE_TEST_TOOL:
             tool_names.add('test_tool')
