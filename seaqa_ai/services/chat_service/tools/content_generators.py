@@ -159,7 +159,7 @@ class TicketCreator(BasicTool):
         'strict': True,
     }
 
-    def execute(self, title, content, state, context, app, type='', priority=0):
+    def execute(self, title, content, state, context, type='', priority=0):
         """
         Create ticket and return <seaqa-ticket> HTML tag with title and pk.
         """

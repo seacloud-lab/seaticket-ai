@@ -97,7 +97,7 @@ class BasicChat(object):
             tool.register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
             for tool in self.content_generators:
-                tool.register(tool_executor, context=context, app=self.app)
+                tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
 
