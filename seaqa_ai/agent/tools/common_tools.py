@@ -81,7 +81,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
         'parameters': {
             'type': 'object',
             'properties': {
-                'summary': {
+                'analysis': {
                     'type': 'string',
                     'description': 'Your detailed analysis of the issue: what it is about, whether it resembles a known problem, why you came to this conclusion, and what action you plan to take. Cite search evidence with returned labels like <reference_0> whenever applicable. For multiple citations, place labels directly next to each other, like <reference_0><reference_1>; do not combine them inside one tag. Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your answer.'
                 },
@@ -111,7 +111,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
                 }
             },
             'required': [
-                'summary',
+                'analysis',
                 'recommended_actions',
                 'relevant_reference_labels'
             ]
@@ -124,7 +124,7 @@ class RecordIssueAnalysisTool(BaseAgentTool):
 
     def execute(
         self,
-        summary,
+        analysis,
         recommended_actions,
         classified_issue_type='',
         original_issue_type='',
@@ -173,12 +173,12 @@ class SuggestReplyTool(BaseAgentTool):
                         '(GitHub issue, forum topic, email thread, ticket, or docs).'
                     )
                 },
-                'reasoning': {
+                'reason': {
                     'type': 'string',
                     'description': 'Brief explanation of why this issue is considered a known problem.'
                 }
             },
-            'required': ['reply']
+            'required': ['reply', 'reason']
         },
         'strict': True,
     }
@@ -187,7 +187,7 @@ class SuggestReplyTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Send a reply'
 
-    def execute(self, reply, reasoning=None):
+    def execute(self, reply, reason=None):
         source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
