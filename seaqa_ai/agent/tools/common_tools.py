@@ -175,7 +175,7 @@ class SuggestReplyTool(BaseAgentTool):
                 },
                 'reason': {
                     'type': 'string',
-                    'description': 'Brief explanation of why this issue is considered a known problem.'
+                    'description': 'Brief rationale for why this reply is appropriate.'
                 }
             },
             'required': ['reply', 'reason']
@@ -187,7 +187,7 @@ class SuggestReplyTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_text = 'Send a reply'
 
-    def execute(self, reply, reason=None):
+    def execute(self, reply, reason=''):
         source_type = self.get_source_type()
         source_id = self.get_source_id()
         source_title = self.get_source_title()
