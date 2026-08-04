@@ -140,49 +140,24 @@ class TicketCreator(BasicTool):
                     'type': 'string',
                     'description': 'Ticket description in Markdown format. Keep sections and bullet points readable.'
                 },
-                'type': {
-                    'type': 'string',
-                    'description': 'Optional ticket type name, such as Bug, Feature, or Question. If omitted, it will be empty.'
-                },
-                'priority': {
-                    'type': 'integer',
-                    'description': 'Optional ticket priority from 0 to 5. If omitted, defaults to 0 (No priority). 1 means urgent; 2 means high; 3 means medium; 4 means low.'
-                },
-                'state': {
-                    'type': 'string',
-                    'description': 'Ticket state, typically open'
-                },
             },
-            'required': ['title', 'content', 'state'],
+            'required': ['title', 'content'],
             'additionalProperties': False,
         },
         'strict': True,
     }
 
-    def execute(self, title, content, state, context, type='', priority=0):
+    def execute(self, title, content, context):
         """
         Create ticket and return <seaqa-ticket> HTML tag with title and pk.
         """
         title = str(title or '').strip()
         content = str(content or '').strip()
-        type_name = str(type or '').strip()
-        state_name = str(state or '').strip().lower()
 
         if not title:
             raise AssertionError('Ticket title is required')
         if not content:
             raise AssertionError('Ticket content is required')
-        try:
-            priority_value = int(priority)
-        except Exception as e:
-            raise AssertionError('Ticket priority must be an integer') from e
-        if priority_value < 0:
-            priority_value = 0
-        elif priority_value > 5:
-            priority_value = 5
-
-        if not state_name:
-            state_name = 'open'
 
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         seadb_api = SeaDBAPI(
@@ -194,14 +169,14 @@ class TicketCreator(BasicTool):
         row = {
             'title': title,
             'content': content,
-            'state': state_name,
-            'substate': 'New' if state_name == 'open' else '',
-            'type': type_name,
+            'state': 'open',
+            'substate': '',
+            'type': '',
             'tags': [],
             'assignees': [],
             'participants': [context['username']],
             'linked_connection_records': [],
-            'priority': priority_value,
+            'priority': 0,
             'creator': context['username'],
             'comment_count': 0,
             'created_time': now,
