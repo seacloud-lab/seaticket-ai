@@ -166,7 +166,7 @@ class TicketCreator(BasicTool):
         title = str(title or '').strip()
         content = str(content or '').strip()
         type_name = str(type or '').strip()
-        state_name = str(state or '').strip()
+        state_name = str(state or '').strip().lower()
 
         if not title:
             raise AssertionError('Ticket title is required')
@@ -195,7 +195,7 @@ class TicketCreator(BasicTool):
             'title': title,
             'content': content,
             'state': state_name,
-            'substate': 'New' if state_name.lower() == 'open' else '',
+            'substate': 'New' if state_name == 'open' else '',
             'type': type_name,
             'tags': [],
             'assignees': [],
