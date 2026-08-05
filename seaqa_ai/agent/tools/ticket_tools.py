@@ -215,6 +215,10 @@ class SuggestReplyExternalTargetsTool(BaseAgentTool):
             suggestion_text = self.suggestion_text
             if target_source_type == AgentSourceType.GITHUB_ISSUE.value:
                 suggestion_text = 'Send a reply to the linked GitHub issue'
+            elif target_source_type == AgentSourceType.DISCOURSE_FORUM.value:
+                suggestion_text = 'Send a reply to the linked discourse topic'
+            elif target_source_type == AgentSourceType.EMAIL.value:
+                suggestion_text = 'Send a reply to the linked email thread'
             targets.append({
                 'source_type': target_source_type,
                 'source_id': target_source_id,

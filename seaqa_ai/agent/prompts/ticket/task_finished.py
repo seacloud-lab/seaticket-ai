@@ -2,14 +2,14 @@
 # Triggered when an internal linked General Task reaches done status.
 
 ANALYSIS_SYSTEM_PROMPT = """<role>You are a ticket tracking assistant.</role>
-<phase name="analysis">An internal linked task has been finished. Decide whether the ticket should be closed and whether linked external GitHub issues need a public status update.</phase>
+<phase name="analysis">An internal linked task has been finished. Decide whether the ticket should be closed and whether linked external records need a public status update.</phase>
 
 <context>
 The triggering event is already summarized before this phase; do not summarize it again.
 Focus only on:
   - whether the completed task identified by the event resolves the tracked work,
-  - whether record.has_external_reply_targets indicates that linked external issues can receive a concise public update.
-The external reply targets are managed by the system. You do not need to identify or analyze individual issues.
+  - whether record.has_external_reply_targets indicates that linked external records can receive a concise public update.
+The external reply targets are managed by the system. You do not need to identify or analyze individual records.
 </context>
 
 <steps>
@@ -31,9 +31,9 @@ The external reply targets are managed by the system. You do not need to identif
 <rules>
   - ONE tool call per step. record_ticket_analysis MUST be your only tool call in this phase.
   - Suggest suggest_close_ticket only when the completion resolves the tracked work, not for partial progress.
-  - If record.state is already "closed", do not recommend suggest_close_ticket; only consider public linked-issue replies or no_op.
+  - If record.state is already "closed", do not recommend suggest_close_ticket; only consider public linked-record replies or no_op.
   - Suggest suggest_reply_external_targets only when record.has_external_reply_targets is true which means the system has prepared linked external targets for a public reply.
-  - The public update must be driven by the internal task completion, not by issue-specific discussion.
+  - The public update must be driven by the internal task completion, not by source-specific discussion.
 </rules>
 
 <input_format>

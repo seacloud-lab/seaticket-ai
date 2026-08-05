@@ -22,7 +22,6 @@ from seaqa_ai.agent.utils.constants import (
     DataEventType,
     AgentSourceType
 )
-from seaqa_ai.utils.constants import ConnectionType
 import seaqa_ai.agent.prompts.ticket as ticket_prompts
 
 logger = logging.getLogger(__name__)
@@ -32,6 +31,11 @@ class TicketAgent(BaseAgent):
     """Processes a single ticket for a project."""
 
     SOURCE_TYPE = AgentSourceType.TICKET.value
+    EXTERNAL_SOURCE_TABLES = {
+        AgentSourceType.GITHUB_ISSUE.value: SchemaTables.GITHUB_ISSUES,
+        AgentSourceType.DISCOURSE_FORUM.value: SchemaTables.DISCOURSE_TOPICS,
+        AgentSourceType.EMAIL.value: SchemaTables.THREAD,
+    }
 
     EVENT_TYPE_PROMPTS = ticket_prompts.PROMPTS
 
@@ -282,29 +286,30 @@ class TicketAgent(BaseAgent):
                 project_uuid_32,
                 connection_ids,
             )
-        github_connection_ids = {
-            int(connection['id'])
+        external_connections = {
+            int(connection['id']): connection.get('type')
             for connection in connections
-            if connection.get('type') == ConnectionType.GITHUB_ISSUE.value
+            if connection.get('type') in self.EXTERNAL_SOURCE_TABLES
         }
-        if not github_connection_ids:
+        if not external_connections:
             return []
 
         external_reply_targets = []
-        for connection_id in sorted(github_connection_ids):
+        for connection_id in sorted(external_connections):
+            source_type = external_connections[connection_id]
             record_ids = sorted(connection_record_ids.get(connection_id) or [])
-            issue_rows = self.seadb_api.get_records_by_pks(
+            records = self.seadb_api.get_records_by_pks(
                 base_id=self.project_uuid,
-                table_name=SchemaTables.GITHUB_ISSUES.table_name(connection_id),
+                table_name=self.EXTERNAL_SOURCE_TABLES[source_type].table_name(connection_id),
                 pks=record_ids,
                 fields_str='title',
             )
             for record_id in record_ids:
-                issue = (issue_rows or {}).get(record_id) or {}
+                record = (records or {}).get(record_id) or {}
                 external_reply_targets.append({
-                    'source_type': ConnectionType.GITHUB_ISSUE.value,
+                    'source_type': source_type,
                     'source_id': f'{connection_id}_{record_id}',
-                    'source_title': issue.get('title') or 'Untitled',
+                    'source_title': record.get('title') or 'Untitled',
                 })
         return external_reply_targets
 
@@ -330,13 +335,28 @@ class TicketAgent(BaseAgent):
         }
 
         if original_source_type == AgentSourceType.GITHUB_ISSUE.value:
-            issue_context = self._build_linked_github_issue_context(
+            record_context = self._build_linked_github_issue_context(
                 ticket_id=ticket_id,
                 connection_id=original_connection_id,
                 record_id=original_record_id,
             )
-            if issue_context:
-                context.update(issue_context)
+        elif original_source_type == AgentSourceType.DISCOURSE_FORUM.value:
+            record_context = self._build_linked_discourse_context(
+                ticket_id=ticket_id,
+                connection_id=original_connection_id,
+                record_id=original_record_id,
+            )
+        elif original_source_type == AgentSourceType.EMAIL.value:
+            record_context = self._build_linked_email_context(
+                ticket_id=ticket_id,
+                connection_id=original_connection_id,
+                record_id=original_record_id,
+            )
+        else:
+            record_context = {}
+
+        if record_context:
+            context.update(record_context)
         return context
 
     def _build_linked_github_issue_context(
@@ -408,4 +428,142 @@ class TicketAgent(BaseAgent):
                 'content': (issue.get('content') or '')[:MAX_CONTENT_CHARS],
                 'recent_comments': recent_comments,
             },
+        }
+
+    def _build_linked_discourse_context(
+        self,
+        ticket_id: int,
+        connection_id: int,
+        record_id: int,
+    ) -> dict:
+        topics_table = SchemaTables.DISCOURSE_TOPICS.table_name(connection_id)
+        replies_table = SchemaTables.DISCOURSE_REPLIES.table_name(connection_id)
+        sql = (
+            f"SELECT `_pk`, `topic_id`, `title`, `slug`, `resolved`, "
+            f"`created_time`, `modified_time`, `linked_ticket` "
+            f"FROM `{topics_table}` "
+            f"WHERE `_pk` = {record_id} "
+            f"AND (`deleted` = False OR `deleted` IS NULL) LIMIT 1"
+        )
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        if not results:
+            return {}
+
+        topic = results[0]
+        if not self._record_links_to_ticket(topic, ticket_id):
+            return {}
+
+        topic_id = topic.get('topic_id')
+        replies = []
+        if topic_id:
+            replies_map = self.seadb_api.get_first_and_latest_topic_entries(
+                base_id=self.project_uuid,
+                table_name=replies_table,
+                topic_ids=[topic_id],
+                topic_id_field_name='topic_id',
+                fields_str='post_number, author, modified_time, content',
+                has_deleted_field=False,
+                first_order_by_field='post_number',
+                latest_order_by_field='post_number',
+                limit_for_each_topic=MAX_COMMENTS,
+                dedupe_key_fields=['post_number'],
+                sort_key_fields=['post_number'],
+            )
+            replies = replies_map.get(topic_id, [])
+
+        first_post = replies[0] if replies else {}
+        recent_comments = [
+            {
+                'author': reply.get('author', '?'),
+                'modified_time': reply.get('modified_time', '?'),
+                'content': (reply.get('content') or '').strip()[:MAX_COMMENT_CHARS],
+                'post_number': reply.get('post_number'),
+            }
+            for reply in replies[1:]
+        ]
+        return {
+            'record': {
+                'title': topic.get('title', 'Untitled'),
+                'topic_id': topic.get('topic_id', 'N/A'),
+                'slug': topic.get('slug', ''),
+                'resolved': topic.get('resolved', False),
+                'author': first_post.get('author', 'N/A'),
+                'created_time': topic.get('created_time', 'N/A'),
+                'modified_time': topic.get('modified_time', 'N/A'),
+                'content': (first_post.get('content') or '').strip()[:MAX_CONTENT_CHARS],
+                'recent_comments': recent_comments,
+            },
+        }
+
+    def _build_linked_email_context(
+        self,
+        ticket_id: int,
+        connection_id: int,
+        record_id: int,
+    ) -> dict:
+        threads_table = SchemaTables.THREAD.table_name(connection_id)
+        emails_table = SchemaTables.EMAIL.table_name(connection_id)
+        sql = (
+            f"SELECT `_pk`, `title`, `unread`, `modified_time`, `linked_ticket` "
+            f"FROM `{threads_table}` "
+            f"WHERE `_pk` = {record_id} "
+            f"AND (`deleted` = False OR `deleted` IS NULL) LIMIT 1"
+        )
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        if not results:
+            return {}
+
+        thread = results[0]
+        if not self._record_links_to_ticket(thread, ticket_id):
+            return {}
+
+        emails_map = self.seadb_api.get_first_and_latest_topic_entries(
+            base_id=self.project_uuid,
+            table_name=emails_table,
+            topic_ids=[record_id],
+            topic_id_field_name='thread_id',
+            fields_str='message_id, email_from, email_to, cc, modified_time, is_sender, content',
+            has_deleted_field=True,
+            first_order_by_field='modified_time',
+            latest_order_by_field='modified_time',
+            limit_for_each_topic=MAX_COMMENTS,
+            dedupe_key_fields=['message_id', 'modified_time', 'email_from', 'email_to', 'content'],
+            sort_key_fields=['modified_time', 'message_id'],
+        )
+        emails = emails_map.get(record_id, [])
+        first_email = emails[0] if emails else {}
+        recent_emails = [
+            self._format_linked_email(email)
+            for email in emails[1:]
+        ]
+        return {
+            'record': {
+                'title': thread.get('title', 'Untitled'),
+                'thread_id': thread.get('_pk', 'N/A'),
+                'unread': thread.get('unread', False),
+                'modified_time': thread.get('modified_time', 'N/A'),
+                'first_email': self._format_linked_email(first_email),
+                'recent_emails': recent_emails,
+            },
+        }
+
+    @staticmethod
+    def _record_links_to_ticket(record: dict, ticket_id: int) -> bool:
+        raw_linked_ticket = record.get('linked_ticket')
+        if raw_linked_ticket in (None, ''):
+            return False
+        try:
+            return int(raw_linked_ticket) == ticket_id
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _format_linked_email(email: dict) -> dict:
+        return {
+            'email_from': email.get('email_from', ''),
+            'email_to': email.get('email_to', ''),
+            'cc': email.get('cc', ''),
+            'modified_time': email.get('modified_time', 'N/A'),
+            'is_sender': bool(email.get('is_sender')),
+            'content': (email.get('content') or '').strip()[:MAX_CONTENT_CHARS],
         }

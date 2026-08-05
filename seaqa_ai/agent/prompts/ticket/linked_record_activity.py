@@ -1,5 +1,5 @@
 # Prompts for ticket + TICKET_LINKED_RECORD_ACTIVITY event class.
-# Triggered when a linked external record (for now: GitHub issue) receives a new activity.
+# Triggered when a linked GitHub issue, Discourse topic, or email thread receives new activity.
 
 ANALYSIS_SYSTEM_PROMPT = """<role>You are a ticket tracking assistant.</role>
 <phase name="analysis">A linked external record has new activity. Decide whether to notify ticket assignees and/or post a public reply on the linked record.</phase>
