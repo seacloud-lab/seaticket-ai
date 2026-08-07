@@ -323,14 +323,12 @@ class AgentReACT:
 
     def _execute_tool_calls(self, tool_calls, step, usage, retries):
         for index, tool_call in enumerate(tool_calls):
-            succeeded = self._execute_tool_call(
+            self._execute_tool_call(
                 tool_call,
                 step,
                 usage if index == 0 else {},
                 retries if index == 0 else [],
             )
-            if not succeeded:
-                return
 
     def _execute_tool_call(self, tool_call, step, usage, response_retries):
         tool_name = tool_call.get('name', '')
