@@ -1,15 +1,28 @@
+import json
 import logging
 
 from seaqa_ai import config
 from seaqa_ai.seadb_models.models import SchemaTables
-from seaqa_ai.services.chat_service.skills.loader import load_builtin_skills, build_skill_spec_from_content
+from seaqa_ai.services.chat_service.skills.loader import (
+    build_skill_spec_from_content,
+    load_builtin_skill,
+    load_builtin_skills,
+)
 from seaqa_ai.services.chat_service.skills.parser import parse_skill_markdown
+from seaqa_ai.services.chat_service.skills.spec import SkillSummary
 from seaqa_ai.utils.seadb_api import SeaDBAPI
-from seaqa_ai.services.chat_service.skills.spec import SkillSpec
 from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 
 
 logger = logging.getLogger(__name__)
+SKILL_SUMMARIES_CONTEXT_KEY = '_skill_summaries'
+
+
+def _decode_required_tools(value):
+    tools = json.loads(value)
+    if not isinstance(tools, list) or not all(isinstance(tool, str) and tool for tool in tools):
+        raise ValueError('Stored required_tools invalid.')
+    return tuple(tools)
 
 
 class SkillRegistry:
@@ -28,26 +41,16 @@ class SkillRegistry:
         }
 
     @classmethod
-    def _load_builtin_skills(cls, context=None):
+    def _load_builtin_summaries(cls, context=None):
         disabled_builtin_set = cls._disabled_builtin_set(context)
-        skills = {}
-        for item in load_builtin_skills():
-            skill_id = item.get('name')
-            if not skill_id or skill_id in disabled_builtin_set:
-                continue
-            spec = SkillSpec(
-                id=skill_id,
-                name=item.get('name'),
-                description=item.get('description') or '',
-                system_prompt=item.get('system_prompt') or '',
-                required_tools=tuple(item.get('required_tools') or ()),
-                support_external_portal=bool(item.get('support_external_portal', False)),
-            )
-            skills[spec.id] = spec
-        return skills
+        return {
+            skill.id: skill
+            for skill in load_builtin_skills()
+            if skill.id not in disabled_builtin_set
+        }
 
     @classmethod
-    def _load_custom_skills(cls, context=None):
+    def _load_custom_summaries(cls, context=None):
         context = context or {}
         project_uuid = context.get('project_uuid')
         if not project_uuid:
@@ -55,9 +58,8 @@ class SkillRegistry:
 
         table_name = SchemaTables.CHAT_SKILLS.table_name()
         sql = (
-            f"SELECT `_pk`, `name`, `content`, `enabled`, `deleted` FROM `{table_name}` "
-            "WHERE (`deleted` = False OR `deleted` IS NULL) "
-            "AND (`enabled` = True OR `enabled` IS NULL)"
+            f"SELECT `name`, `description`, `required_tools`, `support_external_portal` "
+            f"FROM `{table_name}` WHERE `deleted` = False AND `enabled` = True"
         )
         try:
             rows = cls._seadb_api.query_rows(project_uuid, sql, convert_keys=False).get('results', [])
@@ -67,45 +69,80 @@ class SkillRegistry:
 
         skills = {}
         for row in rows:
-            skill_id = row.get('name')
-            content = row.get('content')
-            if not isinstance(skill_id, str) or not isinstance(content, str):
-                continue
-
             try:
-                parsed = parse_skill_markdown(content, expected_name=skill_id)
+                skill_id = row['name']
+                description = row['description']
+                support_external_portal = row['support_external_portal']
+                if not isinstance(skill_id, str) or not isinstance(description, str):
+                    raise ValueError('Stored skill identity invalid.')
+                if not isinstance(support_external_portal, bool):
+                    raise ValueError('Stored support_external_portal invalid.')
+                skill = SkillSummary(
+                    id=skill_id,
+                    name=skill_id,
+                    description=description,
+                    required_tools=_decode_required_tools(row['required_tools']),
+                    support_external_portal=support_external_portal,
+                )
             except Exception as e:
-                logger.warning('Skip invalid custom skill %s in project %s: %s', skill_id, project_uuid, e)
+                logger.warning('Skip invalid custom skill summary in project %s: %s', project_uuid, e)
                 continue
-
-            spec = build_skill_spec_from_content(parsed)
-            skills[spec.id] = spec
+            skills[skill.id] = skill
         return skills
 
     @classmethod
-    def _skills_map(cls, context=None):
-        skills = cls._load_builtin_skills(context)
-        custom_skills = cls._load_custom_skills(context)
-        for skill_id, skill in custom_skills.items():
-            if skill_id in skills:
+    def _load_custom_skill(cls, skill_id, context=None):
+        context = context or {}
+        project_uuid = context.get('project_uuid')
+        if not project_uuid:
+            return None
+
+        table_name = SchemaTables.CHAT_SKILLS.table_name()
+        sql = (
+            f"SELECT `content` FROM `{table_name}` WHERE `name` = '{skill_id}' "
+            "AND `deleted` = False AND `enabled` = True LIMIT 1"
+        )
+        try:
+            rows = cls._seadb_api.query_rows(project_uuid, sql, convert_keys=False).get('results', [])
+            if not rows:
+                return None
+            parsed = parse_skill_markdown(rows[0]['content'], expected_name=skill_id)
+            return build_skill_spec_from_content(parsed)
+        except Exception as e:
+            logger.warning('Failed to load custom skill %s for project %s: %s', skill_id, project_uuid, e)
+            return None
+
+    @classmethod
+    def _skill_summaries_map(cls, context=None):
+        if context is not None:
+            cached = context.get(SKILL_SUMMARIES_CONTEXT_KEY)
+            if cached is not None:
+                return cached
+
+        summaries = cls._load_builtin_summaries(context)
+        custom_summaries = cls._load_custom_summaries(context)
+        for skill_id, skill in custom_summaries.items():
+            if skill_id in summaries:
                 logger.warning('Custom skill %s conflicts with builtin skill, ignored.', skill_id)
                 continue
-            skills[skill_id] = skill
-        return skills
+            summaries[skill_id] = skill
+
+        if context is not None:
+            context[SKILL_SUMMARIES_CONTEXT_KEY] = summaries
+        return summaries
 
     @classmethod
-    def get(cls, skill_id, context=None):
+    def get_available(cls, skill_id, context=None):
         if not skill_id or not isinstance(skill_id, str):
             return None
-        return cls._skills_map(context).get(skill_id)
+        summary = cls._skill_summaries_map(context).get(skill_id)
+        if summary is None or not cls._is_skill_available(summary, context):
+            return None
 
-    @classmethod
-    def has(cls, skill_id, context=None):
-        return bool(cls.get(skill_id, context))
-
-    @classmethod
-    def all(cls, context=None):
-        return list(cls._skills_map(context).values())
+        skill = load_builtin_skill(skill_id) or cls._load_custom_skill(skill_id, context)
+        if skill is None or not cls._is_skill_available(skill, context):
+            return None
+        return skill
 
     @classmethod
     def available_tool_names(cls, context=None):
@@ -122,11 +159,7 @@ class SkillRegistry:
         return tool_names
 
     @classmethod
-    def is_available(cls, skill_id, context=None):
-        skill = cls.get(skill_id, context)
-        if skill is None:
-            return False
-
+    def _is_skill_available(cls, skill, context=None):
         context = context or {}
         if context.get('is_external_portal') and not skill.support_external_portal:
             return False
@@ -138,8 +171,8 @@ class SkillRegistry:
     def available_skills(cls, context=None):
         return [
             skill
-            for skill in cls.all(context)
-            if cls.is_available(skill.id, context)
+            for skill in cls._skill_summaries_map(context).values()
+            if cls._is_skill_available(skill, context)
         ]
 
     @classmethod
@@ -169,8 +202,8 @@ class SkillRegistry:
 
     @classmethod
     def skill_system_prompt(cls, skill_id, context=None):
-        skill = cls.get(skill_id, context)
-        if skill is None or not cls.is_available(skill_id, context):
+        skill = cls.get_available(skill_id, context)
+        if skill is None:
             return ''
 
         lines = [

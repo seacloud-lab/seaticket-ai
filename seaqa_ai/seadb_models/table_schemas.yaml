@@ -566,6 +566,10 @@ tables:
         column_type: text
         column_data:
           compressed: true
+      required_tools:
+        column_type: text
+      support_external_portal:
+        column_type: bool
       enabled:
         column_type: bool
       creator:

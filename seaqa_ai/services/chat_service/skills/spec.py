@@ -2,10 +2,14 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class SkillSpec:
+class SkillSummary:
     id: str
     name: str
     description: str
-    system_prompt: str
     required_tools: tuple[str, ...] = ()
-    support_external_portal: bool = True
+    support_external_portal: bool = False
+
+
+@dataclass(frozen=True)
+class SkillSpec(SkillSummary):
+    system_prompt: str = ''

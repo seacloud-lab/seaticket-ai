@@ -21,8 +21,8 @@ class SkillTool(BasicTool):
     }
 
     def execute(self, name, context, tool_executor):
-        skill = SkillRegistry.get(name, context)
-        if skill is None or not SkillRegistry.is_available(name, context):
+        skill = SkillRegistry.get_available(name, context)
+        if skill is None:
             raise AssertionError(f'Skill "{name}" is not available for this request')
 
         context['skill_id'] = skill.id

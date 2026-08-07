@@ -5,7 +5,13 @@ from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
 from seaqa_ai.utils import chunk_text, gen_record_hash
 from seaqa_ai.services.chat_service import StreamingChat, SyncChat
-from seaqa_ai.services.chat_service.skills.loader import load_builtin_skills, load_builtin_skill
+from seaqa_ai.services.chat_service.skills.loader import (
+    load_builtin_skills,
+    load_builtin_skill,
+    load_builtin_skill_content,
+    serialize_skill_summary,
+    serialize_skill_spec,
+)
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
 from seaqa_ai.services.chat_service import SyncChat, StreamingChat
@@ -38,7 +44,7 @@ def list_builtin_skills_api():
         return {'error_msg': 'Permission denied'}, 403
 
     try:
-        skills = load_builtin_skills()
+        skills = [serialize_skill_summary(skill) for skill in load_builtin_skills()]
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
@@ -60,7 +66,8 @@ def get_builtin_skill_api(skill_name):
 
     if not skill:
         return {'error_msg': 'Skill not found.'}, 404
-    return {'skill': skill}, 200
+    content = load_builtin_skill_content(skill_name)
+    return {'skill': serialize_skill_spec(skill, content)}, 200
 
 # completion API
 @flask_app.route('/get-ai-reply', methods=['POST'])
