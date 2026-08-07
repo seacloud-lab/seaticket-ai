@@ -8,4 +8,4 @@ class SkillSpec:
     description: str
     system_prompt: str
     required_tools: tuple[str, ...] = ()
-    supports_external_portal: bool = True
+    support_external_portal: bool = True

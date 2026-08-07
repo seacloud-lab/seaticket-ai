@@ -1,7 +1,12 @@
-from seaqa_ai.services.chat_service.skills.spec import SkillSpec
+---
+name: issue-research
+description: Use only when the user explicitly requests deep research, in-depth investigation, or thorough analysis of a specific issue/problem, where the task requires evidence from documentation and/or past cases and should be synthesized into a structured Markdown research report. Do not use for quick explanations, ordinary troubleshooting, simple bug/error analysis, generic questions, or direct fix suggestions.
+metadata:
+  seaticket-required-tools: [documents_search, issues_search, generate_markdown]
+  seaticket-support-external-portal: false
+---
 
-
-ISSUE_RESEARCH_PROMPT = """Skill: issue-research
+# Issue Research
 
 Purpose:
 You are running an issue-research skill. The user's request is to research an issue and create a Markdown report artifact.
@@ -47,6 +52,7 @@ Report quality requirements:
 
 Use this report structure by default. Adapt section names, add relevant sections, or omit sections when the user's request or available evidence makes that more appropriate. Keep the report structured and complete, and do not add filler sections with no meaningful content:
 
+```md
 # Issue Research Report: <issue>
 
 ## Summary
@@ -61,24 +67,6 @@ Use this report structure by default. Adapt section names, add relevant sections
 
 ## References
 
-The Markdown filename must be lowercase, end with `.md`, and describe the issue, for example `permission-denied-403-downloads-report.md`."""
+```
 
-
-ISSUE_RESEARCH_SKILL = SkillSpec(
-    id='issue-research',
-    name='Issue Research',
-    description=(
-        'Use only when the user explicitly requests deep research, in-depth investigation, '
-        'or thorough analysis of a specific issue/problem, where the task requires evidence '
-        'from documentation and/or past cases and should be synthesized into a structured '
-        'Markdown research report. Do not use for quick explanations, ordinary troubleshooting, '
-        'simple bug/error analysis, generic questions, or direct fix suggestions.'
-    ),
-    system_prompt=ISSUE_RESEARCH_PROMPT,
-    required_tools=(
-        'documents_search',
-        'issues_search',
-        'generate_markdown',
-    ),
-    supports_external_portal=False,
-)
+The Markdown filename must be lowercase, end with `.md`, and describe the issue, for example `permission-denied-403-downloads-report.md`.

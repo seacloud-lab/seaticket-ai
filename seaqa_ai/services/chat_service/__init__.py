@@ -100,6 +100,7 @@ class BasicChat(object):
                 tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
+        self.skill_tool.register(tool_executor, context=context)
 
     def _load_selected_skill(self, tool_executor, memory, context):
         skill_id = context.get('selected_skill_id')
@@ -142,6 +143,7 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
+            context=context,
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -276,6 +278,7 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
+                context=context,
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 

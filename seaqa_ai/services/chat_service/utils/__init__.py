@@ -11,6 +11,7 @@ from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_SEARCH_POLICY,
     CHAT_SEARCH_REFERENCE_RULES,
 )
+from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
 
@@ -33,7 +34,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False, context=None):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -53,6 +54,13 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
             'content': CHAT_OUTPUT_FORMAT_RULES,
         },
     ]
+
+    skills_prompt = SkillRegistry.available_skills_prompt(context or {'is_external_portal': is_external_portal})
+    if skills_prompt:
+        prompts.append({
+            'role': 'system',
+            'content': skills_prompt,
+        })
 
     if project_prompt and project_prompt.strip():
         prompts.append({
