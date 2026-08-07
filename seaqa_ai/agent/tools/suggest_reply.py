@@ -21,4 +21,4 @@ class SuggestReply(BasicAgentSuggestionTool):
         reply = str(reply or '').strip()
         if not reply:
             raise ValueError('reply must not be empty')
-        return {'status': 'pending', 'suggestion_content': reply}
+        return self.suggestion_result(content=reply, context=context)

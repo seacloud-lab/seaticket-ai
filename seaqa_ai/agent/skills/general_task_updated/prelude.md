@@ -1,11 +1,11 @@
-event: ticket_task_finished
+event: general_task_updated
 phase: prelude
-description: "Prepare a completed-task event and its Ticket-centered record context for analysis."
+description: "Prepare a completed General Task update and its Ticket-centered record context for analysis."
 tools:
   - get_record
 ====================
 ## Role And Scope
-Prepare factual context for an event reporting that a linked task finished.
+Prepare factual context for an event reporting that a linked General Task changed to `done`.
 Task completion proves only the completion reported by the event; it never proves ticket resolution.
 Discover records only through the Ticket-centered relationship graph defined by the shared Prelude discovery contract.
 Do not decide closure, public reply, no-op, or live-state validation sufficiency.
@@ -19,7 +19,7 @@ Loaded records are current phase context, not authoritative live-state validatio
 Missing fields cannot prove that remaining work is complete.
 
 ## Required Steps
-1. Confirm the routed task target and task-finished event are usable.
+1. Confirm the routed General Task target and completion update are usable.
 2. Use the successful passive observation of the triggering task. Do not reload it.
 3. Read the task's valid `linked_ticket` and load that Ticket.
 4. Inspect only that Ticket's `linked_connection_records` for candidate linked records.
@@ -34,7 +34,7 @@ Missing fields cannot prove that remaining work is complete.
 One completed task is never a closure conclusion, regardless of task wording or ticket age.
 Do not treat task content, linked-record content, inactivity, or a successful passive record observation as live-state validation.
 Task references in prose, URLs, titles, or similarities may not create a record identity.
-Only retain Ticket-linked records that materially clarify this specific task-finished event; sharing a Ticket alone is not enough.
+Only retain Ticket-linked records that materially clarify this specific completed-task event; sharing a Ticket alone is not enough.
 Do not decide whether external targets are available or whether a public update is appropriate.
 
 ## Tool Rules

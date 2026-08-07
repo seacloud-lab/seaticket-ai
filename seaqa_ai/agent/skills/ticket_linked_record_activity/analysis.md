@@ -13,7 +13,7 @@ Separate internal owner attention from external acknowledgement; neither automat
 ## Input Contract
 Use `event.new_value` and other supplied event fields as the sole account of new external activity.
 Use ticket state, substate, type, assignees, recent context, and notification history only when supplied by successful passive observations.
-Treat system-provided `external_reply_targets` or `has_external_reply_targets` as authoritative target availability.
+Treat external records retained by Prelude after `linked_ticket` verification as the only available reply targets.
 An identity alone does not establish a recipient, audience, issue status, or discussion context.
 Missing content, history, or target facts must remain unknown.
 
@@ -23,7 +23,7 @@ Missing content, history, or target facts must remain unknown.
 3. Check the ticket state and substate before selecting an internal notification or response.
 4. Determine whether the event presents technical detail, a regression, a blocker, urgency, a request, or reopening risk.
 5. Check supplied notification history for a recent equivalent internal notification.
-6. Determine whether verified external reply targets are explicitly available.
+6. Determine whether Prelude-retained verified external reply targets are available.
 7. Evaluate an internal notification and public reply independently.
 8. Select only permitted actions and explain why omitted actions are not warranted.
 

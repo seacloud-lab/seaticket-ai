@@ -358,12 +358,8 @@ class AgentReACT:
                             self.context['active_trace_id'] = previous_trace_id
                     observation = self._format_observation(raw_result)
                     statistics = self._statistics(started_at, usage, response_retries + retries)
-                    trace_descriptors = self._get_tool_trace_descriptors(
-                        tool_name=tool_name,
-                        tool_arguments=arguments,
-                        result=raw_result,
-                    )
-                    if trace_descriptors is None:
+                    suggestion_targets = self._get_suggestion_targets(raw_result)
+                    if suggestion_targets is None:
                         self._trace(
                             action_type='tool_call', action_status='completed', step=step,
                             tool_name=tool_name, tool_arguments=arguments,
@@ -371,11 +367,19 @@ class AgentReACT:
                             statistics=statistics, trace_id=trace_id,
                         )
                     else:
-                        for descriptor in trace_descriptors:
+                        for target in suggestion_targets:
                             self._trace(
-                                step=step, tool_arguments=arguments,
+                                action_type='suggestion', action_status='pending', step=step,
+                                tool_name=raw_result.get('trace_tool_name') or tool_name,
+                                tool_arguments=arguments,
                                 observation=observation, result=raw_result,
-                                statistics=statistics, trace_id=trace_id, **descriptor,
+                                statistics=statistics, trace_id=trace_id,
+                                source_type=target['source_type'],
+                                source_id=target['source_id'],
+                                source_title=target['source_title'],
+                                suggestion_reason=str(arguments.get('reason', '') or '').strip(),
+                                suggestion_text=str(raw_result.get('suggestion_text', '') or ''),
+                                suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
                             )
                     self._append_tool_output(tool_call, observation)
                     return True
@@ -397,19 +401,26 @@ class AgentReACT:
                 started_at,
             )
 
-    def _get_tool_trace_descriptors(self, *, tool_name, tool_arguments, result):
-        tool = self._tool_instances.get(tool_name)
-        get_react_traces = getattr(tool, 'get_react_traces', None)
-        if get_react_traces is None:
+    def _get_suggestion_targets(self, result):
+        if not isinstance(result, dict) or result.get('status') != 'pending':
             return None
-        traces = get_react_traces(
-            tool_arguments=tool_arguments,
-            result=result,
-            context=self.context,
-        )
-        if not isinstance(traces, list):
-            raise TypeError(f'{tool_name}.get_react_traces must return a list')
-        return traces
+        targets = result.get('trace_targets')
+        if not isinstance(targets, list):
+            return None
+        normalized_targets = []
+        for target in targets:
+            if not isinstance(target, dict):
+                raise TypeError('trace_targets must contain objects')
+            source_type = str(target.get('source_type', '') or '').strip()
+            source_id = str(target.get('source_id', '') or '').strip()
+            if not source_type or not source_id:
+                raise ValueError('trace_targets require source_type and source_id')
+            normalized_targets.append({
+                'source_type': source_type,
+                'source_id': source_id,
+                'source_title': str(target.get('source_title', '') or '').strip(),
+            })
+        return normalized_targets
 
     def _simulate_max_steps_tool_calls(self, tool_calls, step, usage, retries):
         for index, tool_call in enumerate(tool_calls):

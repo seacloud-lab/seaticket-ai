@@ -2,7 +2,6 @@ from seaqa_ai.agent.events_manager.constants import (
     EVENT_TYPE_TICKET_DUE_SOON,
     EVENT_TYPE_TICKET_LINKED_RECORD_ACTIVITY,
     EVENT_TYPE_TICKET_OVER_DUE,
-    EVENT_TYPE_TICKET_TASK_FINISHED,
     SOURCE_TYPE_TICKET,
 )
 
@@ -16,7 +15,6 @@ class TaskDispatchPolicy:
         EVENT_TYPE_TICKET_DUE_SOON,
         EVENT_TYPE_TICKET_OVER_DUE,
         EVENT_TYPE_TICKET_LINKED_RECORD_ACTIVITY,
-        EVENT_TYPE_TICKET_TASK_FINISHED,
     })
 
     def should_debounce(self, task: AgentTask) -> bool:

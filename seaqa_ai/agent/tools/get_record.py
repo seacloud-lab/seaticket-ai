@@ -137,6 +137,34 @@ class GetRecord(BasicTool):
     def _cache_key(source_type, connection_id, record_id):
         return source_type, connection_id, record_id
 
+    @staticmethod
+    def _github_labels_cache_key(connection_id):
+        return 'github_available_labels', connection_id
+
+    @staticmethod
+    def _get_github_available_labels(app, project_uuid, table_name):
+        try:
+            metadata = app.seadb_api.get_base_metadata(project_uuid)
+            table_meta = next(
+                (table for table in (metadata or {}).get('tables', []) if table.get('name') == table_name),
+                None,
+            )
+            label_column = next(
+                (column for column in (table_meta or {}).get('columns', []) if column.get('name') == 'labels'),
+                None,
+            )
+            available_labels = []
+            seen = set()
+            for option in ((label_column or {}).get('data') or {}).get('options') or []:
+                label = str(option.get('name') or '').strip()
+                normalized_label = label.casefold()
+                if label and normalized_label not in seen:
+                    seen.add(normalized_label)
+                    available_labels.append(label)
+            return available_labels
+        except Exception:
+            return []
+
     def execute(self, source_type, connection_id, record_id, project_uuid, app, record_cache=None):
         source_type = str(source_type or '').strip()
         if source_type not in self._SUPPORTED_SOURCE_TYPES:
@@ -168,6 +196,17 @@ class GetRecord(BasicTool):
         record = results[0]
         if source_type == 'ticket':
             record = self._format_ticket_users(record, getattr(app, 'username_resolver', None))
+        elif source_type == 'github_issue':
+            record = dict(record)
+            labels_cache_key = self._github_labels_cache_key(connection_id)
+            if record_cache is not None and labels_cache_key in record_cache:
+                record['available_labels'] = record_cache[labels_cache_key]
+            else:
+                record['available_labels'] = self._get_github_available_labels(
+                    app, project_uuid, get_connection_table_name(source_type, connection_id),
+                )
+                if record_cache is not None:
+                    record_cache[labels_cache_key] = record['available_labels']
         if record_cache is not None:
             record_cache[cache_key] = record
         return record

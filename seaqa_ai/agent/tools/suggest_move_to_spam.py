@@ -12,7 +12,7 @@ class SuggestMoveToSpam(BasicAgentSuggestionTool):
         }, 'strict': True,
     }
 
-    def execute(self, reason):
+    def execute(self, reason, context=None):
         if not str(reason or '').strip():
             raise ValueError('reason must not be empty')
-        return {'status': 'pending'}
+        return self.suggestion_result(context=context)

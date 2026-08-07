@@ -53,6 +53,7 @@ class AgentService:
                 record_cache=record_cache,
             )
             context = self._build_context(task, run_id, target_record)
+            context['record_cache'] = record_cache
             message_input = self._build_message_input(task)
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
@@ -130,6 +131,7 @@ class AgentService:
             'source_type': task.target_source_type,
             'source_id': source_id,
             'source_title': target_record.get('title', ''),
+            'target_record': target_record,
             'triggering_event': task.trigger_event.event,
         }
 

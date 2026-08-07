@@ -18,15 +18,14 @@ class SuggestModifyType(BasicAgentSuggestionTool):
         'strict': True,
     }
 
-    def execute(self, current_issue_type, suggested_type, reason):
+    def execute(self, current_issue_type, suggested_type, reason, context=None):
         if not str(reason or '').strip():
             raise ValueError('reason must not be empty')
-        return {'status': 'pending', 'suggestion_content': str(suggested_type)}
-
-    def get_suggestion_text(self, *, tool_arguments, result, context):
-        current = str(tool_arguments.get('current_issue_type') or '').strip()
-        suggested = tool_arguments['suggested_type']
-        return (
-            f'Suggest changing the type from "{current}" to "{suggested}" for this GitHub issue'
-            if current else f'Suggest changing the type to "{suggested}" for this GitHub issue'
+        current = str(current_issue_type or '').strip()
+        suggestion_text = (
+            f'Suggest changing the type from "{current}" to "{suggested_type}" for this GitHub issue'
+            if current else f'Suggest changing the type to "{suggested_type}" for this GitHub issue'
+        )
+        return self.suggestion_result(
+            content=str(suggested_type), context=context, suggestion_text=suggestion_text,
         )

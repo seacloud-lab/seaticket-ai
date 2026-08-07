@@ -13,8 +13,8 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
         }, 'strict': True,
     }
 
-    def execute(self, message, reason):
+    def execute(self, message, reason, context=None):
         message = str(message or '').strip()
         if not message or not str(reason or '').strip():
             raise ValueError('message and reason must not be empty')
-        return {'status': 'pending', 'suggestion_content': message}
+        return self.suggestion_result(content=message, context=context)

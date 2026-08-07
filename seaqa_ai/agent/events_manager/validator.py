@@ -5,11 +5,8 @@ from seaqa_ai.utils import uuid_str_to_32_chars
 
 from .constants import (
     CONNECTION_REQUIRED_SOURCE_TYPES,
-    EVENT_TYPE_DISCOURSE_TOPIC_UPDATED,
-    EVENT_TYPE_GITHUB_ISSUE_CLOSED,
+    EVENT_TYPE_GENERAL_TASK_UPDATED,
     EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED,
-    EVENT_TYPE_GITHUB_ISSUE_REOPENED,
-    EVENT_TYPE_GITHUB_ISSUE_UPDATED,
     MAX_EVENT_AGE_DAYS,
     SUPPORTED_EVENT_TYPES,
     SUPPORTED_SOURCE_TYPES,
@@ -107,7 +104,11 @@ class EventsFilter:
     """Stateless no-op filtering retained from the previous event manager."""
 
     def should_process(self, event: AgentEvent) -> bool:
+        if event.event_type == EVENT_TYPE_GENERAL_TASK_UPDATED:
+            old_status = str(event.event['old_value'].get('status') or '').strip().lower()
+            new_status = str(event.event['new_value'].get('status') or '').strip().lower()
+            return old_status != 'done' and new_status == 'done'
         if event.source_type == 'github_issue' and event.event_type == EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED:
-                author = str(event.event['new_value'].get('author') or '').strip().lower()
-                return not author.endswith('[bot]')
+            author = str(event.event['new_value'].get('author') or '').strip().lower()
+            return not author.endswith('[bot]')
         return True

@@ -13,7 +13,7 @@ The external reply path must protect internal and personal information.
 
 ## Input Contract
 The analysis action set and rationale are complete authorization.
-Use supplied verified external target identities only through the declared reply suggestion tool.
+Use only Prelude-retained verified external record identities through the declared reply suggestion tool.
 Do not identify, select, add, replace, or inspect a target.
 Use event and passive-observation facts only to write a concise approved summary or reply.
 Do not use a tool result as evidence for a new action.
@@ -22,7 +22,7 @@ Do not use a tool result as evidence for a new action.
 1. Check whether the action set is exactly `no_op` before calling a tool.
 2. For `no_op`, make no call and report the deliberate omission.
 3. For authorized `suggest_notify_assignee`, call once with a concise non-empty internal message and Analysis-grounded non-empty reason.
-4. For authorized `suggest_reply_external_targets`, rely on Analysis's verified-target authorization, then call once with a non-empty reply and Analysis-grounded non-empty reason.
+4. For authorized `suggest_reply_external_targets`, rely on Analysis's verified-target authorization, then call once with the retained external record identities, a non-empty reply, and an Analysis-grounded non-empty reason.
 5. Keep an external reply friendly, concise, status-focused, and limited to publicly supportable information.
 6. Call both tools only where both actions were independently authorized.
 7. Record each tool result as a pending-suggestion result rather than delivery.
