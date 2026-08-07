@@ -1,127 +1,151 @@
-import html
-import json
+import importlib
+import inspect
+from collections.abc import Iterable
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
-from .constants import DataEventType
+import yaml
 
-EVENT_PAYLOAD_TAG = {
-    DataEventType.GITHUB_ISSUE_COMMENT_ADDED.value: 'comment',
-    DataEventType.DISCOURSE_TOPIC_COMMENT_ADDED.value: 'comment',
-    DataEventType.EMAIL_MESSAGE_ADDED.value: 'reply',
-}
-
-EVENT_TYPE_ONLY = {
-    DataEventType.TICKET_DUE_SOON.value,
-    DataEventType.GITHUB_ISSUE_ADDED.value,
-    DataEventType.DISCOURSE_TOPIC_ADDED.value,
-    DataEventType.EMAIL_THREAD_ADDED.value,
-}
+from seaqa_ai.agent.events_manager.constants import (
+    EVENT_TYPE_TICKET_COMMENT_ADDED,
+    EVENT_TYPE_TICKET_COMMENT_UPDATED,
+)
+from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch
 
 
-def _parse_int(value) -> int | None:
+
+TOOLS_PACKAGE = 'seaqa_ai.agent.tools'
+TOOLS_DIR = Path(__file__).resolve().parent.parent / 'tools'
+SKILLS_DIR = Path(__file__).resolve().parent.parent / 'skills'
+
+def _tool_importer(tool_name):
+    module = importlib.import_module(f'{TOOLS_PACKAGE}.{tool_name}')
+    tool_classes = [
+        tool_class
+        for _, tool_class in inspect.getmembers(module, inspect.isclass)
+        if (
+            tool_class is not BasicTool
+            and tool_class.__module__ == module.__name__
+            and issubclass(tool_class, BasicTool)
+        )
+    ]
+    if len(tool_classes) != 1:
+        raise ValueError(
+            f'Tool module {tool_name!r} must define exactly one BasicTool subclass'
+        )
+    return tool_classes[0]
+
+
+@lru_cache
+def get_tools_map():
+    tools = {
+        tool_file.stem: _tool_importer(tool_file.stem)
+        for tool_file in TOOLS_DIR.iterdir()
+        if (
+            tool_file.is_file()
+            and tool_file.suffix == '.py'
+            and not tool_file.name.startswith('_')
+        )
+    }
+    tools.update({
+        'documents_search': DocumentsSearch,
+        'issues_search': IssuesSearch
+    })
+    return tools
+
+@lru_cache
+def get_skill_map() -> dict[str, dict[str, str]]:
+    skills_map = {}
+
+    for event_dir in SKILLS_DIR.iterdir():
+        if event_dir.name.startswith('.') or not event_dir.is_dir():
+            continue
+
+        phases = {}
+        for skill_file in event_dir.iterdir():
+            if (
+                skill_file.name.startswith('.')
+                or not skill_file.is_file()
+                or skill_file.suffix != '.md'
+            ):
+                continue
+            skill = skill_file.read_text(encoding='utf-8')
+            _validate_skill(skill, event_dir.name, skill_file.stem)
+            phases[skill_file.stem] = skill
+
+        if phases:
+            skills_map[event_dir.name] = phases
+
+    return skills_map
+
+
+def _validate_skill(skill, event, phase):
+    metadata_text, separator, _ = skill.partition('====================')
+    if not separator:
+        raise ValueError(f'Skill {event}/{phase} must contain the required metadata separator')
     try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+        metadata = yaml.safe_load(metadata_text)
+    except yaml.YAMLError as error:
+        raise ValueError(f'Skill {event}/{phase} metadata must be valid YAML') from error
+    if not isinstance(metadata, dict):
+        raise ValueError(f'Skill {event}/{phase} metadata must be an object')
+    if metadata.get('event') != event or metadata.get('phase') != phase:
+        raise ValueError(f'Skill metadata must match its path: {event}/{phase}')
+    if not isinstance(metadata.get('description'), str) or not metadata['description'].strip():
+        raise ValueError(f'Skill {event}/{phase} requires a description')
+    tool_names = metadata.get('tools')
+    if not isinstance(tool_names, list) or not all(isinstance(name, str) for name in tool_names):
+        raise ValueError(f'Skill {event}/{phase} tools must be a string array')
+    if phase != 'prelude' and 'get_record' in tool_names:
+        raise ValueError(f'Only prelude skills may use get_record: {event}/{phase}')
 
 
-def render_task_xml(task: dict) -> str:
-    """Render a task dict as an XML-enveloped string."""
-
-    def xml_text(value) -> str:
-        return html.escape(str(value), quote=False)
-
-    def xml_json(value) -> str:
-        return xml_text(json.dumps(value, ensure_ascii=False))
-
-    parts = []
-
-    if 'source_id' in task:
-        parts.append(f'<source_id>{task["source_id"]}</source_id>')
-
-    if 'event' in task:
-        event = task['event']
-        if not isinstance(event, dict):
-            parts.append(f'<event>{xml_json(event)}</event>')
-        else:
-            event_type = event.get('type')
-            if event_type in EVENT_TYPE_ONLY:
-                parts.append(f'<event>{xml_text(event_type or "")}</event>')
-            else:
-                payload_tag = EVENT_PAYLOAD_TAG.get(event_type)
-                if payload_tag and 'new_value' in event:
-                    parts.append(f'<event>{xml_text(event_type)}</event>')
-                    parts.append(f'<{payload_tag}>{xml_json(event.get("new_value"))}</{payload_tag}>')
-                else:
-                    parts.append(f'<event>{xml_json(event)}</event>')
-
-    if 'record' in task:
-        parts.append(f'<record>{xml_json(task["record"])}</record>')
-
-    if task.get('event_summary'):
-        parts.append(f'<event_summary>{xml_text(task["event_summary"])}</event_summary>')
-
-    if task.get('search_results'):
-        parts.append(f'<search_results>{xml_json(task["search_results"])}</search_results>')
-
-    if task.get('analysis_summary'):
-        parts.append(f'<analysis_summary>{xml_json(task["analysis_summary"])}</analysis_summary>')
-
-    return '\n'.join(parts)
-
-
-def event_merge_key(event: dict) -> tuple | None:
-    if not isinstance(event, dict):
-        return None
-    event_type = event.get('type')
-    if event_type in {DataEventType.TICKET_COMMENT_ADDED.value, DataEventType.TICKET_COMMENT_UPDATED.value}:
-        new_value = event.get('new_value') or {}
-        comment_id = new_value.get('_pk') if isinstance(new_value, dict) else None
-        return ('ticket_comment', comment_id)
-    return (event_type, None)
-
-
-def compact_events(events: list[dict]) -> list[dict]:
-    grouped: dict[tuple, list[dict]] = {}
-    ordered_keys: list[tuple] = []
+def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compact related Ticket changes while retaining their first-seen order."""
+    grouped: dict[tuple[str | None, int | None], list[dict[str, Any]]] = {}
+    ordered_keys: list[tuple[str | None, int | None]] = []
     for event in events:
         if not isinstance(event, dict):
             continue
-        merge_key = event_merge_key(event)
-        if merge_key not in grouped:
-            grouped[merge_key] = []
-            ordered_keys.append(merge_key)
-        grouped[merge_key].append(event.copy())
+        key = _event_merge_key(event)
+        if key not in grouped:
+            grouped[key] = []
+            ordered_keys.append(key)
+        grouped[key].append(event)
 
-    compacted: list[dict] = []
-    for merge_key in ordered_keys:
-        group = grouped.get(merge_key) or []
-        if not group:
-            continue
-
-        added_type = next((
-            item.get('type') for item in group
-            if item.get('type') == DataEventType.TICKET_COMMENT_ADDED.value
-        ), None)
-        result_type = added_type or group[-1].get('type')
-
-        merged_new_value: dict = {}
-        for item in group:
-            new_value = item.get('new_value')
-            if isinstance(new_value, dict):
-                merged_new_value.update(new_value)
-
-        merged_old_value: dict = {}
-        for item in group:
-            old_value = item.get('old_value')
-            if not isinstance(old_value, dict):
-                continue
-            for key, value in old_value.items():
-                if key not in merged_old_value:
-                    merged_old_value[key] = value
-
+    compacted = []
+    for key in ordered_keys:
+        group = grouped[key]
+        event_type = next(
+            (
+                event.get('type')
+                for event in group
+                if event.get('type') == EVENT_TYPE_TICKET_COMMENT_ADDED
+            ),
+            group[-1].get('type'),
+        )
+        new_value: dict[str, Any] = {}
+        old_value: dict[str, Any] = {}
+        for event in group:
+            if isinstance(event.get('new_value'), dict):
+                new_value.update(event['new_value'])
+            if isinstance(event.get('old_value'), dict):
+                for field, value in event['old_value'].items():
+                    old_value.setdefault(field, value)
         compacted.append({
-            'type': result_type,
-            'old_value': merged_old_value or None,
-            'new_value': merged_new_value or None,
+            'type': event_type,
+            'old_value': old_value or None,
+            'new_value': new_value or None,
         })
     return compacted
+
+
+def _event_merge_key(event: dict[str, Any]) -> tuple[str | None, int | None]:
+    event_type = event.get('type')
+    if event_type in {EVENT_TYPE_TICKET_COMMENT_ADDED, EVENT_TYPE_TICKET_COMMENT_UPDATED}:
+        new_value = event.get('new_value')
+        comment_id = new_value.get('_pk') if isinstance(new_value, dict) else None
+        return 'ticket_comment', comment_id
+    return event_type, None

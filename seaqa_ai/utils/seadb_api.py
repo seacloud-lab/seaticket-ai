@@ -1,5 +1,3 @@
-import time
-import jwt
 import logging
 import requests
 import base64
@@ -17,9 +15,6 @@ def parse_response(response):
             return response.json()
         except:
             pass
-
-
-class SeaDBSQLGenerator: ...
 
 class SeaDBAPI:
     def __init__(self, server_url, seadb_user, seadb_passwd, timeout=30):

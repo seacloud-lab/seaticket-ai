@@ -113,7 +113,7 @@ def parse_json(json_str):
         except:
             try:
                 json_obj = ast.literal_eval(json_str)
-            except Exception as e:
+            except:
                 return json_str
         return json_obj
     return json_str
