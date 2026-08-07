@@ -20,8 +20,8 @@ from seaqa_ai.services.chat_service.utils import combine_attachments_to_message,
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
     extract_skill_command_from_message
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
-from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
-from seaqa_ai.services.chat_service.skills.tool import SkillTool
+from seaqa_ai.skills.registry import SkillRegistry
+from seaqa_ai.skills.tool import LoadExtraSkill
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class BasicChat(object):
             TicketCreator(),
         )
         self.test_tool = TestTool()
-        self.skill_tool = SkillTool()
+        self.load_extra_skill_tool = LoadExtraSkill()
 
     def _prepare_chat_memory(self, system_prompts, session_uuid, context):
         if session_uuid and not config.DISABLE_CONTEXT:
@@ -100,17 +100,18 @@ class BasicChat(object):
                 tool.register(tool_executor, context=context)
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
+        self.load_extra_skill_tool.register(tool_executor, context=context, app=self.app)
 
     def _load_selected_skill(self, tool_executor, memory, context):
         skill_id = context.get('selected_skill_id')
         if not skill_id:
             return
 
-        self.skill_tool.register(tool_executor, context=context)
+        self.load_extra_skill_tool.register(tool_executor, context=context, app=self.app)
         tool_call = {
             'type': 'function_call',
             'call_id': f'selected_skill_{skill_id}',
-            'name': 'skill',
+            'name': 'load_extra_skill',
             'arguments': json.dumps({'name': skill_id}),
         }
         memory += tool_call
@@ -118,7 +119,7 @@ class BasicChat(object):
 
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
-        available_skill_ids = [skill.id for skill in SkillRegistry.available_skills(context)]
+        available_skill_ids = [skill.name for skill in SkillRegistry.available_skills(self.app.seadb_service, context)]
         skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
         context['selected_skill_id'] = skill_id
         context['skill_id'] = None
@@ -142,7 +143,9 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
-            portal_chat_prompt=context.get('portal_chat_prompt', '')
+            portal_chat_prompt=context.get('portal_chat_prompt', ''),
+            context=context,
+            seadb_service=self.app.seadb_service,
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -282,7 +285,9 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
-                portal_chat_prompt=context.get('portal_chat_prompt', '')
+                portal_chat_prompt=context.get('portal_chat_prompt', ''),
+                context=context,
+                seadb_service=self.app.seadb_service,
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 

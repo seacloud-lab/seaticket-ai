@@ -3,6 +3,7 @@ from functools import cached_property
 from typing import ClassVar
 
 import yaml
+from seaqa_ai.skills.parser import split_skill_document
 
 @dataclass(frozen=True)
 class AgentPhaseSpec:
@@ -14,6 +15,7 @@ class AgentPhaseSpec:
     max_steps = 10
     max_steps_prompt = 'Maximum tool-call steps reached. Return the final answer without calling tools.'
     base_final_output_schema: ClassVar[dict] = {}
+    enable_extra_skills: ClassVar[bool] = False
 
     @property
     def final_output_schema(self) -> dict:
@@ -47,7 +49,8 @@ class AgentPhaseSpec:
 
     @classmethod
     def get_skill_metadata(cls, event: str, phase: str) -> dict:
-        metadata = yaml.safe_load(cls.get_skill(event, phase).split('====================', 1)[0])
+        metadata_text, _ = split_skill_document(cls.get_skill(event, phase))
+        metadata = yaml.safe_load(metadata_text)
         if not isinstance(metadata, dict):
             raise ValueError(f'Skill {event}/{phase} metadata must be an object')
         return metadata
@@ -55,6 +58,7 @@ class AgentPhaseSpec:
     @cached_property
     def tools(self) -> list:
         from seaqa_ai.agent.utils import get_tools_map
+        from seaqa_ai.skills.tool import LoadExtraSkill
 
         metadata = self.skill_metadata
         tool_names = metadata.get('tools', [])
@@ -70,10 +74,13 @@ class AgentPhaseSpec:
             raise ValueError(
                 f'Skill {self.event}/{self.phase} references unknown tools: {", ".join(unknown_tools)}'
             )
-        return [
+        resolved_tools = [
             tools_map[tool]
             for tool in tool_names
         ]
+        if self.enable_extra_skills:
+            resolved_tools.append(LoadExtraSkill)
+        return resolved_tools
     
     @classmethod
     def get_system_prompt(cls) -> str:

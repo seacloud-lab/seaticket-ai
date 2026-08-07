@@ -9,6 +9,7 @@ from seaqa_ai import config
 from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
+from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.utils import (
     get_answer_and_sources,
     remove_sources_content_and_snippets,
@@ -117,6 +118,8 @@ class AgentReACT:
         self._inject_records_input()
 
         self._inject_skill_input()
+
+        self._inject_extra_skills_prompt()
 
     def run(self):
         """Execute until the model returns final text, then validate it if needed."""
@@ -280,6 +283,16 @@ class AgentReACT:
             )
             self.memory += skill_call
             self._append_tool_output(skill_call, observation)
+
+    def _inject_extra_skills_prompt(self):
+        if not self.phase_spec.enable_extra_skills:
+            return
+        skills_prompt = SkillRegistry.engage_agent_skills(self.app.seadb_service, self.context)
+        if not skills_prompt:
+            return
+
+        self.system_prompts.append(skills_prompt)
+        self.memory += {'role': 'system', 'content': skills_prompt}
 
 
     ############# memory operations

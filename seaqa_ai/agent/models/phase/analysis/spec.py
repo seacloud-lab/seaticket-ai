@@ -1,10 +1,12 @@
 from pathlib import Path
+from typing import ClassVar
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
 
 
 class AnalysisPhaseSpec(AgentPhaseSpec):
     """Specification for the record analysis phase."""
+    enable_extra_skills: ClassVar[bool] = True
 
     base_final_output_schema = {
         'type': 'object',

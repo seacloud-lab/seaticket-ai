@@ -153,6 +153,12 @@ class AgentService:
     def _build_context(self, task):
         settings = self.project.get('settings') or {}
         lang = settings.get('lang') or 'en'
+        skills_settings = settings.get('skills') or {}
+        if not isinstance(skills_settings, dict):
+            skills_settings = {}
+        disabled_builtin_skills = skills_settings.get('disabled_builtins') or []
+        if not isinstance(disabled_builtin_skills, list):
+            disabled_builtin_skills = []
         return {
             'project_uuid': task.project_uuid,
             'task_id': task.task_id,
@@ -161,6 +167,7 @@ class AgentService:
             'document_connections': self.project.get('document_connections', []),
             'issue_connections': self.project.get('issue_connections', []),
             'task_connections': self.project.get('task_connections', []),
+            'disabled_builtin_skills': disabled_builtin_skills,
         }
 
     @staticmethod

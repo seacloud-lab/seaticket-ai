@@ -7,8 +7,9 @@ from typing import Any
 
 import yaml
 
+from seaqa_ai.skills.parser import split_skill_document
 from seaqa_ai.utils.tools import BasicTool
-from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch
+from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch, TasksSearch
 
 
 
@@ -48,7 +49,8 @@ def get_tools_map():
     }
     tools.update({
         'documents_search': DocumentsSearch,
-        'issues_search': IssuesSearch
+        'issues_search': IssuesSearch,
+        'tasks_search': TasksSearch,
     })
     return tools
 
@@ -79,9 +81,10 @@ def get_skill_map() -> dict[str, dict[str, str]]:
 
 
 def _validate_skill(skill, event, phase):
-    metadata_text, separator, _ = skill.partition('====================')
-    if not separator:
-        raise ValueError(f'Skill {event}/{phase} must contain the required metadata separator')
+    try:
+        metadata_text, _ = split_skill_document(skill)
+    except ValueError as error:
+        raise ValueError(f'Skill {event}/{phase} must contain the required metadata separator') from error
     try:
         metadata = yaml.safe_load(metadata_text)
     except yaml.YAMLError as error:
