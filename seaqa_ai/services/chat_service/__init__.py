@@ -9,6 +9,7 @@ from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessag
 from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, get_answer_and_sources
 from seaqa_ai.utils.constants import ConnectionType
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
+from seaqa_ai.utils import normalize_issues_recent_years_from_settings
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
@@ -90,8 +91,23 @@ class BasicChat(object):
                 'task_connections': ProjectConnection.get_connections_by_project_and_types(db_session, project_uuid, task_types) if task_types else [],
             })
 
+    def _load_search_settings(self, context):
+        if 'issues_search_recent_years' in context:
+            return
+        project_uuid = context.get('project_uuid')
+        if not project_uuid or not getattr(self.app, 'seaqa_db', None):
+            context['issues_search_recent_years'] = None
+            return
+        try:
+            project_settings = self.app.seaqa_db.get_project_settings_by_project_uuid(project_uuid)
+            context['issues_search_recent_years'] = normalize_issues_recent_years_from_settings(project_settings)
+        except Exception as e:
+            logger.warning('Failed to load project search settings for project_uuid=%s: %s', project_uuid, e)
+            context['issues_search_recent_years'] = None
+
     def _register_tools(self, tool_executor, context):
         self._load_connections(context)
+        self._load_search_settings(context)
         tool_executor.clean()
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)

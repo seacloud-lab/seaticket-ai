@@ -376,7 +376,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         return search_result_with_whole_data, rerank_token_usage
     
-    def search(self, query, connections, extra_sources, context, limit=100, call_back=None):
+    def search(self, query, connections, extra_sources, context, limit=100, call_back=None, time_from=None, time_to=None):
         if limit <= 0:
             return [], ''
 
@@ -400,7 +400,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         # keywords search data
         time_begin = time.time()
         project_uuid = context['project_uuid']
-        records = self.app.seaqa_indexer_api.keyword_search(query, project_uuid, connection_ids, extra_sources)
+        records = self.app.seaqa_indexer_api.keyword_search(query, project_uuid, connection_ids, extra_sources, time_from=time_from, time_to=time_to)
         search_results = search_records_to_map(records, {}, skip_search_record_hashes)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
@@ -409,7 +409,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         # semantic search data
         time_begin = time.time()
         query_vector = self.app.embedding_api.generate(query, context)
-        records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
+        records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources, time_from=time_from, time_to=time_to)
         search_results = search_records_to_map(records, search_results, skip_search_record_hashes)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):

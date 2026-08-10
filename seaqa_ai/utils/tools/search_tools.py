@@ -4,6 +4,7 @@ from urllib.parse import quote
 from seaqa_ai import config
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
+from seaqa_ai.utils import resolve_issues_search_time_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class BasicSearchTool(BasicTool):
 
         return f'{project_base_url}{record_path}'
 
-    def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
+    def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back, time_from=None, time_to=None):
         assert isinstance(query, str), "Your search query must be a string"
         sources_results = tool_executor.cache.get('sources_results', [])
         existed_search_records_num = len(sources_results)
@@ -99,7 +100,7 @@ class BasicSearchTool(BasicTool):
         if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
             limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
+        current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back, time_from=time_from, time_to=time_to)
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
 
@@ -193,7 +194,10 @@ class IssuesSearch(BasicSearchTool):
         extra_sources = ExtraSourceType.get_issue_extra_source_types()
         if context.get('extra_sources') is not None:
             extra_sources = [s for s in context['extra_sources'] if s in extra_sources]
-        return self._search(query, context['issue_connections'], extra_sources, context, app, tool_executor, call_back)
+        time_from, time_to = resolve_issues_search_time_bounds(context.get('issues_search_recent_years'))
+        if time_from:
+            logger.debug('issues_search time window project_uuid=%s years=%s time_from=%s time_to=%s', context.get('project_uuid'), context.get('issues_search_recent_years'), time_from, time_to)
+        return self._search(query, context['issue_connections'], extra_sources, context, app, tool_executor, call_back, time_from=time_from, time_to=time_to)
 
 class TasksSearch(BasicSearchTool):
     tool = {

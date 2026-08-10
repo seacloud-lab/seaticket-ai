@@ -20,7 +20,7 @@ class SeaQAIndexerAPI:
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         return {"Authorization": "Token %s" % token}
 
-    def keyword_search(self, query, project_uuid, connection_ids=None, extra_sources=[], count=25):
+    def keyword_search(self, query, project_uuid, connection_ids=None, extra_sources=[], count=25, time_from=None, time_to=None):
         params = {
             'query': query,
             'project_uuid': project_uuid,
@@ -28,6 +28,10 @@ class SeaQAIndexerAPI:
             'extra_sources': extra_sources,
             'count': count,
         }
+        if time_from is not None:
+            params['time_from'] = time_from
+        if time_to is not None:
+            params['time_to'] = time_to
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}
@@ -39,7 +43,7 @@ class SeaQAIndexerAPI:
         results = resp_json.get('results', [])
         return results
     
-    def vector_search(self, query_vector, project_uuid, connection_ids=None, extra_sources=[], count=25):
+    def vector_search(self, query_vector, project_uuid, connection_ids=None, extra_sources=[], count=25, time_from=None, time_to=None):
         params = {
             'query_vector': query_vector,
             'project_uuid': project_uuid,
@@ -47,6 +51,10 @@ class SeaQAIndexerAPI:
             'extra_sources': extra_sources,
             'count': count,
         }
+        if time_from is not None:
+            params['time_from'] = time_from
+        if time_to is not None:
+            params['time_to'] = time_to
         payload = {'exp': int(time.time()) + 300, }
         token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         headers = {"Authorization": "Token %s" % token}

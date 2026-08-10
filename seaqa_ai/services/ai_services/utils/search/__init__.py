@@ -1,10 +1,11 @@
 import logging
+from datetime import datetime, timezone
+
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.seadb_models.utils import get_connection_table_name
 
 logger = logging.getLogger(__name__)
-
 
 
 def search_records_to_map(search_records, search_results, skip_search_record_hashes=[]):
@@ -16,6 +17,7 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
     search_results: previous search results
 
     skip_search_record_hashes: If the hash value of a search record appears in this list, it will not be recorded.
+
     """
     for record in search_records:
         try:
@@ -35,6 +37,8 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
         if record_hex in skip_search_record_hashes:
             continue
 
+        modified_time = record.get('modified_time')
+
         # Retrieve or create a dictionary for the given connection_id from search_results
         connection_dict = search_results.setdefault(connection_id, {})
 
@@ -43,7 +47,7 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             'type': record['type'],
             'connection_id': connection_id,
             '_id': record_id,
-            'modified_time': record['modified_time']
+            'modified_time': modified_time
         })
 
         # Check if the record contains a 'content' field
