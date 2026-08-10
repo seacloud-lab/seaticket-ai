@@ -32,10 +32,21 @@ def _truncate_string(value, max_chars=MAX_CONTENT_CHARS):
 class AgentReACTTracer(list):
     """Collect ReACT actions and persist them in one SeaDB batch."""
 
-    def __init__(self, project_uuid, seadb_api):
+    def __init__(
+        self,
+        project_uuid,
+        seadb_api,
+        *,
+        target_source_type=None,
+        target_source_id=None,
+        target_source_title=None,
+    ):
         super().__init__()
         self.project_uuid = project_uuid
         self.seadb_api = seadb_api
+        self.target_source_type = target_source_type
+        self.target_source_id = target_source_id
+        self.target_source_title = target_source_title
 
     def record(
         self,
@@ -60,7 +71,6 @@ class AgentReACTTracer(list):
         source_id=None,
         source_title=None,
         trace_id=None,
-        parent_trace_id=None,
     ):
         """Normalize an action and append its SeaDB row to this tracer."""
         context = context or {}
@@ -68,11 +78,22 @@ class AgentReACTTracer(list):
             raise TypeError('context must be a dictionary')
         row = self._build_row(
             run_id=context.get('run_id'),
-            source_type=source_type if source_type is not None else context.get('source_type'),
-            source_id=source_id if source_id is not None else context.get('source_id'),
-            source_title=source_title if source_title is not None else context.get('source_title'),
+            source_type=(
+                source_type if source_type is not None
+                else self.target_source_type if self.target_source_type is not None
+                else context.get('source_type')
+            ),
+            source_id=(
+                source_id if source_id is not None
+                else self.target_source_id if self.target_source_id is not None
+                else context.get('source_id')
+            ),
+            source_title=(
+                source_title if source_title is not None
+                else self.target_source_title if self.target_source_title is not None
+                else context.get('source_title')
+            ),
             trace_id=trace_id or context.get('trace_id') or uuid.uuid4().hex,
-            parent_trace_id=parent_trace_id if parent_trace_id is not None else context.get('parent_trace_id'),
             phase=context.get('phase'),
             record_phase_context=record_phase_context,
             prompt=prompt,
@@ -145,7 +166,6 @@ class AgentReACTTracer(list):
         source_id,
         source_title,
         trace_id,
-        parent_trace_id,
         phase,
         record_phase_context,
         prompt,
@@ -218,7 +238,6 @@ class AgentReACTTracer(list):
         return {
             'run_id': run_id,
             'trace_id': trace_id,
-            'parent_trace_id': parent_trace_id or '',
             'source_type': source_type or '',
             'source_id': str(source_id) if source_id is not None else '',
             'source_title': source_title or '',

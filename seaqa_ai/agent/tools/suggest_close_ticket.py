@@ -36,6 +36,9 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
             or str(target.get('source_type', '') or '').strip() != 'ticket'
         ):
             raise ValueError('suggest_close_ticket target must be a ticket')
+        if target is None and (context or {}).get('source_type') != 'ticket':
+            raise ValueError('suggest_close_ticket target is required outside a ticket task')
         return self.suggestion_result(
-            content=reason, context=context, targets=[target] if target else None,
+            suggestion_content=reason, context=context, targets=[target] if target else None,
+            suggestion_reason=reason,
         )

@@ -15,4 +15,8 @@ class SuggestMoveToSpam(BasicAgentSuggestionTool):
     def execute(self, reason, context=None):
         if not str(reason or '').strip():
             raise ValueError('reason must not be empty')
-        return self.suggestion_result(context=context)
+        return self.suggestion_result(
+            context=context,
+            targets=[self._target_from_trigger_context(context)],
+            suggestion_reason=reason,
+        )

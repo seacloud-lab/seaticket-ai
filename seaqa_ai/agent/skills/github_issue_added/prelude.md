@@ -18,9 +18,9 @@ Missing fields remain unknown; never infer identities from names, URLs, or text.
 1. Confirm the triggering issue and its opening content are usable.
 2. Load the target issue first and extract its factual request, report, or observed behavior.
 3. Preserve supplied visible state, labels, and issue type without evaluating them.
-4. Do not discover or load a Ticket or any other related record; Ticket association belongs to later phases.
+4. Do not discover or load a Ticket or any other related record. Subsequent phases use only this phase's selected records and do not perform relationship discovery.
 5. Set `event_related_records` to the successfully loaded triggering issue only.
-6. Write a concise neutral summary and leave later phases enabled for a usable event.
+6. Write a concise neutral summary and leave the subsequent workflow phases enabled for a usable event.
 
 ## Decision Rules
 “Export fails” is a report, not a bug conclusion.
@@ -36,7 +36,7 @@ Do not retrieve repository history, similar issues, comments, Tickets, or record
 Return the required Prelude JSON artifact only.
 `event_summary` is factual and contains no recommendation.
 `event_related_records` contains only the successfully loaded triggering issue.
-Set both skip flags true only when a usable target or event cannot be prepared.
+State when a usable target or event cannot be prepared; Analysis decides the next action.
 
 ## Forbidden Behavior
 Do not classify, search for duplicates, or draft a response.

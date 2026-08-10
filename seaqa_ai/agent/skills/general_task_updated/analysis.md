@@ -47,13 +47,12 @@ Do not treat unavailable or partial observations as resolution evidence.
 
 ## Required Output
 Return the required analysis JSON without tool calls.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
 Use only `suggest_close_ticket`, `suggest_reply_external_targets`, and `no_op` in `recommended_actions`.
 Make `no_op` the sole action whenever selected.
 In `analysis_report`, distinguish task-event evidence from Ticket-centered record context.
 State ticket state, remaining-work conclusion, and Prelude-verified target availability.
 Explain why each closure or reply action is selected or withheld.
-Set both issue-type fields to empty strings, `reference_labels` to an empty array, and `skip_handling` true exactly for `no_op`.
+Set `skip_handling` true exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 Do not read, search, or suggest in this phase.

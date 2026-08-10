@@ -27,7 +27,7 @@ Do not treat a stored link as permission to inspect its source content.
 8. Enable Analysis for any valid target, even when it is closed, has no due date, or appears inactive.
 
 ## Decision Rules
-Skip only for invalid routing, unavailable target data, or an event that cannot be evaluated.
+Record invalid routing, unavailable target data, or an event that cannot be evaluated factually; Analysis decides the next action.
 Do not decide whether scanner timing truly means the ticket is overdue.
 Do not apply custom ticket rules, notification recency, escalation policy, or deadline thresholds.
 Do not decide that a closed ticket should be ignored or closed again.
@@ -47,7 +47,7 @@ Return the required Prelude artifact with a concise factual `event_summary`.
 `event_related_records` contains exactly the target ticket identity.
 Separate scanner-provided lateness facts from ticket snapshot facts.
 Report field availability without replacing unknown values.
-Set phase skips only for genuine input or retrieval failure.
+State genuine input or retrieval failures in `event_summary`.
 Do not produce an action set, analysis rationale, or reminder wording.
 
 ## Forbidden Behavior

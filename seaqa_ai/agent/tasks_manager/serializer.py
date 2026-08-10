@@ -16,7 +16,6 @@ class AgentTaskSerializer:
         return {
             'schema_version': task.schema_version,
             'task_id': task.task_id,
-            'idempotency_key': task.idempotency_key,
             'project_uuid': task.project_uuid,
             'target': {
                 'source_type': task.target_source_type,
@@ -24,9 +23,6 @@ class AgentTaskSerializer:
                 'connection_id': task.target_connection_id,
             },
             'trigger_event': {
-                'event_id': event.event_id,
-                'correlation_id': event.correlation_id,
-                'causation_id': event.causation_id,
                 'source_type': event.source_type,
                 'record_id': event.record_id,
                 'connection_id': event.connection_id,
@@ -57,14 +53,10 @@ class AgentTaskSerializer:
             connection_id=trigger.get('connection_id'),
             modified_time=cls._parse_datetime(trigger.get('modified_time')),
             received_at=cls._parse_datetime(trigger['received_at']),
-            event_id=trigger.get('event_id'),
-            correlation_id=trigger.get('correlation_id'),
-            causation_id=trigger.get('causation_id'),
         )
         return AgentTask(
             schema_version=int(data['schema_version']),
             task_id=data['task_id'],
-            idempotency_key=data['idempotency_key'],
             project_uuid=data['project_uuid'],
             target_source_type=target['source_type'],
             target_record_id=int(target['record_id']),

@@ -23,9 +23,9 @@ class SuggestCreateTicket(BasicAgentSuggestionTool):
             raise ValueError('reason must not be empty')
         context = context or {}
         detail = json.dumps({
-            'source_type': context.get('source_type'),
-            'source_id': context.get('source_id'),
-            'source_title': context.get('source_title'),
+            'source_type': context.get('trigger_source_type', context.get('source_type')),
+            'source_id': context.get('trigger_source_id', context.get('source_id')),
+            'source_title': context.get('trigger_source_title', context.get('source_title')),
             'reason': reason,
             'event': context.get('triggering_event', {}),
             'record': context.get('target_record', {}),
@@ -38,7 +38,14 @@ class SuggestCreateTicket(BasicAgentSuggestionTool):
                 'scenario': AIScenario.RECORD_GENERATION.value,
             })
             content = json.dumps({
-                'title': str(title or context.get('source_title') or '').strip(),
+                'title': str(
+                    title or context.get('trigger_source_title', context.get('source_title')) or ''
+                ).strip(),
                 'content': str(description or '').strip(),
             }, ensure_ascii=False)
-        return {'status': 'pending', 'suggestion_content': content}
+        return self.suggestion_result(
+            suggestion_content=content,
+            context=context,
+            targets=[self._target_from_trigger_context(context)],
+            suggestion_reason=reason,
+        )

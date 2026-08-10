@@ -49,13 +49,11 @@ Do not ask another system or person to resolve uncertainty.
 
 ## Required Output
 Return the required analysis JSON with no tool calls.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
 Limit `recommended_actions` to `suggest_notify_assignee`, `suggest_close_ticket`, and `no_op`.
 When `no_op` applies, make it the only action.
 Document overdue and state evidence, priority or owner context, rule findings, and deduplication evidence.
 Explain why closure is authorized or forbidden rather than relying on urgency language.
-Set both issue-type fields to empty strings and `reference_labels` to an empty array.
-Set `skip_handling` true exactly when the action set is `no_op`.
+Set `skip_handling` true exactly when the action set is `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 Do not read, search, or suggest in this phase.

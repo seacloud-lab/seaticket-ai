@@ -1,4 +1,4 @@
-"""Atomic ReACT execution loop shared by top-level agents and phase agents."""
+"""Atomic ReACT execution loop shared by workflow phases and other callers."""
 import inspect
 import json
 import logging
@@ -31,8 +31,8 @@ class AgentFinalOutputSchemaError(ValueError):
 class AgentReACT:
     """Run one isolated LLM tool-calling loop.
 
-    A loop owns its memory, executor, and tool instances so a parent agent and
-    each phase sub-agent cannot leak tool state or conversation history.
+    A loop owns its memory, executor, and tool instances so separate workflow
+    phases cannot leak tool state or conversation history.
     """
 
     MAX_RECORDS_INPUT = 10
@@ -41,7 +41,7 @@ class AgentReACT:
         self,
         app,
         responses_client,
-        system_prompt,
+        system_prompts,
         message_input,
         tools,
         react_tracer,
@@ -57,25 +57,22 @@ class AgentReACT:
         tool_call_max_retries=None,
         tool_call_retry_interval=None,
     ):
-        if not isinstance(system_prompt, str) or not system_prompt.strip():
-            raise ValueError('system_prompt must be a non-empty string')
-        if not isinstance(final_output_schema or {}, dict):
-            raise TypeError('final_output_schema must be a JSON schema object')
-        if not isinstance(max_steps, int) or max_steps < 0:
-            raise ValueError('max_steps must be a non-negative integer')
-        if not isinstance(records_input or [], list):
-            raise TypeError('records_input must be a list')
-
         self.app = app
         self.responses_client = responses_client
-        self.system_prompt = system_prompt
+        if not isinstance(system_prompts, (list, tuple)):
+            raise TypeError('system_prompts must be a list or tuple of strings')
+        if not all(isinstance(system_prompt, str) for system_prompt in system_prompts):
+            raise TypeError('system_prompts must contain only strings')
+        self.system_prompts = list(system_prompts)
         self.message_input = message_input
         self.react_tracer = react_tracer
         self.final_output_schema = final_output_schema or {}
         self.max_steps = max_steps
         self.max_steps_prompt = max_steps_prompt
         self.context = dict(context or {})
+
         self.records_input = self._validate_records_input(records_input or [])
+
         self.skill = skill
         self.completion_max_retries = (
             config.COMPLETION_MAX_RETRIES
@@ -98,16 +95,20 @@ class AgentReACT:
         self._tool_instances = {}
         self._register_tools(tools)
 
-        system_prompts = [{'role': 'system', 'content': system_prompt}]
+        memory_system_prompts = [
+            {'role': 'system', 'content': system_prompt}
+            for system_prompt in self.system_prompts
+        ]
         if self.final_output_schema:
-            system_prompts.append({
+            memory_system_prompts.append({
                 'role': 'system',
                 'content': self._schema_prompt(),
             })
-        self.memory = OpenAIMemory(system_prompts)
+        self.memory = OpenAIMemory(memory_system_prompts)
         self.memory += {'role': 'user', 'content': message_input}
 
-        self._append_records_input()
+
+        self._inject_records_input()
 
         self._append_skill_input()
 
@@ -146,82 +147,115 @@ class AgentReACT:
     ############# input operations
     @staticmethod
     def _validate_records_input(records_input):
-        validated_records = []
-        for index, item in enumerate(records_input):
-            if not isinstance(item, dict):
-                raise TypeError(f'records_input[{index}] must be an object')
-            required = {'source_type', 'connection_id', 'record_id'}
-            missing = required - set(item)
-            if missing:
-                raise ValueError(
-                    f'records_input[{index}] missing required fields: {", ".join(sorted(missing))}'
+        seen_records = set()
+        def __validate_records(records):
+            result = []
+            for index, record in enumerate(records):
+                if not isinstance(record, dict):
+                    raise TypeError(f'records_input[{index}] must be an object')
+                required = {'source_type', 'connection_id', 'record_id'}
+                missing = required - set(record)
+                if missing:
+                    raise ValueError(
+                        f'records_input[{index}] missing required fields: {", ".join(sorted(missing))}'
+                    )
+                if not isinstance(record['source_type'], str) or not record['source_type'].strip():
+                    raise TypeError(f'records_input[{index}].source_type must be a non-empty string')
+                if record['connection_id'] is not None and (
+                    not isinstance(record['connection_id'], int) or isinstance(record['connection_id'], bool)
+                ):
+                    raise TypeError(f'records_input[{index}].connection_id must be an integer or null')
+                if not isinstance(record['record_id'], int) or isinstance(record['record_id'], bool):
+                    raise TypeError(f'records_input[{index}].record_id must be an integer')
+                record_key = (
+                    record['source_type'],
+                    record['connection_id'],
+                    record['record_id'],
                 )
-            if not isinstance(item['source_type'], str) or not item['source_type'].strip():
-                raise TypeError(f'records_input[{index}].source_type must be a non-empty string')
-            if item['connection_id'] is not None and (
-                not isinstance(item['connection_id'], int) or isinstance(item['connection_id'], bool)
-            ):
-                raise TypeError(f'records_input[{index}].connection_id must be an integer or null')
-            if not isinstance(item['record_id'], int) or isinstance(item['record_id'], bool):
-                raise TypeError(f'records_input[{index}].record_id must be an integer')
-            unexpected = set(item) - required
-            if unexpected:
-                raise ValueError(
-                    f'records_input[{index}] has unsupported fields: {", ".join(sorted(unexpected))}'
-                )
-            validated_records.append({name: item[name] for name in required})
-        return validated_records
+                if record_key not in seen_records:
+                    seen_records.add(record_key)
+                    result.append(record)
+            return result
 
-    def _append_records_input(self):
+        if isinstance(records_input, dict):
+            result = {}
+            for prompt, records in records_input.items():
+                if not isinstance(prompt, str):
+                    raise TypeError('records_input prompts must be strings')
+                if not isinstance(records, (list, tuple)):
+                    raise TypeError('records_input groups must be lists or tuples')
+                result[prompt] = __validate_records(records)
+            return result
+        elif isinstance(records_input, (list, tuple)):
+            return __validate_records(records_input)
+        raise TypeError('records_input must be a list, tuple, or dictionary')
+
+    def _inject_records_input(self):
         if self.records_input and not self.context.get('project_uuid'):
             raise ValueError('context.project_uuid is required when records_input is provided')
-        for index, item in enumerate(self.records_input[:self.MAX_RECORDS_INPUT]):
-            arguments = {
-                'source_type': item['source_type'],
-                'connection_id': item['connection_id'],
-                'record_id': item['record_id'],
-            }
-            started_at = time.monotonic()
-            record_call = {
-                'type': 'function_call',
-                'call_id': f'records_input_{index}',
-                'name': 'get_record',
-                'arguments': json.dumps(arguments, ensure_ascii=False),
-            }
-            self.memory += record_call
-            try:
-                result = GetRecord().execute(
-                    **arguments,
-                    project_uuid=self.context['project_uuid'],
-                    app=self.app,
-                    record_cache=self.context.get('record_cache'),
-                )
-            except Exception as error:
-                observation = json.dumps({
-                    'status': 'error',
-                    'tool_name': 'get_record',
-                    'error_type': type(error).__name__,
-                    'error_message': str(error),
-                }, ensure_ascii=False)
-                self._trace(
-                    action_type='error', action_status='failed', step=0,
-                    tool_name=record_call['name'], tool_arguments=arguments,
-                    observation=observation, result=str(error),
-                    statistics=self._statistics(started_at, {
-                        'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
-                    }, []),
-                )
-            else:
-                observation = self._format_observation(result)
-                self._trace(
-                    action_type='tool_call', action_status='completed', step=0,
-                    tool_name=record_call['name'], tool_arguments=arguments,
-                    observation=observation, result=result,
-                    statistics=self._statistics(started_at, {
-                        'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
-                    }, []),
-                )
-            self._append_tool_output(record_call, observation)
+
+        call_index = 0
+        def __inject_records(records):
+            nonlocal call_index
+            for record in records:
+                arguments = {
+                    'source_type': record['source_type'],
+                    'connection_id': record['connection_id'],
+                    'record_id': record['record_id'],
+                }
+                started_at = time.monotonic()
+                record_call = {
+                    'type': 'function_call',
+                    'call_id': f'records_input_{call_index}',
+                    'name': 'get_record',
+                    'arguments': json.dumps(arguments, ensure_ascii=False),
+                }
+                self.memory += record_call
+                try:
+                    result = GetRecord().execute(
+                        **arguments,
+                        project_uuid=self.context['project_uuid'],
+                        app=self.app,
+                        record_cache=self.context.get('record_cache'),
+                        context=self.context,
+                    )
+                except Exception as error:
+                    observation = json.dumps({
+                        'status': 'error',
+                        'tool_name': 'get_record',
+                        'error_type': type(error).__name__,
+                        'error_message': str(error),
+                    }, ensure_ascii=False)
+                    self._trace(
+                        action_type='error', action_status='failed', step=0,
+                        tool_name=record_call['name'], tool_arguments=arguments,
+                        observation=observation, result=str(error),
+                        statistics=self._statistics(started_at, {
+                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                        }, []),
+                    )
+                else:
+                    observation = self._format_observation(result)
+                    self._trace(
+                        action_type='tool_call', action_status='completed', step=0,
+                        tool_name=record_call['name'], tool_arguments=arguments,
+                        observation=observation, result=result,
+                        statistics=self._statistics(started_at, {
+                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                        }, []),
+                    )
+                self._append_tool_output(record_call, observation)
+                call_index += 1
+
+        if isinstance(self.records_input, dict):
+            for prompt, records in self.records_input.items():
+                self.memory += {
+                    'role': 'system',
+                    'content': prompt,
+                }
+                __inject_records(records)
+        elif isinstance(self.records_input, (list, tuple)):
+            return __inject_records(self.records_input)
 
     def _append_skill_input(self):
         if self.skill is not None:
@@ -345,15 +379,7 @@ class AgentReACT:
         try:
             for retry in range(self.tool_call_max_retries + 1):
                 try:
-                    previous_trace_id = self.context.get('active_trace_id')
-                    self.context['active_trace_id'] = trace_id
-                    try:
-                        raw_result = self.tool_executor.execute(tool_call)
-                    finally:
-                        if previous_trace_id is None:
-                            self.context.pop('active_trace_id', None)
-                        else:
-                            self.context['active_trace_id'] = previous_trace_id
+                    raw_result = self.tool_executor.execute(tool_call)
                     observation = self._format_observation(raw_result)
                     statistics = self._statistics(started_at, usage, response_retries + retries)
                     suggestion_targets = self._get_suggestion_targets(raw_result)
@@ -375,7 +401,7 @@ class AgentReACT:
                                 source_type=target['source_type'],
                                 source_id=target['source_id'],
                                 source_title=target['source_title'],
-                                suggestion_reason=str(arguments.get('reason', '') or '').strip(),
+                                suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
                                 suggestion_text=str(raw_result.get('suggestion_text', '') or ''),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
                             )
@@ -472,8 +498,7 @@ class AgentReACT:
     ############# final answer operations
     def _validate_final_output(self, content, step, usage, retries):
         if not self.final_output_schema:
-            self._trace_final_output(content, step, usage, retries)
-            return content
+            return self._trace_final_output(content, step, usage, retries)
 
         try:
             output = json.loads(content)
@@ -481,8 +506,7 @@ class AgentReACT:
         except (json.JSONDecodeError, AgentFinalOutputSchemaError) as error:
             return self._repair_final_output(content, str(error), step + 1, usage, retries)
 
-        self._trace_final_output(output, step, usage, retries)
-        return output
+        return self._trace_final_output(output, step, usage, retries)
 
     def _repair_final_output(self, invalid_content, error, step, initial_usage, initial_retries):
         previous_content = invalid_content
@@ -520,8 +544,9 @@ class AgentReACT:
                     previous_content = result.content
                     previous_error = str(schema_error)
                 else:
-                    self._trace_final_output(output, step + correction_attempt, usage, retries)
-                    return output
+                    return self._trace_final_output(
+                        output, step + correction_attempt, usage, retries,
+                    )
 
         raise AgentFinalOutputSchemaError(previous_error)
 
@@ -535,7 +560,7 @@ class AgentReACT:
                 statistics=self._statistics(None, usage, retries),
                 with_input=True
             )
-            return
+            return result
 
         sources = None
         if phase == 'analysis' and isinstance(result, dict):
@@ -547,11 +572,13 @@ class AgentReACT:
                 result = dict(result)
                 result['analysis_report'] = analysis_report
                 sources = remove_sources_content_and_snippets(sources)
+                result['sources'] = sources
         self._trace(
             action_type=f'{phase}', action_status='completed', step=step,
             result=result, statistics=self._statistics(None, usage, retries),
             sources=sources, with_input=True
         )
+        return result
 
     def _trace(self, *, action_type, action_status, step, result=None, tool_name=None,
                tool_arguments=None, observation=None, statistics=None,
@@ -563,7 +590,7 @@ class AgentReACT:
         return self.react_tracer.record(
             context=self.context,
             record_phase_context=record_phase_context,
-            prompt=self.system_prompt if with_input else '',
+            prompt='\n\n'.join(self.system_prompts) if with_input else '',
             input=self.message_input if with_input else '',
             result=result,
             action_type=action_type,

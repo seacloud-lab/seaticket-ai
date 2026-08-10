@@ -8,13 +8,36 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
         'description': 'Create a pending suggestion to notify ticket assignees.',
         'parameters': {
             'type': 'object',
-            'properties': {'message': {'type': 'string'}, 'reason': {'type': 'string'}},
+            'properties': {
+                'message': {'type': 'string'},
+                'reason': {'type': 'string'},
+                'target': {
+                    'type': 'object',
+                    'properties': {
+                        'source_type': {'type': 'string'},
+                        'connection_id': {'type': ['integer', 'null']},
+                        'record_id': {'type': 'integer'},
+                        'source_title': {'type': 'string'},
+                    },
+                    'required': ['source_type', 'connection_id', 'record_id'],
+                    'additionalProperties': False,
+                },
+            },
             'required': ['message', 'reason'], 'additionalProperties': False,
         }, 'strict': True,
     }
 
-    def execute(self, message, reason, context=None):
+    def execute(self, message, reason, target=None, context=None):
         message = str(message or '').strip()
         if not message or not str(reason or '').strip():
             raise ValueError('message and reason must not be empty')
-        return self.suggestion_result(content=message, context=context)
+        if target is not None and target.get('source_type') != 'ticket':
+            raise ValueError('notification target must be a ticket')
+        if target is None and (context or {}).get('source_type') != 'ticket':
+            raise ValueError('notification target is required outside a ticket task')
+        return self.suggestion_result(
+            suggestion_content=message,
+            context=context,
+            targets=[target] if target else None,
+            suggestion_reason=reason,
+        )

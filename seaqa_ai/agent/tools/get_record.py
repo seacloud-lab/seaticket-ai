@@ -1,6 +1,5 @@
-from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.seadb_models.utils import get_connection_table_name
-from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.utils.constants import ExtraSourceType, ConnectionType
 from seaqa_ai.utils.tools import BasicTool
 
 
@@ -41,42 +40,49 @@ class GetRecord(BasicTool):
     }
 
     _SELECT_FIELDS = {
-        'ticket': (
+        ExtraSourceType.TICKET.value: (
             '_pk', 'title', 'content', 'state', 'substate', 'type', 'tags',
             'assignees', 'participants', 'linked_connection_records', 'priority',
             'creator', 'comment_count', 'created_time', 'modified_time',
             'closed_time', 'due_date', 'last_agent_processed_at',
         ),
-        'github_issue': (
+        ExtraSourceType.KNOWLEDGE_BASE.value: (
+            '_pk', 'title', 'content', 'tags', 'creator', 'created_time',
+            'last_modifier', 'modified_time',
+        ),
+        ConnectionType.GITHUB_ISSUE.value: (
             '_pk', 'issue_id', 'issue_number', 'title', 'content', 'state',
             'state_reason', 'labels', 'issue_type', 'author', 'assignees', 'url',
             'created_time', 'modified_time', 'closed_time', 'comment_count',
             'linked_ticket',
         ),
-        'discourse_forum': (
+        ConnectionType.DISCOURSE_FORUM.value: (
             '_pk', 'topic_id', 'title', 'slug', 'views', 'category_id',
             'created_time', 'modified_time', 'resolved', 'linked_ticket',
         ),
-        'email': (
+        ConnectionType.EMAIL.value: (
             '_pk', 'title', 'modified_time', 'unread', 'tags', 'linked_ticket',
         ),
-        'general_task': (
+        ConnectionType.GENERAL_TASK.value: (
             '_pk', 'source_task_id', 'url', 'title', 'status', 'size', 'priority',
             'assignees', 'participants', 'version', 'others', 'content', 'due_date',
             'modified_time', 'created_time', 'linked_ticket',
         ),
     }
     _SUPPORTED_SOURCE_TYPES = frozenset(_SELECT_FIELDS)
-    _CONNECTION_REQUIRED_SOURCE_TYPES = _SUPPORTED_SOURCE_TYPES - {'ticket'}
+    _CONNECTION_REQUIRED_SOURCE_TYPES = frozenset(
+        source_type
+        for source_type in _SUPPORTED_SOURCE_TYPES
+        if not ExtraSourceType.is_valid(source_type)
+    )
 
     @classmethod
     def _build_select_fields(cls, source_type):
         return ', '.join(f'`{field}`' for field in cls._SELECT_FIELDS[source_type])
 
     @classmethod
-    def _build_where_clause(cls, source_type, record_id):
+    def _build_where_clause(cls, record_id):
         # All supported primary tables use the same soft-delete convention.
-        cls._SELECT_FIELDS[source_type]
         return (
             f'`_pk` = {record_id} '
             'AND (`deleted` = False OR `deleted` IS NULL)'
@@ -95,18 +101,22 @@ class GetRecord(BasicTool):
         return parsed_value
 
     @staticmethod
-    def _validate_connection(app, project_uuid, source_type, connection_id):
-        with app.db_session_class() as db_session:
-            connections = ProjectConnection.get_connections_by_ids(
-                db_session,
-                uuid_str_to_32_chars(project_uuid),
-                [connection_id],
-            )
-
-        if not connections or connections[0]['type'] != source_type:
+    def _validate_connection(context, source_type, connection_id):
+        context = context or {}
+        connections = (
+            context.get('document_connections', [])
+            + context.get('issue_connections', [])
+            + context.get('task_connections', [])
+        )
+        if not any(
+            isinstance(connection, dict)
+            and connection.get('id') == connection_id
+            and connection.get('type') == source_type
+            for connection in connections
+        ):
             raise ValueError(
-                f'Connection {connection_id} is not an active {source_type!r} '
-                f'connection in this project'
+                f'Connection {connection_id} is not an allowed {source_type!r} '
+                'connection in this context'
             )
 
     @classmethod
@@ -115,7 +125,7 @@ class GetRecord(BasicTool):
         return (
             f'SELECT {cls._build_select_fields(source_type)} '
             f'FROM `{table_name}` '
-            f'WHERE {cls._build_where_clause(source_type, record_id)} '
+            f'WHERE {cls._build_where_clause(record_id)} '
             'LIMIT 1'
         )
 
@@ -165,7 +175,7 @@ class GetRecord(BasicTool):
         except Exception:
             return []
 
-    def execute(self, source_type, connection_id, record_id, project_uuid, app, record_cache=None):
+    def execute(self, source_type, connection_id, record_id, project_uuid, app, record_cache=None, context=None):
         source_type = str(source_type or '').strip()
         if source_type not in self._SUPPORTED_SOURCE_TYPES:
             available_source_types = ', '.join(sorted(self._SUPPORTED_SOURCE_TYPES))
@@ -185,7 +195,7 @@ class GetRecord(BasicTool):
             return record_cache[cache_key]
 
         if source_type in self._CONNECTION_REQUIRED_SOURCE_TYPES:
-            self._validate_connection(app, project_uuid, source_type, connection_id)
+            self._validate_connection(context, source_type, connection_id)
 
         sql = self._build_query(source_type, connection_id, record_id)
         results = app.seadb_api.query_rows(project_uuid, sql).get('results', [])
@@ -194,9 +204,9 @@ class GetRecord(BasicTool):
                 f'No active {source_type!r} record found with record_id {record_id}'
             )
         record = results[0]
-        if source_type == 'ticket':
+        if source_type == ExtraSourceType.TICKET.value:
             record = self._format_ticket_users(record, getattr(app, 'username_resolver', None))
-        elif source_type == 'github_issue':
+        elif source_type == ConnectionType.GITHUB_ISSUE.value:
             record = dict(record)
             labels_cache_key = self._github_labels_cache_key(connection_id)
             if record_cache is not None and labels_cache_key in record_cache:

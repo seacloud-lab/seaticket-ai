@@ -18,6 +18,7 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                     '<reference_0>. Place multiple citations directly next to each other, '
                     'for example <reference_0><reference_1>; do not combine labels or '
                     'invent labels.'
+                    'Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your analysis report.'
                 ),
             },
             'recommended_actions': {
@@ -42,8 +43,8 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
             'original_issue_type': {
                 'type': 'string',
                 'description': (
-                    'Original issue type from the record, or an empty string when unavailable '
-                    'or inapplicable.'
+                    'Original issue type from the record. Include only when the injected skill '
+                    'supports issue-type modification.'
                 ),
             },
             'classified_issue_type': {
@@ -59,26 +60,9 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                     'Agent-classified issue type based on the record title and content. '
                     'Default classifications are Bug, Feature, Question, Spam, and '
                     'Notification. The injected skill may define additional classifications '
-                    'or override these defaults. Use an empty string when classification is '
-                    'not required.'
+                    'or override these defaults. Include only when the injected skill '
+                    'supports issue-type modification.'
                 ),
-            },
-            'reference_related_records': {
-                'type': 'array',
-                'description': (
-                    'Successfully loaded record identities selected from Prelude event_related_records for '
-                    'handling. The triggering record must remain the first entry.'
-                ),
-                'items': {
-                    'type': 'object',
-                    'properties': {
-                        'source_type': {'type': 'string'},
-                        'connection_id': {'type': ['integer', 'null']},
-                        'record_id': {'type': 'integer'},
-                    },
-                    'required': ['source_type', 'connection_id', 'record_id'],
-                    'additionalProperties': False,
-                },
             },
             'skip_handling': {
                 'type': 'boolean',
@@ -88,9 +72,6 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
         'required': [
             'analysis_report',
             'recommended_actions',
-            'original_issue_type',
-            'classified_issue_type',
-            'reference_related_records',
             'skip_handling',
         ],
         'additionalProperties': True,

@@ -8,6 +8,7 @@ class AgentPhaseSpec:
     event: str
     phase: str
     message_input: str
+    records_input: dict | list
     context: dict
     max_steps = 10
     max_steps_prompt = 'Maximum tool-call steps reached. Return the final answer without calling tools.'

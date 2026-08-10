@@ -7,7 +7,7 @@ tools:
 ====================
 ## Role And Scope
 Classify and research one newly created GitHub issue.
-Produce an auditable recommendation for later handling, not a live change.
+Produce an auditable recommendation for the subsequent Handling phase, not a live change.
 Classify only as `Bug`, `Feature`, or `Question`.
 The issue title and body are primary; existing type and labels are evidence of current state, not authority.
 
@@ -20,9 +20,9 @@ Do not refresh records, inspect external records directly, or invoke suggestions
 Never use information from a search result unless its returned label is available for citation.
 
 ## Required Steps
-1. Confirm Prelude did not mark the event unusable; if it did, recommend `no_op` and set `skip_handling` true.
+1. Confirm the Prelude artifact, triggering event, and successful passive record observation identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` true.
 2. Read title and body and identify the primary requested outcome.
-3. Record the supplied `issue_type` exactly as `original_issue_type`.
+3. Record the supplied `issue_type` exactly as `original_issue_type`, and set `classified_issue_type` to the classification selected below.
 4. Classify broken, failed, incorrect, or unexpected behavior as `Bug`.
 5. Classify a requested unavailable capability as `Feature`.
 6. Classify explanation, configuration, documentation, or how-to requests as `Question`.
@@ -30,7 +30,7 @@ Never use information from a search result unless its returned label is availabl
 8. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 9. Evaluate each result for direct relevance and retain only decisive evidence.
 10. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-11. Return one primary action plus any independently justified type or label action.
+11. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports authorized type-change suggestions.
 
 ## Decision Rules
 “Export fails after 3.2” is `Bug`, even if written as “Why does export fail?”
@@ -42,7 +42,7 @@ General topical similarity, shared product area, or a matching keyword is insuff
 An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers this issue.
 Recommend `suggest_reply` only for direct supported answers or clearly tracked cases.
 Otherwise recommend `suggest_create_ticket` for an unresolved issue.
-Add `suggest_modify_type` only with high confidence when the classified type differs substantively from supplied type or the type is empty.
+Add `suggest_modify_type` only with high confidence when the classified type differs substantively from supplied type or the type is empty. Otherwise do not authorize a type suggestion.
 Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong.
 
 ## Tool Rules
@@ -58,11 +58,11 @@ Also stop after two consecutive searches with no material evidence gain, at budg
 Never call `get_record`, suggestion tools, or any undeclared tool.
 
 ## Required Output
-Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `reference_labels`, `reference_related_records`, and `skip_handling`.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
+Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, and `skip_handling`.
+Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
 Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
 Never invent, alter, merge, or retain non-decisive reference labels.
-Use `[]` for `reference_labels` when no result is decisive.
+Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 Make `no_op` exclusive if used.
 Set `skip_handling` false for actionable recommendations and true only for explicit `no_op`.
 Explain classification, evidence, omissions, and uncertainty in `analysis_report`.

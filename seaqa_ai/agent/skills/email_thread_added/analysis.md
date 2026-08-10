@@ -16,12 +16,11 @@ Use only the triggering event and successful passive record observations, the Pr
 Treat `first_email` as the primary thread content.
 Use later thread messages only when they materially clarify the opening email.
 Do not retrieve records or invoke suggestion tools.
-Set `original_issue_type` to an empty string.
 Do not place full sensitive content into queries or reports.
 
 ## Required Steps
 1. Confirm the Prelude artifact identifies a usable new thread.
-2. If Prelude marks the event unusable, recommend only `no_op`, set `skip_handling` true, and make no search call.
+2. If the Prelude artifact, triggering event, or successful passive record observations do not identify a usable thread and opening email, recommend only `no_op`, set `skip_handling` true, and make no search call.
 3. Read the opening subject and message to identify its primary purpose.
 4. Check Spam and Notification definitions before treating mail as support content.
 5. For support content, classify it as `Bug`, `Feature`, or `Question`.
@@ -60,11 +59,9 @@ Never call `get_record`, suggestion tools, or undeclared tools.
 
 ## Required Output
 Return all required Analysis JSON fields.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
-Set `original_issue_type` to an empty string and `classified_issue_type` to the selected class.
 Return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, `suggest_move_to_spam`, or `no_op`.
 Place exact search-returned labels next to supported claims.
-Keep only decisive labels in `reference_labels`, otherwise use `[]`.
+Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 Make `no_op` exclusive and set `skip_handling` true only for it.
 State why Spam or Notification did not require search when applicable.
 

@@ -16,11 +16,10 @@ Use only the triggering event and successful passive record observations, the Pr
 Treat first-post content as immutable primary evidence.
 Use the topic's resolved state as context, not as a shortcut to an action.
 Do not retrieve any record and do not invoke suggestions.
-Set `original_issue_type` to an empty string.
 
 ## Required Steps
 1. Confirm the topic is usable from the triggering event and successful passive record observations and Prelude.
-2. If Prelude marks the event unusable, recommend only `no_op`, set `skip_handling` true, and make no search call.
+2. If the Prelude artifact, triggering event, or successful passive record observations do not identify a usable topic and opening post, recommend only `no_op`, set `skip_handling` true, and make no search call.
 3. Read title and first post and identify the primary requested outcome.
 4. Classify broken or unexpected behavior as `Bug`.
 5. Classify an unavailable requested capability as `Feature`.
@@ -55,11 +54,9 @@ Never call `get_record`, suggestion tools, or undeclared tools.
 
 ## Required Output
 Return all required Analysis JSON fields.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
-Set `original_issue_type` to an empty string and `classified_issue_type` to the chosen class.
 Return one primary recommendation: `suggest_reply`, `suggest_create_ticket`, or `no_op`.
 Place exact search-returned labels beside supported claims.
-Keep only decisive labels in `reference_labels`, otherwise use `[]`.
+Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 Make `no_op` exclusive and set `skip_handling` true exactly for it.
 Explain why the available evidence does or does not support a reply.
 

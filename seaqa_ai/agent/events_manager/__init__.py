@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from seaqa_ai import config
+from seaqa_ai.agent.models import AgentTask
+from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
+
+from .constants import EVENT_TYPE_GENERAL_TASK_UPDATED, EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +25,8 @@ class EventsManager:
     def __init__(self, app, task_queue_manager: TaskQueueManager):
         from .events_collector.redis_collector import RedisEventsCollector
         from .events_collector.timed_collector import TimedEventsCollector
-        from .router import EventRouter
-        from .validator import EventsFilter
 
         self._task_queue_manager = task_queue_manager
-        self._events_filter = EventsFilter()
-        self._router = EventRouter()
         self._redis_collector = RedisEventsCollector(app.redis_client.connection)
         self._timed_collector = TimedEventsCollector(app)
         self._should_stop = threading.Event()
@@ -46,7 +48,7 @@ class EventsManager:
         logger.info('Events manager stopped')
 
     def handle(self, event: AgentEvent) -> bool:
-        if not self._events_filter.should_process(event):
+        if not self._should_process(event):
             logger.debug(
                 'Ignoring no-op agent event (source=%s type=%s record=%s)',
                 event.source_type,
@@ -54,7 +56,18 @@ class EventsManager:
                 event.record_id,
             )
             return True
-        return self._task_queue_manager.submit(self._router.route(event))
+        return self._task_queue_manager.submit(
+            AgentTask(
+                schema_version=AGENT_TASK_SCHEMA_VERSION,
+                task_id=str(uuid4()),
+                project_uuid=event.project_uuid,
+                target_source_type=event.source_type,
+                target_record_id=event.record_id,
+                target_connection_id=event.connection_id,
+                trigger_event=event,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
 
     def _start_flush_loop(self) -> None:
         if self._flush_thread and self._flush_thread.is_alive():
@@ -74,3 +87,14 @@ class EventsManager:
                 logger.exception('Failed to flush pending agent tasks')
             if self._should_stop.wait(config.AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL):
                 return
+
+    @staticmethod
+    def _should_process(event: AgentEvent) -> bool:
+        if event.event_type == EVENT_TYPE_GENERAL_TASK_UPDATED:
+            old_status = str(event.event['old_value'].get('status') or '').strip().lower()
+            new_status = str(event.event['new_value'].get('status') or '').strip().lower()
+            return old_status != 'done' and new_status == 'done'
+        if event.source_type == 'github_issue' and event.event_type == EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED:
+            author = str(event.event['new_value'].get('author') or '').strip().lower()
+            return not author.endswith('[bot]')
+        return True

@@ -5,6 +5,9 @@ import threading
 from redis.exceptions import ConnectionError as NoMQAvailable, ResponseError, TimeoutError
 
 from seaqa_ai.agent.agent_service import AgentService
+from seaqa_ai.db.models import ProjectConnection
+from seaqa_ai.utils import uuid_str_to_32_chars
+from seaqa_ai.utils.constants import ConnectionType
 
 from .constants import AGENT_TASK_QUEUE_NAME, AGENT_TASK_SCHEMA_VERSION
 from .serializer import AgentTaskSerializer
@@ -98,6 +101,8 @@ class AgentTaskWorker:
             )
             return
 
+        project = self._build_agent_project_context(project)
+
         try:
             AgentService(self._app, project).run(task)
         except Exception:
@@ -108,3 +113,21 @@ class AgentTaskWorker:
                 task.target_source_type,
                 task.target_record_id,
             )
+
+    def _build_agent_project_context(self, project):
+        project = dict(project)
+        project_uuid = uuid_str_to_32_chars(project['uuid'])
+        connection_types = {
+            'document_connections': ConnectionType.get_document_connection_types(),
+            'issue_connections': ConnectionType.get_issue_connection_types(),
+            'task_connections': ConnectionType.get_task_connection_types(),
+        }
+        with self._app.db_session_class() as db_session:
+            for context_key, types in connection_types.items():
+                project[context_key] = (
+                    ProjectConnection.get_connections_by_project_and_types(
+                        db_session, project_uuid, types,
+                    )
+                    if types else []
+                )
+        return project

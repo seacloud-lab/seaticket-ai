@@ -50,13 +50,11 @@ Do not use unspecified data sources to fill a missing due date, owner, or notifi
 
 ## Required Output
 Return the required analysis JSON without tool use.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
 Use only `suggest_notify_assignee`, `suggest_close_ticket`, or `no_op` in `recommended_actions`.
 Make `no_op` the sole recommended action whenever it is selected.
 In `analysis_report`, identify due-date and state evidence, rule effects, and deduplication findings.
 Explain why every selected action is warranted and every material action is omitted.
-Set `original_issue_type` and `classified_issue_type` to empty strings.
-Set `reference_labels` to an empty array and set `skip_handling` true exactly for `no_op`.
+Set `skip_handling` true exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 Do not read, search, or suggest anything in this phase.

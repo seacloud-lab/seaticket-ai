@@ -1,11 +1,11 @@
-"""Top-level orchestration for one typed agent task."""
+"""Deterministic multi-phase workflow for one typed agent task."""
 import json
 import logging
 
 from seaqa_ai.agent.models import AgentTask
-from seaqa_ai.agent.tools.engage_phase import EngagePhase
+from seaqa_ai.agent.agent_service.constants import LINKED_TICKET_TRACE_EVENT_TYPES
+from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter
 from seaqa_ai.agent.tools.get_record import GetRecord
-from seaqa_ai.agent.utils.react import AgentReACT
 from seaqa_ai.agent.utils.react.tracer import AgentReACTTracer
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import now_iso
@@ -14,36 +14,28 @@ from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
 
 logger = logging.getLogger(__name__)
 
-TOP_LEVEL_MAX_STEPS = 5
-FINAL_OUTPUT_SCHEMA = {
-    'type': 'object',
-    'properties': {
-        'summary': {
-            'type': 'string',
-            'description': 'A concise, factual summary of the completed or skipped phases and outcome.',
-        },
-    },
-    'required': ['summary'],
-    'additionalProperties': True,
-}
-
-
 class AgentService:
-    """Execute one task while keeping workflow decisions in the top-level agent."""
+    """Execute one task through the deterministic phase workflow."""
 
     def __init__(self, app, project):
         self.app = app
         self.project = project
 
+    ##### Agent running #####
     def run(self, task: AgentTask) -> dict:
         if not isinstance(task, AgentTask):
             raise TypeError('task must be an AgentTask')
 
-        run_id = self._create_run_record(task)
-        tracer = AgentReACTTracer(task.project_uuid, self.app.seadb_api)
+        run_id = None
+        tracer = None
         traces_flushed = False
-        record_cache = {}
         try:
+            run_id = self._create_run_record(task)
+            context = self._build_context(task, run_id)
+
+            record_cache = {}
+            context['record_cache'] = record_cache
+
             target_record = GetRecord().execute(
                 source_type=task.target_source_type,
                 connection_id=task.target_connection_id,
@@ -51,42 +43,45 @@ class AgentService:
                 project_uuid=task.project_uuid,
                 app=self.app,
                 record_cache=record_cache,
+                context=context,
             )
-            context = self._build_context(task, run_id, target_record)
-            context['record_cache'] = record_cache
-            message_input = self._build_message_input(task)
+
+            tracer, trace_context = self._build_trace_context(
+                task, context, record_cache, target_record,
+            )
+            context.update(trace_context)
+
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
                 ((self.project.get('settings') or {}).get('agent') or {}).get('model'),
             )
-            result = AgentReACT(
-                app=self.app,
-                responses_client=responses_client,
-                system_prompt=self._get_system_prompt(),
-                message_input=message_input,
-                tools=[EngagePhase],
-                react_tracer=tracer,
-                final_output_schema=FINAL_OUTPUT_SCHEMA,
-                max_steps=TOP_LEVEL_MAX_STEPS,
-                context=context
-            ).run()
-            result = dict(result)
-            result.update({'run_id': run_id, 'status': 'completed'})
+
+            AgentPhasePromoter(
+                self.app,
+                task,
+                responses_client,
+                tracer,
+                context,
+                record_cache,
+                project_prompt=(self.project.get('settings') or {}).get('prompt', ''),
+            ).start()
+
             self._finalize_run_record(
-                task.project_uuid, run_id, status='completed', items_processed=1,
+                task, run_id, status='completed', items_processed=1,
             )
             pending_suggestion_action_ids = tracer.flush()
             traces_flushed = True
             self._trigger_auto_actions(task.project_uuid, pending_suggestion_action_ids)
-            return result
+
         except Exception as error:
-            self._finalize_run_record(
-                task.project_uuid,
-                run_id,
-                status='failed',
-                items_processed=0,
-                error_message=str(error)[:1000],
-            )
+            if run_id is not None:
+                self._finalize_run_record(
+                    task,
+                    run_id,
+                    status='failed',
+                    items_processed=0,
+                    error_message=str(error)[:1000],
+                )
             logger.exception(
                 'Agent task failed: task_id=%s project=%s target=%s:%s',
                 task.task_id,
@@ -96,7 +91,7 @@ class AgentService:
             )
             raise
         finally:
-            if not traces_flushed:
+            if tracer is not None and not traces_flushed:
                 tracer.flush()
 
     def _trigger_auto_actions(self, project_uuid, action_ids):
@@ -116,52 +111,96 @@ class AgentService:
                 exc_info=True,
             )
 
-    @staticmethod
-    def _build_context(task, run_id, target_record):
-        source_id = (
-            task.target_record_id
-            if task.target_connection_id is None
-            else f'{task.target_connection_id}_{task.target_record_id}'
-        )
+    ##### Agent context #####
+    def _build_context(self, task, run_id):
         return {
             'project_uuid': task.project_uuid,
             'run_id': run_id,
             'task_id': task.task_id,
-            'idempotency_key': task.idempotency_key,
-            'source_type': task.target_source_type,
-            'source_id': source_id,
-            'source_title': target_record.get('title', ''),
-            'target_record': target_record,
             'triggering_event': task.trigger_event.event,
+            'document_connections': self.project.get('document_connections', []),
+            'issue_connections': self.project.get('issue_connections', []),
+            'task_connections': self.project.get('task_connections', []),
         }
 
     @staticmethod
-    def _build_message_input(task):
-        event = task.trigger_event
-        return json.dumps({
-            'task_id': task.task_id,
-            'idempotency_key': task.idempotency_key,
-            'triggering_event': {
-                'event_id': event.event_id,
-                'correlation_id': event.correlation_id,
-                'causation_id': event.causation_id,
-                'event_type': event.event_type,
-                'event': event.event,
-                'modified_time': event.modified_time.isoformat() if event.modified_time else None,
-                'received_at': event.received_at.isoformat(),
-            },
-            'records_input': [{
-                'source_type': task.target_source_type,
-                'connection_id': task.target_connection_id,
-                'record_id': task.target_record_id,
-            }],
-        }, ensure_ascii=False)
+    def _source_id(connection_id, record_id):
+        return record_id if connection_id is None else f'{connection_id}_{record_id}'
 
-    @staticmethod
-    def _get_system_prompt():
-        from pathlib import Path
+    def _build_trace_context(self, task, context, record_cache, target_record):
+        linked_ticket_id = target_record.get('linked_ticket')
+        if (
+            task.trigger_event.event_type in LINKED_TICKET_TRACE_EVENT_TYPES
+            and linked_ticket_id
+        ):
+            try:
+                linked_ticket_record = GetRecord().execute(
+                    source_type='ticket',
+                    connection_id=None,
+                    record_id=linked_ticket_id,
+                    project_uuid=task.project_uuid,
+                    app=self.app,
+                    record_cache=record_cache,
+                    context=context,
+                )
+            except Exception:
+                logger.warning(
+                    'Failed to load linked ticket %s for %s:%s; using the triggering record.',
+                    linked_ticket_id,
+                    task.target_source_type,
+                    task.target_record_id,
+                    exc_info=True,
+                )
+            else:
+                return self._build_linked_ticket_trace_context(
+                    task, target_record, linked_ticket_record,
+                )
+        return self._build_target_trace_context(task, target_record)
 
-        return Path(__file__).with_name('system_prompt.xml').read_text(encoding='utf-8')
+    def _build_target_trace_context(self, task, target_record):
+        source_id = self._source_id(task.target_connection_id, task.target_record_id)
+        source_title = target_record.get('title', '')
+        return self._new_tracer(task, task.target_source_type, source_id, source_title), {
+            'source_type': task.target_source_type,
+            'source_id': source_id,
+            'source_title': source_title,
+            'trigger_source_type': task.target_source_type,
+            'trigger_source_id': source_id,
+            'trigger_source_title': source_title,
+            'target_record': target_record,
+        }
+
+    def _build_linked_ticket_trace_context(self, task, target_record, linked_ticket_record):
+        trigger_source_id = self._source_id(task.target_connection_id, task.target_record_id)
+        trigger_source_title = target_record.get('title', '')
+        linked_ticket_id = int(linked_ticket_record['_pk'])
+        linked_ticket_identity = {
+            'source_type': 'ticket',
+            'connection_id': None,
+            'record_id': linked_ticket_id,
+        }
+        source_title = linked_ticket_record.get('title', '')
+        return self._new_tracer(task, 'ticket', linked_ticket_id, source_title), {
+            'source_type': 'ticket',
+            'source_id': linked_ticket_id,
+            'source_title': source_title,
+            'trigger_source_type': task.target_source_type,
+            'trigger_source_id': trigger_source_id,
+            'trigger_source_title': trigger_source_title,
+            'target_record': target_record,
+            'linked_ticket_record': linked_ticket_record,
+            'linked_ticket_identity': linked_ticket_identity,
+        }
+
+    ##### Tracer & SeaDB record OP #####
+    def _new_tracer(self, task, source_type, source_id, source_title):
+        return AgentReACTTracer(
+            task.project_uuid,
+            self.app.seadb_api,
+            target_source_type=source_type,
+            target_source_id=source_id,
+            target_source_title=source_title,
+        )
 
     def _create_run_record(self, task):
         response = self.app.seadb_api.insert_rows(
@@ -179,9 +218,9 @@ class AgentService:
             raise RuntimeError(f'Expected one agent run record, received {len(pks)}')
         return pks[0]
 
-    def _finalize_run_record(self, project_uuid, run_id, *, status, items_processed, error_message=''):
+    def _finalize_run_record(self, task, run_id, *, status, items_processed, error_message=''):
         self.app.seadb_api.update_rows(
-            project_uuid,
+            task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
             [{'pk': run_id, 'row': {
                 'status': status,
@@ -190,3 +229,11 @@ class AgentService:
                 'error_message': error_message,
             }}],
         )
+        if status == 'completed' and task.target_source_type == 'ticket':
+            self.app.seadb_api.update_rows(
+                task.project_uuid,
+                SchemaTables.TICKETS.table_name(),
+                [{'pk': task.target_record_id, 'row': {
+                    'last_agent_processed_at': now_iso(),
+                }}],
+            )

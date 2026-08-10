@@ -14,19 +14,18 @@ Comments have no issue classification and must not receive one.
 ## Input Contract
 Use only the triggering event and successful passive record observations, Prelude context, and observations from allowed searches.
 Read `event.new_value` as the authoritative comment.
-Use parent-topic content only to determine whether the comment raises an independent problem.
+Use parent-topic content and a Prelude-verified linked Ticket only to determine whether the comment raises an independent problem and whether owner follow-up is needed.
 Do not retrieve records or invoke suggestions.
-Set both issue-type output fields to empty strings.
 
 ## Required Steps
 1. Verify the Prelude artifact identifies a usable comment and parent topic.
-2. If Prelude marks the event unusable, recommend only `no_op`, set `skip_handling` true, and make no search call.
+2. If the Prelude artifact, triggering event, or successful passive record observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` true, and make no search call.
 3. Identify the comment's new question, report, answer, workaround, or request.
 4. Apply the strict no-op boundary before searching.
 5. Choose a first search tool only when evidence can support a decision.
 6. Search from the comment's concrete terms and retain only direct evidence.
 7. Stop under the defined budget and diminishing-return limits.
-8. Recommend `suggest_reply` for a supported direct or useful partial answer.
+8. When Prelude retained a verified linked Ticket, assess owner notification and a reply to the triggering topic independently; otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
 9. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
 10. Otherwise recommend `no_op` only under its strict boundary.
 11. Explain the decision with citations and state why an omitted action is not justified.
@@ -37,6 +36,10 @@ It may also be no-op for a clear duplicate, redirect, closure outcome, or explic
 Never infer no-op from author role, moderator status, or a topic's resolution marker.
 Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not no-op.
 When uncertain, prefer a supported suggestion.
+When Prelude retained a verified linked Ticket, do not recommend `suggest_create_ticket`.
+For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
+For a verified linked Ticket, recommend `suggest_reply` only when the triggering topic needs a visible acknowledgement, clarification, or supported status response.
+Notification and an external reply may coexist only when each has independent evidence; `no_op` is exclusive.
 Require direct-answer evidence or a strong tracked-case match with usable URL for a reply.
 Weak topical overlap cannot support an answer.
 Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
@@ -53,11 +56,10 @@ Never call `get_record`, suggestion tools, or undeclared tools.
 
 ## Required Output
 Return all required Analysis JSON fields.
-Set `reference_related_records` to an array containing the triggering record followed by any relevant, deduplicated Prelude identities with successful passive observations.
-Set `original_issue_type` and `classified_issue_type` to empty strings.
-Return exactly one primary recommended action.
+For an unlinked record, return exactly one primary recommended action.
+For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
 Cite only exact observed labels next to supporting claims.
-Retain only decisive labels in `reference_labels`, or `[]`.
+Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 Make `no_op` exclusive and set `skip_handling` true only for it.
 Keep sensitive data out of the report.
 
@@ -65,7 +67,7 @@ Keep sensitive data out of the report.
 Do not call `get_record` or suggestion tools.
 Do not classify a Discourse comment or assign GitHub issue metadata.
 Do not use author status to suppress action.
-Do not create a ticket for a matter already covered by the parent topic.
+Do not create a ticket for a matter already covered by the parent topic or when Prelude retained a verified linked Ticket.
 Do not represent a vague search match as a direct answer.
 Do not expose personal data, credentials, secrets, or unneeded quotations.
 Do not place personal data, credentials, secrets, private URLs, or unnecessary quoted content in a search query.

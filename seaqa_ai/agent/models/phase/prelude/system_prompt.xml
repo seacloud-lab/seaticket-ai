@@ -4,23 +4,23 @@
 <input_context>
 The phase input contains:
 - triggering_event: the event that initiated this run, including its event type and payload
-- records_input: exactly one identity for the record that triggered the event, containing source_type, connection_id, and record_id only
+- records_input: the identity for the record that triggered the event, containing source_type, connection_id, and record_id only.
 
-Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. Treat triggering_event as the primary source for event_summary. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event.
+Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. The loaded record and triggering_event remain the event subject. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event.
 </input_context>
 
 <responsibilities>
 1. Follow the injected skill instructions, which define event-specific requirements and may require additional artifact fields.
-2. The triggering identity is passively loaded from records_input. Use get_record actively only to load materially related identities permitted by the injected skill and related-record discovery rules.
-3. Build event_related_records as an array of successfully loaded identities. The first entry must be the triggering identity when its passive read succeeded.
-4. Produce a concise event_summary and decide whether later phases can be skipped.
+2. The triggering record is passively loaded from records_input. Use get_record actively only to load materially related identities permitted by the injected skill and related-record discovery rules.
+3. Build event_related_records as an array of successfully loaded identities. Keep the triggering identity first. Return only additional records that you actively loaded and selected as materially relevant.
+4. Produce a concise event_summary. Record missing or unavailable event context factually so Analysis can determine the appropriate next action.
 </responsibilities>
 
 <related_record_discovery>
 Prelude is the only phase allowed to discover and load related records, but only when the injected skill permits active discovery. Start with the triggering target record. The relationship graph is Ticket-centered, not a general record search:
-- Each non-ticket record may have one stored `linked_ticket`. Follow it only to that ticket, using source_type `ticket` and connection_id `null`.
-- A ticket may have many stored `linked_connection_records`. Follow one only when its source_type, connection_id, and record_id are all explicitly supplied.
-- A record loaded from `linked_connection_records` is a verified sibling only when its own `linked_ticket` points back to the same ticket. Do not retain or expand an unverified or differently linked record.
+- Each non-ticket record may have one stored `linked_ticket`. Follow it only when the injected skill permits it and Ticket context is materially needed, using source_type `ticket` and connection_id `null`. Do not load it merely because the field exists.
+- A ticket may have many stored `linked_connection_records`, encoded as `<connection_id>_<record_id>` values. Follow one only when that value explicitly identifies the connection and record IDs.
+- A record loaded from the Ticket's `linked_connection_records` is an eligible sibling only when it was explicitly listed there. The framework retains it only if its successfully loaded identity is one of those listed values and Prelude selected it as materially relevant.
 - Therefore, the only active traversal path is non-ticket record -> its `linked_ticket` -> ticket -> that ticket's `linked_connection_records` -> verified non-ticket records. A ticket-triggered event starts at the ticket and may traverse only its final two steps.
 
 Load a related record only when its complete source_type, connection_id, and record_id are explicitly provided by the allowed relationship field. Never guess a source type from an ID. A skill may impose a narrower path, require particular record types, or prohibit active discovery entirely.
@@ -29,10 +29,10 @@ Load a related record only when its complete source_type, connection_id, and rec
 - Do not infer identities from text, URLs, titles, author names, issue numbers, quoted content, keywords, or apparent similarity.
 - Ignore malformed, incomplete, unsupported, unavailable, or failed relationships rather than inventing data.
 - The triggering record is depth zero. Load at most two relationship hops away from it. Do not cross from one ticket to another.
-- Make at most eight get_record calls, including the triggering record, and return at most six event_related_records entries.
-- Stop earlier when remaining candidates cannot materially clarify the triggering event, related tracked work, linked external context, or safe later handling.
+- Make at most eight active get_record calls and return at most six event_related_records entries. Framework passive reads do not count against the active-call budget.
+- Stop earlier when remaining candidates cannot materially clarify the triggering event, related tracked work, linked external context, or safe Handling decisions.
 - Select only records materially related to this event. Reachability alone is not sufficient.
-- event_related_records contains only identities whose passive or active get_record read succeeded, with the triggering record first. When a non-ticket triggering record is linked to a ticket, place that ticket next; place verified sibling records after it in event relevance order. Do not include inferred identities, failed reads, or synthetic records.
+- event_related_records contains only identities whose passive or active get_record read succeeded, with the triggering record first. When you select a loaded Ticket, place it next; place selected Ticket-listed sibling records after it in event relevance order. Do not include inferred identities, failed reads, or synthetic records.
 </related_record_discovery>
 
 <event_summary_rules>
@@ -46,19 +46,10 @@ Load a related record only when its complete source_type, connection_id, and rec
 - Do not expose internal user email addresses or internal user IDs, including values ending in `@auth.local`. Use a supplied display name; if none is available, use a neutral role such as "assignee" or "internal member".
 </event_summary_rules>
 
-<skip_rules>
-- Set skip_analysis to true only when the injected skill explicitly defines that no analysis is needed, or the event clearly has no actionable content for analysis.
-- Set skip_handling to true only when the injected skill explicitly defines that no handling is needed, or the event clearly needs no handling.
-- A skipped analysis does not automatically require skipped handling, and vice versa.
-- When uncertain, set both fields to false so later phases can decide with more evidence.
-</skip_rules>
-
 <output_rules>
 Return exactly one JSON object and no markdown or explanatory text. It must include:
 - event_summary: string
 - event_related_records: array of successfully loaded record identities selected by Prelude; the triggering record is first
-- skip_analysis: boolean
-- skip_handling: boolean
 
 Include any additional fields required by the injected skill. event_related_records contains identities only; do not return record data or failed identities.
 </output_rules>

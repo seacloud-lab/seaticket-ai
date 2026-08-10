@@ -21,4 +21,9 @@ class SuggestReply(BasicAgentSuggestionTool):
         reply = str(reply or '').strip()
         if not reply:
             raise ValueError('reply must not be empty')
-        return self.suggestion_result(content=reply, context=context)
+        return self.suggestion_result(
+            suggestion_content=reply,
+            context=context,
+            targets=[self._target_from_trigger_context(context)],
+            suggestion_reason=reason,
+        )

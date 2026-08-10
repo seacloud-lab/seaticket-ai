@@ -30,20 +30,10 @@ class PreludePhaseSpec(AgentPhaseSpec):
                     'additionalProperties': False,
                 },
             },
-            'skip_analysis': {
-                'type': 'boolean',
-                'description': 'Whether the analysis phase should be skipped.',
-            },
-            'skip_handling': {
-                'type': 'boolean',
-                'description': 'Whether the handling phase should be skipped.',
-            },
         },
         'required': [
             'event_summary',
             'event_related_records',
-            'skip_analysis',
-            'skip_handling',
         ],
         'additionalProperties': True,
     }

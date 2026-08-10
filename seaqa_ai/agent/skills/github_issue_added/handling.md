@@ -22,7 +22,7 @@ Do not add actions because they seem helpful.
 1. Read `skip_handling` and the complete authorized action set.
 2. For `no_op` or skipped handling, make no tool call.
 3. Run authorized metadata suggestions in this order: `suggest_modify_type`, then `suggest_assign_labels`.
-4. For a type suggestion, pass observed `original_issue_type` exactly, the Analysis classified type, and a non-empty Analysis-grounded reason.
+4. Call `suggest_modify_type` only when `recommended_actions` authorizes it and the Analysis artifact provides a non-empty `classified_issue_type`. Pass `original_issue_type` exactly as supplied by Analysis, the Analysis classified type, and a non-empty Analysis-grounded reason. Do not infer, normalize, or reclassify either value.
 5. For labels, pass one to three exact observed `available_labels` and a non-empty Analysis-grounded reason.
 6. Then call exactly one authorized primary tool: `suggest_reply` or `suggest_create_ticket`.
 7. Never call both primary tools or let metadata-tool results alter the authorized primary action.
@@ -31,7 +31,7 @@ Do not add actions because they seem helpful.
 10. Record each attempted action and its separate actual outcome in `handling_report`.
 
 ## Decision Rules
-Type modification requires an explicit authorization and substantive reason from Analysis.
+Type modification requires explicit Analysis authorization, a non-empty classified type, and a substantive Analysis-grounded reason. If any required Analysis type value is unavailable, omit the type suggestion and report the constraint.
 Do not normalize, invent, or guess label names.
 Skip a label suggestion when no exact authorized label fits.
 A reply must not disclose internal ticket details or unrelated evidence.

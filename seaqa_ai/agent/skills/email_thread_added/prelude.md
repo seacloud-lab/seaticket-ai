@@ -18,9 +18,9 @@ Do not infer a relationship from sender identity, text, URLs, or apparent simila
 1. Confirm the triggering thread and opening email are usable.
 2. Load the target thread first and state its factual opening request, report, or notice.
 3. Preserve automated wording only as an observation, not a classification.
-4. Do not discover or load a Ticket or any other related record; Ticket association belongs to later phases.
+4. Do not discover or load a Ticket or any other related record. Subsequent phases use only this phase's selected records and do not perform relationship discovery.
 5. Set `event_related_records` to the successfully loaded triggering thread only.
-6. Leave later phases enabled for a usable event.
+6. Leave the subsequent workflow phases enabled for a usable event.
 
 ## Decision Rules
 An expiry reminder is a factual notice, not yet a Notification conclusion.
@@ -36,7 +36,7 @@ Do not fetch contacts, attachments, historical messages, Tickets, or records inf
 Return the required Prelude JSON artifact only.
 `event_summary` preserves the factual request or notice without a recommendation.
 `event_related_records` contains only the successfully loaded triggering thread.
-Set both skip flags true only when a usable target or event cannot be prepared.
+State when a usable target or event cannot be prepared; Analysis decides the next action.
 
 ## Forbidden Behavior
 Do not classify Spam or Notification or draft a reply.

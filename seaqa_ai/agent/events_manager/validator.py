@@ -64,9 +64,6 @@ class EventsValidator:
             connection_id=connection_id,
             modified_time=modified_time,
             received_at=datetime.now(timezone.utc),
-            event_id=self._optional_text(data.get('event_id')),
-            correlation_id=self._optional_text(data.get('correlation_id')),
-            causation_id=self._optional_text(data.get('causation_id')),
         )
 
     @staticmethod
@@ -81,11 +78,6 @@ class EventsValidator:
         return dict(value) if isinstance(value, dict) else {}
 
     @staticmethod
-    def _optional_text(value: Any) -> str | None:
-        value = str(value).strip() if value is not None else ''
-        return value or None
-
-    @staticmethod
     def _parse_modified_time(value: Any) -> datetime | None:
         if value is None:
             return None
@@ -98,17 +90,3 @@ class EventsValidator:
         if datetime.now(timezone.utc) - modified_time > timedelta(days=MAX_EVENT_AGE_DAYS):
             raise EventValidationError('event is older than the accepted age')
         return modified_time
-
-
-class EventsFilter:
-    """Stateless no-op filtering retained from the previous event manager."""
-
-    def should_process(self, event: AgentEvent) -> bool:
-        if event.event_type == EVENT_TYPE_GENERAL_TASK_UPDATED:
-            old_status = str(event.event['old_value'].get('status') or '').strip().lower()
-            new_status = str(event.event['new_value'].get('status') or '').strip().lower()
-            return old_status != 'done' and new_status == 'done'
-        if event.source_type == 'github_issue' and event.event_type == EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED:
-            author = str(event.event['new_value'].get('author') or '').strip().lower()
-            return not author.endswith('[bot]')
-        return True

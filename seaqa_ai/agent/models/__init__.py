@@ -15,9 +15,6 @@ class AgentEvent:
     connection_id: int | None
     modified_time: datetime | None
     received_at: datetime
-    event_id: str | None = None
-    correlation_id: str | None = None
-    causation_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -26,7 +23,6 @@ class AgentTask:
 
     schema_version: int
     task_id: str
-    idempotency_key: str
     project_uuid: str
     target_source_type: str
     target_record_id: int

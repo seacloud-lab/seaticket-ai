@@ -24,10 +24,10 @@ Links in the event or ticket are identifiers, not readable context.
 5. Set `event_related_records` to an array containing only the target ticket identity.
 6. Do not include linked identities as record entries.
 7. Produce an `event_summary` that distinguishes event facts from ticket fields.
-8. Leave later phases enabled for every valid, evaluable target, including tickets that look closed or lack a due date.
+8. Leave the subsequent workflow phases enabled for every valid, evaluable target, including tickets that look closed or lack a due date.
 
 ## Decision Rules
-Invalid routing, an unavailable target, or an unusable event may set the skip flags.
+Record invalid routing, an unavailable target, or an unusable event factually in `event_summary`; Analysis decides the next action.
 A missing due date is analysis evidence, not a reason for Prelude to decide no action.
 A closed state is analysis evidence, not a reason to suppress the event here.
 Do not apply reminder windows, custom rules, notification history, or status policy.
@@ -46,7 +46,7 @@ Return the phase artifact in the required Prelude schema.
 Include the event type, target identity, and concise factual ticket context.
 State whether the due date and assignee information were supplied without inventing values.
 `event_related_records` contains exactly the target ticket identity.
-Make skip reasons explicit only when routing or target evaluation truly failed.
+Make routing or target evaluation failures explicit in `event_summary`.
 Do not include a recommendation, a drafted reminder, or a public-facing message.
 
 ## Forbidden Behavior

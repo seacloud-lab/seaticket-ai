@@ -285,6 +285,24 @@ def expand_grouped_reference_markers(content):
 
     return pattern.sub(replacer, content)
 
+def get_referenced_sources(tool_executor, content):
+    """Return only valid search sources cited by the final report."""
+    sources_results = tool_executor.cache.get('sources_results', [])
+    content = expand_grouped_reference_markers(content)
+    pattern = re.compile(r'\<reference_(\d+)\>')
+    seen_indexes = set()
+    sources = []
+
+    for match in pattern.finditer(content):
+        source_index = int(match.group(1))
+        if source_index in seen_indexes or source_index >= len(sources_results):
+            continue
+        source = sources_results[source_index]
+        if isinstance(source, dict):
+            seen_indexes.add(source_index)
+            sources.append(source)
+    return sources
+
 def get_answer_and_sources(tool_executor, content):
     sources_results = tool_executor.cache.get('sources_results', [])
     content = expand_grouped_reference_markers(content)
@@ -315,11 +333,9 @@ def get_answer_and_sources(tool_executor, content):
         for i, position in enumerate(sorted(first_position_map))
     }
 
-    sources = []
+    sources = get_referenced_sources(tool_executor, content)
     for origin, target in replaces_map.items():
         content = content.replace(origin, target)
-        sources_index = int(origin.split('_')[1][:-1])
-        sources.append(sources_results[sources_index])
 
     content, sources = clean_markdown_references(content, sources)
     content = sanitize_answer_images(content, sources)
