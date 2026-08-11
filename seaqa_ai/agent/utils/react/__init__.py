@@ -65,7 +65,7 @@ class AgentReACT:
 
         self.records_input = self._validate_records_input(phase_spec.records_input or [])
 
-        self.skill = phase_spec.get_skill()
+        self.skill = phase_spec.skill
         self.completion_max_retries = (
             config.COMPLETION_MAX_RETRIES
             if completion_max_retries is None else completion_max_retries
@@ -85,7 +85,7 @@ class AgentReACT:
 
         self.tool_executor = OpenAIToolExecutor()
         self._tool_instances = {}
-        self._register_tools(phase_spec.get_tools())
+        self._register_tools(phase_spec.tools)
 
         memory_system_prompts = [
             {'role': 'system', 'content': system_prompt}

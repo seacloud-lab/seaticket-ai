@@ -14,7 +14,8 @@ class AgentPhaseSpec:
     max_steps_prompt = 'Maximum tool-call steps reached. Return the final answer without calling tools.'
     final_output_schema: ClassVar[dict]
 
-    def get_skill(self) -> str:
+    @property
+    def skill(self) -> str:
         from seaqa_ai.agent.utils import get_skill_map
 
         try:
@@ -24,10 +25,11 @@ class AgentPhaseSpec:
                 f'No {self.phase!r} skill configured for event {self.event!r}'
             ) from error
     
-    def get_tools(self) -> list:
+    @property
+    def tools(self) -> list:
         from seaqa_ai.agent.utils import get_tools_map
 
-        skill = self.get_skill()
+        skill = self.skill
         metadata = yaml.safe_load(skill.split('====================', 1)[0])
         tool_names = metadata.get('tools', [])
         if not isinstance(tool_names, list) or not all(isinstance(name, str) for name in tool_names):
