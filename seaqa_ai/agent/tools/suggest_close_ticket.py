@@ -1,4 +1,5 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class SuggestCloseTicket(BasicAgentSuggestionTool):
@@ -12,15 +13,7 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
                 'reason': {'type': 'string'},
                 'rule': {'type': 'string'},
                 'target': {
-                    'type': 'object',
-                    'properties': {
-                        'source_type': {'type': 'string'},
-                        'connection_id': {'type': ['integer', 'null']},
-                        'record_id': {'type': 'integer'},
-                        'source_title': {'type': 'string'},
-                    },
-                    'required': ['source_type', 'connection_id', 'record_id'],
-                    'additionalProperties': False,
+                    **record_identity_schema(include_source_title=True),
                 },
             },
             'required': ['reason'], 'additionalProperties': False,

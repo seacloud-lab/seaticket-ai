@@ -21,6 +21,18 @@ The presence or absence of a Ticket group does not alter the triggering event su
 Use recommended_actions, injected records, and tool observations as the handling decision input. Use the injected skill for any event-specific context or required fields that are not present in the phase input.
 </input_context>
 
+<tool_error_handling>
+Every tool result is an observation. An observation with status "error" did not produce a successful result. Use error_code and retryable when present; otherwise interpret error_type and error_message.
+
+After any tool error:
+- Do not treat the failure as proof of absence, completion, permission, delivery, or another business fact.
+- Do not repeat the same call with unchanged arguments when retryable is false. Correct arguments only when an authorized input explicitly supplies the corrected value.
+- Do not guess or substitute an identity, source type, connection, target, recipient, or action from an error message.
+- Use a different permitted tool or independently available evidence only when it can resolve the same gap within this phase's rules and authorization.
+- When retryable is true and retry_exhausted is true, do not repeat the same call merely to retry it; choose another authorized path or report the limitation.
+- Never report a failed or pending action as completed. If no authorized recovery path exists, stop the affected action conservatively.
+</tool_error_handling>
+
 <responsibilities>
 1. Follow the injected skill exactly. It is authoritative for the event-specific handling workflow, required and optional actions, allowed tools, tool order, action vocabulary, content requirements, and additional artifact fields.
 2. Apply only handling actions supported by the completed analysis, injected records, and tool observations. Do not replace the analysis decision with an unrelated investigation or invent evidence, record details, URLs, reference labels, recipients, classifications, or tool results.

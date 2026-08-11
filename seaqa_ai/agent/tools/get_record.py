@@ -1,6 +1,10 @@
 from seaqa_ai.seadb_models.utils import get_connection_table_name
 from seaqa_ai.utils.constants import ExtraSourceType, ConnectionType
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.utils.record_identity import (
+    SUPPORTED_RECORD_SOURCE_TYPES,
+    record_identity_schema,
+)
 
 
 class GetRecord(BasicTool):
@@ -14,37 +18,7 @@ class GetRecord(BasicTool):
             'The returned record includes its stored link fields but does not load '
             'linked records automatically.'
         ),
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'source_type': {
-                    'type': 'string',
-                    'enum': [
-                        ExtraSourceType.TICKET.value,
-                        ExtraSourceType.KNOWLEDGE_BASE.value,
-                        ConnectionType.GITHUB_ISSUE.value,
-                        ConnectionType.DISCOURSE_FORUM.value,
-                        ConnectionType.EMAIL.value,
-                        ConnectionType.GENERAL_TASK.value,
-                    ],
-                    'description': 'The record source type.',
-                },
-                'connection_id': {
-                    'type': ['integer', 'null'],
-                    'description': (
-                        'The connection ID for connection-backed records. It must be an '
-                        'integer for github_issue, discourse_forum, email, and general_task; '
-                        'use null only for ticket and knowledge_base records.'
-                    ),
-                },
-                'record_id': {
-                    'type': 'integer',
-                    'description': 'The SeaDB primary key of the record to load.',
-                },
-            },
-            'required': ['source_type', 'connection_id', 'record_id'],
-            'additionalProperties': False,
-        },
+        'parameters': record_identity_schema(),
         'strict': True,
     }
 

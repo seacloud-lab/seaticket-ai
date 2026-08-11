@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
+from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class PreludePhaseSpec(AgentPhaseSpec):
@@ -19,16 +20,7 @@ class PreludePhaseSpec(AgentPhaseSpec):
                     'Successfully loaded record identities selected by Prelude for this event. '
                     'The triggering record is the first entry.'
                 ),
-                'items': {
-                    'type': 'object',
-                    'properties': {
-                        'source_type': {'type': 'string'},
-                        'connection_id': {'type': ['integer', 'null']},
-                        'record_id': {'type': 'integer'},
-                    },
-                    'required': ['source_type', 'connection_id', 'record_id'],
-                    'additionalProperties': False,
-                },
+                'items': record_identity_schema(),
             },
         },
         'required': [

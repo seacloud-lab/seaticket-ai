@@ -1,6 +1,10 @@
 """Shared pending-suggestion action behavior for agent tools."""
 
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.utils.record_identity import (
+    SUPPORTED_RECORD_SOURCE_TYPES,
+    validate_record_identity,
+)
 
 
 class BasicAgentSuggestionTool(BasicTool):
@@ -37,16 +41,16 @@ class BasicAgentSuggestionTool(BasicTool):
         source_id = target.get('source_id')
         record_id = target.get('record_id')
         connection_id = target.get('connection_id')
-        if not source_type:
-            raise ValueError('target requires source_type')
+        if source_type not in SUPPORTED_RECORD_SOURCE_TYPES:
+            available_source_types = ', '.join(SUPPORTED_RECORD_SOURCE_TYPES)
+            raise ValueError(
+                f'target source_type must be one of: {available_source_types}'
+            )
         if source_id not in (None, ''):
             source_id = str(source_id).strip()
         elif record_id not in (None, ''):
+            validate_record_identity(source_type, connection_id, record_id)
             if connection_id is not None:
-                if not isinstance(connection_id, int) or isinstance(connection_id, bool):
-                    raise ValueError('target connection_id must be an integer or null')
-                if not isinstance(record_id, int) or isinstance(record_id, bool):
-                    raise ValueError('target record_id must be an integer')
                 source_id = f'{connection_id}_{record_id}'
             else:
                 source_id = str(record_id)

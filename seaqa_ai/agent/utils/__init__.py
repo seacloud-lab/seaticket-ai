@@ -7,10 +7,6 @@ from typing import Any
 
 import yaml
 
-from seaqa_ai.agent.events_manager.constants import (
-    EVENT_TYPE_TICKET_COMMENT_ADDED,
-    EVENT_TYPE_TICKET_COMMENT_UPDATED,
-)
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch
 
@@ -104,6 +100,8 @@ def _validate_skill(skill, event, phase):
 
 def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compact related Ticket changes while retaining their first-seen order."""
+    from seaqa_ai.agent.events_manager.constants import EVENT_TYPE_TICKET_COMMENT_ADDED
+
     grouped: dict[tuple[str | None, int | None], list[dict[str, Any]]] = {}
     ordered_keys: list[tuple[str | None, int | None]] = []
     for event in events:
@@ -143,6 +141,11 @@ def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _event_merge_key(event: dict[str, Any]) -> tuple[str | None, int | None]:
+    from seaqa_ai.agent.events_manager.constants import (
+        EVENT_TYPE_TICKET_COMMENT_ADDED,
+        EVENT_TYPE_TICKET_COMMENT_UPDATED,
+    )
+
     event_type = event.get('type')
     if event_type in {EVENT_TYPE_TICKET_COMMENT_ADDED, EVENT_TYPE_TICKET_COMMENT_UPDATED}:
         new_value = event.get('new_value')

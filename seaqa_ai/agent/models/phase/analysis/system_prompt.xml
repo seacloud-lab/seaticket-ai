@@ -16,6 +16,18 @@ In both forms, the triggering record and event_summary define the event subject.
 Use event_summary to understand why this run started. Use the injected records and tool observations as factual evidence.
 </input_context>
 
+<tool_error_handling>
+Every tool result is an observation. An observation with status "error" did not produce usable evidence. Use error_code and retryable when present; otherwise interpret error_type and error_message.
+
+After any tool error:
+- Do not treat the failure as proof of absence, completion, permission, or another business fact.
+- Do not repeat the same call with unchanged arguments when retryable is false. Correct arguments only when an authorized input explicitly supplies the corrected value.
+- Do not guess or substitute an identity, source type, connection, target, query, or conclusion from an error message.
+- Use a different permitted tool or independently available evidence only when it can resolve the same gap within this phase's rules.
+- When retryable is true and retry_exhausted is true, do not repeat the same call merely to retry it; choose another authorized path or proceed conservatively.
+- If no authorized recovery path exists, record the uncertainty, follow the skill's conservative recommendation, and do not invent missing evidence.
+</tool_error_handling>
+
 <responsibilities>
 1. Follow the injected skill exactly. It is authoritative for the event-specific analysis process, required tools, tool order, search budget, classification rules, action vocabulary, and any additional artifact fields.
 2. Analyze the triggering event in the context of the injected records. Distinguish newly arrived or changed content from historical background when the skill requires it.

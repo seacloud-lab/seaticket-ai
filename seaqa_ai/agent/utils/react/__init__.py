@@ -6,6 +6,7 @@ import time
 import uuid
 
 from seaqa_ai import config
+from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
 from seaqa_ai.utils import get_answer_and_sources, remove_sources_content_and_snippets
 from seaqa_ai.utils.llm_api import ResponsesResult
@@ -151,16 +152,14 @@ class AgentReACT:
                     raise ValueError(
                         f'records_input[{index}] missing required fields: {", ".join(sorted(missing))}'
                     )
-                if not isinstance(record['source_type'], str) or not record['source_type'].strip():
-                    raise TypeError(f'records_input[{index}].source_type must be a non-empty string')
-                if record['connection_id'] is not None and (
-                    not isinstance(record['connection_id'], int) or isinstance(record['connection_id'], bool)
-                ):
-                    raise TypeError(f'records_input[{index}].connection_id must be an integer or null')
-                if not isinstance(record['record_id'], int) or isinstance(record['record_id'], bool):
-                    raise TypeError(f'records_input[{index}].record_id must be an integer')
+                try:
+                    source_type = validate_record_identity(
+                        record['source_type'], record['connection_id'], record['record_id'],
+                    )
+                except ValueError as error:
+                    raise ValueError(f'records_input[{index}] has an invalid identity: {error}') from error
                 record_key = (
-                    record['source_type'],
+                    source_type,
                     record['connection_id'],
                     record['record_id'],
                 )
@@ -212,12 +211,7 @@ class AgentReACT:
                         context=self.context,
                     )
                 except Exception as error:
-                    observation = json.dumps({
-                        'status': 'error',
-                        'tool_name': 'get_record',
-                        'error_type': type(error).__name__,
-                        'error_message': str(error),
-                    }, ensure_ascii=False)
+                    observation = self._tool_error_observation('get_record', error)
                     self._trace(
                         action_type='error', action_status='failed', step=0,
                         tool_name=record_call['name'], tool_arguments=arguments,
@@ -402,12 +396,13 @@ class AgentReACT:
                 except InvalidToolArgumentsException:
                     raise
                 except Exception as error:
+                    error_details = self._classify_tool_error(error)
                     retries.append({
                         'retry': retry,
                         'reason': 'tool_call_error',
                         'error': repr(error),
                     })
-                    if retry < self.tool_call_max_retries:
+                    if error_details['retryable'] and retry < self.tool_call_max_retries:
                         time.sleep(self.tool_call_retry_interval)
                         continue
                     raise
@@ -465,12 +460,12 @@ class AgentReACT:
 
     def _record_tool_error(self, tool_call, arguments, error, step, usage, retries, started_at):
         tool_name = tool_call.get('name', '')
-        observation = json.dumps({
-            'status': 'error',
-            'tool_name': tool_name,
-            'error_type': type(error).__name__,
-            'error_message': str(error),
-        }, ensure_ascii=False)
+        error_details = self._classify_tool_error(error)
+        observation = self._tool_error_observation(
+            tool_name,
+            error,
+            retry_exhausted=bool(retries) and error_details['retryable'],
+        )
         self._trace(
             action_type='error', action_status='failed', step=step,
             tool_name=tool_name, tool_arguments=arguments,
@@ -479,6 +474,44 @@ class AgentReACT:
         )
         self._append_tool_output(tool_call, observation)
         return False
+
+    def _tool_error_observation(self, tool_name, error, *, retry_exhausted=False):
+        error_details = self._classify_tool_error(error)
+        return json.dumps({
+            'status': 'error',
+            'tool_name': tool_name,
+            'error_type': type(error).__name__,
+            'error_code': error_details['code'],
+            'retryable': error_details['retryable'],
+            'retry_exhausted': retry_exhausted,
+            'error_message': str(error),
+        }, ensure_ascii=False)
+
+    @staticmethod
+    def _classify_tool_error(error):
+        """Return stable recovery guidance without exposing exception internals to prompts."""
+        if isinstance(error, InvalidToolArgumentsException):
+            return {'code': 'invalid_arguments', 'retryable': False}
+
+        message = str(error).lower()
+        if 'unsupported source type' in message:
+            return {'code': 'unsupported_source_type', 'retryable': False}
+        if 'no active' in message and 'record found' in message:
+            return {'code': 'not_found', 'retryable': False}
+        if 'not an allowed' in message and 'connection' in message:
+            return {'code': 'permission_denied', 'retryable': False}
+        if 'rate limit' in message or 'too many requests' in message:
+            return {'code': 'rate_limited', 'retryable': True}
+        if isinstance(error, TimeoutError) or 'timed out' in message or 'timeout' in message:
+            return {'code': 'timeout', 'retryable': True}
+        if isinstance(error, ConnectionError) or any(
+            marker in message
+            for marker in ('temporarily unavailable', 'service unavailable', 'connection reset')
+        ):
+            return {'code': 'transient_failure', 'retryable': True}
+        if isinstance(error, ValueError):
+            return {'code': 'invalid_input', 'retryable': False}
+        return {'code': 'internal_error', 'retryable': False}
 
     def _append_tool_output(self, tool_call, observation):
         self.memory += {

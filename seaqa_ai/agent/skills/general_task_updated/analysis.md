@@ -14,7 +14,7 @@ tools:
 - Use only the successful passive ticket observation, task-finished event, Prelude artifact, and system-provided facts.
 - The event proves its reported task completion. Prelude's successfully loaded Ticket-linked General Task context establishes the discoverable Task total, completed count, and whether an unfinished Task exists.
 - Use successfully loaded Ticket and related-record observations as the available event context.
-- Prelude-retained external records whose `linked_ticket` points back to the Ticket are the only reply targets.
+- Prelude-retained external records whose `linked_ticket` points back to the Ticket are the only identities that may be selected in `reply_targets`.
 - Missing, ambiguous, or partial Task-set context is insufficient for a conclusion that all Task work is complete.
 
 ## Required Steps
@@ -22,7 +22,7 @@ tools:
 2. Examine ticket state and substate before considering closure or public communication.
 3. Determine the discoverable Ticket-linked General Task total, completed count, and whether any unfinished Task exists.
 4. Determine whether the available Task-set and Ticket-centered record context establishes resolution of relevant tracked work. A single discoverable Task that is done may establish all discoverable Task work is complete; multiple Tasks require every discoverable Task to be done.
-5. Independently determine whether Prelude retained verified external targets and a public completion or ready-for-verification update is appropriate.
+5. Independently determine which Prelude-retained verified external targets should be selected in `reply_targets`, and whether a public completion or ready-for-verification update is appropriate.
 7. For an already closed ticket, prohibit closure and assess only independently justified reply or `no_op`.
 8. Select only allowed actions and explain closure and reply decisions separately.
 
