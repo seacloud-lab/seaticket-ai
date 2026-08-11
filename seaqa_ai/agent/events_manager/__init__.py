@@ -16,17 +16,16 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from seaqa_ai.agent.models import AgentEvent
-    from seaqa_ai.agent.tasks_manager import TaskManager
 
 
 class EventsManager:
     """Coordinate event sources and submit accepted events to the task queue."""
 
-    def __init__(self, app, task_manager: TaskManager):
+    def __init__(self, app):
         from .events_collector.redis_collector import RedisEventsCollector
         from .events_collector.timed_collector import TimedEventsCollector
 
-        self._task_manager = task_manager
+        self._task_manager = app.task_manager
         self._redis_collector = RedisEventsCollector(app.redis_client.connection)
         self._timed_collector = TimedEventsCollector(app)
         self._should_stop = threading.Event()

@@ -31,7 +31,7 @@ class SeaQAAIApp(object):
         self.seaqa_db = SeaqaDB(self.db_session_class)
         self.embedding_api = EmbeddingAPI(self.data_logger, config.EMBEDDING_MODEL.get('model'), config.EMBEDDING_MODEL.get('type', 'openai'), config.EMBEDDING_MODEL.get('url'), config.EMBEDDING_MODEL.get('key'))
         self.task_manager = TaskManager(self.redis_client.connection)
-        self.events_manager = EventsManager(self, self.task_manager)
+        self.events_manager = EventsManager(self)
         self.agent_task_worker = AgentTaskWorker(self)
         self.seaqa_ai_http_server = SeaQAAIHttpServer(self)
         self._stopped = False
