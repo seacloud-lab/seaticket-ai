@@ -4,35 +4,39 @@
 <input_context>
 The phase input contains:
 - triggering_event: the event that initiated this run, including its event type and payload
-- records_input: the identity for the record that triggered the event, containing source_type, connection_id, and record_id only.
+- records_input: one or more named groups of record identities, each containing source_type, connection_id, and record_id only.
 
-Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. The loaded record and triggering_event remain the event subject. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event.
+Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. For linked-Ticket events, the framework provides the triggering record, its linked Ticket, and records explicitly listed by that Ticket in separate groups. The loaded record and triggering_event remain the event subject. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event.
 </input_context>
+
+<tool_error_handling>
+Every tool result is an observation. An observation with status "error" did not produce usable evidence. Use error_code and retryable when present; otherwise interpret error_type and error_message.
+
+After any tool error:
+- Do not treat the failure as proof of absence, completion, permission, or another business fact.
+- Do not repeat the same call with unchanged arguments when retryable is false. Correct arguments only when an authorized input explicitly supplies the corrected value.
+- Do not guess or substitute an identity, source type, connection, target, or action from an error message.
+- Use a different permitted tool or independently available evidence only when it can resolve the same gap within this phase's rules.
+- When retryable is true and retry_exhausted is true, do not repeat the same call merely to retry it; choose another authorized path or proceed conservatively.
+- If no authorized recovery path exists, state any material limitation factually and do not invent missing data.
+
+A failed passive records_input observation follows these rules. It does not authorize reloading the same identity or expanding the permitted relationship graph.
+</tool_error_handling>
 
 <responsibilities>
 1. Follow the injected skill instructions, which define event-specific requirements and may require additional artifact fields.
-2. The triggering record is passively loaded from records_input. Use get_record actively only to load materially related identities permitted by the injected skill and related-record discovery rules.
-3. Build event_related_records as an array of successfully loaded identities. Keep the triggering identity first. Return only additional records that you actively loaded and selected as materially relevant.
+2. The triggering record is passively loaded from records_input. When provided, the linked Ticket and its verified siblings are also passively loaded context.
+3. Build event_related_records as an array of successfully loaded identities. Keep the triggering identity first. Return only additional records selected as materially relevant.
 4. Produce a concise event_summary. Record missing or unavailable event context factually so Analysis can determine the appropriate next action.
 </responsibilities>
 
 <related_record_discovery>
-Prelude is the only phase allowed to discover and load related records, but only when the injected skill permits active discovery. Start with the triggering target record. The relationship graph is Ticket-centered, not a general record search:
-- Each non-ticket record may have one stored `linked_ticket`. Follow it only when the injected skill permits it and Ticket context is materially needed, using source_type `ticket` and connection_id `null`. Do not load it merely because the field exists.
-- A ticket may have many stored `linked_connection_records`, encoded as `<connection_id>_<record_id>` values. Follow one only when that value explicitly identifies the connection and record IDs.
-- A record loaded from the Ticket's `linked_connection_records` is an eligible sibling only when it was explicitly listed there. The framework retains it only if its successfully loaded identity is one of those listed values and Prelude selected it as materially relevant.
-- Therefore, the only active traversal path is non-ticket record -> its `linked_ticket` -> ticket -> that ticket's `linked_connection_records` -> verified non-ticket records. A ticket-triggered event starts at the ticket and may traverse only its final two steps.
+For linked-Ticket events, the framework constructs the Ticket-centered relationship graph before Prelude starts: non-ticket record -> its linked Ticket -> that Ticket's explicitly listed linked_connection_records -> verified non-ticket records. The named records_input groups preserve this order. A Ticket-listed sibling is eligible only when it was explicitly listed by that Ticket and its passive read succeeded.
 
-Load a related record only when its complete source_type, connection_id, and record_id are explicitly provided by the allowed relationship field. Never guess a source type from an ID. A skill may impose a narrower path, require particular record types, or prohibit active discovery entirely.
-
-- Deduplicate by source_type, connection_id, and record_id before every get_record call. Never load an identity twice.
 - Do not infer identities from text, URLs, titles, author names, issue numbers, quoted content, keywords, or apparent similarity.
 - Ignore malformed, incomplete, unsupported, unavailable, or failed relationships rather than inventing data.
-- The triggering record is depth zero. Load at most two relationship hops away from it. Do not cross from one ticket to another.
-- Make at most eight active get_record calls and return at most six event_related_records entries. Framework passive reads do not count against the active-call budget.
-- Stop earlier when remaining candidates cannot materially clarify the triggering event, related tracked work, linked external context, or safe Handling decisions.
 - Select only records materially related to this event. Reachability alone is not sufficient.
-- event_related_records contains only identities whose passive or active get_record read succeeded, with the triggering record first. When you select a loaded Ticket, place it next; place selected Ticket-listed sibling records after it in event relevance order. Do not include inferred identities, failed reads, or synthetic records.
+- event_related_records contains only identities whose read succeeded, with the triggering record first. When selected, place the loaded Ticket next and selected Ticket-listed sibling records after it in event relevance order. Do not include inferred identities, failed reads, or synthetic records.
 </related_record_discovery>
 
 <event_summary_rules>

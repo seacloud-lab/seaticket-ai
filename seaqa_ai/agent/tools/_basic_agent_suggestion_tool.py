@@ -1,6 +1,10 @@
 """Shared pending-suggestion action behavior for agent tools."""
 
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.utils.record_identity import (
+    SUPPORTED_RECORD_SOURCE_TYPES,
+    validate_record_identity,
+)
 
 
 class BasicAgentSuggestionTool(BasicTool):
@@ -9,6 +13,7 @@ class BasicAgentSuggestionTool(BasicTool):
     action_type = 'suggestion'
     action_status = 'pending'
     suggestion_text = ''
+    suggestion_content = None
 
     @staticmethod
     def _target_from_context(context):
@@ -36,16 +41,16 @@ class BasicAgentSuggestionTool(BasicTool):
         source_id = target.get('source_id')
         record_id = target.get('record_id')
         connection_id = target.get('connection_id')
-        if not source_type:
-            raise ValueError('target requires source_type')
+        if source_type not in SUPPORTED_RECORD_SOURCE_TYPES:
+            available_source_types = ', '.join(SUPPORTED_RECORD_SOURCE_TYPES)
+            raise ValueError(
+                f'target source_type must be one of: {available_source_types}'
+            )
         if source_id not in (None, ''):
             source_id = str(source_id).strip()
         elif record_id not in (None, ''):
+            validate_record_identity(source_type, connection_id, record_id)
             if connection_id is not None:
-                if not isinstance(connection_id, int) or isinstance(connection_id, bool):
-                    raise ValueError('target connection_id must be an integer or null')
-                if not isinstance(record_id, int) or isinstance(record_id, bool):
-                    raise ValueError('target record_id must be an integer')
                 source_id = f'{connection_id}_{record_id}'
             else:
                 source_id = str(record_id)
@@ -59,6 +64,65 @@ class BasicAgentSuggestionTool(BasicTool):
             'source_title': str(target.get('source_title', '') or '').strip(),
         }
 
+    @classmethod
+    def _loaded_target(cls, target, context, required_source_type):
+        context = context or {}
+        if target is None:
+            target = {
+                'source_type': context.get('source_type'),
+                'source_id': context.get('source_id'),
+            }
+        normalized_target = cls._normalize_target(target)
+        if normalized_target['source_type'] != required_source_type:
+            raise ValueError(f'target must be a {required_source_type}')
+
+        matching_records = [
+            record
+            for key, record in (context.get('record_cache') or {}).items()
+            if (
+                isinstance(key, tuple)
+                and len(key) == 3
+                and key[0] == required_source_type
+                and str(key[2]) == normalized_target['source_id']
+                and isinstance(record, dict)
+            )
+        ]
+        if len(matching_records) != 1:
+            raise ValueError(f'target is not an available loaded {required_source_type}')
+        normalized_target['source_title'] = str(
+            matching_records[0].get('title', '') or '',
+        ).strip()
+        return normalized_target
+    
+    @staticmethod
+    def _linked_source_ids(context):
+        linked_ticket = (context or {}).get('linked_ticket_record') or {}
+        linked_records = linked_ticket.get('linked_connection_records') or []
+        return {
+            linked_record
+            for linked_record in linked_records
+            if isinstance(linked_record, str) and linked_record.strip()
+        }
+
+    @classmethod
+    def _linked_external_targets(cls, targets, context):
+        linked_source_ids = cls._linked_source_ids(context)
+        trigger_source_id = str((context or {}).get('trigger_source_id', '') or '').strip()
+        normalized_targets = []
+        seen_source_ids = set()
+        for target in targets:
+            normalized_target = cls._normalize_target(target)
+            source_id = normalized_target['source_id']
+            if (
+                source_id not in linked_source_ids
+                or source_id == trigger_source_id
+                or source_id in seen_source_ids
+            ):
+                continue
+            seen_source_ids.add(source_id)
+            normalized_targets.append(normalized_target)
+        return normalized_targets
+
     def suggestion_result(
         self, *, suggestion_content='', context=None, targets=None, suggestion_reason='', suggestion_text=None,
         tool_name=None,
@@ -68,9 +132,9 @@ class BasicAgentSuggestionTool(BasicTool):
         normalized_targets = [self._normalize_target(target) for target in targets]
         return {
             'status': self.action_status,
-            'suggestion_content': str(suggestion_content or ''),
+            'suggestion_text': self.suggestion_text if suggestion_text is None else suggestion_text,
+            'suggestion_content': self.suggestion_content if suggestion_content is None else suggestion_content,
             'suggestion_reason': str(suggestion_reason or '').strip(),
             'trace_targets': normalized_targets,
-            'suggestion_text': self.suggestion_text if suggestion_text is None else suggestion_text,
             'trace_tool_name': tool_name or self.tool.get('name'),
         }

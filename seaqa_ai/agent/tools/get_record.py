@@ -1,6 +1,10 @@
 from seaqa_ai.seadb_models.utils import get_connection_table_name
 from seaqa_ai.utils.constants import ExtraSourceType, ConnectionType
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.utils.record_identity import (
+    SUPPORTED_RECORD_SOURCE_TYPES,
+    record_identity_schema,
+)
 
 
 class GetRecord(BasicTool):
@@ -14,28 +18,7 @@ class GetRecord(BasicTool):
             'The returned record includes its stored link fields but does not load '
             'linked records automatically.'
         ),
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'source_type': {
-                    'type': 'string',
-                    'description': 'The record source type.',
-                },
-                'connection_id': {
-                    'type': ['integer', 'null'],
-                    'description': (
-                        'The connection ID for connection-backed records. '
-                        'Use null for tickets.'
-                    ),
-                },
-                'record_id': {
-                    'type': 'integer',
-                    'description': 'The SeaDB primary key of the record to load.',
-                },
-            },
-            'required': ['source_type', 'connection_id', 'record_id'],
-            'additionalProperties': False,
-        },
+        'parameters': record_identity_schema(),
         'strict': True,
     }
 

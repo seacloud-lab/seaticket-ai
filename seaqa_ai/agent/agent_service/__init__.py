@@ -4,7 +4,10 @@ import logging
 import threading
 
 from seaqa_ai.agent.models import AgentTask
-from seaqa_ai.agent.agent_service.constants import LINKED_TICKET_TRACE_EVENT_TYPES
+from seaqa_ai.agent.agent_service.constants import (
+    LINKED_TICKET_TRACE_EVENT_TYPES,
+    REQUIRED_LINKED_TICKET_TRACE_EVENT_TYPES,
+)
 from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter
 from seaqa_ai.agent.tools.get_record import GetRecord
 from seaqa_ai.agent.utils.react.tracer import AgentReACTTracer
@@ -14,6 +17,11 @@ from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
 
 
 logger = logging.getLogger(__name__)
+
+
+class MissingRequiredLinkedTicket(Exception):
+    """A trigger that requires a linked Ticket has none."""
+
 
 class AgentService:
     """Execute one task through the deterministic phase workflow."""
@@ -31,8 +39,7 @@ class AgentService:
         tracer = None
         traces_flushed = False
         try:
-            run_id = self._create_run_record(task)
-            context = self._build_context(task, run_id)
+            context = self._build_context(task)
 
             record_cache = {}
             context['record_cache'] = record_cache
@@ -51,6 +58,9 @@ class AgentService:
                 task, context, record_cache, target_record,
             )
             context.update(trace_context)
+
+            run_id = self._create_run_record(task)
+            context['run_id'] = run_id
 
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
@@ -79,6 +89,15 @@ class AgentService:
                 daemon=True,
             ).start()
 
+        except MissingRequiredLinkedTicket:
+            logger.warning(
+                'Skipping agent task without required linked ticket: '
+                'task_id=%s target=%s:%s event_type=%s',
+                task.task_id,
+                task.target_source_type,
+                task.target_record_id,
+                task.trigger_event.event_type,
+            )
         except Exception as error:
             if run_id is not None:
                 self._finalize_run_record(
@@ -118,10 +137,9 @@ class AgentService:
             )
 
     ##### Agent context #####
-    def _build_context(self, task, run_id):
+    def _build_context(self, task):
         return {
             'project_uuid': task.project_uuid,
-            'run_id': run_id,
             'task_id': task.task_id,
             'triggering_event': task.trigger_event.event,
             'document_connections': self.project.get('document_connections', []),
@@ -134,33 +152,33 @@ class AgentService:
         return record_id if connection_id is None else f'{connection_id}_{record_id}'
 
     def _build_trace_context(self, task, context, record_cache, target_record):
-        linked_ticket_id = target_record.get('linked_ticket')
-        if (
-            task.trigger_event.event_type in LINKED_TICKET_TRACE_EVENT_TYPES
-            and linked_ticket_id
-        ):
-            try:
-                linked_ticket_record = GetRecord().execute(
-                    source_type='ticket',
-                    connection_id=None,
-                    record_id=linked_ticket_id,
-                    project_uuid=task.project_uuid,
-                    app=self.app,
-                    record_cache=record_cache,
-                    context=context,
-                )
-            except Exception:
-                logger.warning(
-                    'Failed to load linked ticket %s for %s:%s; using the triggering record.',
-                    linked_ticket_id,
-                    task.target_source_type,
-                    task.target_record_id,
-                    exc_info=True,
-                )
-            else:
-                return self._build_linked_ticket_trace_context(
-                    task, target_record, linked_ticket_record,
-                )
+        if task.trigger_event.event_type in LINKED_TICKET_TRACE_EVENT_TYPES:
+            linked_ticket_id = target_record.get('linked_ticket')
+            if linked_ticket_id:
+                try:
+                    linked_ticket_record = GetRecord().execute(
+                        source_type='ticket',
+                        connection_id=None,
+                        record_id=linked_ticket_id,
+                        project_uuid=task.project_uuid,
+                        app=self.app,
+                        record_cache=record_cache,
+                        context=context,
+                    )
+                except Exception:
+                    logger.warning(
+                        'Failed to load linked ticket %s for %s:%s; using the triggering record.',
+                        linked_ticket_id,
+                        task.target_source_type,
+                        task.target_record_id,
+                        exc_info=True,
+                    )
+                else:
+                    return self._build_linked_ticket_trace_context(
+                        task, target_record, linked_ticket_record,
+                    )
+            elif task.trigger_event.event_type in REQUIRED_LINKED_TICKET_TRACE_EVENT_TYPES:
+                raise MissingRequiredLinkedTicket
         return self._build_target_trace_context(task, target_record)
 
     def _build_target_trace_context(self, task, target_record):

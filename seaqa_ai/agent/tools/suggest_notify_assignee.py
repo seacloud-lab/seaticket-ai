@@ -1,4 +1,5 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class SuggestNotifyAssignee(BasicAgentSuggestionTool):
@@ -12,15 +13,7 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
                 'message': {'type': 'string'},
                 'reason': {'type': 'string'},
                 'target': {
-                    'type': 'object',
-                    'properties': {
-                        'source_type': {'type': 'string'},
-                        'connection_id': {'type': ['integer', 'null']},
-                        'record_id': {'type': 'integer'},
-                        'source_title': {'type': 'string'},
-                    },
-                    'required': ['source_type', 'connection_id', 'record_id'],
-                    'additionalProperties': False,
+                    **record_identity_schema(include_source_title=True),
                 },
             },
             'required': ['message', 'reason'], 'additionalProperties': False,
@@ -31,13 +24,11 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
         message = str(message or '').strip()
         if not message or not str(reason or '').strip():
             raise ValueError('message and reason must not be empty')
-        if target is not None and target.get('source_type') != 'ticket':
-            raise ValueError('notification target must be a ticket')
         if target is None and (context or {}).get('source_type') != 'ticket':
             raise ValueError('notification target is required outside a ticket task')
+        target = self._loaded_target(target, context, 'ticket')
         return self.suggestion_result(
             suggestion_content=message,
-            context=context,
-            targets=[target] if target else None,
+            targets=[target],
             suggestion_reason=reason,
         )

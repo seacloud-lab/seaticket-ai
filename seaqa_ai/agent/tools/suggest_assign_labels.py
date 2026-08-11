@@ -30,7 +30,6 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
         if any(label.casefold() not in available_normalized for label in labels):
             raise ValueError('suggested_labels must be selected from available_labels')
         return self.suggestion_result(
-            suggestion_content=json.dumps(labels, ensure_ascii=False),
             context=context,
             targets=[self._target_from_trigger_context(context)],
             suggestion_reason=reason,
