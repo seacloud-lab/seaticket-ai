@@ -24,13 +24,11 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
         message = str(message or '').strip()
         if not message or not str(reason or '').strip():
             raise ValueError('message and reason must not be empty')
-        if target is not None and target.get('source_type') != 'ticket':
-            raise ValueError('notification target must be a ticket')
         if target is None and (context or {}).get('source_type') != 'ticket':
             raise ValueError('notification target is required outside a ticket task')
+        target = self._loaded_target(target, context, 'ticket')
         return self.suggestion_result(
             suggestion_content=message,
-            context=context,
-            targets=[target] if target else None,
+            targets=[target],
             suggestion_reason=reason,
         )

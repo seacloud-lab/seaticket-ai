@@ -64,6 +64,46 @@ class BasicAgentSuggestionTool(BasicTool):
             'source_title': str(target.get('source_title', '') or '').strip(),
         }
 
+    @classmethod
+    def _loaded_target(cls, target, context, required_source_type):
+        context = context or {}
+        if target is None:
+            target = {
+                'source_type': context.get('source_type'),
+                'source_id': context.get('source_id'),
+            }
+        normalized_target = cls._normalize_target(target)
+        if normalized_target['source_type'] != required_source_type:
+            raise ValueError(f'target must be a {required_source_type}')
+
+        matching_records = [
+            record
+            for key, record in (context.get('record_cache') or {}).items()
+            if (
+                isinstance(key, tuple)
+                and len(key) == 3
+                and key[0] == required_source_type
+                and str(key[2]) == normalized_target['source_id']
+                and isinstance(record, dict)
+            )
+        ]
+        if len(matching_records) != 1:
+            raise ValueError(f'target is not an available loaded {required_source_type}')
+        normalized_target['source_title'] = str(
+            matching_records[0].get('title', '') or '',
+        ).strip()
+        return normalized_target
+    
+    @staticmethod
+    def _linked_source_ids(context):
+        linked_ticket = (context or {}).get('linked_ticket_record') or {}
+        linked_records = linked_ticket.get('linked_connection_records') or []
+        return {
+            linked_record
+            for linked_record in linked_records
+            if isinstance(linked_record, str) and linked_record.strip()
+        }
+
     def suggestion_result(
         self, *, suggestion_content='', context=None, targets=None, suggestion_reason='', suggestion_text=None,
         tool_name=None,

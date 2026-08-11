@@ -23,16 +23,6 @@ class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
         }, 'strict': True,
     }
 
-    @staticmethod
-    def _linked_source_ids(context):
-        linked_ticket = (context or {}).get('linked_ticket_record') or {}
-        linked_records = linked_ticket.get('linked_connection_records') or []
-        return {
-            linked_record
-            for linked_record in linked_records
-            if isinstance(linked_record, str) and linked_record.strip()
-        }
-
     def execute(self, reply, reason, reply_targets, context=None):
         reply = str(reply or '').strip()
         reason = str(reason or '').strip()

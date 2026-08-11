@@ -35,6 +35,7 @@ tools:
 - The triggering Task being done proves that Task is complete. A Ticket with one discoverable linked General Task that is done has all discoverable linked Task work complete; this is factual context for Analysis, not a closure decision.
 - When more than one discoverable linked General Task exists, distinguish their total count, completed count, and any unfinished Task. An unfinished Task prevents a conclusion that all discoverable linked Task work is complete.
 - Do not treat the absence of a loaded Task as proof that no additional Task exists when the allowed relationship graph cannot establish a complete Task set.
+- A linked external record's open, unresolved, unverified, unanswered, or unclosed state is its own lifecycle state. State it factually when relevant, but do not represent it as unfinished Ticket work or an unfinished General Task.
 - Do not treat task content, linked-record content, inactivity, or a successful passive record observation as live-state validation.
 - Task references in prose, URLs, titles, or similarities may not create a record identity.
 - Retain Ticket-linked General Tasks needed to establish total, completed, and unfinished Task status. Retain other Ticket-linked records when they materially clarify this completed-task event or a possible external update; sharing a Ticket alone is not enough.

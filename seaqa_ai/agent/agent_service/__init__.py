@@ -59,7 +59,8 @@ class AgentService:
             )
             context.update(trace_context)
 
-            context['run_id'] = self._create_run_record(task)
+            run_id = self._create_run_record(task)
+            context['run_id'] = run_id
 
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
