@@ -104,6 +104,25 @@ class BasicAgentSuggestionTool(BasicTool):
             if isinstance(linked_record, str) and linked_record.strip()
         }
 
+    @classmethod
+    def _linked_external_targets(cls, targets, context):
+        linked_source_ids = cls._linked_source_ids(context)
+        trigger_source_id = str((context or {}).get('trigger_source_id', '') or '').strip()
+        normalized_targets = []
+        seen_source_ids = set()
+        for target in targets:
+            normalized_target = cls._normalize_target(target)
+            source_id = normalized_target['source_id']
+            if (
+                source_id not in linked_source_ids
+                or source_id == trigger_source_id
+                or source_id in seen_source_ids
+            ):
+                continue
+            seen_source_ids.add(source_id)
+            normalized_targets.append(normalized_target)
+        return normalized_targets
+
     def suggestion_result(
         self, *, suggestion_content='', context=None, targets=None, suggestion_reason='', suggestion_text=None,
         tool_name=None,

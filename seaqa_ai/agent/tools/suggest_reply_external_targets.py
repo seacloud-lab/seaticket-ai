@@ -31,21 +31,7 @@ class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
         if not isinstance(reply_targets, list):
             raise ValueError('reply_targets must be an array')
 
-        linked_source_ids = self._linked_source_ids(context)
-        trigger_source_id = str((context or {}).get('trigger_source_id', '') or '').strip()
-        targets = []
-        seen_source_ids = set()
-        for reply_target in reply_targets:
-            normalized_target = self._normalize_target(reply_target)
-            source_id = normalized_target['source_id']
-            if (
-                source_id not in linked_source_ids
-                or source_id == trigger_source_id
-                or source_id in seen_source_ids
-            ):
-                continue
-            seen_source_ids.add(source_id)
-            targets.append(normalized_target)
+        targets = self._linked_external_targets(reply_targets, context)
         if not targets:
             raise ValueError('no external reply targets are available')
         return self.suggestion_result(

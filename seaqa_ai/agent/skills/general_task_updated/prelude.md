@@ -7,29 +7,23 @@ tools:
 ## Role And Scope
 - Prepare factual context for an event reporting that a linked General Task changed to `done`.
 - Task completion directly proves only the completion reported by the event. The complete, successfully loaded set of Ticket-linked General Tasks can establish whether all discoverable tracked Task work is done; Analysis decides whether that supports ticket resolution.
-- Discover records only through the Ticket-centered relationship graph defined by the shared Prelude discovery contract.
+- Use the framework-provided Ticket-centered relationship graph as the related-record context.
 - Do not decide closure, public reply, no-op, or live-state validation sufficiency.
 
 ## Input Contract
-- Read `triggering_event`, `records_input[0]`, and passive `get_record` observations.
-- The routed target is the completed task. Its `linked_ticket` identifies the one Ticket that may provide related context.
-- The linked Ticket may contain state, substate, content, and `linked_connection_records`.
-- Each additional record must be explicitly listed in the loaded Ticket's `linked_connection_records` before it can be retained.
+- Read `triggering_event` and passive `get_record` observations from the named records_input groups.
+- The routed target is the completed task. When supplied, PreStep 2 is its linked Ticket and PreStep 3 contains verified records explicitly listed by that Ticket.
 - Loaded records are current phase context, not authoritative live-state validation.
 - For every successfully loaded Ticket-linked General Task, retain its identity and status so Analysis can determine the discoverable total Task count, completed Task count, and whether an unfinished Task exists. If the allowed relationship graph does not provide a complete Task set, state that the total and remaining-work status cannot be confirmed.
 
 ## Required Steps
 1. Confirm the routed General Task target and completion update are usable.
-2. Use the successful passive observation of the triggering task. Do not reload it.
-3. Load the task's `linked_ticket` when Ticket context is materially needed for the completed-task event.
-4. Inspect all of that Ticket's `linked_connection_records` for candidate linked records.
-5. If a Ticket was loaded, load every deduplicated candidate that is explicitly listed in that Ticket's `linked_connection_records` and can clarify tracked Task work, Task completion status, or an external update related to this completed task.
-6. Follow the shared depth, deduplication, and relationship-validity rules. Do not stop because of a record count or get_record-call count.
-7. Determine and state the successfully loaded Ticket-linked General Task total, completed count, and whether any loaded Task is unfinished. If the allowed graph cannot establish a complete Task set, state that limitation.
-8. Preserve the distinction between completed-task evidence, complete discoverable Task-set evidence, and ticket-resolution evidence.
-9. Set `event_related_records` to the successfully loaded triggering task, its Ticket, and verified material linked records, in that order.
-10. Produce a factual event summary without a closure or reply conclusion.
-11. Continue to Analysis for valid one-task, multi-task, and closed-ticket events.
+2. Use the successful passive observations of the triggering task, linked Ticket when supplied, and verified sibling records when supplied.
+3. Determine and state the successfully loaded Ticket-linked General Task total, completed count, and whether any loaded Task is unfinished. If the supplied graph cannot establish a complete Task set, state that limitation.
+4. Preserve the distinction between completed-task evidence, complete discoverable Task-set evidence, and ticket-resolution evidence.
+5. Set `event_related_records` to the successfully loaded triggering task, its Ticket when supplied, and verified material linked records, in that order.
+6. Produce a factual event summary without a closure or reply conclusion.
+7. Continue to Analysis for valid one-task, multi-task, and closed-ticket events.
 
 ## Decision Rules
 - The triggering Task being done proves that Task is complete. A Ticket with one discoverable linked General Task that is done has all discoverable linked Task work complete; this is factual context for Analysis, not a closure decision.
@@ -41,13 +35,9 @@ tools:
 - Retain Ticket-linked General Tasks needed to establish total, completed, and unfinished Task status. Retain other Ticket-linked records when they materially clarify this completed-task event or a possible external update; sharing a Ticket alone is not enough.
 - Do not decide whether external targets are available or whether a public update is appropriate.
 
-## Tool Rules
-- `get_record` is the only permitted tool.
-- Load the task's `linked_ticket` only when Ticket context is materially needed. Once loaded, inspect all records explicitly listed in that Ticket's `linked_connection_records` that can materially clarify Task status or an external update for this event.
-- Never infer a source type from IDs or load a record from text, URLs, authors, titles, or keywords.
+## Context Rules
 - Do not infer or reverse-validate relationships. The framework retains only selected, successfully loaded records that are explicitly listed by that Ticket.
 - Do not inspect task lists, dependencies, acceptance conditions, release status, or recipients unless they are in successfully loaded records. Do not infer unlisted Tasks or their statuses.
-- Do not search, request live validation, or invoke a suggestion tool.
 - Do not include failed, malformed, unavailable, duplicate, identifier-only, or synthetic entries.
 
 ## Required Output

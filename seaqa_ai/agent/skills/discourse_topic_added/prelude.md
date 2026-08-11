@@ -1,7 +1,8 @@
 event: discourse_topic_added
 phase: prelude
 description: "Prepare a new unlinked Discourse topic for analysis."
-tools: []
+tools:
+  - get_record
 ====================
 ## Role And Scope
 - Prepare factual context for one newly created Discourse topic that has not yet been linked to a Ticket.
@@ -18,7 +19,7 @@ tools: []
 1. Confirm the triggering topic and opening post are usable.
 2. Load the target topic first and extract its factual request or reported behavior.
 3. Preserve supplied resolution state without treating it as closure or sufficiency.
-4. Do not discover or load a Ticket or any other related record. Subsequent phases use only this phase's selected records and do not perform relationship discovery.
+4. Keep the triggering topic primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering topic only.
 6. Write a neutral factual summary and leave the subsequent workflow phases enabled for a usable event.
 
@@ -26,20 +27,18 @@ tools: []
 - An SSO configuration request is not yet a classification.
 - An integration failure is a reported observation, not a confirmed bug.
 - `resolved: true` must be preserved when supplied but does not authorize skipping.
-- This event represents a newly created, unlinked topic. Do not use a relationship field, markdown link, discussion text, URL, or author to identify another record.
+- This event represents a newly created, unlinked topic. Do not infer a related identity from a relationship field, markdown link, discussion text, URL, or author.
 
-## Tool Rules
-- No active tools are permitted. Use only the successful passive observation of the triggering topic.
-- Do not fetch category history, user profiles, replies, Tickets, or records inferred from text.
+## Context Rules
+- Do not treat an inferred identity as factual context.
 
 ## Required Output
 - Return the required Prelude JSON artifact only.
 - `event_summary` states the opening-post substance and resolution state when supplied.
-- `event_related_records` contains only the successfully loaded triggering topic.
+- `event_related_records` contains the successfully loaded triggering topic first, followed only by successfully loaded, materially relevant records.
 - State when a usable target or event cannot be prepared; Analysis decides the next action.
 
 ## Forbidden Behavior
 - Do not classify as Bug, Feature, or Question.
 - Do not evaluate whether a response is complete or correct.
-- Do not load or include another record.
 - Do not expose contacts, credentials, tokens, or unnecessary quotations.
