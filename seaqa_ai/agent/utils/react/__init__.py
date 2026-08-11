@@ -102,7 +102,7 @@ class AgentReACT:
 
         self._inject_records_input()
 
-        self._append_skill_input()
+        self._inject_skill_input()
 
     def run(self):
         """Execute until the model returns final text, then validate it if needed."""
@@ -249,7 +249,7 @@ class AgentReACT:
         elif isinstance(self.records_input, (list, tuple)):
             return __inject_records(self.records_input)
 
-    def _append_skill_input(self):
+    def _inject_skill_input(self):
         if self.skill is not None:
             started_at = time.monotonic()
             skill_call = {

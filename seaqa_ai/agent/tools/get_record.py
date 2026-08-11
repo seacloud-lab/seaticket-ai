@@ -19,13 +19,22 @@ class GetRecord(BasicTool):
             'properties': {
                 'source_type': {
                     'type': 'string',
+                    'enum': [
+                        ExtraSourceType.TICKET.value,
+                        ExtraSourceType.KNOWLEDGE_BASE.value,
+                        ConnectionType.GITHUB_ISSUE.value,
+                        ConnectionType.DISCOURSE_FORUM.value,
+                        ConnectionType.EMAIL.value,
+                        ConnectionType.GENERAL_TASK.value,
+                    ],
                     'description': 'The record source type.',
                 },
                 'connection_id': {
                     'type': ['integer', 'null'],
                     'description': (
-                        'The connection ID for connection-backed records. '
-                        'Use null for tickets.'
+                        'The connection ID for connection-backed records. It must be an '
+                        'integer for github_issue, discourse_forum, email, and general_task; '
+                        'use null only for ticket and knowledge_base records.'
                     ),
                 },
                 'record_id': {

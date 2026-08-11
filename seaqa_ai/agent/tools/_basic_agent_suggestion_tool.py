@@ -9,6 +9,7 @@ class BasicAgentSuggestionTool(BasicTool):
     action_type = 'suggestion'
     action_status = 'pending'
     suggestion_text = ''
+    suggestion_content = None
 
     @staticmethod
     def _target_from_context(context):
@@ -68,9 +69,9 @@ class BasicAgentSuggestionTool(BasicTool):
         normalized_targets = [self._normalize_target(target) for target in targets]
         return {
             'status': self.action_status,
-            'suggestion_content': str(suggestion_content or ''),
+            'suggestion_text': self.suggestion_text if suggestion_text is None else suggestion_text,
+            'suggestion_content': self.suggestion_content if suggestion_content is None else suggestion_content,
             'suggestion_reason': str(suggestion_reason or '').strip(),
             'trace_targets': normalized_targets,
-            'suggestion_text': self.suggestion_text if suggestion_text is None else suggestion_text,
             'trace_tool_name': tool_name or self.tool.get('name'),
         }

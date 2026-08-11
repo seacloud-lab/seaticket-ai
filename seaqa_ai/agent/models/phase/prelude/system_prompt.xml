@@ -29,8 +29,8 @@ Load a related record only when its complete source_type, connection_id, and rec
 - Do not infer identities from text, URLs, titles, author names, issue numbers, quoted content, keywords, or apparent similarity.
 - Ignore malformed, incomplete, unsupported, unavailable, or failed relationships rather than inventing data.
 - The triggering record is depth zero. Load at most two relationship hops away from it. Do not cross from one ticket to another.
-- Make at most eight active get_record calls and return at most six event_related_records entries. Framework passive reads do not count against the active-call budget.
-- Stop earlier when remaining candidates cannot materially clarify the triggering event, related tracked work, linked external context, or safe Handling decisions.
+- Do not impose a numeric limit on active get_record calls or event_related_records entries. Inspect every deduplicated candidate explicitly provided by the allowed relationship fields when it can materially clarify the triggering event, related tracked work, linked external context, or safe Handling decisions.
+- Stop only after all such candidates have been considered, or when the remaining candidates cannot materially clarify the triggering event, related tracked work, linked external context, or safe Handling decisions.
 - Select only records materially related to this event. Reachability alone is not sufficient.
 - event_related_records contains only identities whose passive or active get_record read succeeded, with the triggering record first. When you select a loaded Ticket, place it next; place selected Ticket-listed sibling records after it in event relevance order. Do not include inferred identities, failed reads, or synthetic records.
 </related_record_discovery>

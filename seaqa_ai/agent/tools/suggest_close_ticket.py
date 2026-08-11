@@ -29,6 +29,7 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
 
     def execute(self, reason, rule='', target=None, context=None):
         reason = str(reason or '').strip()
+        rule = str(rule or '').strip()
         if not reason:
             raise ValueError('reason must not be empty')
         if target is not None and (
@@ -39,6 +40,6 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
         if target is None and (context or {}).get('source_type') != 'ticket':
             raise ValueError('suggest_close_ticket target is required outside a ticket task')
         return self.suggestion_result(
-            suggestion_content=reason, context=context, targets=[target] if target else None,
-            suggestion_reason=reason,
+            context=context, targets=[target] if target else None,
+            suggestion_reason=f'{reason} Rule: {rule}' if rule else reason,
         )

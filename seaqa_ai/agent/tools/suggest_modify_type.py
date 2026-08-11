@@ -27,7 +27,6 @@ class SuggestModifyType(BasicAgentSuggestionTool):
             if current else f'Suggest changing the type to "{suggested_type}" for this GitHub issue'
         )
         return self.suggestion_result(
-            suggestion_content=str(suggested_type),
             context=context,
             targets=[self._target_from_trigger_context(context)],
             suggestion_reason=reason,
