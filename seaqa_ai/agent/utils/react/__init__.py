@@ -41,17 +41,10 @@ class AgentReACT:
         self,
         app,
         responses_client,
-        system_prompts,
-        message_input,
-        tools,
+        phase_spec,
         react_tracer,
-        final_output_schema=None,
-        max_steps=0,
-        max_steps_prompt='Maximum tool-call steps reached. Return the final answer without calling tools.',
         *,
-        context=None,
-        skill=None,
-        records_input=None,
+        project_prompt='',
         completion_max_retries=None,
         completion_retry_interval=None,
         tool_call_max_retries=None,
@@ -59,21 +52,20 @@ class AgentReACT:
     ):
         self.app = app
         self.responses_client = responses_client
-        if not isinstance(system_prompts, (list, tuple)):
-            raise TypeError('system_prompts must be a list or tuple of strings')
-        if not all(isinstance(system_prompt, str) for system_prompt in system_prompts):
-            raise TypeError('system_prompts must contain only strings')
-        self.system_prompts = list(system_prompts)
-        self.message_input = message_input
+        self.phase_spec = phase_spec
+        self.system_prompts = [phase_spec.get_system_prompt()]
+        if project_prompt and project_prompt.strip():
+            self.system_prompts.append(project_prompt)
+        self.message_input = phase_spec.message_input
         self.react_tracer = react_tracer
-        self.final_output_schema = final_output_schema or {}
-        self.max_steps = max_steps
-        self.max_steps_prompt = max_steps_prompt
-        self.context = dict(context or {})
+        self.final_output_schema = phase_spec.final_output_schema or {}
+        self.max_steps = phase_spec.max_steps
+        self.max_steps_prompt = phase_spec.max_steps_prompt
+        self.context = dict(phase_spec.context or {})
 
-        self.records_input = self._validate_records_input(records_input or [])
+        self.records_input = self._validate_records_input(phase_spec.records_input or [])
 
-        self.skill = skill
+        self.skill = phase_spec.get_skill()
         self.completion_max_retries = (
             config.COMPLETION_MAX_RETRIES
             if completion_max_retries is None else completion_max_retries
@@ -93,7 +85,7 @@ class AgentReACT:
 
         self.tool_executor = OpenAIToolExecutor()
         self._tool_instances = {}
-        self._register_tools(tools)
+        self._register_tools(phase_spec.get_tools())
 
         memory_system_prompts = [
             {'role': 'system', 'content': system_prompt}
@@ -105,7 +97,7 @@ class AgentReACT:
                 'content': self._schema_prompt(),
             })
         self.memory = OpenAIMemory(memory_system_prompts)
-        self.memory += {'role': 'user', 'content': message_input}
+        self.memory += {'role': 'user', 'content': phase_spec.message_input}
 
 
         self._inject_records_input()
@@ -551,7 +543,7 @@ class AgentReACT:
         raise AgentFinalOutputSchemaError(previous_error)
 
     def _trace_final_output(self, result, step, usage, retries):
-        phase = self.context.get('phase')
+        phase = self.phase_spec.phase
         if not phase:
             self._trace(
                 action_type='summary', action_status='completed', step=step,
@@ -589,6 +581,7 @@ class AgentReACT:
             return None
         return self.react_tracer.record(
             context=self.context,
+            phase=self.phase_spec.phase,
             record_phase_context=record_phase_context,
             prompt='\n\n'.join(self.system_prompts) if with_input else '',
             input=self.message_input if with_input else '',

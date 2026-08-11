@@ -16,17 +16,17 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from seaqa_ai.agent.models import AgentEvent
-    from seaqa_ai.agent.tasks_manager.queue_manager import TaskQueueManager
+    from seaqa_ai.agent.tasks_manager import TaskManager
 
 
 class EventsManager:
     """Coordinate event sources and submit accepted events to the task queue."""
 
-    def __init__(self, app, task_queue_manager: TaskQueueManager):
+    def __init__(self, app, task_manager: TaskManager):
         from .events_collector.redis_collector import RedisEventsCollector
         from .events_collector.timed_collector import TimedEventsCollector
 
-        self._task_queue_manager = task_queue_manager
+        self._task_manager = task_manager
         self._redis_collector = RedisEventsCollector(app.redis_client.connection)
         self._timed_collector = TimedEventsCollector(app)
         self._should_stop = threading.Event()
@@ -56,7 +56,7 @@ class EventsManager:
                 event.record_id,
             )
             return True
-        return self._task_queue_manager.submit(
+        return self._task_manager.submit(
             AgentTask(
                 schema_version=AGENT_TASK_SCHEMA_VERSION,
                 task_id=str(uuid4()),
@@ -82,7 +82,7 @@ class EventsManager:
     def _flush_loop(self) -> None:
         while not self._should_stop.is_set():
             try:
-                self._task_queue_manager.flush_due()
+                self._task_manager.flush_due()
             except Exception:
                 logger.exception('Failed to flush pending agent tasks')
             if self._should_stop.wait(config.AGENT_ENQUEUE_PENDING_EVENTS_CHECK_INTETVAL):

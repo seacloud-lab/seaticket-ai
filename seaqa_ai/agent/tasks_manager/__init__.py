@@ -19,7 +19,7 @@ from .serializer import AgentTaskSerializer
 logger = logging.getLogger(__name__)
 
 
-class TaskQueueManager:
+class TaskManager:
     """Persist agent tasks in Redis and debounce selected events in memory."""
 
     def __init__(self, redis_connection):

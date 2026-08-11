@@ -52,6 +52,7 @@ class AgentReACTTracer(list):
         self,
         *,
         context=None,
+        phase=None,
         record_phase_context=False,
         prompt=None,
         input=None,
@@ -94,7 +95,7 @@ class AgentReACTTracer(list):
                 else context.get('source_title')
             ),
             trace_id=trace_id or context.get('trace_id') or uuid.uuid4().hex,
-            phase=context.get('phase'),
+            phase=phase if phase is not None else context.get('phase'),
             record_phase_context=record_phase_context,
             prompt=prompt,
             input=input,

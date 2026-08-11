@@ -260,40 +260,19 @@ class AgentPhasePromoter:
         if not isinstance(message_input, str):
             message_input = json.dumps(message_input)
 
-        phase_context = dict(self.context or {})
-        phase_context['phase'] = phase
         phase_spec = ALL_PHASES[phase](
             event=self.event.event_type,
             phase=phase,
             message_input=message_input,
             records_input=records_input,
-            context=phase_context,
+            context=self.context,
         )
-        try:
-            skill = phase_spec.get_skill()
-            tools = phase_spec.get_tools()
-        except KeyError as error:
-            raise ValueError(
-                f'No {phase} skill configured for event type {self.event.event_type!r}'
-            ) from error
-
-        system_prompts = [phase_spec.get_system_prompt()]
-        if self.project_prompt and self.project_prompt.strip():
-            system_prompts.append(self.project_prompt)
-
         react = AgentReACT(
             app=self.app,
             responses_client=self.responses_client,
-            system_prompts=system_prompts,
-            message_input=phase_spec.message_input,
-            records_input=phase_spec.records_input,
-            tools=tools,
+            phase_spec=phase_spec,
             react_tracer=self.react_tracer,
-            final_output_schema=phase_spec.final_output_schema,
-            max_steps=phase_spec.max_steps,
-            max_steps_prompt=phase_spec.max_steps_prompt,
-            context=phase_spec.context,
-            skill=skill
+            project_prompt=self.project_prompt,
         )
         result = react.run()
         return result

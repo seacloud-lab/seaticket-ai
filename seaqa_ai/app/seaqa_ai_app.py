@@ -11,7 +11,7 @@ from seaqa_ai.utils.event_redis import RedisClient
 from seaqa_ai.utils.username_resolver import UsernameResolver
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.agent.events_manager import EventsManager
-from seaqa_ai.agent.tasks_manager.queue_manager import TaskQueueManager
+from seaqa_ai.agent.tasks_manager import TaskManager
 from seaqa_ai.agent.tasks_manager.task_worker import AgentTaskWorker
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 
@@ -30,8 +30,8 @@ class SeaQAAIApp(object):
         self.seadb_api = SeaDBAPI(config.SEADB_SERVER_URL, config.SEADB_USER, config.SEADB_PASSWORD)
         self.seaqa_db = SeaqaDB(self.db_session_class)
         self.embedding_api = EmbeddingAPI(self.data_logger, config.EMBEDDING_MODEL.get('model'), config.EMBEDDING_MODEL.get('type', 'openai'), config.EMBEDDING_MODEL.get('url'), config.EMBEDDING_MODEL.get('key'))
-        self.task_queue_manager = TaskQueueManager(self.redis_client.connection)
-        self.events_manager = EventsManager(self, self.task_queue_manager)
+        self.task_manager = TaskManager(self.redis_client.connection)
+        self.events_manager = EventsManager(self, self.task_manager)
         self.agent_task_worker = AgentTaskWorker(self)
         self.seaqa_ai_http_server = SeaQAAIHttpServer(self)
         self._stopped = False
