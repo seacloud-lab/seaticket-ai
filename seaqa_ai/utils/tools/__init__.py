@@ -3,6 +3,8 @@ import json
 from abc import abstractmethod
 from copy import deepcopy
 from difflib import get_close_matches
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
@@ -35,13 +37,23 @@ class InvalidToolException(Exception):
 class InvalidToolArgumentsException(InvalidToolException):
     """Raised when model-provided arguments do not match a tool's schema."""
 
-    def __init__(self, tool_name, missing_fields=None, unexpected_fields=None, suggestions=None):
+    def __init__(
+        self,
+        tool_name,
+        missing_fields=None,
+        unexpected_fields=None,
+        suggestions=None,
+        schema_error=None,
+    ):
         self.tool_name = tool_name
         self.missing_fields = missing_fields or []
         self.unexpected_fields = unexpected_fields or []
         self.suggestions = suggestions or {}
+        self.schema_error = schema_error
 
         details = []
+        if self.schema_error:
+            details.append(self.schema_error)
         if self.missing_fields:
             details.append(f"missing required fields: {', '.join(self.missing_fields)}")
         if self.unexpected_fields:
@@ -52,7 +64,7 @@ class InvalidToolArgumentsException(InvalidToolException):
             details.append(f"unexpected fields: {', '.join(unexpected)}")
 
         message = f"Invalid arguments for tool {tool_name!r}: {'; '.join(details)}. "
-        message += 'Call the tool again with all required fields and only schema-defined fields.'
+        message += 'Call the tool again with arguments that conform to the registered JSON Schema.'
         super().__init__(message)
 
 
@@ -115,30 +127,45 @@ class OpenAIToolExecutor(BasicToolExecutor):
         ]
 
     def validate_arguments(self, name, params):
-        """Validate top-level model arguments against the registered tool schema."""
+        """Validate model arguments against the complete registered JSON Schema."""
         parameters = self.tools[name]['tool_info'].get('parameters') or {}
         properties = parameters.get('properties')
-        if not isinstance(properties, dict):
+        if isinstance(properties, dict):
+            valid_fields = set(properties)
+            required_fields = parameters.get('required') or []
+            missing_fields = sorted(field for field in required_fields if field not in params)
+            unexpected_fields = sorted(field for field in params if field not in valid_fields)
+            if missing_fields or unexpected_fields:
+                suggestions = {}
+                for field in unexpected_fields:
+                    matches = get_close_matches(field, sorted(valid_fields), n=1, cutoff=0.75)
+                    if matches:
+                        suggestions[field] = matches[0]
+                raise InvalidToolArgumentsException(
+                    name,
+                    missing_fields=missing_fields,
+                    unexpected_fields=unexpected_fields,
+                    suggestions=suggestions,
+                )
+
+        try:
+            validator = Draft202012Validator(parameters)
+        except SchemaError as error:
+            raise InvalidToolException(
+                f'Invalid schema registered for tool {name!r}: {error.message}'
+            ) from error
+
+        error = next(validator.iter_errors(params), None)
+        if error is None:
             return
 
-        valid_fields = set(properties)
-        required_fields = parameters.get('required') or []
-        missing_fields = sorted(field for field in required_fields if field not in params)
-        unexpected_fields = sorted(field for field in params if field not in valid_fields)
-        if not (missing_fields or unexpected_fields):
-            return
-
-        suggestions = {}
-        for field in unexpected_fields:
-            matches = get_close_matches(field, sorted(valid_fields), n=1, cutoff=0.75)
-            if matches:
-                suggestions[field] = matches[0]
+        path = '$'
+        for component in error.absolute_path:
+            path += f'[{component}]' if isinstance(component, int) else f'.{component}'
 
         raise InvalidToolArgumentsException(
             name,
-            missing_fields=missing_fields,
-            unexpected_fields=unexpected_fields,
-            suggestions=suggestions,
+            schema_error=f'{path}: {error.message}',
         )
 
     def execute(self, tool_call, call_back=lambda: None):

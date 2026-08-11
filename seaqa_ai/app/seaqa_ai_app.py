@@ -10,8 +10,9 @@ from seaqa_ai.utils.seadb_api import SeaDBAPI
 from seaqa_ai.utils.event_redis import RedisClient
 from seaqa_ai.utils.username_resolver import UsernameResolver
 from seaqa_ai.db import init_db_session_class
-from seaqa_ai.agent.agent_manager import AgentManager
-from seaqa_ai.agent.agent_task_worker import AgentTaskWorker
+from seaqa_ai.agent.events_manager import EventsManager
+from seaqa_ai.agent.tasks_manager import TaskManager
+from seaqa_ai.agent.tasks_manager.task_worker import AgentTaskWorker
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 
 logger = logging.getLogger(__name__)
@@ -29,14 +30,15 @@ class SeaQAAIApp(object):
         self.seadb_api = SeaDBAPI(config.SEADB_SERVER_URL, config.SEADB_USER, config.SEADB_PASSWORD)
         self.seaqa_db = SeaqaDB(self.db_session_class)
         self.embedding_api = EmbeddingAPI(self.data_logger, config.EMBEDDING_MODEL.get('model'), config.EMBEDDING_MODEL.get('type', 'openai'), config.EMBEDDING_MODEL.get('url'), config.EMBEDDING_MODEL.get('key'))
-        self.agent_manager = AgentManager(self)
+        self.task_manager = TaskManager(self.redis_client.connection)
+        self.events_manager = EventsManager(self)
         self.agent_task_worker = AgentTaskWorker(self)
         self.seaqa_ai_http_server = SeaQAAIHttpServer(self)
         self._stopped = False
 
     def serve_forever(self):
-        self.agent_manager.start()
         self.agent_task_worker.start()
+        self.events_manager.start()
         self.seaqa_ai_http_server.start()
         self.seaqa_ai_http_server.join()
 
@@ -47,9 +49,9 @@ class SeaQAAIApp(object):
         self._stopped = True
 
         try:
-            self.agent_manager.stop()
+            self.events_manager.stop()
         except Exception as e:
-            logger.exception('Failed to stop AgentManager: %s', e)
+            logger.exception('Failed to stop EventsManager: %s', e)
 
         try:
             self.agent_task_worker.stop()
