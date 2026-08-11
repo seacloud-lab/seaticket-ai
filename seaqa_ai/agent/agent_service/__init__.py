@@ -1,6 +1,7 @@
 """Deterministic multi-phase workflow for one typed agent task."""
 import json
 import logging
+import threading
 
 from seaqa_ai.agent.models import AgentTask
 from seaqa_ai.agent.agent_service.constants import LINKED_TICKET_TRACE_EVENT_TYPES
@@ -71,7 +72,12 @@ class AgentService:
             )
             pending_suggestion_action_ids = tracer.flush()
             traces_flushed = True
-            self._trigger_auto_actions(task.project_uuid, pending_suggestion_action_ids)
+            threading.Thread(
+                target=self._trigger_auto_actions,
+                args=(task.project_uuid, pending_suggestion_action_ids),
+                name='agent_auto_actions',
+                daemon=True,
+            ).start()
 
         except Exception as error:
             if run_id is not None:
