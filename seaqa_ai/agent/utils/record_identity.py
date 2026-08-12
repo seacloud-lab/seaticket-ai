@@ -1,6 +1,6 @@
 """Shared schemas and validation for agent record identities."""
 
-from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE
 
 
 EXTRA_RECORD_SOURCE_TYPES = (
@@ -8,26 +8,33 @@ EXTRA_RECORD_SOURCE_TYPES = (
     ExtraSourceType.KNOWLEDGE_BASE.value,
 )
 CONNECTION_RECORD_SOURCE_TYPES = (
+    ConnectionType.SITE.value,
+    ConnectionType.SEAFILE.value,
     ConnectionType.GITHUB_ISSUE.value,
     ConnectionType.DISCOURSE_FORUM.value,
     ConnectionType.EMAIL.value,
     ConnectionType.GENERAL_TASK.value,
+    ConnectionType.LINEAR.value,
+    ConnectionType.DISCORD.value,
 )
 SUPPORTED_RECORD_SOURCE_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SOURCE_TYPES
 
+ALL_SOURCES_TYPES = SOURCES_TYPE.DOCUMENTS.value + SOURCES_TYPE.ISSUES.value + SOURCES_TYPE.TASKS.value
 
-def record_identity_schema(*, include_source_title=False):
+
+def record_identity_schema(*, include_source_title=False, support_source_types=[]):
     properties = {
         'source_type': {
             'type': 'string',
-            'enum': list(SUPPORTED_RECORD_SOURCE_TYPES),
+            'enum': list(support_source_types if support_source_types else SUPPORTED_RECORD_SOURCE_TYPES),
             'description': 'The record source type.',
         },
         'connection_id': {
             'type': ['integer', 'null'],
             'description': (
                 'Use null only for ticket and knowledge_base records. Use an integer for '
-                'github_issue, discourse_forum, email, and general_task records.'
+                'site, seafile, github_issue, discourse_forum, email, general_task, '
+                'linear, and discord records.'
             ),
         },
         'record_id': {

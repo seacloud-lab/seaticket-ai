@@ -28,7 +28,7 @@ tools:
 7. Never call both primary tools or let metadata-tool results alter the authorized primary action.
 8. A reply and its non-empty reason address the actual request using only selected supporting URLs.
 9. A ticket reason is non-empty, limited to reported facts, and preserves uncertainty.
-10. Record each attempted action and its separate actual outcome in `handling_report`.
+10. Record each attempted action and its separate actual outcome in the report.
 
 ## Decision Rules
 - Type modification requires explicit Analysis authorization, a non-empty classified type, and a substantive Analysis-grounded reason. If any required Analysis type value is unavailable, omit the type suggestion and report the constraint.
@@ -45,10 +45,9 @@ tools:
 - Never use a suggestion tool more than needed for its one authorized action.
 - Do not create a reply and ticket together.
 - Do not treat a successful tool call as a published reply or applied change.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 
 ## Required Output
-- Return the required Handling JSON with `handling_report`.
 - Name the authorized actions, attempted calls, selected evidence used, and omissions.
 - For no-op, state that no tool was intentionally called and why.
 - Report failures accurately and do not claim suggestions were created unless their calls succeeded.

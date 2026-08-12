@@ -49,12 +49,11 @@ tools:
 - Do not retry, poll, or make compensating calls after a result.
 
 ## Required Output
-- Return the required `handling_report` after all authorized attempts.
 - Identify approved actions, pending suggestions actually created, and intentional no-op handling.
 - For closure, identify it only as a pending suggestion supported by Analysis.
 - For reply, note that Prelude-verified targets constrain the pending suggestion.
 - For a failure, report only the authorized attempt and concise returned result.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not claim a ticket closed, an external reply was sent, or a recipient was contacted.
 
 ## Forbidden Behavior

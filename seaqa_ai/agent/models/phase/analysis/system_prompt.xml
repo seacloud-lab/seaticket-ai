@@ -60,7 +60,7 @@ After any tool error:
 
 <output_rules>
 Return exactly one JSON object and no markdown or explanatory text. It must include:
-- analysis_report: a detailed analysis of the issue, known-problem assessment, evidence, conclusion, and recommendation rationale; cite search evidence with exact <reference_x> labels when applicable
+- analysis_report: a concise, natural analysis for the user covering the issue, known-problem assessment, evidence, conclusion, and recommendation rationale; use short paragraphs separated by blank lines so distinct ideas are readable rather than one dense paragraph. Do not require headings, a fixed section order, or lists. Cite search evidence with exact <reference_x> labels when applicable
 - recommended_actions: an array of default or skill-defined action names
 - skip_handling: a boolean
 

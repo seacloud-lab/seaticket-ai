@@ -17,8 +17,13 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                     'next action. Cite search evidence with exact returned labels such as '
                     '<reference_0>. Place multiple citations directly next to each other, '
                     'for example <reference_0><reference_1>; do not combine labels or '
-                    'invent labels.'
-                    'Use straight quotes around any UI labels or feature names as needed; output the value as plain prose — do not additionally JSON-escape characters in your analysis report.'
+                    'invent labels. Write a concise, natural analysis for the user using '
+                    'short paragraphs. Separate distinct ideas with blank lines so the '
+                    'background, evidence, conclusion, and next action do not become one '
+                    'dense paragraph. Do not require headings, a fixed section order, or '
+                    'lists. Use straight quotes around any UI labels or feature names as '
+                    'needed; output the value as Markdown-compatible prose and do not '
+                    'additionally JSON-escape characters in your analysis report.'
                 ),
             },
             'recommended_actions': {

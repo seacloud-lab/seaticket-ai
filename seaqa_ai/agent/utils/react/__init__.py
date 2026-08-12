@@ -6,9 +6,10 @@ import time
 import uuid
 
 from seaqa_ai import config
+from seaqa_ai.agent.utils import to_strict_response_schema
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
-from seaqa_ai.utils import get_answer_and_sources, remove_sources_content_and_snippets
+from seaqa_ai.utils import get_answer_and_sources, remove_sources_content_and_snippets, parse_json
 from seaqa_ai.utils.llm_api import ResponsesResult
 from seaqa_ai.utils.memory import OpenAIMemory
 from seaqa_ai.utils.tools import (
@@ -273,11 +274,22 @@ class AgentReACT:
         for retry in range(self.completion_max_retries + 1):
             started_at = time.monotonic()
             try:
+                response_kwargs = {}
+                if self.final_output_schema:
+                    response_kwargs['text'] = {
+                        'format': {
+                            'type': 'json_schema',
+                            'name': 'agent_final_output',
+                            'strict': True,
+                            'schema': to_strict_response_schema(self.final_output_schema),
+                        },
+                    }
                 result = self.responses_client.responses(
                     input=list(self.memory),
                     context=self.context,
                     tools=tools,
                     tool_choice='auto' if tools else 'none',
+                    **response_kwargs,
                 )
                 if not isinstance(result, ResponsesResult):
                     raise TypeError('responses_client must return ResponsesResult')

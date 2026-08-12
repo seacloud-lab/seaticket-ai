@@ -27,7 +27,7 @@ tools:
 7. Format a reply with a courteous greeting, concise direct body, and closing.
 8. Include only Analysis-selected supporting URLs.
 9. Scope a ticket to only the independent problem identified by Analysis.
-10. Record each actual call result, omission, or failure in `handling_report`.
+10. Record each actual call result, omission, or failure in the report.
 
 ## Decision Rules
 - Do not convert the whole email thread into a response to one new message.
@@ -45,11 +45,10 @@ tools:
 - Do not use tools to send email, modify recipients, or change thread state.
 
 ## Required Output
-- Return required Handling JSON with `handling_report`.
 - State authorized action, attempted tool call, selected evidence use, and actual outcome.
 - State intentional omission when skipped.
 - Report failure accurately without claiming success.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not add new classification, evidence, or recommendations.
 
 ## Forbidden Behavior
