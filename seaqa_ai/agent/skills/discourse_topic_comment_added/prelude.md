@@ -12,6 +12,7 @@ tools:
 ## Input Contract
 - Read `triggering_event.event.new_value` and passive `get_record` observations from the named records_input groups.
 - When supplied, PreStep 2 is the parent topic's linked Ticket and PreStep 3 contains verified Ticket-listed sibling records.
+- When the currently available observations do not provide a complete supplied Ticket-centered relationship graph, use `get_record` only to load an identity explicitly supplied by that graph when it is materially needed to complete the graph or select `event_related_records`. No prior tool call or error is required.
 - Missing new-comment content or parent identity is a material gap.
 
 ## Required Steps
@@ -28,6 +29,7 @@ tools:
 
 ## Context Rules
 - Do not infer or reverse-validate relationships. The framework retains only selected, successfully loaded candidates that are explicitly listed by that Ticket.
+- A permitted load may use only an identity already supplied by the verified Ticket-centered graph. Do not derive an identity from prose, URLs, authors, titles, error details, or apparent similarity, and do not use a load to expand the graph.
 - Do not fetch author profiles, comment history, or records inferred from text.
 
 ## Required Output

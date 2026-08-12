@@ -13,6 +13,7 @@ tools:
 ## Input Contract
 - Read `triggering_event` and passive `get_record` observations from the named records_input groups.
 - The routed target is the completed task. When supplied, PreStep 2 is its linked Ticket and PreStep 3 contains verified records explicitly listed by that Ticket.
+- When the currently available observations do not provide a complete supplied Ticket-centered relationship graph, use `get_record` only to load an identity explicitly supplied by that graph when it is materially needed to complete the graph, establish the discoverable General Task set, or select `event_related_records`. No prior tool call or error is required.
 - Loaded records are current phase context, not authoritative live-state validation.
 - For every successfully loaded Ticket-linked General Task, retain its identity and status so Analysis can determine the discoverable total Task count, completed Task count, and whether an unfinished Task exists. If the allowed relationship graph does not provide a complete Task set, state that the total and remaining-work status cannot be confirmed.
 
@@ -37,6 +38,7 @@ tools:
 
 ## Context Rules
 - Do not infer or reverse-validate relationships. The framework retains only selected, successfully loaded records that are explicitly listed by that Ticket.
+- A permitted load may use only an identity already supplied by the verified Ticket-centered graph. Do not derive an identity from task text, URLs, titles, error details, or apparent similarity, and do not use a load to expand the graph.
 - Do not inspect task lists, dependencies, acceptance conditions, release status, or recipients unless they are in successfully loaded records. Do not infer unlisted Tasks or their statuses.
 - Do not include failed, malformed, unavailable, duplicate, identifier-only, or synthetic entries.
 

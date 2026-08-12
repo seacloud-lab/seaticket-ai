@@ -14,10 +14,11 @@ tools:
 - Issue fields may include title, issue number, state, content, labels, issue type, and URL.
 - Recent comments are background only and do not replace the new issue body.
 - Missing fields remain unknown; never infer identities from names, URLs, or text.
+- If the successful passive `get_record` observation for the supplied triggering issue is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Confirm the triggering issue and its opening content are usable.
-2. Load the target issue first and extract its factual request, report, or observed behavior.
+2. Use the successful passive target-issue observation and extract its factual request, report, or observed behavior. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve supplied visible state, labels, and issue type without evaluating them.
 4. Keep the triggering issue primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering issue only.
@@ -31,6 +32,7 @@ tools:
 
 ## Context Rules
 - Do not treat an inferred identity as factual context.
+- A permitted load may use only the supplied triggering issue identity. Do not derive an identity from names, URLs, text, error details, or apparent similarity, and do not use a load to expand context.
 
 ## Required Output
 - Return the required Prelude JSON artifact only.

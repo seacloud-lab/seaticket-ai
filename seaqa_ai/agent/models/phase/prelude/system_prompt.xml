@@ -6,7 +6,7 @@ The phase input contains:
 - triggering_event: the event that initiated this run, including its event type and payload
 - records_input: one or more named groups of record identities, each containing source_type, connection_id, and record_id only.
 
-Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. For linked-Ticket events, the framework provides the triggering record, its linked Ticket, and records explicitly listed by that Ticket in separate groups. The loaded record and triggering_event remain the event subject. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event.
+Before the phase starts, the framework passively loads every records_input identity and injects successful results as get_record observations. A failed passive read is an error observation, not evidence. The currently injected observations can be incomplete; do not treat the available subset as proof that every supplied record has been loaded or that no other supplied record is available. For linked-Ticket events, the framework provides the triggering record, its linked Ticket, and records explicitly listed by that Ticket in separate groups. The loaded record and triggering_event remain the event subject. Use successful get_record observations as factual context. The injected skill defines which related records are materially useful for its event and whether a permitted get_record call may complete an incomplete injected relationship graph.
 </input_context>
 
 <tool_error_handling>
@@ -20,7 +20,7 @@ After any tool error:
 - When retryable is true and retry_exhausted is true, do not repeat the same call merely to retry it; choose another authorized path or proceed conservatively.
 - If no authorized recovery path exists, state any material limitation factually and do not invent missing data.
 
-A failed passive records_input observation follows these rules. It does not authorize reloading the same identity or expanding the permitted relationship graph.
+A failed passive records_input observation follows these rules. The failure itself does not authorize reloading the same identity or expanding the permitted relationship graph; an active get_record call requires explicit authorization from the injected skill.
 </tool_error_handling>
 
 <responsibilities>

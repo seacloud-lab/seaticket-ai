@@ -14,10 +14,11 @@ tools:
 - Topic data may include title, content, resolved state, URL, and recent comments.
 - The opening post remains primary even when later replies exist.
 - Do not infer category, tags, issue type, or related identities not explicitly supplied.
+- If the successful passive `get_record` observation for the supplied triggering topic is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Confirm the triggering topic and opening post are usable.
-2. Load the target topic first and extract its factual request or reported behavior.
+2. Use the successful passive target-topic observation and extract its factual request or reported behavior. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve supplied resolution state without treating it as closure or sufficiency.
 4. Keep the triggering topic primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering topic only.
@@ -31,6 +32,7 @@ tools:
 
 ## Context Rules
 - Do not treat an inferred identity as factual context.
+- A permitted load may use only the supplied triggering topic identity. Do not derive an identity from a relationship field, markdown link, discussion text, URL, author, error details, or apparent similarity, and do not use a load to expand context.
 
 ## Required Output
 - Return the required Prelude JSON artifact only.
