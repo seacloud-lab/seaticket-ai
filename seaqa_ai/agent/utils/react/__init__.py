@@ -37,7 +37,7 @@ class AgentReACT:
     phases cannot leak tool state or conversation history.
     """
 
-    MAX_RECORDS_INPUT = 10
+    MAX_RECORDS_INPUT = 20
 
     def __init__(
         self,
