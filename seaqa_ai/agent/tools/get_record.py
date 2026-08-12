@@ -511,7 +511,7 @@ class GetRecord(BasicTool):
             'The returned record includes its stored link fields but does not load '
             'linked records automatically.'
         ),
-        'parameters': record_identity_schema(recive_all_sources=True),
+        'parameters': record_identity_schema(),
         'strict': True,
     }
 

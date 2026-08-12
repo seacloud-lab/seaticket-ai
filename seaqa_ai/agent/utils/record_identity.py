@@ -1,32 +1,19 @@
 """Shared schemas and validation for agent record identities."""
 
-from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType, SOURCES_TYPE
+from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
 
-EXTRA_RECORD_SOURCE_TYPES = (
-    ExtraSourceType.TICKET.value,
-    ExtraSourceType.KNOWLEDGE_BASE.value,
-)
-CONNECTION_RECORD_SOURCE_TYPES = (
-    ConnectionType.SITE.value,
-    ConnectionType.SEAFILE.value,
-    ConnectionType.GITHUB_ISSUE.value,
-    ConnectionType.DISCOURSE_FORUM.value,
-    ConnectionType.EMAIL.value,
-    ConnectionType.GENERAL_TASK.value,
-    ConnectionType.LINEAR.value,
-    ConnectionType.DISCORD.value,
-)
-SUPPORTED_RECORD_SOURCE_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SOURCE_TYPES
+EXTRA_RECORD_SOURCE_TYPES = ExtraSourceType.get_document_extra_source_types() + ExtraSourceType.get_issue_extra_source_types() + ExtraSourceType.get_task_extra_source_types()
+CONNECTION_RECORD_SOURCE_TYPES = ConnectionType.get_document_connection_types() + ConnectionType.get_issue_connection_types() + ConnectionType.get_task_connection_types()
 
-ALL_SOURCES_TYPES = SOURCES_TYPE.DOCUMENTS.value + SOURCES_TYPE.ISSUES.value + SOURCES_TYPE.TASKS.value
+ALL_SOURCES_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SOURCE_TYPES
 
 
-def record_identity_schema(*, include_source_title=False, recive_all_sources=False):
+def record_identity_schema(*, include_source_title=False):
     properties = {
         'source_type': {
             'type': 'string',
-            'enum': list(ALL_SOURCES_TYPES if recive_all_sources else SUPPORTED_RECORD_SOURCE_TYPES),
+            'enum': list(ALL_SOURCES_TYPES),
             'description': 'The record source type.',
         },
         'connection_id': {
@@ -61,8 +48,8 @@ def record_identity_schema(*, include_source_title=False, recive_all_sources=Fal
 
 def validate_record_identity(source_type, connection_id, record_id):
     source_type = str(source_type or '').strip()
-    if source_type not in SUPPORTED_RECORD_SOURCE_TYPES:
-        available_source_types = ', '.join(SUPPORTED_RECORD_SOURCE_TYPES)
+    if source_type not in ALL_SOURCES_TYPES:
+        available_source_types = ', '.join(ALL_SOURCES_TYPES)
         raise ValueError(
             f'Unsupported record source type: {source_type}. '
             f'Available source types: {available_source_types}'
