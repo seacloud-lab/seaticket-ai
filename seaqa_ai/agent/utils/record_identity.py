@@ -22,11 +22,11 @@ SUPPORTED_RECORD_SOURCE_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SO
 ALL_SOURCES_TYPES = SOURCES_TYPE.DOCUMENTS.value + SOURCES_TYPE.ISSUES.value + SOURCES_TYPE.TASKS.value
 
 
-def record_identity_schema(*, include_source_title=False, support_source_types=[]):
+def record_identity_schema(*, include_source_title=False, recive_all_sources=False):
     properties = {
         'source_type': {
             'type': 'string',
-            'enum': list(support_source_types if support_source_types else SUPPORTED_RECORD_SOURCE_TYPES),
+            'enum': list(ALL_SOURCES_TYPES if recive_all_sources else SUPPORTED_RECORD_SOURCE_TYPES),
             'description': 'The record source type.',
         },
         'connection_id': {
