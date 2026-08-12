@@ -2,7 +2,7 @@
 
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.agent.utils.record_identity import (
-    SUPPORTED_RECORD_SOURCE_TYPES,
+    ALL_SOURCES_TYPES,
     validate_record_identity,
 )
 
@@ -41,8 +41,8 @@ class BasicAgentSuggestionTool(BasicTool):
         source_id = target.get('source_id')
         record_id = target.get('record_id')
         connection_id = target.get('connection_id')
-        if source_type not in SUPPORTED_RECORD_SOURCE_TYPES:
-            available_source_types = ', '.join(SUPPORTED_RECORD_SOURCE_TYPES)
+        if source_type not in ALL_SOURCES_TYPES:
+            available_source_types = ', '.join(ALL_SOURCES_TYPES)
             raise ValueError(
                 f'target source_type must be one of: {available_source_types}'
             )
