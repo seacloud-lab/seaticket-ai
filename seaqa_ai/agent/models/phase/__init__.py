@@ -12,7 +12,7 @@ class AgentPhaseSpec:
     context: dict
     max_steps = 10
     max_steps_prompt = 'Maximum tool-call steps reached. Return the final answer without calling tools.'
-    final_output_schema: ClassVar[dict]
+    final_output_schema: ClassVar[dict] = {}
 
     @property
     def skill(self) -> str:

@@ -26,7 +26,7 @@ tools:
 6. Format an authorized email reply with a courteous greeting, direct helpful body, and closing.
 7. Include only selected-evidence URLs in a reply.
 8. Preserve unresolved bug or feature facts and uncertainty in a ticket proposal.
-9. Record each attempted call and actual outcome in `handling_report`.
+9. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
 - Never apply spam handling to legitimate transactional or system notices.
@@ -45,11 +45,10 @@ tools:
 - Do not use tools to send email, alter payment data, or modify account security state.
 
 ## Required Output
-- Return required Handling JSON with `handling_report`.
 - Name the authorized action, attempted call, selected evidence use, and actual outcome.
 - For Notification or no-op, state that no tool was intentionally called.
 - Report a failed call honestly without claiming completion.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not add new analysis or classification.
 
 ## Forbidden Behavior

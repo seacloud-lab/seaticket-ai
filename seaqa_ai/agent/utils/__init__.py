@@ -1,5 +1,6 @@
 import importlib
 import inspect
+from copy import deepcopy
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +16,50 @@ from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch
 TOOLS_PACKAGE = 'seaqa_ai.agent.tools'
 TOOLS_DIR = Path(__file__).resolve().parent.parent / 'tools'
 SKILLS_DIR = Path(__file__).resolve().parent.parent / 'skills'
+
+
+def to_strict_response_schema(schema: dict) -> dict:
+    """Convert a JSON Schema to the strict subset required by Responses output."""
+    if not isinstance(schema, dict):
+        raise TypeError('schema must be an object')
+    return _to_strict_response_schema(deepcopy(schema))
+
+
+def _to_strict_response_schema(schema: dict) -> dict:
+    for key in ('allOf', 'anyOf', 'oneOf'):
+        if isinstance(schema.get(key), list):
+            schema[key] = [
+                _to_strict_response_schema(item) if isinstance(item, dict) else item
+                for item in schema[key]
+            ]
+
+    if isinstance(schema.get('items'), dict):
+        schema['items'] = _to_strict_response_schema(schema['items'])
+
+    properties = schema.get('properties')
+    if not isinstance(properties, dict):
+        return schema
+
+    required = schema.get('required') or []
+    if not isinstance(required, list) or not all(isinstance(name, str) for name in required):
+        raise ValueError('schema required fields must be a string array')
+    required_names = set(required)
+
+    strict_properties = {}
+    for name, property_schema in properties.items():
+        if not isinstance(property_schema, dict):
+            raise ValueError(f'schema property {name!r} must be an object')
+        property_schema = _to_strict_response_schema(property_schema)
+        if name not in required_names:
+            property_schema = {
+                'anyOf': [property_schema, {'type': 'null'}],
+            }
+        strict_properties[name] = property_schema
+
+    schema['properties'] = strict_properties
+    schema['required'] = list(strict_properties)
+    schema['additionalProperties'] = False
+    return schema
 
 def _tool_importer(tool_name):
     module = importlib.import_module(f'{TOOLS_PACKAGE}.{tool_name}')

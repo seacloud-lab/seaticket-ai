@@ -25,7 +25,7 @@ tools:
 6. Use a non-empty reply and reason to address the topic's actual opening request.
 7. Include only selected supporting URLs.
 8. Use a non-empty ticket reason that preserves user facts and uncertainty.
-9. Record the actual outcome in `handling_report`.
+9. Record the actual outcome in the report.
 
 ## Decision Rules
 - Resolved state does not independently authorize no action or a reply.
@@ -42,11 +42,10 @@ tools:
 - Do not use a tool to change topic state, category, tags, or author data.
 
 ## Required Output
-- Return required Handling JSON with `handling_report`.
 - State authorized action, call attempted, evidence URL use, and outcome.
 - For skipped handling, state the intentional omission.
 - Report failure honestly and avoid claiming a suggestion exists unless the call succeeded.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not add new analysis.
 
 ## Forbidden Behavior

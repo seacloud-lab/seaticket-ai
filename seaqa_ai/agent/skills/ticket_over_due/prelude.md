@@ -1,7 +1,8 @@
 event: ticket_over_due
 phase: prelude
 description: "Prepare an overdue ticket for analysis."
-tools: []
+tools:
+  - get_record
 ====================
 ## Role And Scope
 - Prepare a factual, prior-phase artifact for one ticket routed by an overdue scanner.
@@ -15,10 +16,11 @@ tools: []
 - The ticket may contain state, substate, title, priority, due date, assignees, and link identities.
 - Treat missing fields as unknown rather than proof of resolution or ownership.
 - Do not treat a stored link as permission to inspect its source content.
+- If the successful passive `get_record` observation for the supplied target ticket is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Verify the event and routed ticket identity are present and usable.
-2. Use the successful passive `get_record` observation for the routed ticket. Do not actively reload it.
+2. Use the successful passive `get_record` observation for the routed ticket. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Record the supplied overdue trigger separately from the ticket due-date field.
 4. Capture factual title, state, substate, priority, due date, and assignee presence.
 5. Set `event_related_records` to an array containing only the target ticket identity.
@@ -35,7 +37,7 @@ tools: []
 - Use the ticket observation only as context for this phase; do not represent it as a live-state validation.
 
 ## Tool Rules
-- No active tools are permitted. Use only the successful passive observation of the routed ticket.
+- Use the successful passive observation of the routed ticket when available. If it is unavailable and target data is materially needed, `get_record` may load only the same supplied target identity.
 - Never read linked tasks, issues, messages, discussions, or external records.
 - Never use a link identity to make a second read.
 - Do not search for owners, activity, notification history, or related work.
@@ -55,5 +57,5 @@ tools: []
 - Do not classify the ticket as actionable, resolved, urgent, or eligible for closure.
 - Do not duplicate or suppress notifications at this phase.
 - Do not expose internal identifiers or URLs for later public use.
-- Do not perform another read after the target ticket snapshot is created.
+- Do not load any identity other than the supplied target ticket.
 - Do not claim this snapshot is a system live-state validation.

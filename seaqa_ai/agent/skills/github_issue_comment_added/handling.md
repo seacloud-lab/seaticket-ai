@@ -26,7 +26,7 @@ tools:
 6. Make the non-empty reply and reason address the new comment directly.
 7. Include only Analysis-selected supporting URLs.
 8. Make a ticket's non-empty reason cover only the independent problem identified by Analysis.
-9. Record each call or intentional omission in `handling_report`.
+9. Record each call or intentional omission in the report.
 
 ## Decision Rules
 - Never call `suggest_reply` and `suggest_create_ticket` together. `suggest_reply` and `suggest_notify_assignee` may coexist only when Analysis authorized both.
@@ -43,11 +43,10 @@ tools:
 - Keep tool content within the authorized target and evidence scope.
 
 ## Required Output
-- Return the required Handling JSON with `handling_report`.
 - State the authorized action and whether its call succeeded.
 - For no-op, state why no tool was called.
 - Report a failure honestly without claiming a created suggestion.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not include extra action recommendations.
 
 ## Forbidden Behavior

@@ -14,10 +14,11 @@ tools:
 - Thread fields may include title, first email, recent emails, and unread state.
 - The first email remains primary; recipient lists are normally unnecessary.
 - Do not infer a relationship from sender identity, text, URLs, or apparent similarity.
+- If the successful passive `get_record` observation for the supplied triggering thread is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Confirm the triggering thread and opening email are usable.
-2. Load the target thread first and state its factual opening request, report, or notice.
+2. Use the successful passive target-thread observation and state its factual opening request, report, or notice. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve automated wording only as an observation, not a classification.
 4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering thread only.
@@ -31,6 +32,7 @@ tools:
 
 ## Context Rules
 - Do not treat an inferred identity as factual context.
+- A permitted load may use only the supplied triggering thread identity. Do not derive an identity from sender identity, text, URLs, error details, or apparent similarity, and do not use a load to expand context.
 
 ## Required Output
 - Return the required Prelude JSON artifact only.

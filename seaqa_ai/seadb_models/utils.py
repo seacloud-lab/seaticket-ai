@@ -10,6 +10,7 @@ SCHEMA_TABLE_CONNECTION = {
     ConnectionType.EMAIL.value: SchemaTables.THREAD,
     ConnectionType.GENERAL_TASK.value: SchemaTables.GENERAL_TASK,
     ConnectionType.LINEAR.value: SchemaTables.LINEAR_ISSUES,
+    ConnectionType.DISCORD.value: SchemaTables.DISCORD_THREADS,
 }
 
 # Mapping from extra source types (no connection_id) to schema table keys

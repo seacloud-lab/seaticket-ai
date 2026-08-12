@@ -27,7 +27,7 @@ tools:
 7. Use a non-empty reply and reason directly addressing the new comment, not a parent-topic recap.
 8. Include only Analysis-selected supporting URLs.
 9. Limit a ticket's non-empty reason to the independent problem stated in Analysis.
-10. Record each action, omission, or failure in `handling_report`.
+10. Record each action, omission, or failure in the report.
 
 ## Decision Rules
 - Do not treat a generic topic answer as a response to a new specific question.
@@ -44,11 +44,10 @@ tools:
 - Do not modify topic category, status, tags, or author data.
 
 ## Required Output
-- Return required Handling JSON with `handling_report`.
 - State the authorized action, actual call outcome, and selected evidence use.
 - For no-op, document the intentional no-call result.
 - Report failures accurately without claiming success.
-- After all authorized attempts, immediately return the final Handling JSON and make no further tool call.
+- After all authorized attempts, immediately return the report and make no further tool call.
 - Do not include a new analysis recommendation.
 
 ## Forbidden Behavior
