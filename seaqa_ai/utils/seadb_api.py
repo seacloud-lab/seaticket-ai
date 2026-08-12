@@ -444,6 +444,9 @@ class SeaDBAPI:
         ]
         fields_str = self._normalize_fields_str(fields_str, required_fields)
 
+        # Reserve one slot for the initial entry when possible. The latest entry
+        # is the event-relevant context, while the initial entry provides origin.
+        latest_limit = limit_for_each_topic if limit_for_each_topic <= 1 else limit_for_each_topic - 1
         selected_entries_map = self._select_first_and_latest_topic_entries(
             base_id=base_id,
             table_name=table_name,
@@ -453,7 +456,7 @@ class SeaDBAPI:
             has_deleted_field=has_deleted_field,
             first_order_by_field=first_order_by_field,
             latest_order_by_field=latest_order_by_field,
-            limit_for_each_topic=limit_for_each_topic,
+            limit_for_each_topic=latest_limit,
             dedupe_key_fields=dedupe_key_fields,
             sort_key_fields=sort_key_fields,
         )
@@ -470,30 +473,19 @@ class SeaDBAPI:
                 result[topic_id] = []
                 continue
 
+            entries = self._prioritize_latest_topic_entries(
+                entries,
+                first_order_by_field=first_order_by_field,
+                sort_key_fields=sort_key_fields,
+                limit_for_each_topic=limit_for_each_topic,
+            )
             remaining_size = None if max_total_content_size is None else max_total_content_size - initial_content_length
-            first_entry = self._pick_first_entry(entries, first_order_by_field=first_order_by_field)
-            first_content = first_entry.get(content_field_name) or ''
-            if remaining_size is not None and len(first_content) > remaining_size:
-                selected_entries = []
-                truncated_content = self._truncate_content_with_ellipsis(first_content, remaining_size)
-                if truncated_content:
-                    truncated_entry = dict(first_entry)
-                    truncated_entry[content_field_name] = truncated_content
-                    selected_entries.append(truncated_entry)
-                if more_omitted_notice_builder:
-                    selected_entries.append(more_omitted_notice_builder())
-                result[topic_id] = selected_entries
-                continue
-
-            if limit_for_each_topic <= 1:
-                result[topic_id] = [first_entry]
-                continue
-
             if max_total_content_size is None:
-                result[topic_id] = entries
+                result[topic_id] = self._sort_topic_entries(entries, sort_key_fields)
                 continue
 
             selected_entries = []
+            omitted_notice = None
             total_content_size = int(initial_content_lengths.get(topic_id, 0) or 0)
             for entry in entries:
                 content = entry.get(content_field_name) or ''
@@ -508,12 +500,48 @@ class SeaDBAPI:
                         truncated_entry[content_field_name] = truncated_content
                         selected_entries.append(truncated_entry)
                     if more_omitted_notice_builder:
-                        selected_entries.append(more_omitted_notice_builder())
+                        omitted_notice = more_omitted_notice_builder()
                     break
 
                 selected_entries.append(entry)
                 total_content_size += len(content)
 
-            result[topic_id] = selected_entries
+            result[topic_id] = self._sort_topic_entries(selected_entries, sort_key_fields)
+            if omitted_notice:
+                result[topic_id].append(omitted_notice)
 
         return result
+
+    @classmethod
+    def _prioritize_latest_topic_entries(cls, entries, first_order_by_field=None,
+                                         sort_key_fields=None, limit_for_each_topic=20):
+        """Return the latest entry, initial context, then other recent entries."""
+        if limit_for_each_topic <= 0:
+            return []
+
+        sort_key_fields = list(sort_key_fields or [])
+        newest_first = sorted(
+            entries,
+            key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
+            reverse=True,
+        )
+        if limit_for_each_topic == 1:
+            return newest_first[:1]
+
+        first_entry = cls._pick_first_entry(entries, first_order_by_field=first_order_by_field)
+        latest_entry = newest_first[0]
+        if latest_entry is first_entry:
+            return newest_first[:limit_for_each_topic]
+
+        other_recent_entries = [
+            entry for entry in newest_first
+            if entry is not latest_entry and entry is not first_entry
+        ]
+        return [latest_entry, first_entry] + other_recent_entries[:limit_for_each_topic - 2]
+
+    @staticmethod
+    def _sort_topic_entries(entries, sort_key_fields):
+        return sorted(
+            entries,
+            key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
+        )
