@@ -9,15 +9,15 @@ class TestTool(BasicTool):
             'type': 'object',
             'properties': {
                 'paramters': {
-                    'type': 'string',
+                    'type': ['string', 'null'],
                     'description': 'Parameters used in the test'
                 },
                 'error': {
-                    'type': 'string',
+                    'type': ['string', 'null'],
                     'description': 'Providing this parameter will raise a related error'
                 }
             },
-            'required': [],
+            'required': ['paramters', 'error'],
             'additionalProperties': False,
         },
         'strict': True,
