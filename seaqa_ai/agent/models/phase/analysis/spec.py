@@ -33,13 +33,15 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                     'suggest_assign_labels',
                     'suggest_reply',
                     'suggest_create_ticket',
+                    'suggest_link_existing_ticket',
                     'suggest_move_to_spam',
                     'no_op',
                 ],
                 'description': (
                     'Recommended next actions. Default action names are '
                     'suggest_modify_type, suggest_assign_labels, suggest_reply, '
-                    'suggest_create_ticket, suggest_move_to_spam, and no_op. Use '
+                    'suggest_create_ticket, suggest_link_existing_ticket, '
+                    'suggest_move_to_spam, and no_op. Use '
                     '["no_op"] when no handling suggestion is needed. The injected '
                     'skill may define additional action names or override these defaults.'
                 ),
@@ -67,6 +69,14 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                     'Notification. The injected skill may define additional classifications '
                     'or override these defaults. Include only when the injected skill '
                     'supports issue-type modification.'
+                ),
+            },
+            'related_ticket': {
+                'type': 'integer',
+                'description': (
+                    'The id of the existing internal ticket, found during search, that '
+                    'already tracks similar records. Include only when recommended_actions '
+                    'contains suggest_link_existing_ticket.'
                 ),
             },
             'skip_handling': {

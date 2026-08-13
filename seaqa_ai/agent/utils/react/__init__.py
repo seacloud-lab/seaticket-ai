@@ -402,6 +402,7 @@ class AgentReACT:
                                 suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
                                 suggestion_text=str(raw_result.get('suggestion_text', '') or ''),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
+                                suggestion_payload=raw_result.get('suggestion_payload'),
                             )
                     self._append_tool_output(tool_call, observation)
                     return True
@@ -620,6 +621,7 @@ class AgentReACT:
     def _trace(self, *, action_type, action_status, step, result=None, tool_name=None,
                tool_arguments=None, observation=None, statistics=None,
                 suggestion_reason='', suggestion_text='', suggestion_content='',
+                suggestion_payload=None,
                 source_type=None, source_id=None, source_title=None,
                 record_phase_context=False, trace_id=None, sources=None, with_input=False):
         if self.react_tracer is None:
@@ -641,6 +643,7 @@ class AgentReACT:
             suggestion_reason=suggestion_reason,
             suggestion_text=suggestion_text,
             suggestion_content=suggestion_content,
+            suggestion_payload=suggestion_payload,
             sources=sources,
             source_type=source_type,
             source_id=source_id,
@@ -703,6 +706,10 @@ class AgentReACT:
             for name, item in value.items():
                 item_schema = properties.get(name)
                 if item_schema is not None:
+                    if item is None and name not in required:
+                        # to_strict_response_schema makes optional properties
+                        # required-but-nullable, so null is valid output for them.
+                        continue
                     cls._validate_json_schema(item, item_schema, f'{path}.{name}')
         elif isinstance(value, list) and isinstance(schema.get('items'), dict):
             for index, item in enumerate(value):

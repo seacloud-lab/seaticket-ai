@@ -22,13 +22,18 @@ class SuggestModifyType(BasicAgentSuggestionTool):
         if not str(reason or '').strip():
             raise ValueError('reason must not be empty')
         current = str(current_issue_type or '').strip()
+        suggested = str(suggested_type or '').strip()
         suggestion_text = (
-            f'Suggest changing the type from "{current}" to "{suggested_type}" for this GitHub issue'
-            if current else f'Suggest changing the type to "{suggested_type}" for this GitHub issue'
+            f'Change the type from "{current}" to "{suggested}" for this GitHub issue'
+            if current else f'Change the type to "{suggested}" for this GitHub issue'
         )
+        suggestion_payload = {'suggested_type': suggested}
+        if current:
+            suggestion_payload['current_issue_type'] = current
         return self.suggestion_result(
             context=context,
             targets=[self._target_from_trigger_context(context)],
             suggestion_reason=reason,
             suggestion_text=suggestion_text,
+            suggestion_payload=suggestion_payload,
         )

@@ -29,8 +29,9 @@ tools:
 8. For `Notification`, do not search and recommend only `no_op`.
 9. For support content, select the initial search tool from the classification.
 10. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-11. Evaluate directness of evidence and choose exactly one primary recommendation.
-12. Explain classification, evidence, and safety constraints in the report.
+11. When search evidence shows an existing internal ticket already tracks the opening email's concrete work, recommend `suggest_link_existing_ticket` as the primary action and set `related_ticket` to that ticket's id instead of recommending `suggest_create_ticket`.
+12. Evaluate directness of evidence and choose exactly one primary recommendation.
+13. Explain classification, evidence, and safety constraints in the report.
 
 ## Decision Rules
 - Use `Spam` only for unsolicited advertising, promotional campaigns, sales-only newsletters, phishing, or unsolicited sales.
@@ -43,6 +44,7 @@ tools:
 - “Export fails after upgrade” is `Bug`.
 - For `Bug` or `Feature`, reply only for a clear tracked case; otherwise create a ticket.
 - For `Question`, reply only for a direct answer; otherwise create a ticket.
+- Recommend `suggest_link_existing_ticket` over `suggest_create_ticket` when search evidence shows the thread is already owned by an existing internal ticket; set `related_ticket` to that ticket id and never invent one.
 - An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers the opening email.
 
 ## Tool Rules
@@ -59,7 +61,8 @@ tools:
 
 ## Required Output
 - Return all required Analysis JSON fields.
-- Return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, `suggest_move_to_spam`, or `no_op`.
+- Return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, `suggest_move_to_spam`, or `no_op`.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Place exact search-returned labels next to supported claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` true only for it.

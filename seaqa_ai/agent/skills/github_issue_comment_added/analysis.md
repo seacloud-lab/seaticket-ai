@@ -26,7 +26,7 @@ tools:
 6. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
 7. Search with focused terms from the new comment, not generic parent-issue text.
 8. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
-9. When Prelude retained a verified linked Ticket, assess owner notification and a reply to the triggering issue independently; otherwise recommend `suggest_reply`, `suggest_create_ticket`, or `no_op`.
+9. When Prelude retained a verified linked Ticket, assess owner notification and a reply to the triggering issue independently; otherwise recommend `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `no_op`.
 10. Set `skip_handling` true only for `no_op`.
 11. State why a ticket is independent or why no action is strictly justified.
 
@@ -42,6 +42,7 @@ tools:
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering issue needs a visible acknowledgement, clarification, or supported status response.
 - Notification and an external reply may coexist only when each has independent evidence; `no_op` is exclusive.
 - Use `suggest_reply` for a direct answer, tracked case, or useful supported partial response.
+- Use `suggest_link_existing_ticket` when search evidence shows an existing internal ticket already tracks the new comment's problem; set `related_ticket` to that ticket id and never invent one.
 - Use `suggest_create_ticket` only for a clearly independent unresolved problem not covered by the parent issue.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
 
@@ -60,6 +61,7 @@ tools:
 - Return all required Analysis JSON fields.
 - For an unlinked record, include exactly one primary recommended action.
 - For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Use exact returned labels beside supported claims in `analysis_report`.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` true exactly for it.

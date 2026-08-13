@@ -28,7 +28,7 @@ tools:
 8. Choose the initial search tool by classification.
 9. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
 10. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-11. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
+11. Recommend `suggest_reply` when evidence is direct; recommend `suggest_link_existing_ticket` with `related_ticket` set to the ticket id when an existing internal ticket already tracks the topic's concrete work; otherwise recommend `suggest_create_ticket`.
 12. Explain the Discourse-specific context and uncertainty without assigning GitHub labels or type changes.
 
 ## Decision Rules
@@ -40,6 +40,7 @@ tools:
 - A tracked-case reply requires strong matching symptoms, request, or root problem and a usable URL.
 - A direct answer must address the topic's concrete question; thematic similarity is insufficient.
 - An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers the topic.
+- Recommend `suggest_link_existing_ticket` over `suggest_create_ticket` when search evidence shows the topic is already owned by an existing internal ticket; set `related_ticket` to that ticket id and never invent one.
 
 ## Tool Rules
 - Only `issues_search` and `documents_search` are permitted.
@@ -54,7 +55,8 @@ tools:
 
 ## Required Output
 - Return all required Analysis JSON fields.
-- Return one primary recommendation: `suggest_reply`, `suggest_create_ticket`, or `no_op`.
+- Return one primary recommendation: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `no_op`.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Place exact search-returned labels beside supported claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` true exactly for it.

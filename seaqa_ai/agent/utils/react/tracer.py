@@ -66,6 +66,7 @@ class AgentReACTTracer(list):
         suggestion_reason='',
         suggestion_text='',
         suggestion_content='',
+        suggestion_payload=None,
         sources=None,
         statistics=None,
         source_type=None,
@@ -109,6 +110,7 @@ class AgentReACTTracer(list):
             suggestion_reason=suggestion_reason,
             suggestion_text=suggestion_text,
             suggestion_content=suggestion_content,
+            suggestion_payload=suggestion_payload,
             sources=sources,
             statistics=statistics,
         )
@@ -181,6 +183,7 @@ class AgentReACTTracer(list):
         suggestion_reason,
         suggestion_text,
         suggestion_content,
+        suggestion_payload,
         sources,
         statistics,
     ):
@@ -190,6 +193,13 @@ class AgentReACTTracer(list):
             sources_payload = sources
         else:
             sources_payload = '[]'
+
+        if isinstance(suggestion_payload, dict):
+            suggestion_payload_text = json.dumps(suggestion_payload, ensure_ascii=False)
+        elif isinstance(suggestion_payload, str):
+            suggestion_payload_text = suggestion_payload
+        else:
+            suggestion_payload_text = '{}'
 
         result = (
             _truncate_string(result)
@@ -255,6 +265,7 @@ class AgentReACTTracer(list):
             'suggestion_reason': suggestion_reason or '',
             'suggestion_text': suggestion_text or '',
             'suggestion_content': suggestion_content or '',
+            'suggestion_payload': suggestion_payload_text,
             'sources': sources_payload,
             'statistics': deepcopy(statistics) if statistics is not None else None,
             'created_at': now_iso(),

@@ -326,6 +326,7 @@ class AgentPhasePromoter:
         original_issue_type = analysis_result.get('original_issue_type')
         classified_issue_type = analysis_result.get('classified_issue_type')
         recommended_actions = analysis_result.get('recommended_actions', [])
+        related_ticket = analysis_result.get('related_ticket')
         reference_related_records = analysis_result.get('reference_related_records', [])
 
         message_input = self._build_default_message_input()
@@ -339,6 +340,8 @@ class AgentPhasePromoter:
             message_input['classified_issue_type'] = classified_issue_type
         if recommended_actions is not None:
             message_input['recommended_actions'] = recommended_actions
+        if related_ticket is not None:
+            message_input['related_ticket'] = related_ticket
 
         records_input = _RecordInputFormatter.build_event_records_input(
             self.task, self.context, event_related_records,

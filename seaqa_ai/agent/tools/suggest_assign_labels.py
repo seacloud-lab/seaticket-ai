@@ -37,4 +37,5 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
                 f'Assign labels {json.dumps(labels, ensure_ascii=False)} '
                 'to this GitHub issue'
             ),
+            suggestion_payload={'suggested_labels': labels},
         )

@@ -4,6 +4,7 @@ description: "Create authorized follow-up suggestions for a new GitHub comment."
 tools:
   - suggest_reply
   - suggest_create_ticket
+  - suggest_link_existing_ticket
   - suggest_notify_assignee
 ====================
 ## Role And Scope
@@ -22,21 +23,22 @@ tools:
 2. Otherwise invoke each independently authorized tool exactly once.
 3. Call `suggest_reply` only when it is the authorized action. It always targets the triggering GitHub issue in PreStep 1; do not target the selected Ticket or another related record.
 4. Call `suggest_create_ticket` only when it is the authorized action. It always targets the triggering GitHub issue in PreStep 1.
-5. Call `suggest_notify_assignee` only when PreStep 2 contains the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
-6. Make the non-empty reply and reason address the new comment directly.
-7. Include only Analysis-selected supporting URLs.
-8. Make a ticket's non-empty reason cover only the independent problem identified by Analysis.
-9. Record each call or intentional omission in the report.
+5. Call `suggest_link_existing_ticket` only when it is the authorized action and the Analysis artifact provides a positive integer `related_ticket`. It always targets the triggering GitHub issue in PreStep 1; pass that ticket id exactly.
+6. Call `suggest_notify_assignee` only when PreStep 2 contains the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
+7. Make the non-empty reply and reason address the new comment directly.
+8. Include only Analysis-selected supporting URLs.
+9. Make a ticket's non-empty reason cover only the independent problem identified by Analysis.
+10. Record each call or intentional omission in the report.
 
 ## Decision Rules
-- Never call `suggest_reply` and `suggest_create_ticket` together. `suggest_reply` and `suggest_notify_assignee` may coexist only when Analysis authorized both.
+- Never call more than one of `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`. `suggest_reply` and `suggest_notify_assignee` may coexist only when Analysis authorized both.
 - Do not turn a parent-issue recap into a response to the new comment.
 - Do not add a ticket for a problem Analysis did not call independent.
 - An omitted action remains omitted after a tool failure.
 - Pending suggestion creation is not evidence of public delivery or completion.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_notify_assignee` are permitted.
+- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
 - Do not call `get_record`, search, or undeclared tools.
 - Invoke only the exact authorized suggestion tool.
 - Do not retry, substitute an action, or seek new evidence.

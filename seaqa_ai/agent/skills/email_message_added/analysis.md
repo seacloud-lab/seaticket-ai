@@ -28,7 +28,7 @@ tools:
 7. Use focused terms from the new email, not generic thread subject text.
 8. Retain only direct-answer or strong tracked-case evidence.
 9. When Prelude retained a verified linked Ticket, assess owner notification and a reply to the triggering thread independently; otherwise recommend `suggest_reply` for a direct answer, tracked case, or helpful supported partial response.
-10. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem.
+10. Recommend `suggest_link_existing_ticket` with `related_ticket` set to the ticket id when search evidence shows an existing internal ticket already tracks the new message's problem; recommend `suggest_create_ticket` only for a clearly independent unresolved problem.
 11. Explain why a ticket would not duplicate the existing thread.
 
 ## Decision Rules
@@ -58,7 +58,8 @@ tools:
 
 ## Required Output
 - Return all required Analysis JSON fields.
-- For an unlinked record, return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, or `no_op`. For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op`.
+- For an unlinked record, return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `no_op`. For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op`.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Put exact returned labels immediately beside supported claims in `analysis_report`.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` true exactly for it.

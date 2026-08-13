@@ -125,7 +125,7 @@ class BasicAgentSuggestionTool(BasicTool):
 
     def suggestion_result(
         self, *, suggestion_content='', context=None, targets=None, suggestion_reason='', suggestion_text=None,
-        tool_name=None,
+        suggestion_payload=None, tool_name=None,
     ):
         if targets is None:
             targets = [self._target_from_context(context)]
@@ -135,6 +135,7 @@ class BasicAgentSuggestionTool(BasicTool):
             'suggestion_text': self.suggestion_text if suggestion_text is None else suggestion_text,
             'suggestion_content': self.suggestion_content if suggestion_content is None else suggestion_content,
             'suggestion_reason': str(suggestion_reason or '').strip(),
+            'suggestion_payload': suggestion_payload if isinstance(suggestion_payload, dict) else {},
             'trace_targets': normalized_targets,
             'trace_tool_name': tool_name or self.tool.get('name'),
         }

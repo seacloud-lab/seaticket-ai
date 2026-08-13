@@ -4,6 +4,7 @@ description: "Create a pending email handling suggestion."
 tools:
   - suggest_reply
   - suggest_create_ticket
+  - suggest_link_existing_ticket
   - suggest_move_to_spam
 ====================
 ## Role And Scope
@@ -22,11 +23,12 @@ tools:
 2. For `no_op`, skipped handling, or `Notification`, make no tool call and state why.
 3. For authorized `Spam`, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its classification basis.
 4. For authorized reply, use a non-empty courteous reply and Analysis-grounded reason; for ticket, use a non-empty reason preserving uncertainty.
-5. Never combine reply, ticket, or move-to-spam actions.
-6. Format an authorized email reply with a courteous greeting, direct helpful body, and closing.
-7. Include only selected-evidence URLs in a reply.
-8. Preserve unresolved bug or feature facts and uncertainty in a ticket proposal.
-9. Record each attempted call and actual outcome in the report.
+5. For an authorized existing-ticket link, call only `suggest_link_existing_ticket` with the Analysis-provided `related_ticket` id and a non-empty Analysis-grounded reason.
+6. Never combine reply, ticket, link, or move-to-spam actions.
+7. Format an authorized email reply with a courteous greeting, direct helpful body, and closing.
+8. Include only selected-evidence URLs in a reply.
+9. Preserve unresolved bug or feature facts and uncertainty in a ticket proposal.
+10. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
 - Never apply spam handling to legitimate transactional or system notices.
@@ -37,11 +39,11 @@ tools:
 - Successful suggestion creation is not delivery, a mailbox move, or a sent email.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_move_to_spam` are permitted.
+- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
 - Never call `get_record`, search, or undeclared tools.
 - Invoke only the exact action Analysis authorized.
 - Use move-to-spam only for authorized Spam.
-- Do not call both reply and ticket tools or pair either with move-to-spam.
+- Do not call more than one of the reply, ticket, and link tools or pair any of them with move-to-spam.
 - Do not use tools to send email, alter payment data, or modify account security state.
 
 ## Required Output

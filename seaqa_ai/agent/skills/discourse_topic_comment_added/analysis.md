@@ -26,7 +26,7 @@ tools:
 6. Search from the comment's concrete terms and retain only direct evidence.
 7. Stop under the defined budget and diminishing-return limits.
 8. When Prelude retained a verified linked Ticket, assess owner notification and a reply to the triggering topic independently; otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
-9. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
+9. Recommend `suggest_link_existing_ticket` with `related_ticket` set to the ticket id when search evidence shows an existing internal ticket already tracks the comment's problem; recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
 10. Otherwise recommend `no_op` only under its strict boundary.
 11. Explain the decision with citations and state why an omitted action is not justified.
 
@@ -58,6 +58,7 @@ tools:
 - Return all required Analysis JSON fields.
 - For an unlinked record, return exactly one primary recommended action.
 - For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Cite only exact observed labels next to supporting claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` true only for it.

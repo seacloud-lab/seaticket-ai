@@ -4,6 +4,7 @@ description: "Create a reply or ticket suggestion for a Discourse topic."
 tools:
   - suggest_reply
   - suggest_create_ticket
+  - suggest_link_existing_ticket
 ====================
 ## Role And Scope
 - Create the one pending suggestion authorized for a new Discourse topic.
@@ -21,11 +22,12 @@ tools:
 2. Make no call when handling is skipped.
 3. Call `suggest_reply` only for the authorized supported response.
 4. Call `suggest_create_ticket` only for the authorized unresolved report or request.
-5. Call exactly one tool, never both.
-6. Use a non-empty reply and reason to address the topic's actual opening request.
-7. Include only selected supporting URLs.
-8. Use a non-empty ticket reason that preserves user facts and uncertainty.
-9. Record the actual outcome in the report.
+5. Call `suggest_link_existing_ticket` only when it is authorized and the Analysis artifact provides a positive integer `related_ticket`; pass that ticket id exactly with a non-empty Analysis-grounded reason.
+6. Call exactly one primary tool, never more than one.
+7. Use a non-empty reply and reason to address the topic's actual opening request.
+8. Include only selected supporting URLs.
+9. Use a non-empty ticket reason that preserves user facts and uncertainty.
+10. Record the actual outcome in the report.
 
 ## Decision Rules
 - Resolved state does not independently authorize no action or a reply.
@@ -35,10 +37,10 @@ tools:
 - Suggestion creation is pending work, not publication or resolution.
 
 ## Tool Rules
-- Only `suggest_reply` and `suggest_create_ticket` are permitted.
+- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket` are permitted.
 - Do not call `get_record`, search, or undeclared tools.
 - Use only an action explicitly present in `recommended_actions`.
-- Do not invoke both tools.
+- Do not invoke more than one primary tool.
 - Do not use a tool to change topic state, category, tags, or author data.
 
 ## Required Output

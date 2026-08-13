@@ -30,7 +30,8 @@ tools:
 8. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 9. Evaluate each result for direct relevance and retain only decisive evidence.
 10. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-11. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports authorized type-change suggestions.
+11. When search evidence shows an existing internal ticket already tracks this issue's concrete work, recommend `suggest_link_existing_ticket` as the primary action and set `related_ticket` to that ticket's id instead of recommending `suggest_create_ticket`.
+12. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports authorized type-change suggestions.
 
 ## Decision Rules
 - “Export fails after 3.2” is `Bug`, even if written as “Why does export fail?”
@@ -40,6 +41,7 @@ tools:
 - For a direct answer, require evidence answering this issue's concrete question.
 - General topical similarity, shared product area, or a matching keyword is insufficient.
 - An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers this issue.
+- Recommend `suggest_link_existing_ticket` over `suggest_create_ticket` when search evidence shows the issue is already owned by an existing internal ticket; set `related_ticket` to that ticket id and never invent one.
 - Recommend `suggest_reply` only for direct supported answers or clearly tracked cases.
 - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
 - Add `suggest_modify_type` only with high confidence when the classified type differs substantively from supplied type or the type is empty. Otherwise do not authorize a type suggestion.
@@ -60,6 +62,7 @@ tools:
 ## Required Output
 - Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, and `skip_handling`.
 - Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
+- Set `related_ticket` to the existing internal ticket id only when recommending `suggest_link_existing_ticket`.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
 - Never invent, alter, merge, or retain non-decisive reference labels.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
