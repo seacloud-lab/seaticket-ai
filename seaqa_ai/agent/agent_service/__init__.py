@@ -13,6 +13,7 @@ from seaqa_ai.agent.tools.get_record import GetRecord
 from seaqa_ai.agent.utils.react.tracer import AgentReACTTracer
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import now_iso
+from seaqa_ai.utils.constants import LANGUAGE
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
 
 
@@ -138,9 +139,12 @@ class AgentService:
 
     ##### Agent context #####
     def _build_context(self, task):
+        settings = self.project.get('settings') or {}
+        lang = settings.get('lang') or 'en'
         return {
             'project_uuid': task.project_uuid,
             'task_id': task.task_id,
+            'target_language': LANGUAGE.get(lang, 'English'),
             'triggering_event': task.trigger_event.event,
             'document_connections': self.project.get('document_connections', []),
             'issue_connections': self.project.get('issue_connections', []),

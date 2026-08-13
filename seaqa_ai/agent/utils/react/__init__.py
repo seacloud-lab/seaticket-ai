@@ -59,6 +59,7 @@ class AgentReACT:
         self.app = app
         self.responses_client = responses_client
         self.phase_spec = phase_spec
+        self.context = dict(phase_spec.context or {})
         self.system_prompts = [phase_spec.get_system_prompt()]
         if project_prompt and project_prompt.strip():
             self.system_prompts.append(
@@ -66,6 +67,9 @@ class AgentReACT:
                 f'{sanitize_project_prompt(project_prompt)}\n'
                 '</project_context>'
             )
+        language_instruction = self._build_language_instruction(self.context.get('target_language'))
+        if language_instruction:
+            self.system_prompts.append(language_instruction)
         self.message_input = phase_spec.message_input
         self.react_tracer = react_tracer
         self.final_output_schema = phase_spec.final_output_schema or {}
@@ -77,7 +81,6 @@ class AgentReACT:
             )
         self.max_steps = phase_spec.max_steps
         self.max_steps_prompt = phase_spec.max_steps_prompt
-        self.context = dict(phase_spec.context or {})
 
         self.records_input = self._validate_records_input(phase_spec.records_input or [])
 
@@ -692,4 +695,19 @@ class AgentReACT:
             'Your final answer must be a JSON value that conforms exactly to this '
             'JSON Schema. Do not include markdown or explanatory text:\n'
             f'{json.dumps(self.final_output_schema, ensure_ascii=False)}'
+        )
+
+    @staticmethod
+    def _build_language_instruction(target_language):
+        target_language = str(target_language or '').strip()
+        if not target_language:
+            return ''
+        return (
+            '<output_language_requirement>\n'
+            'Output language requirement: write all natural-language, user-facing '
+            f'content in {target_language}. This includes event summaries, analysis '
+            'reports, handling reports, replies, messages, and reasons. Keep enum '
+            'values, action names, tool names, record identities, citation labels '
+            'such as <reference_0>, URLs, and code unchanged.\n'
+            '</output_language_requirement>'
         )
