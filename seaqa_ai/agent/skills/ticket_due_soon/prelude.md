@@ -12,7 +12,7 @@ tools:
 
 ## Input Contract
 - Accept the routed `source_id`, target ticket identity, and a `ticket_due_soon` event.
-- Treat scanner time, due-window facts, and event timestamps as trigger evidence only.
+- Treat scanner time, due-window facts, and event timestamps as trigger evidence only; do not include the event trigger time in `event_summary`.
 - The ticket may provide title, state, substate, due date, priority, assignees, and link identities.
 - Absent fields remain absent; do not derive a due date, owner, or ticket status.
 - Links in the event or ticket are identifiers, not readable context.
@@ -22,7 +22,7 @@ tools:
 1. Validate that the routed target identifies a ticket and that the event is available.
 2. Use the successful passive `get_record` observation for that target. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve factual title, state, substate, priority, assignee presence, and due-date values when supplied.
-4. Preserve the supplied due-soon trigger and relevant scanner timing without interpreting it.
+4. Preserve the supplied due-soon trigger as evidence without interpreting it. Do not repeat scanner timing or the event trigger time in `event_summary`.
 5. Set `event_related_records` to an array containing only the target ticket identity.
 6. Do not include linked identities as record entries.
 7. Produce an `event_summary` that distinguishes event facts from ticket fields.

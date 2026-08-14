@@ -7,12 +7,15 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 class PreludePhaseSpec(AgentPhaseSpec):
     """Specification for the event-context preparation phase."""
 
-    final_output_schema = {
+    default_final_output_schema = {
         'type': 'object',
         'properties': {
             'event_summary': {
                 'type': 'string',
-                'description': 'A concise summary of the triggering event.',
+                'description': (
+                    'A concise summary of the triggering event. Do not include the event '
+                    'trigger time or timestamp; the frontend presents it separately.'
+                ),
             },
             'event_related_records': {
                 'type': 'array',
@@ -27,7 +30,7 @@ class PreludePhaseSpec(AgentPhaseSpec):
             'event_summary',
             'event_related_records',
         ],
-        'additionalProperties': True,
+        'additionalProperties': False,
     }
 
     @classmethod

@@ -258,6 +258,7 @@ class AgentPhasePromoter:
         self.record_cache = record_cache
         self.project_prompt = project_prompt
         self.result = {}
+        self._additional_output_fields = {}
 
     def start(self):
         self._start_prelude()
@@ -299,6 +300,7 @@ class AgentPhasePromoter:
         message_input = self._build_default_message_input()
         if event_summary is not None:
             message_input['event_summary'] = event_summary
+        message_input.update(self._declared_additional_output('prelude', prelude_result))
 
         analysis_result = self._engage_phase(
             'analysis',
@@ -323,8 +325,6 @@ class AgentPhasePromoter:
         if analysis_result.get('skip_handling'):
             return
         analysis_report = analysis_result.get('analysis_report')
-        original_issue_type = analysis_result.get('original_issue_type')
-        classified_issue_type = analysis_result.get('classified_issue_type')
         recommended_actions = analysis_result.get('recommended_actions', [])
         reference_related_records = analysis_result.get('reference_related_records', [])
 
@@ -333,12 +333,9 @@ class AgentPhasePromoter:
             message_input['event_summary'] = event_summary
         if analysis_report is not None:
             message_input['analysis_report'] = analysis_report
-        if original_issue_type is not None:
-            message_input['original_issue_type'] = original_issue_type
-        if classified_issue_type is not None:
-            message_input['classified_issue_type'] = classified_issue_type
         if recommended_actions is not None:
             message_input['recommended_actions'] = recommended_actions
+        message_input.update(self._declared_additional_output('analysis', analysis_result))
 
         records_input = _RecordInputFormatter.build_event_records_input(
             self.task, self.context, event_related_records,
@@ -375,6 +372,13 @@ class AgentPhasePromoter:
             },
         }
 
+    def _declared_additional_output(self, phase, result):
+        return {
+            field: result[field]
+            for field in self._additional_output_fields.get(phase, set())
+            if field in result
+        }
+
     def _engage_phase(self, phase, message_input, records_input=None):
         if not isinstance(message_input, str):
             message_input = json.dumps(message_input)
@@ -386,6 +390,7 @@ class AgentPhasePromoter:
             records_input=records_input,
             context=self.context,
         )
+        self._additional_output_fields[phase] = phase_spec.additional_output_fields
         react = AgentReACT(
             app=self.app,
             responses_client=self.responses_client,

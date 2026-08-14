@@ -52,7 +52,7 @@ tools:
 - Return the required analysis JSON without tool use.
 - Use only `suggest_notify_assignee`, `suggest_close_ticket`, or `no_op` in `recommended_actions`.
 - Make `no_op` the sole recommended action whenever it is selected.
-- In `analysis_report`, identify due-date and state evidence, rule effects, and deduplication findings.
+- In `analysis_report`, identify due-date and state evidence, rule effects, and deduplication findings. Do not repeat the event trigger time; the frontend presents it separately.
 - Explain why every selected action is warranted and every material action is omitted.
 - Set `skip_handling` true exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 

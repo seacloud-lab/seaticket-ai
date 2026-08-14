@@ -4,6 +4,18 @@ description: "Classify and research a newly created GitHub issue."
 tools:
   - issues_search
   - documents_search
+additional_output:
+  original_issue_type:
+    type: string
+    description: >
+      The exact issue type supplied by the source record. Preserve it without
+      normalization, inference, or reclassification.
+  classified_issue_type:
+    type: string
+    enum: [Bug, Feature, Question]
+    description: >
+      The issue type classified by Analysis from the issue title and body.
+      Use one of Bug, Feature, or Question.
 ====================
 ## Role And Scope
 - Classify and research one newly created GitHub issue.

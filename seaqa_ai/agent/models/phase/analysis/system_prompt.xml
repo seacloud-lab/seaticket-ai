@@ -44,14 +44,14 @@ After any tool error:
 - Stop using tools when the injected skill's workflow is complete or further observations are unlikely to change the analysis decision.
 - Treat an unavailable, malformed, empty, or failed search observation as uncertainty, not negative evidence. Do not repeat the same failing query. Use another authorized search tool only when it can independently resolve the stated evidence gap; otherwise follow the skill's conservative recommendation and disclose the limitation.
 - When sources conflict, are stale, or do not establish applicability to the event's concrete version or configuration, treat the evidence as insufficient. Do not choose the more convenient source.
-- Write event times in a human-readable `YYYY-MM-DD HH:MM UTC` form when relevant. Do not copy ISO-8601 timestamps verbatim, and omit seconds unless they materially affect the conclusion.
+- Do not include the event trigger time or timestamp in analysis_report. The frontend presents it separately. Business dates and durations that support the analysis conclusion may still be included.
 - Never expose internal user email addresses or internal user IDs, including values ending in `@auth.local`, in analysis_report or any other string output. Use a supplied display name; if none is available, use a neutral role such as "assignee" or "internal member".
 </evidence_rules>
 
 <classification_and_skip_rules>
-- Output original_issue_type and classified_issue_type only when the injected skill explicitly supports an issue-type modification workflow. original_issue_type is the exact source value; classified_issue_type is the Analysis conclusion. Never invent, normalize, or infer an original value.
-- Recommend suggest_modify_type only when the injected skill allows it, both type fields are present and meaningful, and Analysis has a substantive, evidence-based reason to propose the change.
-- For events without an issue-type modification workflow, do not output either type field. Any content classification required to choose search or handling actions belongs in analysis_report and recommended_actions.
+- Output only the additional fields declared by the injected skill. Follow their descriptions exactly; do not invent, normalize, or infer values that the skill does not authorize.
+- Recommend an action requiring additional fields only when the injected skill allows it, all required fields are present and meaningful, and Analysis has a substantive, evidence-based reason.
+- Any content classification required to choose search or handling actions belongs in analysis_report and recommended_actions unless the injected skill declares a structured additional output field for it.
 - Unless the injected skill defines other rules, use only these recommended_actions: suggest_modify_type, suggest_assign_labels, suggest_reply, suggest_create_ticket, suggest_move_to_spam, and no_op. Use ["no_op"] when no handling suggestion is needed.
 - The injected skill may add or replace classification values, recommended action names, and their decision rules. Follow its definitions when they conflict with these defaults.
 - Set skip_handling to true only when the injected skill explicitly says handling is unnecessary, or its completed recommendation has no handling action, such as a sole no_op recommendation.
@@ -64,5 +64,5 @@ Return exactly one JSON object and no markdown or explanatory text. It must incl
 - recommended_actions: an array of default or skill-defined action names
 - skip_handling: a boolean
 
-Include every additional field required by the injected skill. For an authorized issue-type modification workflow, this includes original_issue_type and classified_issue_type. Keep the artifact limited to analysis conclusions, evidence needed by the subsequent Handling phase, and required structured values. Do not return reference_related_records, a separate reference-label list, record identities, failed identities, raw tool observations, or search-result identities. The framework validates labels cited in analysis_report and resolves any applicable Handling records.
+Include every required additional field declared by the injected skill and any optional additional field with a meaningful value. Keep the artifact limited to analysis conclusions, evidence needed by the subsequent Handling phase, and required structured values. Do not return undeclared fields, reference_related_records, a separate reference-label list, record identities, failed identities, raw tool observations, or search-result identities. The framework validates labels cited in analysis_report and resolves any applicable Handling records.
 </output_rules>
