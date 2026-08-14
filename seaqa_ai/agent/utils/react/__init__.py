@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import uuid
+from copy import deepcopy
 
 from seaqa_ai import config
 from seaqa_ai.agent.utils import to_strict_response_schema
@@ -276,12 +277,13 @@ class AgentReACT:
             try:
                 response_kwargs = {}
                 if self.final_output_schema:
+                    response_schema = to_strict_response_schema(self.final_output_schema)
                     response_kwargs['text'] = {
                         'format': {
                             'type': 'json_schema',
                             'name': 'agent_final_output',
-                            'strict': True,
-                            'schema': to_strict_response_schema(self.final_output_schema),
+                            'strict': response_schema['strict'],
+                            'schema': response_schema['schema'],
                         },
                     }
                 result = self.responses_client.responses(
@@ -539,7 +541,7 @@ class AgentReACT:
 
         try:
             output = json.loads(content)
-            self._validate_json_schema(output, self.final_output_schema)
+            output = self._validate_json_schema(output, self.final_output_schema)
         except (json.JSONDecodeError, AgentFinalOutputSchemaError) as error:
             return self._repair_final_output(content, str(error), step + 1, usage, retries)
 
@@ -576,7 +578,7 @@ class AgentReACT:
             else:
                 try:
                     output = json.loads(result.content)
-                    self._validate_json_schema(output, self.final_output_schema)
+                    output = self._validate_json_schema(output, self.final_output_schema)
                 except (json.JSONDecodeError, AgentFinalOutputSchemaError) as schema_error:
                     previous_content = result.content
                     previous_error = str(schema_error)
@@ -696,17 +698,24 @@ class AgentReACT:
             missing = [name for name in required if name not in value]
             if missing:
                 raise AgentFinalOutputSchemaError(f'{path}: missing required fields: {", ".join(missing)}')
-            if schema.get('additionalProperties') is False:
-                unexpected = sorted(set(value) - set(properties))
-                if unexpected:
-                    raise AgentFinalOutputSchemaError(f'{path}: unexpected fields: {", ".join(unexpected)}')
-            for name, item in value.items():
-                item_schema = properties.get(name)
-                if item_schema is not None:
-                    cls._validate_json_schema(item, item_schema, f'{path}.{name}')
+            normalized = {}
+            for name, item_schema in properties.items():
+                if name not in value:
+                    if name not in required:
+                        normalized[name] = deepcopy(item_schema.get('default'))
+                    continue
+                item = value[name]
+                if item is None and name not in required:
+                    normalized[name] = None
+                    continue
+                normalized[name] = cls._validate_json_schema(item, item_schema, f'{path}.{name}')
+            return normalized
         elif isinstance(value, list) and isinstance(schema.get('items'), dict):
-            for index, item in enumerate(value):
+            return [
                 cls._validate_json_schema(item, schema['items'], f'{path}[{index}]')
+                for index, item in enumerate(value)
+            ]
+        return value
 
     @staticmethod
     def _matches_type(value, expected_type):

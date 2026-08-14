@@ -46,7 +46,7 @@ For linked-Ticket events, the framework constructs the Ticket-centered relations
 - For a creation event without separate new content, summarize the newly created record at a high level.
 - For a follow-up event, focus on the newly added or changed content. Do not let historical record details replace the event as the summary subject.
 - Do not classify the issue, investigate root causes, plan searches, recommend handling actions, or write a reply.
-- Format event times for people, not machines: render ISO-8601 timestamps as `YYYY-MM-DD HH:MM UTC` when the time is relevant. Omit seconds unless they materially affect the event interpretation.
+- Do not include the event trigger time or timestamp. The frontend presents it separately.
 - Do not expose internal user email addresses or internal user IDs, including values ending in `@auth.local`. Use a supplied display name; if none is available, use a neutral role such as "assignee" or "internal member".
 </event_summary_rules>
 
@@ -55,5 +55,5 @@ Return exactly one JSON object and no markdown or explanatory text. It must incl
 - event_summary: string
 - event_related_records: array of successfully loaded record identities selected by Prelude; the triggering record is first
 
-Include any additional fields required by the injected skill. event_related_records contains identities only; do not return record data or failed identities.
+Include every required additional field declared by the injected skill and any optional additional field with a meaningful value. Do not return undeclared fields. event_related_records contains identities only; do not return record data or failed identities.
 </output_rules>

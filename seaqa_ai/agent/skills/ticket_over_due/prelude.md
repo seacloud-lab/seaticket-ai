@@ -12,7 +12,7 @@ tools:
 
 ## Input Contract
 - Accept `source_id`, the routed ticket identity, and a `ticket_over_due` event.
-- Scanner time and lateness details are evidence that triggered processing, not a conclusion.
+- Scanner time and lateness details are evidence that triggered processing, not a conclusion. Do not include the event trigger time in `event_summary`.
 - The ticket may contain state, substate, title, priority, due date, assignees, and link identities.
 - Treat missing fields as unknown rather than proof of resolution or ownership.
 - Do not treat a stored link as permission to inspect its source content.
@@ -21,7 +21,7 @@ tools:
 ## Required Steps
 1. Verify the event and routed ticket identity are present and usable.
 2. Use the successful passive `get_record` observation for the routed ticket. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
-3. Record the supplied overdue trigger separately from the ticket due-date field.
+3. Preserve the supplied overdue trigger separately from the ticket due-date field without repeating scanner timing or the event trigger time in `event_summary`.
 4. Capture factual title, state, substate, priority, due date, and assignee presence.
 5. Set `event_related_records` to an array containing only the target ticket identity.
 6. Do not include direct link identities as record entries.

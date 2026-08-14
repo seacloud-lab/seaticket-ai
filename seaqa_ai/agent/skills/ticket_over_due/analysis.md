@@ -51,7 +51,7 @@ tools:
 - Return the required analysis JSON with no tool calls.
 - Limit `recommended_actions` to `suggest_notify_assignee`, `suggest_close_ticket`, and `no_op`.
 - When `no_op` applies, make it the only action.
-- Document overdue and state evidence, priority or owner context, rule findings, and deduplication evidence.
+- Document overdue and state evidence, priority or owner context, rule findings, and deduplication evidence. Do not repeat the event trigger time; the frontend presents it separately.
 - Explain why closure is authorized or forbidden rather than relying on urgency language.
 - Set `skip_handling` true exactly when the action set is `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
