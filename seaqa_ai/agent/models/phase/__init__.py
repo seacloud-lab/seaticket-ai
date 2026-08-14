@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from typing import ClassVar
 
 import yaml
@@ -41,13 +42,14 @@ class AgentPhaseSpec:
             for name, property_schema in additional_output.items()
             if property_schema.get('required', True)
         )
-        return schema
+
+        return schema if properties else {}
 
     @property
     def additional_output_fields(self) -> set[str]:
         return set(self.skill_metadata.get('additional_output', {}))
 
-    @property
+    @cached_property
     def skill(self) -> str:
         from seaqa_ai.agent.utils import get_skill_map
 
@@ -58,14 +60,14 @@ class AgentPhaseSpec:
                 f'No {self.phase!r} skill configured for event {self.event!r}'
             ) from error
 
-    @property
+    @cached_property
     def skill_metadata(self) -> dict:
         metadata = yaml.safe_load(self.skill.split('====================', 1)[0])
         if not isinstance(metadata, dict):
             raise ValueError(f'Skill {self.event}/{self.phase} metadata must be an object')
         return metadata
 
-    @property
+    @cached_property
     def tools(self) -> list:
         from seaqa_ai.agent.utils import get_tools_map
 
