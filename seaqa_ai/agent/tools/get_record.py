@@ -196,14 +196,24 @@ class _RecordRetriever:
         )
         resolver = getattr(self.app, 'username_resolver', None)
         for record_id, record in records_by_id.items():
+            comments = self._split_latest_and_history(
+                comments_by_ticket_id.get(record_id, []), ['_pk'],
+            )
+            latest_comment = comments['latest']
             record['content'] = {
-                'content': self._truncate(contents_by_id.get(record_id)),
-                'comments': [
+                'latest_comment': ({
+                    'creator': self._resolve_ticket_user(latest_comment.get('creator'), resolver),
+                    'content': latest_comment.get('content') or '',
+                } if latest_comment else None),
+                'content': self._truncate_after_latest(
+                    contents_by_id.get(record_id), latest_comment,
+                ),
+                'history_comments': [
                     {
                         'creator': self._resolve_ticket_user(comment.get('creator'), resolver),
                         'content': comment.get('content') or '',
                     }
-                    for comment in comments_by_ticket_id.get(record_id, [])
+                    for comment in comments.get('history', [])
                 ],
             }
 
@@ -231,12 +241,21 @@ class _RecordRetriever:
             omitted_key='author',
         )
         for record_id, record in records_by_id.items():
-            comments = comments_by_issue_id.get(record['issue_id'], [])
+            comments = self._split_latest_and_history(
+                comments_by_issue_id.get(record['issue_id'], []), ['comment_id'],
+            )
+            latest_comment = comments['latest']
             record['content'] = {
-                'content': self._truncate(contents_by_id.get(record_id)),
-                'comments': [
+                'latest_comment': ({
+                    'author': latest_comment.get('author'),
+                    'content': latest_comment.get('content') or '',
+                } if latest_comment else None),
+                'content': self._truncate_after_latest(
+                    contents_by_id.get(record_id), latest_comment,
+                ),
+                'history_comments': [
                     {'author': comment.get('author'), 'content': comment.get('content') or ''}
-                    for comment in comments
+                    for comment in comments.get('history', [])
                 ],
             }
 
@@ -259,14 +278,23 @@ class _RecordRetriever:
             omitted_extra={'post_number': None},
         )
         for record in records_by_id.values():
+            replies = self._split_latest_and_history(
+                replies_by_topic_id.get(record['topic_id'], []), ['post_number'],
+            )
+            latest_comment = replies['latest']
             record['content'] = {
-                'comments': [
+                'latest_comment': ({
+                    'author': latest_comment.get('author'),
+                    'post_number': latest_comment.get('post_number'),
+                    'content': latest_comment.get('content') or '',
+                } if latest_comment else None),
+                'history_comments': [
                     {
                         'author': reply.get('author'),
                         'post_number': reply.get('post_number'),
                         'content': reply.get('content') or '',
                     }
-                    for reply in replies_by_topic_id.get(record['topic_id'], [])
+                    for reply in replies.get('history', [])
                 ],
             }
 
@@ -288,8 +316,19 @@ class _RecordRetriever:
             },
         )
         for record_id, record in records_by_id.items():
+            emails = self._split_latest_and_history(
+                emails_by_thread_id.get(record_id, []), ['modified_time', 'message_id'],
+            )
+            latest_email = emails['latest']
             record['content'] = {
-                'emails': [
+                'latest_email': ({
+                    'title': latest_email.get('title'),
+                    'email_from': latest_email.get('email_from'),
+                    'email_to': latest_email.get('email_to'),
+                    'cc': latest_email.get('cc'),
+                    'content': latest_email.get('content') or '',
+                } if latest_email else None),
+                'history_emails': [
                     {
                         'title': email.get('title'),
                         'email_from': email.get('email_from'),
@@ -297,7 +336,7 @@ class _RecordRetriever:
                         'cc': email.get('cc'),
                         'content': email.get('content') or '',
                     }
-                    for email in emails_by_thread_id.get(record_id, [])
+                    for email in emails.get('history', [])
                 ],
             }
 
@@ -326,16 +365,26 @@ class _RecordRetriever:
             omitted_extra={'created_time': None},
         )
         for record_id, record in records_by_id.items():
-            comments = comments_by_issue_id.get(record['issue_id'], [])
+            comments = self._split_latest_and_history(
+                comments_by_issue_id.get(record['issue_id'], []), ['created_time'],
+            )
+            latest_comment = comments['latest']
             record['content'] = {
-                'content': self._truncate(contents_by_id.get(record_id)),
-                'comments': [
+                'latest_comment': ({
+                    'author': latest_comment.get('author'),
+                    'created_time': latest_comment.get('created_time'),
+                    'content': latest_comment.get('content') or '',
+                } if latest_comment else None),
+                'content': self._truncate_after_latest(
+                    contents_by_id.get(record_id), latest_comment,
+                ),
+                'history_comments': [
                     {
                         'author': comment.get('author'),
                         'created_time': comment.get('created_time'),
                         'content': comment.get('content') or '',
                     }
-                    for comment in comments
+                    for comment in comments.get('history', [])
                 ],
             }
 
@@ -358,14 +407,24 @@ class _RecordRetriever:
             omitted_extra={'created_time': None},
         )
         for record in records_by_id.values():
+            messages = self._split_latest_and_history(
+                messages_by_thread_id.get(record['thread_id'], []),
+                ['created_time', 'message_id'],
+            )
+            latest_message = messages['latest']
             record['content'] = {
-                'messages': [
+                'latest_message': ({
+                    'author': latest_message.get('author'),
+                    'created_time': latest_message.get('created_time'),
+                    'content': latest_message.get('content') or '',
+                } if latest_message else None),
+                'history_messages': [
                     {
                         'author': message.get('author'),
                         'created_time': message.get('created_time'),
                         'content': message.get('content') or '',
                     }
-                    for message in messages_by_thread_id.get(record['thread_id'], [])
+                    for message in messages.get('history', [])
                 ],
             }
 
@@ -386,9 +445,6 @@ class _RecordRetriever:
                           has_deleted_field=True, omitted_extra=None):
         omitted_extra = omitted_extra or {}
 
-        def omitted_notice():
-            return {omitted_key: None, 'content': '[comments omitted due to content limit]', **omitted_extra}
-
         def more_omitted_notice():
             return {omitted_key: None, 'content': '[more comments omitted due to content limit]', **omitted_extra}
 
@@ -406,9 +462,26 @@ class _RecordRetriever:
             sort_key_fields=sort_key_fields,
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            omitted_notice_builder=omitted_notice,
             more_omitted_notice_builder=more_omitted_notice,
         )
+
+    @staticmethod
+    def _split_latest_and_history(entries, sort_key_fields):
+        entries = list(entries or [])
+        if not entries:
+            return {'latest': None, 'history': []}
+        latest = max(
+            entries,
+            key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
+        )
+        history = list(entries)
+        history.remove(latest)
+        return {'latest': latest, 'history': history}
+
+    @staticmethod
+    def _truncate_after_latest(content, latest_entry):
+        latest_content = (latest_entry or {}).get('content') or ''
+        return (content or '')[:max(SEARCH_TOOL_CONTENT_MAX_SIZE - len(latest_content), 0)]
 
     def _add_github_available_labels(self, connection_id, records_by_id):
         cache_key = ('github_available_labels', connection_id)

@@ -209,7 +209,6 @@ class ContentRetriever:
             sort_key_fields=['_pk'],
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            omitted_notice_builder=lambda: build_ticket_comment_notice(COMMENTS_OMITTED_NOTICE),
             more_omitted_notice_builder=lambda: build_ticket_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
 
@@ -305,7 +304,6 @@ class ContentRetriever:
             sort_key_fields=['comment_id'],
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            omitted_notice_builder=lambda: build_author_comment_notice(COMMENTS_OMITTED_NOTICE),
             more_omitted_notice_builder=lambda: build_author_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
 
@@ -512,7 +510,6 @@ class ContentRetriever:
             sort_key_fields=['created_time'],
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            omitted_notice_builder=lambda: build_author_comment_notice(COMMENTS_OMITTED_NOTICE),
             more_omitted_notice_builder=lambda: build_author_comment_notice(MORE_COMMENTS_OMITTED_NOTICE),
         )
         record_id_to_comments = remap_comments_by_record_id(issue_id_to_record_id, issue_id_to_comments)

@@ -417,15 +417,48 @@ class SeaDBAPI:
 
     def get_selected_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
                                    fields_str='*', has_deleted_field=True, limit_for_each_topic=20,
-                                   first_order_by_field=None, latest_order_by_field=None,
-                                   dedupe_key_fields=None, sort_key_fields=None,
-                                   initial_content_lengths=None, max_total_content_size=None,
-                                   content_field_name='content', omitted_notice_builder=None,
-                                   more_omitted_notice_builder=None):
+                                    first_order_by_field=None, latest_order_by_field=None,
+                                    dedupe_key_fields=None, sort_key_fields=None,
+                                    initial_content_lengths=None, max_total_content_size=None,
+                                    content_field_name='content', more_omitted_notice_builder=None):
         """
-        return {
-            topic_id: [entries]
-        }
+        Select entries for each topic, subject to an optional content budget.
+
+        Example:
+            Given ``limit_for_each_topic=3``, ``max_total_content_size=100``,
+            ``initial_content_lengths={'topic-1': 20}``, and entries ordered by
+            ``created_at`` as ``[first(30), middle(40), latest(50)]``:
+
+            1. The 20-character initial content consumes part of topic-1's
+               100-character budget.
+            2. The latest entry has highest priority, then the first entry as
+               initial context, followed by other recent entries.
+            3. ``latest(50)`` and ``first(30)`` consume the remaining 80
+               characters exactly. ``middle(40)`` cannot fit, so it is
+               omitted and triggers the optional omitted notice.
+            4. Returned records are sorted by ``sort_key_fields`` for display,
+               rather than by their selection priority:
+
+            {
+                'topic-1': [
+                    {
+                        'topic_id': 'topic-1',
+                        'created_at': '2026-01-01T09:00:00Z',
+                        'content': 'Initial context with 30 characters...',
+                    },
+                    {
+                        'topic_id': 'topic-1',
+                        'created_at': '2026-01-03T09:00:00Z',
+                        'content': 'Most recent update with 50 characters...',
+                    },
+                    {'content': 'More entries were omitted.'},
+                ]
+            }
+
+        If an entry does not fit in the remaining budget, its content is
+        truncated with ``...``. If lower-priority entries are omitted and
+        ``more_omitted_notice_builder`` is provided, its result is appended
+        after the sorted entries.
         """
         topic_ids = list(topic_ids or [])
         if not topic_ids:
@@ -444,8 +477,8 @@ class SeaDBAPI:
         ]
         fields_str = self._normalize_fields_str(fields_str, required_fields)
 
-        # Reserve one slot for the initial entry when possible. The latest entry
-        # is the event-relevant context, while the initial entry provides origin.
+        # Reserve one slot for the earliest entry so the selected context keeps
+        # both the initial state and the most recent changes when possible.
         latest_limit = limit_for_each_topic if limit_for_each_topic <= 1 else limit_for_each_topic - 1
         selected_entries_map = self._select_first_and_latest_topic_entries(
             base_id=base_id,
@@ -464,21 +497,21 @@ class SeaDBAPI:
         result = {}
         for topic_id in topic_ids:
             initial_content_length = int(initial_content_lengths.get(topic_id, 0) or 0)
-            if max_total_content_size is not None and initial_content_length >= max_total_content_size:
-                result[topic_id] = [omitted_notice_builder()] if omitted_notice_builder else []
-                continue
-
             entries = list(selected_entries_map.get(topic_id, []))
             if not entries:
                 result[topic_id] = []
                 continue
 
+            # Apply the entry limit with the newest entry first, while retaining
+            # the earliest entry as context when the limit allows it.
             entries = self._prioritize_latest_topic_entries(
                 entries,
                 first_order_by_field=first_order_by_field,
                 sort_key_fields=sort_key_fields,
                 limit_for_each_topic=limit_for_each_topic,
             )
+            # The initial content has already consumed part of this topic's
+            # budget, even though it is not part of the returned entries.
             remaining_size = None if max_total_content_size is None else max_total_content_size - initial_content_length
             if max_total_content_size is None:
                 result[topic_id] = self._sort_topic_entries(entries, sort_key_fields)
@@ -486,11 +519,38 @@ class SeaDBAPI:
 
             selected_entries = []
             omitted_notice = None
-            total_content_size = int(initial_content_lengths.get(topic_id, 0) or 0)
-            for entry in entries:
+
+            # Always retain the newest entry. If it alone exceeds the budget,
+            # return its truncated content instead of dropping it entirely.
+            latest_entry = entries[0]
+            latest_content = latest_entry.get(content_field_name) or ''
+            total_content_size = 0
+            if len(latest_content) > max_total_content_size:
+                truncated_entry = dict(latest_entry)
+                truncated_entry[content_field_name] = self._truncate_content_with_ellipsis(
+                    latest_content, max_total_content_size,
+                )
+                selected_entries.append(truncated_entry)
+                result[topic_id] = self._sort_topic_entries(selected_entries, sort_key_fields)
+                continue
+            selected_entries.append(latest_entry)
+            total_content_size = len(latest_content)
+
+
+            # Account for the pre-existing initial content without allowing it
+            # to make the tracked size exceed the configured budget.
+            total_content_size += min(
+                initial_content_length,
+                max_total_content_size - total_content_size,
+            )
+            # Add older context in priority order until the budget is exhausted;
+            # truncate the first entry that does not fully fit.
+            for entry in entries[1:]:
                 content = entry.get(content_field_name) or ''
                 remaining_size = max_total_content_size - total_content_size
                 if remaining_size <= 0:
+                    if more_omitted_notice_builder:
+                        omitted_notice = more_omitted_notice_builder()
                     break
 
                 if len(content) > remaining_size:
@@ -507,6 +567,7 @@ class SeaDBAPI:
                 total_content_size += len(content)
 
             result[topic_id] = self._sort_topic_entries(selected_entries, sort_key_fields)
+            # Append a caller-provided marker only when entries were omitted.
             if omitted_notice:
                 result[topic_id].append(omitted_notice)
 
