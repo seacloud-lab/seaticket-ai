@@ -418,9 +418,10 @@ class SeaDBAPI:
     def get_selected_topic_entries(self, base_id, table_name, topic_ids, topic_id_field_name,
                                    fields_str='*', has_deleted_field=True, limit_for_each_topic=20,
                                     first_order_by_field=None, latest_order_by_field=None,
-                                    dedupe_key_fields=None, sort_key_fields=None,
-                                    initial_content_lengths=None, max_total_content_size=None,
-                                    content_field_name='content', more_omitted_notice_builder=None):
+                                     dedupe_key_fields=None, sort_key_fields=None,
+                                     initial_content_lengths=None, max_total_content_size=None,
+                                     content_field_name='content', more_omitted_notice_builder=None,
+                                     prioritize_latest_entry=False):
         """
         Select entries for each topic, subject to an optional content budget.
 
@@ -454,6 +455,10 @@ class SeaDBAPI:
                     {'content': 'More entries were omitted.'},
                 ]
             }
+
+        When ``prioritize_latest_entry`` is true, the newest entry consumes the
+        shared budget before stored topic content. The default preserves search
+        behavior, which gives stored topic content priority.
 
         If an entry does not fit in the remaining budget, its content is
         truncated with ``...``. If lower-priority entries are omitted and
@@ -510,9 +515,6 @@ class SeaDBAPI:
                 sort_key_fields=sort_key_fields,
                 limit_for_each_topic=limit_for_each_topic,
             )
-            # The initial content has already consumed part of this topic's
-            # budget, even though it is not part of the returned entries.
-            remaining_size = None if max_total_content_size is None else max_total_content_size - initial_content_length
             if max_total_content_size is None:
                 result[topic_id] = self._sort_topic_entries(entries, sort_key_fields)
                 continue
@@ -520,32 +522,34 @@ class SeaDBAPI:
             selected_entries = []
             omitted_notice = None
 
-            # Always retain the newest entry. If it alone exceeds the budget,
-            # return its truncated content instead of dropping it entirely.
             latest_entry = entries[0]
             latest_content = latest_entry.get(content_field_name) or ''
-            total_content_size = 0
-            if len(latest_content) > max_total_content_size:
-                truncated_entry = dict(latest_entry)
-                truncated_entry[content_field_name] = self._truncate_content_with_ellipsis(
-                    latest_content, max_total_content_size,
+            if prioritize_latest_entry:
+                # Event-driven callers must see the newest entry even when the
+                # stored topic content already exhausts the configured budget.
+                if len(latest_content) > max_total_content_size:
+                    truncated_entry = dict(latest_entry)
+                    truncated_entry[content_field_name] = self._truncate_content_with_ellipsis(
+                        latest_content, max_total_content_size,
+                    )
+                    result[topic_id] = self._sort_topic_entries([truncated_entry], sort_key_fields)
+                    continue
+                selected_entries.append(latest_entry)
+                total_content_size = len(latest_content) + min(
+                    initial_content_length,
+                    max_total_content_size - len(latest_content),
                 )
-                selected_entries.append(truncated_entry)
-                result[topic_id] = self._sort_topic_entries(selected_entries, sort_key_fields)
-                continue
-            selected_entries.append(latest_entry)
-            total_content_size = len(latest_content)
+                entries_to_add = entries[1:]
+            else:
+                if initial_content_length >= max_total_content_size:
+                    result[topic_id] = []
+                    continue
+                total_content_size = initial_content_length
+                entries_to_add = entries
 
-
-            # Account for the pre-existing initial content without allowing it
-            # to make the tracked size exceed the configured budget.
-            total_content_size += min(
-                initial_content_length,
-                max_total_content_size - total_content_size,
-            )
             # Add older context in priority order until the budget is exhausted;
             # truncate the first entry that does not fully fit.
-            for entry in entries[1:]:
+            for entry in entries_to_add:
                 content = entry.get(content_field_name) or ''
                 remaining_size = max_total_content_size - total_content_size
                 if remaining_size <= 0:

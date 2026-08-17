@@ -463,6 +463,7 @@ class _RecordRetriever:
             initial_content_lengths=initial_content_lengths,
             max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
             more_omitted_notice_builder=more_omitted_notice,
+            prioritize_latest_entry=True,
         )
 
     @staticmethod
