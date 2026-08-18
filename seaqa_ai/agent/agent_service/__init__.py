@@ -220,14 +220,14 @@ class AgentService:
     def _new_tracer(self, task, source_type, source_id, source_title):
         return AgentReACTTracer(
             task.project_uuid,
-            self.app.seadb_api,
+            self.app.seadb_service,
             target_source_type=source_type,
             target_source_id=source_id,
             target_source_title=source_title,
         )
 
     def _create_run_record(self, task):
-        response = self.app.seadb_api.insert_rows(
+        response = self.app.seadb_service.insert_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
             [{
@@ -243,7 +243,7 @@ class AgentService:
         return pks[0]
 
     def _finalize_run_record(self, task, run_id, *, status, items_processed, error_message=''):
-        self.app.seadb_api.update_rows(
+        self.app.seadb_service.update_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
             [{'pk': run_id, 'row': {
@@ -254,7 +254,7 @@ class AgentService:
             }}],
         )
         if status == 'completed' and task.target_source_type == 'ticket':
-            self.app.seadb_api.update_rows(
+            self.app.seadb_service.update_rows(
                 task.project_uuid,
                 SchemaTables.TICKETS.table_name(),
                 [{'pk': task.target_record_id, 'row': {

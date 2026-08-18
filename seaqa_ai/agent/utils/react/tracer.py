@@ -35,7 +35,7 @@ class AgentReACTTracer(list):
     def __init__(
         self,
         project_uuid,
-        seadb_api,
+        seadb_service,
         *,
         target_source_type=None,
         target_source_id=None,
@@ -43,7 +43,7 @@ class AgentReACTTracer(list):
     ):
         super().__init__()
         self.project_uuid = project_uuid
-        self.seadb_api = seadb_api
+        self.seadb_service = seadb_service
         self.target_source_type = target_source_type
         self.target_source_id = target_source_id
         self.target_source_title = target_source_title
@@ -124,7 +124,7 @@ class AgentReACTTracer(list):
 
         rows = [self._serialize_row(row) for row in self]
         try:
-            response = self.seadb_api.insert_rows(
+            response = self.seadb_service.insert_rows(
                 self.project_uuid,
                 SchemaTables.AGENT_ACTIONS.table_name(),
                 rows,
