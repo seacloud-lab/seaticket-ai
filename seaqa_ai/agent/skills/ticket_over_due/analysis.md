@@ -11,7 +11,7 @@ tools:
 - Overdue status increases attention; it never independently establishes completion or closure.
 
 ## Input Contract
-- Use only the successful passive record observation, overdue event, Prelude artifact, system facts, and supplied rules.
+- Use only the successful passive record observation, overdue event, `event_summary`, system facts, and supplied rules.
 - Use supplied lateness timing, notification policy, `previous_notifications`, and custom ticket rules as authoritative.
 - Use state, substate, priority, assignee presence, due date, and recent activity exactly as observed in this phase.
 - Absent evidence cannot prove resolution, ownership, escalation need, or a valid deadline.
@@ -53,7 +53,7 @@ tools:
 - When `no_op` applies, make it the only action.
 - Document overdue and state evidence, priority or owner context, rule findings, and deduplication evidence. Do not repeat the event trigger time; the frontend presents it separately.
 - Explain why closure is authorized or forbidden rather than relying on urgency language.
-- Set `skip_handling` true exactly when the action set is `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
+- Set `skip_handling: true` exactly when the action set is `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 - Do not read, search, or suggest in this phase.

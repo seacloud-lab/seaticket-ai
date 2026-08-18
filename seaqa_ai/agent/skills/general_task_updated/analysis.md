@@ -11,18 +11,21 @@ tools:
 - It cannot inspect tasks, linked records, or external discussions to decide those outcomes.
 
 ## Input Contract
-- Use only the successful passive ticket observation, task-finished event, Prelude artifact, and system-provided facts.
-- The event proves its reported task completion. Prelude's successfully loaded Ticket-linked General Task context establishes the discoverable Task total, completed count, and whether an unfinished Task exists.
+- Use only the successful passive ticket observation, task-finished event, `event_summary`, successful `get_record` observations, and system-provided facts.
+- The event proves its reported task completion. Successful `get_record` observations for Ticket-linked General Tasks establish the discoverable Task total, completed count, and whether an unfinished Task exists.
 - Use successfully loaded Ticket and related-record observations as the available event context. Treat external records as reply targets or supporting context, not as internal Ticket work merely because they remain open, unresolved, unverified, unanswered, or unclosed.
-- Prelude-retained external records whose `linked_ticket` points back to the Ticket are the only identities that may be selected in `reply_targets`.
+- External records whose successful `get_record` observations show `linked_ticket` points back to the Ticket are the only identities that may be selected in `reply_targets`.
 - Missing, ambiguous, or partial Task-set context is insufficient for a conclusion that all Task work is complete.
 
 ## Required Steps
 1. Confirm the event reports a completed task and state precisely what that proves.
 2. Examine ticket state and substate before considering closure or public communication.
 3. Determine the discoverable Ticket-linked General Task total, completed count, and whether any unfinished Task exists.
-4. Determine whether the available Task-set and Ticket context establishes resolution of relevant internal work. A single discoverable Task that is done may establish all discoverable Task work is complete; multiple Tasks require every discoverable Task to be done. Do not treat an external record's lifecycle state as unfinished internal work.
-5. Independently determine which Prelude-retained verified external targets should be selected in `reply_targets`, and whether a public completion or ready-for-verification update is appropriate.
+4. Determine whether the available Task-set and Ticket context establishes resolution of relevant internal work:
+   - A single discoverable Task that is done may establish all discoverable Task work is complete.
+   - Multiple Tasks require every discoverable Task to be done.
+   - Do not treat an external record's lifecycle state as unfinished internal work.
+5. Independently determine which external targets identified by successful `get_record` observations should be selected in `reply_targets`, and whether a public completion or ready-for-verification update is appropriate.
 7. For an already closed ticket, prohibit closure and assess only independently justified reply or `no_op`.
 8. Select only allowed actions and explain closure and reply decisions separately.
 
@@ -33,7 +36,7 @@ tools:
 - An external GitHub issue, Discourse topic, email thread, or other connection record remaining open, unresolved, unverified, unanswered, or unclosed does not by itself block closure. Its lifecycle state may support an external update, but does not require waiting for external verification or closure before closing the Ticket.
 - Treat external-record content as a closure blocker only when it explicitly establishes unfinished internal Ticket work; do not infer such work from the external record's lifecycle state.
 - An already closed ticket must never receive a close suggestion.
-- Recommend `suggest_reply_external_targets` only with Prelude-verified targets and a supported need for a concise completion or ready-for-verification update.
+- Recommend `suggest_reply_external_targets` only with targets identified by successful `get_record` observations and a supported need for a concise completion or ready-for-verification update.
 - External reply can be appropriate without closure, including when this Task is complete but other discoverable Tasks remain unfinished. When all discoverable internal Task work is complete, it can coexist with closure as a notification that work was completed; it does not require or await external verification. It must not overstate what validation establishes.
 - Closure and reply can coexist only when each is independently justified; `no_op` is exclusive.
 - Recommend an external reply only when the task-finished event and supplied validation support that update itself. Target availability or unrelated external-discussion context is not a reason to reply.
@@ -51,9 +54,9 @@ tools:
 - Use only `suggest_close_ticket`, `suggest_reply_external_targets`, and `no_op` in `recommended_actions`.
 - Make `no_op` the sole action whenever selected.
 - In `analysis_report`, distinguish task-event evidence from Ticket-centered record context.
-- State ticket state, remaining-work conclusion, and Prelude-verified target availability.
+- State ticket state, remaining-work conclusion, and the availability of targets identified by successful `get_record` observations.
 - Explain why each closure or reply action is selected or withheld.
-- Set `skip_handling` true exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
+- Set `skip_handling: true` exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 - Do not read, search, or suggest in this phase.

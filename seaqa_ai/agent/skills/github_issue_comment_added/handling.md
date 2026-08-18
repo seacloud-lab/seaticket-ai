@@ -12,24 +12,26 @@ tools:
 - Analysis alone determines whether action is authorized.
 
 ## Input Contract
-- Use only the triggering event and successful passive record observations, the Analysis artifact, and selected evidence.
+- Use only the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - Read `recommended_actions` and `skip_handling` as binding authorization.
-- Do not revisit no-op, independence, or search relevance decisions.
+- Do not revisit `no_op`, independence, or search relevance decisions.
 - Do not use content outside the new comment and authorized context.
 
 ## Required Steps
 1. If handling is skipped or action is `no_op`, make no tool call.
-2. Otherwise invoke each independently authorized tool exactly once.
-3. Call `suggest_reply` only when it is the authorized action. It always targets the triggering GitHub issue in PreStep 1; do not target the selected Ticket or another related record.
-4. Call `suggest_create_ticket` only when it is the authorized action. It always targets the triggering GitHub issue in PreStep 1.
-5. Call `suggest_notify_assignee` only when PreStep 2 contains the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
-6. Make the non-empty reply and reason address the new comment directly.
-7. Include only Analysis-selected supporting URLs.
-8. Make a ticket's non-empty reason cover only the independent problem identified by Analysis.
-9. Record each call or intentional omission in the report.
+2. Create the one authorized primary suggestion:
+   - For authorized reply, call `suggest_reply`. It targets the triggering GitHub issue, not the selected Ticket or another related record, and uses a non-empty reply and reason that address the new comment directly. Include only Analysis-selected supporting URLs.
+   - For an authorized independent problem, call `suggest_create_ticket`. It targets the triggering GitHub issue and uses a non-empty reason covering only the independent problem identified by Analysis.
+3. For an authorized Ticket notification:
+   - Call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket.
+   - Use that Ticket as `target` with:
+     - `source_type: "ticket"`
+     - `connection_id: null`
+     - Its `record_id`
+4. Record each call or intentional omission in the report.
 
 ## Decision Rules
-- Never call `suggest_reply` and `suggest_create_ticket` together. `suggest_reply` and `suggest_notify_assignee` may coexist only when Analysis authorized both.
+- Call only one of `suggest_reply` or `suggest_create_ticket`, never both. Call `suggest_notify_assignee` only when Analysis independently authorizes it.
 - Do not turn a parent-issue recap into a response to the new comment.
 - Do not add a ticket for a problem Analysis did not call independent.
 - An omitted action remains omitted after a tool failure.
@@ -44,7 +46,7 @@ tools:
 
 ## Required Output
 - State the authorized action and whether its call succeeded.
-- For no-op, state why no tool was called.
+- For `no_op`, state why no tool was called.
 - Report a failure honestly without claiming a created suggestion.
 - After all authorized attempts, immediately return the report and make no further tool call.
 - Do not include extra action recommendations.

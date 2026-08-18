@@ -12,7 +12,7 @@ tools:
 - Analysis exclusively authorizes reply versus independent ticket proposal.
 
 ## Input Contract
-- Use only the triggering event and successful passive record observations, the Analysis artifact, and selected evidence.
+- Use only the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - Treat `recommended_actions` and `skip_handling` as the complete authorization boundary.
 - Use parent-thread context only when it is already part of the authorized conclusion.
 - Do not retrieve records, search, or produce new actions.
@@ -20,16 +20,15 @@ tools:
 ## Required Steps
 1. Inspect the skip flag and authorized actions.
 2. If handling is skipped, make no tool call and record the omission.
-3. For authorized reply, call only `suggest_reply` with a non-empty courteous direct reply and Analysis-grounded reason. It always targets the triggering email thread in PreStep 1.
-4. For authorized independent issue, call only `suggest_create_ticket` with a non-empty reason limited to that issue. It always targets the triggering email thread in PreStep 1.
-5. For an authorized Ticket notification, call `suggest_notify_assignee` only when PreStep 2 contains the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
-6. Never call `suggest_reply` and `suggest_create_ticket` together.
-7. Format a reply with a courteous greeting, concise direct body, and closing.
-8. Include only Analysis-selected supporting URLs.
-9. Scope a ticket to only the independent problem identified by Analysis.
-10. Record each actual call result, omission, or failure in the report.
+3. Create the one authorized primary suggestion:
+   - For authorized reply, call only `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply, Analysis-grounded reason, greeting, concise direct body, closing, and only Analysis-selected supporting URLs.
+   - For an authorized independent issue, call only `suggest_create_ticket`. It targets the triggering email thread and uses a non-empty reason limited to that issue.
+4. For an authorized Ticket notification, call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
+5. Record each actual call result, omission, or failure in the report.
 
 ## Decision Rules
+- Call only one of `suggest_reply` or `suggest_create_ticket`, never both.
+- Call `suggest_notify_assignee` only when Analysis independently authorizes it.
 - Do not convert the whole email thread into a response to one new message.
 - Do not create a ticket for a parent-thread problem that Analysis did not find independent.
 - Do not promise unverified behavior, delivery, timeline, or resolution.
@@ -41,7 +40,7 @@ tools:
 - Only `suggest_reply`, `suggest_create_ticket`, and `suggest_notify_assignee` are permitted.
 - Never call `get_record`, search, or any undeclared tool.
 - Call only the exact tool authorized by Analysis.
-- Do not invoke `suggest_reply` and `suggest_create_ticket` together or create unauthorized suggestions.
+- Do not create unauthorized suggestions.
 - Do not use tools to send email, modify recipients, or change thread state.
 
 ## Required Output
@@ -49,7 +48,6 @@ tools:
 - State intentional omission when skipped.
 - Report failure accurately without claiming success.
 - After all authorized attempts, immediately return the report and make no further tool call.
-- Do not add new classification, evidence, or recommendations.
 
 ## Forbidden Behavior
 - Do not search or retrieve records.

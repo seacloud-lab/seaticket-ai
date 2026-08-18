@@ -11,7 +11,7 @@ tools:
 - It must not infer completion, ownership, or a new deadline from incomplete evidence.
 
 ## Input Contract
-- Use only the successful passive ticket observation, triggering event, Prelude artifact, and system facts.
+- Use only the successful passive ticket observation, `triggering_event`, `event_summary`, and system facts.
 - Use supplied due-window facts, custom ticket rules, notification-recency policy, and notification history.
 - Ticket state, substate, priority, assignees, due date, and activity are usable only as supplied.
 - Treat missing data as unknown, never as evidence that work is resolved or unowned.
@@ -45,7 +45,7 @@ tools:
 - Do not read, refresh, search, browse, inspect history, or expand a linked record.
 - Do not invoke or simulate any suggestion tool.
 - Do not request information from a person or system.
-- Do not transform a prior-phase artifact into a claim about current live state.
+- Do not transform `event_summary` into a claim about current live state.
 - Do not use unspecified data sources to fill a missing due date, owner, or notification history.
 
 ## Required Output
@@ -54,7 +54,7 @@ tools:
 - Make `no_op` the sole recommended action whenever it is selected.
 - In `analysis_report`, identify due-date and state evidence, rule effects, and deduplication findings. Do not repeat the event trigger time; the frontend presents it separately.
 - Explain why every selected action is warranted and every material action is omitted.
-- Set `skip_handling` true exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
+- Set `skip_handling: true` exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 
 ## Forbidden Behavior
 - Do not read, search, or suggest anything in this phase.

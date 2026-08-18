@@ -10,7 +10,11 @@ from seaqa_ai import config
 from seaqa_ai.agent.utils import to_strict_response_schema
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
-from seaqa_ai.utils import get_answer_and_sources, remove_sources_content_and_snippets, parse_json
+from seaqa_ai.utils import (
+    get_answer_and_sources,
+    remove_sources_content_and_snippets,
+    sanitize_project_prompt,
+)
 from seaqa_ai.utils.llm_api import ResponsesResult
 from seaqa_ai.utils.memory import OpenAIMemory
 from seaqa_ai.utils.tools import (
@@ -58,10 +62,20 @@ class AgentReACT:
         self.phase_spec = phase_spec
         self.system_prompts = [phase_spec.get_system_prompt()]
         if project_prompt and project_prompt.strip():
-            self.system_prompts.append(project_prompt)
+            self.system_prompts.append(
+                '<project_prompt>\n'
+                f'{sanitize_project_prompt(project_prompt)}\n'
+                '</project_prompt>'
+            )
         self.message_input = phase_spec.message_input
         self.react_tracer = react_tracer
         self.final_output_schema = phase_spec.final_output_schema or {}
+        if self.final_output_schema:
+            self.system_prompts.append(
+                '<final_output_format>\n'
+                f'{self._schema_prompt()}\n'
+                '</final_output_format>'
+            )
         self.max_steps = phase_spec.max_steps
         self.max_steps_prompt = phase_spec.max_steps_prompt
         self.context = dict(phase_spec.context or {})
@@ -94,11 +108,6 @@ class AgentReACT:
             {'role': 'system', 'content': system_prompt}
             for system_prompt in self.system_prompts
         ]
-        if self.final_output_schema:
-            memory_system_prompts.append({
-                'role': 'system',
-                'content': self._schema_prompt(),
-            })
         self.memory = OpenAIMemory(memory_system_prompts)
         self.memory += {'role': 'user', 'content': phase_spec.message_input}
 
@@ -248,16 +257,20 @@ class AgentReACT:
     def _inject_skill_input(self):
         if self.skill is not None:
             started_at = time.monotonic()
+            arguments = {
+                'event': self.phase_spec.event,
+                'phase': self.phase_spec.phase,
+            }
             skill_call = {
                 'type': 'function_call',
-                'call_id': 'skill_view',
-                'name': 'skill_view',
-                'arguments': '{}',
+                'call_id': 'load_event_skill',
+                'name': 'load_event_skill',
+                'arguments': json.dumps(arguments, ensure_ascii=False),
             }
             observation = self._format_observation(self.skill)
             self._trace(
                 action_type='tool_call', action_status='completed', step=0,
-                tool_name=skill_call['name'], tool_arguments={},
+                tool_name=skill_call['name'], tool_arguments=arguments,
                 observation=observation, result=self.skill,
                 statistics=self._statistics(started_at, {
                     'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
@@ -672,7 +685,8 @@ class AgentReACT:
     def _schema_prompt(self):
         return (
             'Your final answer must be a JSON value that conforms exactly to this '
-            f'JSON Schema. Do not include markdown or explanatory text:\n{json.dumps(self.final_output_schema, ensure_ascii=False)}'
+            'JSON Schema. Do not include markdown or explanatory text:\n'
+            f'{json.dumps(self.final_output_schema, ensure_ascii=False)}'
         )
 
     @classmethod

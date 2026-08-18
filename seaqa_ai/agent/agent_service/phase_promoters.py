@@ -1,6 +1,7 @@
 import json
 
 from seaqa_ai.agent.agent_service.constants import LINKED_TICKET_TRACE_EVENT_TYPES
+from seaqa_ai.agent.models.phase import AgentPhaseSpec
 from seaqa_ai.agent.models.phase.analysis.spec import AnalysisPhaseSpec
 from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
@@ -268,28 +269,28 @@ class AgentPhasePromoter:
     def _start_prelude(self):
         target_record = _RecordInputFormatter.target_record_identity(self.task)
         linked_ticket_identity = self.context.get('linked_ticket_identity')
-        prelude_result = self._engage_phase(
+        prelude_output = self._engage_phase(
             'prelude',
             self._build_default_message_input(),
             _RecordInputFormatter.build_prelude_records_input(
                 self.task, self.event, self.context,
             ),
         )
-        prelude_result['event_related_records'] = (
+        prelude_output['event_related_records'] = (
             _RecordInputFormatter.build_event_related_records(
                 target_record,
                 linked_ticket_identity,
-                prelude_result.get('event_related_records', []),
+                prelude_output.get('event_related_records', []),
                 self.context,
                 self.record_cache,
             )
         )
-        self.result['prelude'] = prelude_result
+        self.result['prelude'] = prelude_output
 
     def _start_analysis(self):
-        prelude_result = self.result.get('prelude', {})
-        event_summary = prelude_result.get('event_summary')
-        event_related_records = prelude_result.get('event_related_records', [])
+        prelude_output = self.result.get('prelude', {})
+        event_summary = prelude_output.get('event_summary')
+        event_related_records = prelude_output.get('event_related_records', [])
         self.context['skip_search_record_hashes'] = [
             gen_record_hash(
                 record['source_type'], record['connection_id'], record['record_id'],
@@ -300,33 +301,33 @@ class AgentPhasePromoter:
         message_input = self._build_default_message_input()
         if event_summary is not None:
             message_input['event_summary'] = event_summary
-        message_input.update(self._declared_additional_output('prelude', prelude_result))
+        message_input.update(self._declared_additional_output('prelude', prelude_output))
 
-        analysis_result = self._engage_phase(
+        analysis_output = self._engage_phase(
             'analysis',
             message_input,
             _RecordInputFormatter.build_event_records_input(
                 self.task, self.context, event_related_records,
             ),
         )
-        analysis_result['reference_related_records'] = (
+        analysis_output['reference_related_records'] = (
             _RecordInputFormatter.build_reference_related_records(
-                analysis_result.get('sources', []),
+                analysis_output.get('sources', []),
             )
         )
-        self.result['analysis'] = analysis_result
+        self.result['analysis'] = analysis_output
 
     def _start_handling(self):
-        prelude_result = self.result.get('prelude', {})
-        event_summary = prelude_result.get('event_summary')
-        event_related_records = prelude_result.get('event_related_records', [])
+        prelude_output = self.result.get('prelude', {})
+        event_summary = prelude_output.get('event_summary')
+        event_related_records = prelude_output.get('event_related_records', [])
 
-        analysis_result = self.result.get('analysis', {})
-        if analysis_result.get('skip_handling'):
+        analysis_output = self.result.get('analysis', {})
+        if analysis_output.get('skip_handling'):
             return
-        analysis_report = analysis_result.get('analysis_report')
-        recommended_actions = analysis_result.get('recommended_actions', [])
-        reference_related_records = analysis_result.get('reference_related_records', [])
+        analysis_report = analysis_output.get('analysis_report')
+        recommended_actions = analysis_output.get('recommended_actions', [])
+        reference_related_records = analysis_output.get('reference_related_records', [])
 
         message_input = self._build_default_message_input()
         if event_summary is not None:
@@ -334,8 +335,14 @@ class AgentPhasePromoter:
         if analysis_report is not None:
             message_input['analysis_report'] = analysis_report
         if recommended_actions is not None:
-            message_input['recommended_actions'] = recommended_actions
-        message_input.update(self._declared_additional_output('analysis', analysis_result))
+            handling_tools = AgentPhaseSpec.get_skill_metadata(self.event.event_type, 'handling').get('tools', [])
+            allowed_actions = set(handling_tools) | {'no_op'}
+            message_input['recommended_actions'] = [
+                action
+                for action in recommended_actions
+                if isinstance(action, str) and action in allowed_actions
+            ] if isinstance(recommended_actions, list) else []
+        message_input.update(self._declared_additional_output('analysis', analysis_output))
 
         records_input = _RecordInputFormatter.build_event_records_input(
             self.task, self.context, event_related_records,

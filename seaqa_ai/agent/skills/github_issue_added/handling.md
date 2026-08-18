@@ -1,6 +1,6 @@
 event: github_issue_added
 phase: handling
-description: "Create pending suggestions for a newly created GitHub issue."
+description: "Create authorized pending suggestions for a new GitHub issue."
 tools:
   - suggest_modify_type
   - suggest_assign_labels
@@ -13,25 +13,38 @@ tools:
 - Suggestions are pending proposals, never completed issue changes.
 
 ## Input Contract
-- Use only the triggering event and successful passive record observations, the Analysis artifact, and Analysis-selected evidence.
+- Use only the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - `recommended_actions` is the complete authorization boundary.
-- Use `available_labels` only as the triggering event and successful passive record observations for an authorized label proposal.
+- Use `available_labels` only as the triggering event and successful `get_record` tool observations for an authorized label proposal.
 - Do not add actions because they seem helpful.
 
 ## Required Steps
 1. Read `skip_handling` and the complete authorized action set.
 2. For `no_op` or skipped handling, make no tool call.
 3. Run authorized metadata suggestions in this order: `suggest_modify_type`, then `suggest_assign_labels`.
-4. Call `suggest_modify_type` only when `recommended_actions` authorizes it and the Analysis artifact provides a non-empty `classified_issue_type`. Pass `original_issue_type` exactly as supplied by Analysis, the Analysis classified type, and a non-empty Analysis-grounded reason. Do not infer, normalize, or reclassify either value.
+4. Call `suggest_modify_type` only when:
+   - `recommended_actions` authorizes it.
+   - `classified_issue_type` is non-empty.
+   - `original_issue_type` is passed exactly as supplied.
+   - `classified_issue_type` is passed.
+   - A non-empty reason grounded in `analysis_report` is provided.
+   - Neither value is inferred, normalized, or reclassified.
 5. For labels, pass one to three exact observed `available_labels` and a non-empty Analysis-grounded reason.
-6. Then call exactly one authorized primary tool: `suggest_reply` or `suggest_create_ticket`.
-7. Never call both primary tools or let metadata-tool results alter the authorized primary action.
-8. A reply and its non-empty reason address the actual request using only selected supporting URLs.
-9. A ticket reason is non-empty, limited to reported facts, and preserves uncertainty.
-10. Record each attempted action and its separate actual outcome in the report.
+6. Create the one authorized primary suggestion:
+   - For authorized `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
+   - For authorized `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.
+7. Record each attempted action and its separate actual outcome in the report.
 
 ## Decision Rules
-- Type modification requires explicit Analysis authorization, a non-empty classified type, and a substantive Analysis-grounded reason. If any required Analysis type value is unavailable, omit the type suggestion and report the constraint.
+- Call only one of `suggest_reply` or `suggest_create_ticket`, never both.
+- Metadata-tool results must not alter the authorized primary action.
+- Type modification requires:
+  - Explicit Analysis authorization.
+  - A non-empty classified type.
+  - A substantive Analysis-grounded reason.
+- If any required Analysis type value is unavailable:
+  - Omit the type suggestion.
+  - Report the constraint.
 - Do not normalize, invent, or guess label names.
 - Skip a label suggestion when no exact authorized label fits.
 - A reply must not disclose internal ticket details or unrelated evidence.
@@ -43,13 +56,12 @@ tools:
 - Never call `get_record` or search.
 - Never invoke a suggestion absent from `recommended_actions`.
 - Never use a suggestion tool more than needed for its one authorized action.
-- Do not create a reply and ticket together.
 - Do not treat a successful tool call as a published reply or applied change.
 - After all authorized attempts, immediately return the report and make no further tool call.
 
 ## Required Output
 - Name the authorized actions, attempted calls, selected evidence used, and omissions.
-- For no-op, state that no tool was intentionally called and why.
+- For `no_op`, state that no tool was intentionally called and why.
 - Report failures accurately and do not claim suggestions were created unless their calls succeeded.
 - Do not add classification, research, or unsupported claims.
 

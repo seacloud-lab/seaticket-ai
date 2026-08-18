@@ -51,20 +51,28 @@ class AgentPhaseSpec:
 
     @cached_property
     def skill(self) -> str:
+        return self.get_skill(self.event, self.phase)
+
+    @classmethod
+    def get_skill(cls, event: str, phase: str) -> str:
         from seaqa_ai.agent.utils import get_skill_map
 
         try:
-            return get_skill_map()[self.event][self.phase]
+            return get_skill_map()[event][phase]
         except KeyError as error:
             raise ValueError(
-                f'No {self.phase!r} skill configured for event {self.event!r}'
+                f'No {phase!r} skill configured for event {event!r}'
             ) from error
 
     @cached_property
     def skill_metadata(self) -> dict:
-        metadata = yaml.safe_load(self.skill.split('====================', 1)[0])
+        return self.get_skill_metadata(self.event, self.phase)
+
+    @classmethod
+    def get_skill_metadata(cls, event: str, phase: str) -> dict:
+        metadata = yaml.safe_load(cls.get_skill(event, phase).split('====================', 1)[0])
         if not isinstance(metadata, dict):
-            raise ValueError(f'Skill {self.event}/{self.phase} metadata must be an object')
+            raise ValueError(f'Skill {event}/{phase} metadata must be an object')
         return metadata
 
     @cached_property
