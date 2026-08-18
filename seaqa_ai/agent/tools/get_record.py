@@ -5,7 +5,13 @@ from seaqa_ai.utils import url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, \
+    github_issue_comments_query, discourse_replies_query, email_messages_query, \
+    linear_issue_comments_query, discord_thread_messages_query
 from seaqa_ai.agent.utils.record_identity import record_identity_schema
+
+AGENT_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
+MESSAGES_OMITTED_NOTICE = '[messages omitted due to content limit]'
 
 
 class _RecordRetriever:
@@ -178,254 +184,161 @@ class _RecordRetriever:
                 record['content'] = self._truncate(page.get('content'))
 
     def _load_ticket_content(self, _, records_by_id):
-        contents_by_id = self._contents_by_id(SchemaTables.TICKETS.table_name(), records_by_id)
-        comments_by_ticket_id = self._selected_entries(
-            table_name=SchemaTables.TICKET_COMMENTS.table_name(),
-            topic_ids=records_by_id.keys(),
-            topic_id_field_name='ticket_id',
-            fields_str='_pk, creator, content',
-            first_order_by_field='_pk',
-            latest_order_by_field='_pk',
-            dedupe_key_fields=['_pk'],
-            sort_key_fields=['_pk'],
-            initial_content_lengths={
-                record_id: len(content or '')
-                for record_id, content in contents_by_id.items()
-            },
-            omitted_key='creator',
+        bodies_by_ticket_id = self._contents_by_id(SchemaTables.TICKETS.table_name(), records_by_id)
+        content_by_ticket_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            records_by_id.keys(),
+            query=ticket_comments_query(SchemaTables.TICKET_COMMENTS.table_name(), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            bodies_by_thread_id=bodies_by_ticket_id,
+            budget=AGENT_CONTENT_BUDGET,
         )
         resolver = getattr(self.app, 'username_resolver', None)
         for record_id, record in records_by_id.items():
-            comments = self._split_latest_and_history(
-                comments_by_ticket_id.get(record_id, []), ['_pk'],
-            )
-            latest_comment = comments['latest']
+            ticket_content = content_by_ticket_id[record_id]
+            history_comments = [
+                self._format_ticket_comment(message, resolver)
+                for message in ticket_content.history_messages
+            ]
+            if ticket_content.has_omitted_messages:
+                history_comments.append({'creator': None, 'content': MESSAGES_OMITTED_NOTICE})
             record['content'] = {
-                'latest_comment': ({
-                    'creator': self._resolve_ticket_user(latest_comment.get('creator'), resolver),
-                    'content': latest_comment.get('content') or '',
-                } if latest_comment else None),
-                'content': self._truncate_after_latest(
-                    contents_by_id.get(record_id), latest_comment,
-                ),
-                'history_comments': [
-                    {
-                        'creator': self._resolve_ticket_user(comment.get('creator'), resolver),
-                        'content': comment.get('content') or '',
-                    }
-                    for comment in comments.get('history', [])
-                ],
+                'latest_comment': self._format_ticket_comment(ticket_content.latest_message, resolver),
+                'content': ticket_content.body,
+                'history_comments': history_comments,
             }
 
     def _load_github_issue_content(self, connection_id, records_by_id):
         contents_by_id = self._contents_by_id(
             SchemaTables.GITHUB_ISSUES.table_name(connection_id), records_by_id,
         )
-        issue_id_to_record_id = {
-            record['issue_id']: record_id for record_id, record in records_by_id.items()
+        bodies_by_issue_id = {
+            record['issue_id']: contents_by_id.get(record_id)
+            for record_id, record in records_by_id.items()
         }
-        comments_by_issue_id = self._selected_entries(
-            table_name=SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(connection_id),
-            topic_ids=issue_id_to_record_id,
-            topic_id_field_name='issue_id',
-            fields_str='comment_id, author, content',
-            has_deleted_field=False,
-            first_order_by_field='comment_id',
-            latest_order_by_field='comment_id',
-            dedupe_key_fields=['comment_id'],
-            sort_key_fields=['comment_id'],
-            initial_content_lengths={
-                issue_id: len(contents_by_id.get(record_id) or '')
-                for issue_id, record_id in issue_id_to_record_id.items()
-            },
-            omitted_key='author',
+        content_by_issue_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            bodies_by_issue_id.keys(),
+            query=github_issue_comments_query(SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            bodies_by_thread_id=bodies_by_issue_id,
+            budget=AGENT_CONTENT_BUDGET,
         )
         for record_id, record in records_by_id.items():
-            comments = self._split_latest_and_history(
-                comments_by_issue_id.get(record['issue_id'], []), ['comment_id'],
-            )
-            latest_comment = comments['latest']
+            issue_content = content_by_issue_id[record['issue_id']]
+            history_comments = [
+                self._format_message(message, ('author', 'content'))
+                for message in issue_content.history_messages
+            ]
+            if issue_content.has_omitted_messages:
+                history_comments.append({'author': None, 'content': MESSAGES_OMITTED_NOTICE})
             record['content'] = {
-                'latest_comment': ({
-                    'author': latest_comment.get('author'),
-                    'content': latest_comment.get('content') or '',
-                } if latest_comment else None),
-                'content': self._truncate_after_latest(
-                    contents_by_id.get(record_id), latest_comment,
-                ),
-                'history_comments': [
-                    {'author': comment.get('author'), 'content': comment.get('content') or ''}
-                    for comment in comments.get('history', [])
-                ],
+                'latest_comment': self._format_message(issue_content.latest_message, ('author', 'content')),
+                'content': issue_content.body,
+                'history_comments': history_comments,
             }
 
     def _load_discourse_forum_content(self, connection_id, records_by_id):
-        topic_id_to_record_id = {
-            record['topic_id']: record_id for record_id, record in records_by_id.items()
-        }
-        replies_by_topic_id = self._selected_entries(
-            table_name=SchemaTables.DISCOURSE_REPLIES.table_name(connection_id),
-            topic_ids=topic_id_to_record_id,
-            topic_id_field_name='topic_id',
-            fields_str='author, post_number, content',
-            has_deleted_field=False,
-            first_order_by_field='post_number',
-            latest_order_by_field='post_number',
-            dedupe_key_fields=['post_number'],
-            sort_key_fields=['post_number'],
-            initial_content_lengths={topic_id: 0 for topic_id in topic_id_to_record_id},
-            omitted_key='author',
-            omitted_extra={'post_number': None},
+        content_by_topic_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            [record['topic_id'] for record in records_by_id.values()],
+            query=discourse_replies_query(SchemaTables.DISCOURSE_REPLIES.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            budget=AGENT_CONTENT_BUDGET,
         )
         for record in records_by_id.values():
-            replies = self._split_latest_and_history(
-                replies_by_topic_id.get(record['topic_id'], []), ['post_number'],
-            )
-            latest_comment = replies['latest']
+            topic_content = content_by_topic_id[record['topic_id']]
+            history_comments = [
+                self._format_message(message, ('author', 'post_number', 'content'))
+                for message in topic_content.history_messages
+            ]
+            if topic_content.has_omitted_messages:
+                history_comments.append({
+                    'author': None, 'post_number': None, 'content': MESSAGES_OMITTED_NOTICE,
+                })
             record['content'] = {
-                'latest_comment': ({
-                    'author': latest_comment.get('author'),
-                    'post_number': latest_comment.get('post_number'),
-                    'content': latest_comment.get('content') or '',
-                } if latest_comment else None),
-                'history_comments': [
-                    {
-                        'author': reply.get('author'),
-                        'post_number': reply.get('post_number'),
-                        'content': reply.get('content') or '',
-                    }
-                    for reply in replies.get('history', [])
-                ],
+                'latest_comment': self._format_message(
+                    topic_content.latest_message, ('author', 'post_number', 'content'),
+                ),
+                'history_comments': history_comments,
             }
 
     def _load_email_content(self, connection_id, records_by_id):
-        emails_by_thread_id = self._selected_entries(
-            table_name=SchemaTables.EMAIL.table_name(connection_id),
-            topic_ids=records_by_id.keys(),
-            topic_id_field_name='thread_id',
-            fields_str='title, email_from, email_to, cc, content, message_id, modified_time',
-            first_order_by_field='modified_time',
-            latest_order_by_field='modified_time',
-            dedupe_key_fields=['message_id', 'modified_time', 'email_from', 'email_to', 'content'],
-            sort_key_fields=['modified_time', 'message_id'],
-            initial_content_lengths={record_id: 0 for record_id in records_by_id},
-            omitted_key='title',
-            omitted_extra={
-                'email_from': None, 'email_to': None, 'cc': None,
-                'message_id': None, 'modified_time': None,
-            },
+        email_fields = ('title', 'email_from', 'email_to', 'cc', 'content')
+        content_by_thread_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            records_by_id.keys(),
+            query=email_messages_query(SchemaTables.EMAIL.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            budget=AGENT_CONTENT_BUDGET,
         )
         for record_id, record in records_by_id.items():
-            emails = self._split_latest_and_history(
-                emails_by_thread_id.get(record_id, []), ['modified_time', 'message_id'],
-            )
-            latest_email = emails['latest']
+            thread_content = content_by_thread_id[record_id]
+            history_emails = [
+                self._format_message(message, email_fields)
+                for message in thread_content.history_messages
+            ]
+            if thread_content.has_omitted_messages:
+                history_emails.append({
+                    'title': None, 'email_from': None, 'email_to': None, 'cc': None,
+                    'content': MESSAGES_OMITTED_NOTICE,
+                })
             record['content'] = {
-                'latest_email': ({
-                    'title': latest_email.get('title'),
-                    'email_from': latest_email.get('email_from'),
-                    'email_to': latest_email.get('email_to'),
-                    'cc': latest_email.get('cc'),
-                    'content': latest_email.get('content') or '',
-                } if latest_email else None),
-                'history_emails': [
-                    {
-                        'title': email.get('title'),
-                        'email_from': email.get('email_from'),
-                        'email_to': email.get('email_to'),
-                        'cc': email.get('cc'),
-                        'content': email.get('content') or '',
-                    }
-                    for email in emails.get('history', [])
-                ],
+                'latest_email': self._format_message(thread_content.latest_message, email_fields),
+                'history_emails': history_emails,
             }
 
     def _load_linear_content(self, connection_id, records_by_id):
         contents_by_id = self._contents_by_id(
             SchemaTables.LINEAR_ISSUES.table_name(connection_id), records_by_id,
         )
-        issue_id_to_record_id = {
-            record['issue_id']: record_id for record_id, record in records_by_id.items()
+        bodies_by_issue_id = {
+            record['issue_id']: contents_by_id.get(record_id)
+            for record_id, record in records_by_id.items()
         }
-        comments_by_issue_id = self._selected_entries(
-            table_name=SchemaTables.LINEAR_ISSUE_COMMENTS.table_name(connection_id),
-            topic_ids=issue_id_to_record_id,
-            topic_id_field_name='issue_id',
-            fields_str='comment_id, author, content, created_time',
-            has_deleted_field=False,
-            first_order_by_field='created_time',
-            latest_order_by_field='created_time',
-            dedupe_key_fields=['comment_id'],
-            sort_key_fields=['created_time'],
-            initial_content_lengths={
-                issue_id: len(contents_by_id.get(record_id) or '')
-                for issue_id, record_id in issue_id_to_record_id.items()
-            },
-            omitted_key='author',
-            omitted_extra={'created_time': None},
+        content_by_issue_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            bodies_by_issue_id.keys(),
+            query=linear_issue_comments_query(SchemaTables.LINEAR_ISSUE_COMMENTS.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            bodies_by_thread_id=bodies_by_issue_id,
+            budget=AGENT_CONTENT_BUDGET,
         )
         for record_id, record in records_by_id.items():
-            comments = self._split_latest_and_history(
-                comments_by_issue_id.get(record['issue_id'], []), ['created_time'],
-            )
-            latest_comment = comments['latest']
+            issue_content = content_by_issue_id[record['issue_id']]
+            history_comments = [
+                self._format_message(message, ('author', 'created_time', 'content'))
+                for message in issue_content.history_messages
+            ]
+            if issue_content.has_omitted_messages:
+                history_comments.append({
+                    'author': None, 'created_time': None, 'content': MESSAGES_OMITTED_NOTICE,
+                })
             record['content'] = {
-                'latest_comment': ({
-                    'author': latest_comment.get('author'),
-                    'created_time': latest_comment.get('created_time'),
-                    'content': latest_comment.get('content') or '',
-                } if latest_comment else None),
-                'content': self._truncate_after_latest(
-                    contents_by_id.get(record_id), latest_comment,
+                'latest_comment': self._format_message(
+                    issue_content.latest_message, ('author', 'created_time', 'content'),
                 ),
-                'history_comments': [
-                    {
-                        'author': comment.get('author'),
-                        'created_time': comment.get('created_time'),
-                        'content': comment.get('content') or '',
-                    }
-                    for comment in comments.get('history', [])
-                ],
+                'content': issue_content.body,
+                'history_comments': history_comments,
             }
 
     def _load_discord_content(self, connection_id, records_by_id):
-        thread_id_to_record_id = {
-            record['thread_id']: record_id for record_id, record in records_by_id.items()
-        }
-        messages_by_thread_id = self._selected_entries(
-            table_name=SchemaTables.DISCORD_THREAD_MESSAGES.table_name(connection_id),
-            topic_ids=thread_id_to_record_id,
-            topic_id_field_name='thread_id',
-            fields_str='message_id, author, content, created_time',
-            has_deleted_field=False,
-            first_order_by_field='created_time',
-            latest_order_by_field='created_time',
-            dedupe_key_fields=['message_id'],
-            sort_key_fields=['created_time', 'message_id'],
-            initial_content_lengths={thread_id: 0 for thread_id in thread_id_to_record_id},
-            omitted_key='author',
-            omitted_extra={'created_time': None},
+        content_by_thread_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            [record['thread_id'] for record in records_by_id.values()],
+            query=discord_thread_messages_query(SchemaTables.DISCORD_THREAD_MESSAGES.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
+            budget=AGENT_CONTENT_BUDGET,
         )
         for record in records_by_id.values():
-            messages = self._split_latest_and_history(
-                messages_by_thread_id.get(record['thread_id'], []),
-                ['created_time', 'message_id'],
-            )
-            latest_message = messages['latest']
+            thread_content = content_by_thread_id[record['thread_id']]
+            history_messages = [
+                self._format_message(message, ('author', 'created_time', 'content'))
+                for message in thread_content.history_messages
+            ]
+            if thread_content.has_omitted_messages:
+                history_messages.append({
+                    'author': None, 'created_time': None, 'content': MESSAGES_OMITTED_NOTICE,
+                })
             record['content'] = {
-                'latest_message': ({
-                    'author': latest_message.get('author'),
-                    'created_time': latest_message.get('created_time'),
-                    'content': latest_message.get('content') or '',
-                } if latest_message else None),
-                'history_messages': [
-                    {
-                        'author': message.get('author'),
-                        'created_time': message.get('created_time'),
-                        'content': message.get('content') or '',
-                    }
-                    for message in messages.get('history', [])
-                ],
+                'latest_message': self._format_message(
+                    thread_content.latest_message, ('author', 'created_time', 'content'),
+                ),
+                'history_messages': history_messages,
             }
 
     def _contents_by_id(self, table_name, records_by_id):
@@ -439,50 +352,20 @@ class _RecordRetriever:
             ).items()
         }
 
-    def _selected_entries(self, *, table_name, topic_ids, topic_id_field_name, fields_str,
-                          first_order_by_field, latest_order_by_field, dedupe_key_fields,
-                          sort_key_fields, initial_content_lengths, omitted_key,
-                          has_deleted_field=True, omitted_extra=None):
-        omitted_extra = omitted_extra or {}
-
-        def more_omitted_notice():
-            return {omitted_key: None, 'content': '[more comments omitted due to content limit]', **omitted_extra}
-
-        return self.app.seadb_service.get_selected_topic_entries(
-            base_id=self.project_uuid,
-            table_name=table_name,
-            topic_ids=topic_ids,
-            topic_id_field_name=topic_id_field_name,
-            fields_str=fields_str,
-            has_deleted_field=has_deleted_field,
-            limit_for_each_topic=SEARCH_TOOL_ISSUES_MAX_COMMENTS,
-            first_order_by_field=first_order_by_field,
-            latest_order_by_field=latest_order_by_field,
-            dedupe_key_fields=dedupe_key_fields,
-            sort_key_fields=sort_key_fields,
-            initial_content_lengths=initial_content_lengths,
-            max_total_content_size=SEARCH_TOOL_CONTENT_MAX_SIZE,
-            more_omitted_notice_builder=more_omitted_notice,
-            prioritize_latest_entry=True,
-        )
-
     @staticmethod
-    def _split_latest_and_history(entries, sort_key_fields):
-        entries = list(entries or [])
-        if not entries:
-            return {'latest': None, 'history': []}
-        latest = max(
-            entries,
-            key=lambda entry: tuple(entry.get(field) or '' for field in sort_key_fields),
-        )
-        history = list(entries)
-        history.remove(latest)
-        return {'latest': latest, 'history': history}
+    def _format_message(message, fields):
+        if message is None:
+            return None
+        formatted = {field: message.get(field) for field in fields}
+        if 'content' in fields:
+            formatted['content'] = message.get('content') or ''
+        return formatted
 
-    @staticmethod
-    def _truncate_after_latest(content, latest_entry):
-        latest_content = (latest_entry or {}).get('content') or ''
-        return (content or '')[:max(SEARCH_TOOL_CONTENT_MAX_SIZE - len(latest_content), 0)]
+    def _format_ticket_comment(self, message, resolver):
+        formatted = self._format_message(message, ('creator', 'content'))
+        if formatted is not None:
+            formatted['creator'] = self._resolve_ticket_user(formatted['creator'], resolver)
+        return formatted
 
     def _add_github_available_labels(self, connection_id, records_by_id):
         cache_key = ('github_available_labels', connection_id)

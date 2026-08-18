@@ -1,3 +1,82 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ThreadMessagesQuery:
+    """How to fetch the candidate messages of a set of threads."""
+    table_name: str
+    thread_id_field: str
+    order_by: tuple  # ascending time fields, e.g. ('modified_time', 'message_id')
+    select_fields: str = '*'
+    limit_per_thread: int = 20
+    has_deleted_field: bool = True
+
+
+# Predefined queries for the known thread-message tables.
+def ticket_comments_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='ticket_id',
+        order_by=('_pk',),
+        select_fields='_pk, creator, content',
+        limit_per_thread=limit_per_thread,
+    )
+
+
+def github_issue_comments_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='issue_id',
+        order_by=('comment_id',),
+        select_fields='comment_id, author, content',
+        limit_per_thread=limit_per_thread,
+        has_deleted_field=False,
+    )
+
+
+def discourse_replies_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='topic_id',
+        order_by=('post_number',),
+        select_fields='author, post_number, content',
+        limit_per_thread=limit_per_thread,
+        has_deleted_field=False,
+    )
+
+
+def email_messages_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='thread_id',
+        order_by=('modified_time', 'message_id'),
+        select_fields='title, email_from, email_to, cc, content, message_id, modified_time',
+        limit_per_thread=limit_per_thread,
+    )
+
+
+def linear_issue_comments_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='issue_id',
+        order_by=('created_time',),
+        select_fields='comment_id, author, content, created_time',
+        limit_per_thread=limit_per_thread,
+        has_deleted_field=False,
+    )
+
+
+def discord_thread_messages_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='thread_id',
+        order_by=('created_time', 'message_id'),
+        select_fields='message_id, author, content, created_time',
+        limit_per_thread=limit_per_thread,
+        has_deleted_field=False,
+    )
+
+
 class SeaDBQueryService:
     """SeaDB-specific query construction and row retrieval."""
 
@@ -8,7 +87,7 @@ class SeaDBQueryService:
         pks = list(pks or [])
         if not pks:
             return {}
-        fields_str = self._normalize_fields_str(fields_str, ['_pk'])
+        fields_str = self._normalize_select_fields(fields_str, ['_pk'])
         condition_str = self._build_in_condition(pks)
         rows = self._api.query_rows(
             base_id,
@@ -17,34 +96,49 @@ class SeaDBQueryService:
         ).get('results', [])
         return {row['_pk']: row for row in rows}
 
-    def get_topic_entries_grouped(self, base_id, table_name, topic_ids, topic_id_field_name,
-                                  fields_str='*', has_deleted_field=True, order_by_fields=None):
-        topic_ids = list(topic_ids or [])
-        if not topic_ids:
+    def get_first_and_recent_thread_messages(self, base_id, thread_ids, *, query):
+        """Return {thread_id: [messages ascending by query.order_by]},
+        keeping the first message plus the most recent limit_per_thread - 1."""
+        thread_ids = list(thread_ids or [])
+        if not thread_ids:
             return {}
 
-        sql = self._build_topic_entries_sql(
-            table_name=table_name,
-            topic_ids=topic_ids,
-            topic_id_field_name=topic_id_field_name,
-            fields_str=fields_str,
-            has_deleted_field=has_deleted_field,
-            order_by_fields=[topic_id_field_name, *(order_by_fields or [])],
+        select_fields = self._normalize_select_fields(
+            query.select_fields, [query.thread_id_field, *query.order_by],
         )
-        rows = self._api.query_rows(base_id, sql).get('results', [])
-        grouped_rows = {}
+        rows = self._api.query_rows(
+            base_id, self._build_messages_sql(query, thread_ids, select_fields),
+        ).get('results', [])
+
+        messages_by_thread_id = {}
         for row in rows:
-            grouped_rows.setdefault(row.get(topic_id_field_name), []).append(row)
-        return grouped_rows
+            messages_by_thread_id.setdefault(row.get(query.thread_id_field), []).append(row)
+
+        return {
+            thread_id: self._first_plus_recent(
+                messages_by_thread_id.get(thread_id, []), query.limit_per_thread,
+            )
+            for thread_id in thread_ids
+        }
 
     @staticmethod
-    def _normalize_fields_str(fields_str, required_fields):
-        if fields_str == '*':
-            return fields_str
+    def _first_plus_recent(messages, limit_per_thread):
+        if limit_per_thread <= 0 or not messages:
+            return []
+        if limit_per_thread == 1:
+            return messages[-1:]
+        first_message = messages[:1]
+        recent_messages = messages[1:][-(limit_per_thread - 1):]
+        return first_message + recent_messages
+
+    @staticmethod
+    def _normalize_select_fields(select_fields, required_fields):
+        if select_fields == '*':
+            return select_fields
 
         fields = []
         seen = set()
-        for field in [*fields_str.split(','), *required_fields]:
+        for field in [*select_fields.split(','), *required_fields]:
             field = str(field or '').strip()
             if field and field not in seen:
                 seen.add(field)
@@ -59,16 +153,14 @@ class SeaDBQueryService:
         )
 
     @classmethod
-    def _build_topic_entries_sql(cls, table_name, topic_ids, topic_id_field_name, fields_str='*',
-                                 has_deleted_field=True, order_by_fields=None):
+    def _build_messages_sql(cls, query, thread_ids, select_fields):
         sql = (
-            f'SELECT {fields_str} FROM {table_name} WHERE {topic_id_field_name} '
-            f'IN ({cls._build_in_condition(topic_ids)})'
+            f'SELECT {select_fields} FROM {query.table_name} WHERE {query.thread_id_field} '
+            f'IN ({cls._build_in_condition(thread_ids)})'
         )
-        if has_deleted_field:
+        if query.has_deleted_field:
             sql += ' AND (`deleted` = False OR `deleted` IS NULL)'
 
-        order_by_fields = [field for field in (order_by_fields or []) if field]
-        if order_by_fields:
-            sql += ' ORDER BY ' + ', '.join(f'`{field}` ASC' for field in order_by_fields)
+        order_by_fields = [query.thread_id_field, *[f for f in query.order_by if f]]
+        sql += ' ORDER BY ' + ', '.join(f'`{field}` ASC' for field in order_by_fields)
         return sql
