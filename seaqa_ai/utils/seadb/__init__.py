@@ -3,7 +3,7 @@ from ._data_assembler import DataAssembler
 from ._seadb_api import SeaDBAPI
 
 
-class SeaDB:
+class SeaDBService:
     """Application-facing SeaDB entry point for transport and record retrieval."""
 
     def __init__(self, server_url, seadb_user, seadb_passwd, timeout=30):
@@ -81,4 +81,4 @@ class SeaDB:
         )
 
 
-__all__ = ['SeaDB']
+__all__ = ['SeaDBService']

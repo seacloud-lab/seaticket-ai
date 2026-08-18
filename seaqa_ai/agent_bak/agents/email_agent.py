@@ -51,7 +51,7 @@ class EmailAgent(ConnectionAgent):
             f"SELECT `_pk`, `title`, `unread`, `modified_time`, `linked_ticket` "
             f"FROM `{self._threads_table}` WHERE {where} LIMIT 1"
         )
-        results = self.seadb.query_rows(self.project_uuid, sql).get('results', [])
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
     def get_item_context(self, item: dict) -> dict:
@@ -103,7 +103,7 @@ class EmailAgent(ConnectionAgent):
         if not thread_id:
             return []
 
-        emails_map = self.seadb.get_selected_topic_entries(
+        emails_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=self._emails_table,
             topic_ids=[thread_id],

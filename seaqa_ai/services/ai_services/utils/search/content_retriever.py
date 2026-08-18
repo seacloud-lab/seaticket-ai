@@ -92,9 +92,9 @@ def build_email_notice(content):
     }
 
 class ContentRetriever:
-    def __init__(self, username_resolver, seadb, project_uuid):
+    def __init__(self, username_resolver, seadb_service, project_uuid):
         self.username_resolver = username_resolver
-        self.seadb = seadb
+        self.seadb_service = seadb_service
         self.project_uuid = project_uuid
 
     def retrieve(self, search_results, connection_id_type_map):
@@ -125,7 +125,7 @@ class ContentRetriever:
     # documents
     ## knowledge base
     def _get_knowledge_base_content(self, record_id_record_map, _):
-        results_from_seadb = self.seadb.get_records_by_pks(
+        results_from_seadb = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=SchemaTables.KNOWLEDGE_BASE.table_name(),
             pks=record_id_record_map.keys(),
@@ -141,7 +141,7 @@ class ContentRetriever:
 
     ## site
     def _get_site_content(self, record_id_record_map, connection_id):
-        results_from_seadb = self.seadb.get_records_by_pks(
+        results_from_seadb = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=SchemaTables.WEB_CRAWL.table_name(connection_id),
             pks=record_id_record_map.keys(),
@@ -161,7 +161,7 @@ class ContentRetriever:
 
     ## seafile
     def _get_seafile_content(self, record_id_record_map, connection_id):
-        results_from_seadb = self.seadb.get_records_by_pks(
+        results_from_seadb = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=SchemaTables.SEAFILE.table_name(connection_id),
             pks=record_id_record_map.keys(),
@@ -182,7 +182,7 @@ class ContentRetriever:
 
         # query topics
         record_ids = record_id_record_map.keys()
-        record_id_to_topics = self.seadb.get_records_by_pks(
+        record_id_to_topics = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=topics_table_name,
             pks=record_ids,
@@ -196,7 +196,7 @@ class ContentRetriever:
         }
 
         # query comments/replies with first + latest attachment selection semantics
-        record_id_to_comments = self.seadb.get_selected_topic_entries(
+        record_id_to_comments = self.seadb_service.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=record_ids,
@@ -274,7 +274,7 @@ class ContentRetriever:
         comments_table_name = SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(connection_id)
 
         # query topics
-        record_id_to_topics = self.seadb.get_records_by_pks(
+        record_id_to_topics = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=topics_table_name,
             pks=record_id_record_map.keys(),
@@ -290,7 +290,7 @@ class ContentRetriever:
             record['issue_id']: len((record.get('content') or ''))
             for record in record_id_to_topics.values()
         }
-        issue_id_to_comments = self.seadb.get_selected_topic_entries(
+        issue_id_to_comments = self.seadb_service.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=issue_id_to_record_id.keys(),
@@ -347,7 +347,7 @@ class ContentRetriever:
         comments_table_name = SchemaTables.DISCOURSE_REPLIES.table_name(connection_id)
 
         # query topics
-        record_id_to_topics = self.seadb.get_records_by_pks(
+        record_id_to_topics = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=topics_table_name,
             pks=record_id_record_map.keys(),
@@ -359,7 +359,7 @@ class ContentRetriever:
             record['topic_id']: record_id
             for record_id, record in record_id_to_topics.items()
         }
-        topic_id_to_comments = self.seadb.get_selected_topic_entries(
+        topic_id_to_comments = self.seadb_service.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=topic_id_to_record_id.keys(),
@@ -410,7 +410,7 @@ class ContentRetriever:
 
         # query threads
         record_ids = record_id_record_map.keys()
-        record_id_to_threads = self.seadb.get_records_by_pks(
+        record_id_to_threads = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=threads_table_name,
             pks=record_ids,
@@ -418,7 +418,7 @@ class ContentRetriever:
         )
 
         # query emails with first + latest attachment selection semantics
-        record_id_to_emails = self.seadb.get_selected_topic_entries(
+        record_id_to_emails = self.seadb_service.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=replies_table_name,
             topic_ids=record_ids,
@@ -463,7 +463,7 @@ class ContentRetriever:
     # tasks
     ## general task
     def _get_general_task_content(self, record_id_record_map, connection_id):
-        results_from_seadb = self.seadb.get_records_by_pks(
+        results_from_seadb = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=SchemaTables.GENERAL_TASK.table_name(connection_id),
             pks=record_id_record_map.keys(),
@@ -481,7 +481,7 @@ class ContentRetriever:
         issues_table_name = SchemaTables.LINEAR_ISSUES.table_name(connection_id)
         comments_table_name = SchemaTables.LINEAR_ISSUE_COMMENTS.table_name(connection_id)
 
-        record_id_to_issues = self.seadb.get_records_by_pks(
+        record_id_to_issues = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=issues_table_name,
             pks=record_id_record_map.keys(),
@@ -496,7 +496,7 @@ class ContentRetriever:
             record['issue_id']: len((record.get('content') or ''))
             for record in record_id_to_issues.values()
         }
-        issue_id_to_comments = self.seadb.get_selected_topic_entries(
+        issue_id_to_comments = self.seadb_service.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=comments_table_name,
             topic_ids=issue_id_to_record_id.keys(),

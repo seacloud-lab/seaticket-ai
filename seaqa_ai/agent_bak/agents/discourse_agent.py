@@ -54,7 +54,7 @@ class DiscourseAgent(ConnectionAgent):
             f"`created_time`, `modified_time`, `linked_ticket`, `slug` "
             f"FROM `{self._topics_table}` WHERE {where} LIMIT 1"
         )
-        results = self.seadb.query_rows(self.project_uuid, sql).get('results', [])
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
     def get_item_context(self, item: dict) -> dict:
@@ -133,7 +133,7 @@ class DiscourseAgent(ConnectionAgent):
         if not topic_id:
             return []
 
-        replies_map = self.seadb.get_selected_topic_entries(
+        replies_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=self._replies_table,
             topic_ids=[topic_id],

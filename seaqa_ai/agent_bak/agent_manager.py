@@ -341,7 +341,7 @@ class AgentManager:
                 f"WHERE `linked_ticket` = {int(ticket_id)} "
                 f"AND (`deleted` = False OR `deleted` IS NULL)"
             )
-            tasks = self.app.seadb.query_rows(project_uuid, sql).get('results', [])
+            tasks = self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
             if not tasks:
                 continue
             has_linked_task = True
@@ -404,7 +404,7 @@ class AgentManager:
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"LIMIT 1"
         )
-        results = self.app.seadb.query_rows(project_uuid, sql).get('results', [])
+        results = self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
         if not results:
             return None
 
@@ -620,7 +620,7 @@ class AgentManager:
             f"ORDER BY `due_date` ASC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
-        return self.app.seadb.query_rows(project_uuid, sql).get('results', [])
+        return self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])
 
     def _get_over_due_tickets(self, project_uuid: str, now: datetime) -> list[dict]:
         """Query tickets that are over due and have not been recently processed."""
@@ -638,4 +638,4 @@ class AgentManager:
             f"ORDER BY `due_date` ASC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
-        return self.app.seadb.query_rows(project_uuid, sql).get('results', [])
+        return self.app.seadb_api.query_rows(project_uuid, sql).get('results', [])

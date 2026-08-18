@@ -49,7 +49,7 @@ class GithubIssueAgent(ConnectionAgent):
             f"`url`, `linked_ticket` "
             f"FROM `{self._issues_table}` WHERE {where} LIMIT 1"
         )
-        results = self.seadb.query_rows(self.project_uuid, sql).get('results', [])
+        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
     def get_item_context(self, item: dict) -> dict:
@@ -95,7 +95,7 @@ class GithubIssueAgent(ConnectionAgent):
         if not issue_id:
             return []
 
-        comments_map = self.seadb.get_selected_topic_entries(
+        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
             base_id=self.project_uuid,
             table_name=self._comments_table,
             topic_ids=[issue_id],
@@ -117,7 +117,7 @@ class GithubIssueAgent(ConnectionAgent):
 
         available_labels = []
         try:
-            metadata = self.seadb.get_base_metadata(self.project_uuid)
+            metadata = self.seadb_api.get_base_metadata(self.project_uuid)
             tables = (metadata or {}).get('tables') or []
             table_meta = next(
                 (table for table in tables if table.get('name') == self._issues_table),
