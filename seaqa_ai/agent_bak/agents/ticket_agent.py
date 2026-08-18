@@ -124,7 +124,7 @@ class TicketAgent(BaseAgent):
             f"AND (`deleted` = False OR `deleted` IS NULL) "
             f"LIMIT 1"
         )
-        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        results = self.seadb.query_rows(self.project_uuid, sql).get('results', [])
         return results[0] if results else None
 
     def on_run_finished(self, item: dict, success: bool):
@@ -133,7 +133,7 @@ class TicketAgent(BaseAgent):
         ticket_pk = item.get('_pk')
         if ticket_pk is None:
             return
-        self.seadb_api.update_rows(
+        self.seadb.update_rows(
             self.project_uuid,
             SchemaTables.TICKETS.table_name(),
             [
@@ -149,7 +149,7 @@ class TicketAgent(BaseAgent):
     def get_item_context(self, item: dict) -> dict:
         """Fetch comments, activities, and historical notifications for a ticket."""
         ticket_id = item['_pk']
-        comments_map = self.seadb_api.get_first_and_latest_topic_entries(
+        comments_map = self.seadb.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=SchemaTables.TICKET_COMMENTS.table_name(),
             topic_ids=[ticket_id],
@@ -171,7 +171,7 @@ class TicketAgent(BaseAgent):
             f"ORDER BY `created_time` DESC LIMIT {TICKET_MAX_ACTIVITIES}"
         )
         activities = list(reversed(
-            self.seadb_api.query_rows(self.project_uuid, activities_sql).get('results', [])
+            self.seadb.query_rows(self.project_uuid, activities_sql).get('results', [])
         ))
 
         # Query historical executed notifications for this ticket
@@ -293,7 +293,7 @@ class TicketAgent(BaseAgent):
         external_reply_targets = []
         for connection_id in sorted(github_connection_ids):
             record_ids = sorted(connection_record_ids.get(connection_id) or [])
-            issue_rows = self.seadb_api.get_records_by_pks(
+            issue_rows = self.seadb.get_records_by_pks(
                 base_id=self.project_uuid,
                 table_name=SchemaTables.GITHUB_ISSUES.table_name(connection_id),
                 pks=record_ids,
@@ -354,7 +354,7 @@ class TicketAgent(BaseAgent):
             f"WHERE `_pk` = {record_id} "
             f"AND (`deleted` = False OR `deleted` IS NULL) LIMIT 1"
         )
-        results = self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        results = self.seadb.query_rows(self.project_uuid, sql).get('results', [])
         if not results:
             return {}
 
@@ -372,7 +372,7 @@ class TicketAgent(BaseAgent):
         issue_id = issue.get('issue_id')
         comments = []
         if issue_id:
-            comments_map = self.seadb_api.get_first_and_latest_topic_entries(
+            comments_map = self.seadb.get_selected_topic_entries(
                 base_id=self.project_uuid,
                 table_name=comments_table,
                 topic_ids=[issue_id],

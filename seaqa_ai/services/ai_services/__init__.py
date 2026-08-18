@@ -319,7 +319,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         # get rerank required data (title, ai_summary)
         time_begin = time.time()
-        search_result = get_title_and_ai_summary_of_search_results(search_result, self.app.seadb_api, project_uuid, connection_id_type_map)
+        search_result = get_title_and_ai_summary_of_search_results(search_result, self.app.seadb, project_uuid, connection_id_type_map)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Request title and ai_summary': f'time usage: {round(time_end - time_begin, 2)} s'})
@@ -368,7 +368,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         
         # get content of reranked result
         time_begin = time.time()
-        content_retriever = ContentRetriever(self.app.username_resolver, self.app.seadb_api, project_uuid)
+        content_retriever = ContentRetriever(self.app.username_resolver, self.app.seadb, project_uuid)
         search_result_with_whole_data = content_retriever.retrieve(search_result_after_ranked, connection_id_type_map)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):

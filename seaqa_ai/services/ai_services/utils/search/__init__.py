@@ -74,7 +74,7 @@ def remap_comments_by_record_id(topic_id_to_record_id, topic_id_to_comments):
         if topic_id in topic_id_to_record_id
     }
 
-def get_title_and_ai_summary_of_search_results(search_results, seadb_api, project_uuid, connection_id_type_map):
+def get_title_and_ai_summary_of_search_results(search_results, seadb, project_uuid, connection_id_type_map):
     """
     func type: retrieve title and ai_summary from seadb
 
@@ -98,7 +98,7 @@ def get_title_and_ai_summary_of_search_results(search_results, seadb_api, projec
         records_table_name = get_connection_table_name(connection_type, connection_id)
 
         # query title and ai_summary for current connection (including tk, kb)
-        records_in_seadb = seadb_api.get_records_by_pks(
+        records_in_seadb = seadb.get_records_by_pks(
             base_id=project_uuid,
             table_name=records_table_name,
             pks=record_id_record_map.keys(),

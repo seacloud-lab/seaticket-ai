@@ -77,7 +77,7 @@ class BaseAgent:
 
     def __init__(self, app, project, event: dict | None = None):
         self.app = app
-        self.seadb_api = app.seadb_api
+        self.seadb = app.seadb
         self.project = project
         self.project_uuid = project['uuid']
         self.agent_settings = project.get('settings', {}).get('agent', {})
@@ -244,7 +244,7 @@ class BaseAgent:
             f"FROM `{SchemaTables.AGENT_ACTIONS.table_name()}` WHERE {where} "
             f"ORDER BY `created_at` DESC LIMIT {max(1, int(limit))}"
         )
-        return self.seadb_api.query_rows(self.project_uuid, sql).get('results', [])
+        return self.seadb.query_rows(self.project_uuid, sql).get('results', [])
 
 
     # ── SeaDB run-record helpers ────────────────────────────────────
@@ -262,7 +262,7 @@ class BaseAgent:
             'events': events_payload,
         }
         try:
-            res = self.seadb_api.insert_rows(self.project_uuid, SchemaTables.AGENT_RUNS.table_name(), [row])
+            res = self.seadb.insert_rows(self.project_uuid, SchemaTables.AGENT_RUNS.table_name(), [row])
             pks = res.get('pks', [])
             if len(pks) != 1:
                 raise Exception(f'Expected 1 PK, got {len(pks)}')
@@ -274,7 +274,7 @@ class BaseAgent:
     def finalize_run_record(self, run_pk: int, updates: dict):
         """Update an existing agent_runs row."""
         try:
-            self.seadb_api.update_rows(
+            self.seadb.update_rows(
                 self.project_uuid,
                 SchemaTables.AGENT_RUNS.table_name(),
                 [{'pk': run_pk, 'row': updates}],
@@ -438,7 +438,7 @@ class BaseAgent:
             ai_stats_context=self._build_ai_stats_context(),
             action_recorder=AgentActionRecorder(
                 self.project_uuid,
-                self.seadb_api,
+                self.seadb,
             ),
             run_id=run_id,
             tool_metadata=tool_metadata,

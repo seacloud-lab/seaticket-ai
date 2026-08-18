@@ -3,7 +3,7 @@ import logging
 from html import escape
 
 from seaqa_ai import config
-from seaqa_ai.utils.seadb_api import SeaDBAPI
+from seaqa_ai.utils.seadb import SeaDB
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.seadb_models import SchemaTables
 
@@ -99,7 +99,7 @@ LDAP_SERVER_URL = 'ldap://your-server'
         Create KB record and return <seaqa-kb-entry> HTML tag with title and pk.
         """
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        seadb_api = SeaDBAPI(
+        seadb = SeaDB(
             config.SEADB_SERVER_URL,
             config.SEADB_USER,
             config.SEADB_PASSWORD
@@ -115,7 +115,7 @@ LDAP_SERVER_URL = 'ldap://your-server'
             'modified_time': now,
             'deleted': False,
         }
-        res = seadb_api.insert_rows(context['project_uuid'], SchemaTables.KNOWLEDGE_BASE.table_name(), [row])
+        res = seadb.insert_rows(context['project_uuid'], SchemaTables.KNOWLEDGE_BASE.table_name(), [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
             raise AssertionError('Failed to create knowledge base entry')
@@ -160,7 +160,7 @@ class TicketCreator(BasicTool):
             raise AssertionError('Ticket content is required')
 
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        seadb_api = SeaDBAPI(
+        seadb = SeaDB(
             config.SEADB_SERVER_URL,
             config.SEADB_USER,
             config.SEADB_PASSWORD
@@ -184,7 +184,7 @@ class TicketCreator(BasicTool):
             'deleted': False,
             'due_date': '',
         }
-        res = seadb_api.insert_rows(context['project_uuid'], SchemaTables.TICKETS.table_name(), [row])
+        res = seadb.insert_rows(context['project_uuid'], SchemaTables.TICKETS.table_name(), [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
             raise AssertionError('Failed to create ticket')

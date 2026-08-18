@@ -19,9 +19,9 @@ def _truncate_string(value, max_chars):
     return value[:max_chars] + f'\n... [truncated, original_length={len(value)}]'
 
 class AgentActionRecorder:
-    def __init__(self, project_uuid, seadb_api):
+    def __init__(self, project_uuid, seadb):
         self.project_uuid = project_uuid
-        self.seadb_api = seadb_api
+        self.seadb = seadb
 
     def __bool__(self):
         return True
@@ -132,7 +132,7 @@ class AgentActionRecorder:
             'created_at': now_iso(),
         }
         try:
-            res = self.seadb_api.insert_rows(self.project_uuid, SchemaTables.AGENT_ACTIONS.table_name(), [row])
+            res = self.seadb.insert_rows(self.project_uuid, SchemaTables.AGENT_ACTIONS.table_name(), [row])
             pks = res.get('pks', [])
             assert len(pks) == 1, f'Expected 1 PK, got {len(pks)}'
             action_id = pks[0]

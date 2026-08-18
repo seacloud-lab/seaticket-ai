@@ -135,7 +135,7 @@ class _RecordRetriever:
     def _load_primary_records(self, source_type, connection_id, targets):
         record_ids = [target['record_id'] for target in targets]
         fields = ', '.join(self._SELECT_FIELDS[source_type])
-        return self.app.seadb_api.get_records_by_pks(
+        return self.app.seadb.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=get_connection_table_name(source_type, connection_id),
             pks=record_ids,
@@ -156,7 +156,7 @@ class _RecordRetriever:
         self._load_plain_content(SchemaTables.GENERAL_TASK.table_name(connection_id), records_by_id)
 
     def _load_plain_content(self, table_name, records_by_id):
-        contents_by_id = self.app.seadb_api.get_records_by_pks(
+        contents_by_id = self.app.seadb.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=table_name,
             pks=records_by_id.keys(),
@@ -431,7 +431,7 @@ class _RecordRetriever:
     def _contents_by_id(self, table_name, records_by_id):
         return {
             record_id: record.get('content')
-            for record_id, record in self.app.seadb_api.get_records_by_pks(
+            for record_id, record in self.app.seadb.get_records_by_pks(
                 base_id=self.project_uuid,
                 table_name=table_name,
                 pks=records_by_id.keys(),
@@ -448,7 +448,7 @@ class _RecordRetriever:
         def more_omitted_notice():
             return {omitted_key: None, 'content': '[more comments omitted due to content limit]', **omitted_extra}
 
-        return self.app.seadb_api.get_selected_topic_entries(
+        return self.app.seadb.get_selected_topic_entries(
             base_id=self.project_uuid,
             table_name=table_name,
             topic_ids=topic_ids,
@@ -497,7 +497,7 @@ class _RecordRetriever:
 
     def _get_github_available_labels(self, connection_id):
         try:
-            metadata = self.app.seadb_api.get_base_metadata(self.project_uuid)
+            metadata = self.app.seadb.get_base_metadata(self.project_uuid)
             table_name = SchemaTables.GITHUB_ISSUES.table_name(connection_id)
             table_meta = next(
                 (table for table in (metadata or {}).get('tables', []) if table.get('name') == table_name),

@@ -125,7 +125,7 @@ class TimedEventsCollector:
             "ORDER BY `due_date` ASC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
-        return self._app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+        return self._app.seadb.query_rows(project_uuid, sql).get('results', [])
 
     def _get_overdue_tickets(self, project_uuid: str, now: datetime) -> list[dict]:
         now_iso = now.isoformat()
@@ -140,4 +140,4 @@ class TimedEventsCollector:
             "ORDER BY `due_date` ASC "
             f"LIMIT {config.AGENT_MAX_TICKETS_PER_RUN}"
         )
-        return self._app.seadb_api.query_rows(project_uuid, sql).get('results', [])
+        return self._app.seadb.query_rows(project_uuid, sql).get('results', [])
