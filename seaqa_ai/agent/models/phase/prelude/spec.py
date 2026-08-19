@@ -7,7 +7,7 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 class PreludePhaseSpec(AgentPhaseSpec):
     """Specification for the event-context preparation phase."""
 
-    default_final_output_schema = {
+    base_final_output_schema = {
         'type': 'object',
         'properties': {
             'event_summary': {

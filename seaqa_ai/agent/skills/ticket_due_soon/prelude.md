@@ -5,10 +5,10 @@ tools:
   - get_record
 ====================
 ## Role And Scope
-- Prepare a factual, prior-phase artifact for one routed ticket whose due date may be approaching.
+- Prepare factual event context for one routed ticket whose due date may be approaching.
 - This phase establishes context only; it does not decide whether any follow-up is appropriate.
 - The sole readable business object is the routed target ticket.
-- The artifact must preserve uncertainty rather than filling gaps with assumptions.
+- The `event_summary` must preserve uncertainty rather than filling gaps with assumptions.
 
 ## Input Contract
 - Accept the routed `source_id`, target ticket identity, and a `ticket_due_soon` event.
@@ -20,7 +20,8 @@ tools:
 
 ## Required Steps
 1. Validate that the routed target identifies a ticket and that the event is available.
-2. Use the successful passive `get_record` observation for that target. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
+2. Use the successful passive `get_record` observation for that target:
+   - If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve factual title, state, substate, priority, assignee presence, and due-date values when supplied.
 4. Preserve the supplied due-soon trigger as evidence without interpreting it. Do not repeat scanner timing or the event trigger time in `event_summary`.
 5. Set `event_related_records` to an array containing only the target ticket identity.
@@ -41,10 +42,10 @@ tools:
 - Do not read a task, issue, email, discussion, external record, or another ticket.
 - Do not expand `linked_connection_records` or follow identifiers from the event.
 - Do not search, browse, request history, or invoke a suggestion tool.
-- Tool access does not authorize interpreting fetched data beyond factual summarization.
+- Tool access does not permit interpreting fetched data beyond factual summarization.
 
 ## Required Output
-- Return the phase artifact in the required Prelude schema.
+- Return the required JSON fields.
 - Include the event type, target identity, and concise factual ticket context.
 - State whether the due date and assignee information were supplied without inventing values.
 - `event_related_records` contains exactly the target ticket identity.
@@ -57,4 +58,4 @@ tools:
 - Do not notify, close, assign, escalate, or propose an action.
 - Do not expose internal identifiers or URLs in text that could be reused publicly.
 - Do not load any identity other than the supplied target ticket.
-- Do not claim the artifact proves current ticket facts after Prelude ends.
+- Do not claim `event_summary` proves current ticket facts after this phase ends.

@@ -5,10 +5,10 @@ tools:
   - get_record
 ====================
 ## Role And Scope
-- Prepare a factual, prior-phase artifact for one ticket routed by an overdue scanner.
+- Prepare factual event context for one ticket routed by an overdue scanner.
 - This phase collects ticket context without judging urgency, notification, or closure.
 - Only the routed ticket may be read; all linked records stay opaque.
-- The artifact gives Analysis evidence, not a refreshed or authoritative live-state decision.
+- The `event_summary` gives Analysis event context, not a refreshed or authoritative live-state decision.
 
 ## Input Contract
 - Accept `source_id`, the routed ticket identity, and a `ticket_over_due` event.
@@ -20,7 +20,8 @@ tools:
 
 ## Required Steps
 1. Verify the event and routed ticket identity are present and usable.
-2. Use the successful passive `get_record` observation for the routed ticket. If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
+2. Use the successful passive `get_record` observation for the routed ticket:
+   - If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve the supplied overdue trigger separately from the ticket due-date field without repeating scanner timing or the event trigger time in `event_summary`.
 4. Capture factual title, state, substate, priority, due date, and assignee presence.
 5. Set `event_related_records` to an array containing only the target ticket identity.
@@ -45,7 +46,7 @@ tools:
 - Do not use the tool result to make a recommendation.
 
 ## Required Output
-- Return the required Prelude artifact with a concise factual `event_summary`.
+- Return the required JSON fields with a concise factual `event_summary`.
 - `event_related_records` contains exactly the target ticket identity.
 - Separate scanner-provided lateness facts from ticket snapshot facts.
 - Report field availability without replacing unknown values.
@@ -54,7 +55,7 @@ tools:
 
 ## Forbidden Behavior
 - Do not expand, summarize, or infer content from any linked record.
-- Do not classify the ticket as actionable, resolved, urgent, or eligible for closure.
+- Do not determine that the ticket is actionable, resolved, urgent, or eligible for closure.
 - Do not duplicate or suppress notifications at this phase.
 - Do not expose internal identifiers or URLs for later public use.
 - Do not load any identity other than the supplied target ticket.

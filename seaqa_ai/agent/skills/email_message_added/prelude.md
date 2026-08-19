@@ -6,41 +6,38 @@ tools:
 ====================
 ## Role And Scope
 - Prepare factual context for one newly added email message.
-- The new message is the event subject; the thread and related records are background only.
-- Do not classify, research, or recommend a reply, ticket, or mailbox action.
+- **The new message is the event subject; the thread and related records are background only.**
+- Do not research or recommend a reply, ticket, or mailbox action.
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and passive `get_record` observations from the named records_input groups.
-- When supplied, PreStep 2 is the parent thread's linked Ticket and PreStep 3 contains verified Ticket-listed sibling records.
-- When the currently available observations do not provide a complete supplied Ticket-centered relationship graph, use `get_record` only to load an identity explicitly supplied by that graph when it is materially needed to complete the graph or select `event_related_records`. No prior tool call or error is required.
+- Read `triggering_event.event.new_value` and `get_record` observations.
+- **Use only record context available in successful `get_record` observations.**
 - Recipient information is normally unnecessary and sensitive content must remain minimized.
 - Missing message content or thread identity is a material data gap.
 
 ## Required Steps
 1. Confirm the parent thread and new message are usable.
-2. Use the successful passive observations and summarize what the new message asks, reports, confirms, supplies, or acknowledges.
+2. Use the successful observations and summarize what the new message asks, reports, confirms, supplies, or acknowledges.
 3. Keep `event.new_value` primary; never replace it with an older mail or related context.
 4. Set `event_related_records` to successfully loaded, materially relevant identities, with the thread first.
 5. State missing message or target identity factually in `event_summary`.
 
 ## Decision Rules
-- An email asking a question or reporting continued failure is factual context, not a classification.
 - Sender identity, automation, recipients, thanks, or quoted history do not determine action.
-- Use only the Ticket-centered relationship graph: parent thread -> `linked_ticket` -> Ticket -> `linked_connection_records` -> records that point back to that Ticket. Mail text, URLs, names, and apparent similarity cannot identify a related record.
+- Mail text, URLs, names, and apparent similarity cannot identify a related record.
 
 ## Context Rules
-- Do not infer or reverse-validate relationships. The framework retains only selected, successfully loaded candidates that are explicitly listed by that Ticket.
-- A permitted load may use only an identity already supplied by the verified Ticket-centered graph. Do not derive an identity from mail text, URLs, names, error details, or apparent similarity, and do not use a load to expand the graph.
-- Do not fetch contacts, attachments, historical messages, or records inferred from mail text.
+- **Do not infer or reverse-validate relationships, or make additional `get_record` calls.**
+- Do not derive an identity from mail text, URLs, names, error details, or apparent similarity.
 
 ## Required Output
-- Return the required Prelude JSON artifact only.
+- **Return the required Prelude JSON output only.**
 - `event_summary` focuses on the newly added message without a recommendation.
 - `event_related_records` contains successfully loaded identities, with the thread first.
-- Do not include classification, action, or skip fields.
+- Do not include action or skip fields.
 
 ## Forbidden Behavior
-- Do not decide spam, notification, no-op, reply, or ticket creation.
+- Do not decide a mailbox action, `no_op`, reply, or ticket creation.
 - Do not load inferred, unrelated, or merely reachable records.
 - Do not expose credentials, personal addresses, payment details, tokens, or irrelevant quotations.
 - Do not reconstruct the entire email thread.
