@@ -17,22 +17,13 @@ class AgentPhaseSpec:
 
     @property
     def final_output_schema(self) -> dict:
-        from seaqa_ai.agent.utils.final_output import FinalOutputSchema
+        from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
 
-        return FinalOutputSchema.build(
+        return FinalOutputSchemaUtils.build(
             self.default_final_output_schema,
             self.skill_metadata.get('additional_output', {}),
             self.event,
             self.phase,
-        )
-
-    @property
-    def additional_output_fields(self) -> set[str]:
-        from seaqa_ai.agent.utils.final_output import FinalOutputSchema
-
-        return FinalOutputSchema.additional_fields(
-            self.default_final_output_schema,
-            self.skill_metadata.get('additional_output', {}),
         )
 
     @cached_property

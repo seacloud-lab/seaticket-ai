@@ -6,7 +6,7 @@ import time
 import uuid
 
 from seaqa_ai import config
-from seaqa_ai.agent.utils.final_output import FinalOutputSchema
+from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
 from seaqa_ai.utils import (
@@ -289,7 +289,7 @@ class AgentReACT:
             try:
                 response_kwargs = {}
                 if self.final_output_schema:
-                    response_schema = FinalOutputSchema.to_strict_response_schema(
+                    response_schema = FinalOutputSchemaUtils.to_strict_response_schema(
                         self.final_output_schema,
                     )
                     response_kwargs['text'] = {
@@ -555,7 +555,7 @@ class AgentReACT:
 
         try:
             output = json.loads(content)
-            output = FinalOutputSchema.validate_output(
+            output = FinalOutputSchemaUtils.validate_output(
                 output, self.final_output_schema, AgentFinalOutputSchemaError,
             )
         except (json.JSONDecodeError, AgentFinalOutputSchemaError) as error:
@@ -594,7 +594,7 @@ class AgentReACT:
             else:
                 try:
                     output = json.loads(result.content)
-                    output = FinalOutputSchema.validate_output(
+                    output = FinalOutputSchemaUtils.validate_output(
                         output, self.final_output_schema, AgentFinalOutputSchemaError,
                     )
                 except (json.JSONDecodeError, AgentFinalOutputSchemaError) as schema_error:

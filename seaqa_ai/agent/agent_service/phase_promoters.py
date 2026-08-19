@@ -259,7 +259,6 @@ class AgentPhasePromoter:
         self.record_cache = record_cache
         self.project_prompt = project_prompt
         self.result = {}
-        self._additional_output_fields = {}
 
     def start(self):
         self._start_prelude()
@@ -380,10 +379,14 @@ class AgentPhasePromoter:
         }
 
     def _declared_additional_output(self, phase, result):
+        additional_output = AgentPhaseSpec.get_skill_metadata(
+            self.event.event_type, phase,
+        ).get('additional_output', {})
+        default_fields = ALL_PHASES[phase].default_final_output_schema.get('properties', {})
         return {
             field: result[field]
-            for field in self._additional_output_fields.get(phase, set())
-            if field in result
+            for field in additional_output
+            if field not in default_fields and field in result
         }
 
     def _engage_phase(self, phase, message_input, records_input=None):
@@ -397,7 +400,6 @@ class AgentPhasePromoter:
             records_input=records_input,
             context=self.context,
         )
-        self._additional_output_fields[phase] = phase_spec.additional_output_fields
         react = AgentReACT(
             app=self.app,
             responses_client=self.responses_client,

@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 
-class FinalOutputSchema:
+class FinalOutputSchemaUtils:
     """Build, validate, and adapt phase final-output JSON Schemas."""
 
     @classmethod
@@ -23,11 +23,6 @@ class FinalOutputSchema:
                 if property_schema.get('required', True):
                     schema.setdefault('required', []).append(name)
         return schema if properties else {}
-
-    @staticmethod
-    def additional_fields(default_schema, additional_output):
-        default_fields = default_schema.get('properties', {})
-        return set(additional_output) - set(default_fields)
 
     @classmethod
     def _validate_additional_output(cls, additional_output, event, phase, default_schema):
