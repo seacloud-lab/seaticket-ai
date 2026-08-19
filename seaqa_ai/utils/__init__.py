@@ -51,26 +51,6 @@ def sanitize_project_prompt(project_prompt: str) -> str:
         return ''
     return html.escape(project_prompt.strip(), quote=False)
 
-def build_system_prompt(base_prompt: str, project_prompt: str = '') -> str:
-    """Merge project-level prompt with a base system prompt.
-
-    The project_prompt is wrapped in a <project_context> element and prepended
-    to the base_prompt so project-level framing is read before the rest of the
-    instructions.
-    """
-    if not project_prompt or not project_prompt.strip():
-        return base_prompt
-
-    safe_project_prompt = sanitize_project_prompt(project_prompt)
-
-    project_block = (
-        '<project_context priority="high">\n'
-        f'{safe_project_prompt}\n'
-        '</project_context>\n'
-    )
-
-    return f"{project_block}\n{base_prompt}"
-
 def gen_completion_format(schema, name='result_parser'):
     return {
         'type': 'json_schema',

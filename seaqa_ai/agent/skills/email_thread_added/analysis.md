@@ -4,6 +4,10 @@ description: "Triage spam or notifications and research a new support email thre
 tools:
   - issues_search
   - documents_search
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_reply, suggest_create_ticket, suggest_move_to_spam, no_op]
 ====================
 ## Role And Scope
 - Triage one newly created email thread as Spam, Notification, or support content and select exactly one safe primary action.

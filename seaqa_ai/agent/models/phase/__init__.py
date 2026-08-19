@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 from functools import cached_property
 from typing import ClassVar
@@ -18,36 +17,23 @@ class AgentPhaseSpec:
 
     @property
     def final_output_schema(self) -> dict:
-        schema = deepcopy(self.default_final_output_schema)
-        additional_output = self.skill_metadata.get('additional_output', {})
-        properties = schema.setdefault('properties', {})
-        conflicting_fields = sorted(set(properties) & set(additional_output))
-        if conflicting_fields:
-            raise ValueError(
-                f'Skill {self.event}/{self.phase} additional_output conflicts with '
-                f'default output fields: {", ".join(conflicting_fields)}'
-            )
-        additional_properties = {
-            name: {
-                key: value
-                for key, value in property_schema.items()
-                if key != 'required'
-            }
-            for name, property_schema in additional_output.items()
-        }
-        properties.update(additional_properties)
-        required = schema.setdefault('required', [])
-        required.extend(
-            name
-            for name, property_schema in additional_output.items()
-            if property_schema.get('required', True)
-        )
+        from seaqa_ai.agent.utils.final_output import FinalOutputSchema
 
-        return schema if properties else {}
+        return FinalOutputSchema.build(
+            self.default_final_output_schema,
+            self.skill_metadata.get('additional_output', {}),
+            self.event,
+            self.phase,
+        )
 
     @property
     def additional_output_fields(self) -> set[str]:
-        return set(self.skill_metadata.get('additional_output', {}))
+        from seaqa_ai.agent.utils.final_output import FinalOutputSchema
+
+        return FinalOutputSchema.additional_fields(
+            self.default_final_output_schema,
+            self.skill_metadata.get('additional_output', {}),
+        )
 
     @cached_property
     def skill(self) -> str:

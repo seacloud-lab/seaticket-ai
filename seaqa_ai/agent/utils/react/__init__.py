@@ -4,10 +4,9 @@ import json
 import logging
 import time
 import uuid
-from copy import deepcopy
 
 from seaqa_ai import config
-from seaqa_ai.agent.utils import to_strict_response_schema
+from seaqa_ai.agent.utils.final_output import FinalOutputSchema
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.agent.tools.get_record import GetRecord
 from seaqa_ai.utils import (
@@ -63,9 +62,9 @@ class AgentReACT:
         self.system_prompts = [phase_spec.get_system_prompt()]
         if project_prompt and project_prompt.strip():
             self.system_prompts.append(
-                '<project_prompt>\n'
+                '<project_context>\n'
                 f'{sanitize_project_prompt(project_prompt)}\n'
-                '</project_prompt>'
+                '</project_context>'
             )
         self.message_input = phase_spec.message_input
         self.react_tracer = react_tracer
@@ -290,7 +289,9 @@ class AgentReACT:
             try:
                 response_kwargs = {}
                 if self.final_output_schema:
-                    response_schema = to_strict_response_schema(self.final_output_schema)
+                    response_schema = FinalOutputSchema.to_strict_response_schema(
+                        self.final_output_schema,
+                    )
                     response_kwargs['text'] = {
                         'format': {
                             'type': 'json_schema',
@@ -554,7 +555,9 @@ class AgentReACT:
 
         try:
             output = json.loads(content)
-            output = self._validate_json_schema(output, self.final_output_schema)
+            output = FinalOutputSchema.validate_output(
+                output, self.final_output_schema, AgentFinalOutputSchemaError,
+            )
         except (json.JSONDecodeError, AgentFinalOutputSchemaError) as error:
             return self._repair_final_output(content, str(error), step + 1, usage, retries)
 
@@ -591,7 +594,9 @@ class AgentReACT:
             else:
                 try:
                     output = json.loads(result.content)
-                    output = self._validate_json_schema(output, self.final_output_schema)
+                    output = FinalOutputSchema.validate_output(
+                        output, self.final_output_schema, AgentFinalOutputSchemaError,
+                    )
                 except (json.JSONDecodeError, AgentFinalOutputSchemaError) as schema_error:
                     previous_content = result.content
                     previous_error = str(schema_error)
@@ -688,61 +693,3 @@ class AgentReACT:
             'JSON Schema. Do not include markdown or explanatory text:\n'
             f'{json.dumps(self.final_output_schema, ensure_ascii=False)}'
         )
-
-    @classmethod
-    def _validate_json_schema(cls, value, schema, path='$'):
-        if not isinstance(schema, dict):
-            raise AgentFinalOutputSchemaError(f'{path}: schema must be an object')
-        if 'const' in schema and value != schema['const']:
-            raise AgentFinalOutputSchemaError(f'{path}: must equal {schema["const"]!r}')
-        if 'enum' in schema and value not in schema['enum']:
-            raise AgentFinalOutputSchemaError(f'{path}: must be one of {schema["enum"]!r}')
-
-        allowed_types = schema.get('type')
-        if allowed_types is not None:
-            allowed_types = allowed_types if isinstance(allowed_types, list) else [allowed_types]
-            if not any(cls._matches_type(value, expected_type) for expected_type in allowed_types):
-                raise AgentFinalOutputSchemaError(
-                    f'{path}: expected type {allowed_types!r}, got {type(value).__name__}'
-                )
-
-        if isinstance(value, dict):
-            properties = schema.get('properties') or {}
-            required = schema.get('required') or []
-            missing = [name for name in required if name not in value]
-            if missing:
-                raise AgentFinalOutputSchemaError(f'{path}: missing required fields: {", ".join(missing)}')
-            normalized = {}
-            for name, item_schema in properties.items():
-                if name not in value:
-                    if name not in required:
-                        normalized[name] = deepcopy(item_schema.get('default'))
-                    continue
-                item = value[name]
-                if item is None and name not in required:
-                    normalized[name] = None
-                    continue
-                normalized[name] = cls._validate_json_schema(item, item_schema, f'{path}.{name}')
-            return normalized
-        elif isinstance(value, list) and isinstance(schema.get('items'), dict):
-            return [
-                cls._validate_json_schema(item, schema['items'], f'{path}[{index}]')
-                for index, item in enumerate(value)
-            ]
-        return value
-
-    @staticmethod
-    def _matches_type(value, expected_type):
-        type_checks = {
-            'object': lambda item: isinstance(item, dict),
-            'array': lambda item: isinstance(item, list),
-            'string': lambda item: isinstance(item, str),
-            'integer': lambda item: isinstance(item, int) and not isinstance(item, bool),
-            'number': lambda item: isinstance(item, (int, float)) and not isinstance(item, bool),
-            'boolean': lambda item: isinstance(item, bool),
-            'null': lambda item: item is None,
-        }
-        try:
-            return type_checks[expected_type](value)
-        except KeyError as error:
-            raise AgentFinalOutputSchemaError(f'Unsupported JSON Schema type: {expected_type}') from error

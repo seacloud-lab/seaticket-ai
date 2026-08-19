@@ -4,6 +4,10 @@ description: "Research a new Discourse topic and recommend a reply or ticket."
 tools:
   - issues_search
   - documents_search
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_reply, suggest_create_ticket, no_op]
 ====================
 ## Role And Scope
 - Research one newly created Discourse topic and recommend one safe primary action.

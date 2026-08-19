@@ -4,6 +4,10 @@ description: "Research a new GitHub comment and decide whether follow-up is need
 tools:
   - issues_search
   - documents_search
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_reply, suggest_create_ticket, suggest_notify_assignee, no_op]
 ====================
 ## Role And Scope
 - Assess one newly added GitHub issue comment, not the entire issue history.

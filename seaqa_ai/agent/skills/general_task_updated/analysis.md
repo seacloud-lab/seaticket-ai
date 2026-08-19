@@ -3,6 +3,10 @@ phase: analysis
 description: "Assess whether a completed General Task resolves a ticket."
 tools:
   []
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_close_ticket, suggest_reply_external_targets, no_op]
 ====================
 ## Role And Scope
 - Assess a completed General Task update without confusing the triggering completed task with resolved ticket work.

@@ -3,6 +3,10 @@ phase: analysis
 description: "Assess an approaching-due ticket."
 tools:
   []
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_notify_assignee, suggest_close_ticket, no_op]
 ====================
 ## Role And Scope
 - Assess a due-soon ticket using evidence available to this phase and select only permitted, justified actions.

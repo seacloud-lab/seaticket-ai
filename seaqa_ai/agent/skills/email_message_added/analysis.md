@@ -4,6 +4,10 @@ description: "Research a new email message and recommend follow-up."
 tools:
   - issues_search
   - documents_search
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_reply, suggest_create_ticket, suggest_notify_assignee, no_op]
 ====================
 ## Role And Scope
 - Assess one newly added email message and select a reply, linked-ticket follow-up, or an independent ticket proposal.

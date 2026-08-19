@@ -5,6 +5,9 @@ tools:
   - issues_search
   - documents_search
 additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_modify_type, suggest_assign_labels, suggest_reply, suggest_create_ticket, no_op]
   original_issue_type:
     type: string
     description: >

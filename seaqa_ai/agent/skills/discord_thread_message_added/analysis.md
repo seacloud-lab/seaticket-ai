@@ -4,6 +4,10 @@ description: "Research a new Discord thread message and decide whether to follow
 tools:
   - issues_search
   - documents_search
+additional_output:
+  recommended_actions:
+    items:
+      enum: [suggest_reply, suggest_create_ticket, suggest_notify_assignee, no_op]
 ====================
 ## Role And Scope
 - Analyze one newly added Discord thread message and choose a justified follow-up.
