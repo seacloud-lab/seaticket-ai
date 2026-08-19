@@ -13,14 +13,14 @@ class AgentPhaseSpec:
     context: dict
     max_steps = 10
     max_steps_prompt = 'Maximum tool-call steps reached. Return the final answer without calling tools.'
-    default_final_output_schema: ClassVar[dict] = {}
+    base_final_output_schema: ClassVar[dict] = {}
 
     @property
     def final_output_schema(self) -> dict:
         from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
 
         return FinalOutputSchemaUtils.build(
-            self.default_final_output_schema,
+            self.base_final_output_schema,
             self.skill_metadata.get('additional_output', {}),
             self.event,
             self.phase,

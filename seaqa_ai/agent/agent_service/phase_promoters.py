@@ -382,11 +382,11 @@ class AgentPhasePromoter:
         additional_output = AgentPhaseSpec.get_skill_metadata(
             self.event.event_type, phase,
         ).get('additional_output', {})
-        default_fields = ALL_PHASES[phase].default_final_output_schema.get('properties', {})
+        base_fields = ALL_PHASES[phase].base_final_output_schema.get('properties', {})
         return {
             field: result[field]
             for field in additional_output
-            if field not in default_fields and field in result
+            if field not in base_fields and field in result
         }
 
     def _engage_phase(self, phase, message_input, records_input=None):

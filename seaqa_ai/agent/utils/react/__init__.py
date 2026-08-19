@@ -555,7 +555,7 @@ class AgentReACT:
 
         try:
             output = json.loads(content)
-            output = FinalOutputSchemaUtils.validate_output(
+            output = FinalOutputSchemaUtils.validate_and_normalize_output(
                 output, self.final_output_schema, AgentFinalOutputSchemaError,
             )
         except (json.JSONDecodeError, AgentFinalOutputSchemaError) as error:
@@ -594,7 +594,7 @@ class AgentReACT:
             else:
                 try:
                     output = json.loads(result.content)
-                    output = FinalOutputSchemaUtils.validate_output(
+                    output = FinalOutputSchemaUtils.validate_and_normalize_output(
                         output, self.final_output_schema, AgentFinalOutputSchemaError,
                     )
                 except (json.JSONDecodeError, AgentFinalOutputSchemaError) as schema_error:
