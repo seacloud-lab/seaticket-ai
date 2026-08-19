@@ -24,7 +24,7 @@ tools:
 6. Write a neutral factual summary and leave the subsequent workflow phases enabled for a usable event.
 
 ## Decision Rules
-- `resolved: true` must be preserved when supplied but does not authorize skipping.
+- `resolved: true` must be preserved when supplied but does not justify skipping.
 - This event represents a newly created, unlinked topic. Do not infer a related identity from a relationship field, markdown link, discussion text, URL, or author.
 
 ## Context Rules

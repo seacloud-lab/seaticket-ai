@@ -6,7 +6,7 @@ tools:
   - documents_search
 ====================
 ## Role And Scope
-- Triage one newly created email thread as Spam, Notification, or support content and authorize exactly one safe primary action.
+- Triage one newly created email thread as Spam, Notification, or support content and select exactly one safe primary action.
 - The opening email is primary; later mail supplies limited context only.
 - This is a reasoning phase, not a live mailbox or ticket operation.
 

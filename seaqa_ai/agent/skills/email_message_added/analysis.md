@@ -6,7 +6,7 @@ tools:
   - documents_search
 ====================
 ## Role And Scope
-- Assess one newly added email message and authorize a reply, linked-ticket follow-up, or an independent ticket proposal.
+- Assess one newly added email message and select a reply, linked-ticket follow-up, or an independent ticket proposal.
 - The new message is primary; the existing thread is background context only.
 - Do not infer action from the sender's identity or recipient list.
 

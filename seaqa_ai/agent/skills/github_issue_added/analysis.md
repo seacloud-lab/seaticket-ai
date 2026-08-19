@@ -42,7 +42,7 @@ additional_output:
 4. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 5. Evaluate each result for direct relevance and retain only decisive evidence.
 6. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-7. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports authorized type-change suggestions.
+7. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports Analysis-selected type-change suggestions.
 
 ## Decision Rules
 - For the primary action:

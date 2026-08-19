@@ -7,7 +7,7 @@ tools:
 ## Role And Scope
 - Assess a due-soon ticket using evidence available to this phase and select only permitted, justified actions.
 - This is a reasoning-only phase and is not a live ticket review.
-- It may recommend an assignee reminder, rule-authorized closure suggestion, or no action.
+- It may recommend an assignee reminder, a closure suggestion permitted by a rule, or no action.
 - It must not infer completion, ownership, or a new deadline from incomplete evidence.
 
 ## Input Contract
@@ -33,12 +33,12 @@ tools:
 - A matching no-reminder rule requires `no_op` unless a separate allowed rule action is explicitly specified.
 - A matching custom rule overrides a conflicting default behavior and must be cited.
 - Default behavior may recommend `suggest_notify_assignee` only for an open, actionable ticket with a useful approaching-deadline reminder.
-- Recommend `suggest_close_ticket` only when an applicable custom rule explicitly authorizes closure.
+- Recommend `suggest_close_ticket` only when an applicable custom rule explicitly permits closure.
 - Deadline proximity, lateness risk, inactivity, priority, missing assignees, or a linked identity never proves resolution.
 - A recent equivalent notification with no material change requires `no_op`; do not evade deduplication by changing wording.
 - `no_op` is exclusive; notification and closure may coexist only with independent evidence or rule support.
 - Treat a recent supplied due-soon notification as equivalent unless the supplied policy identifies a decision-relevant change. Changed wording, elapsed time in the same due window, or unrelated activity is not material change.
-- When a matching custom rule directs closure, recommend only `suggest_close_ticket` unless that rule explicitly authorizes a concurrent reminder. Default deadline proximity is not independent support for adding one.
+- When a matching custom rule directs closure, recommend only `suggest_close_ticket` unless that rule explicitly permits a concurrent reminder. Default deadline proximity is not independent support for adding one.
 
 ## Tool Rules
 - No tools are available in Analysis.
