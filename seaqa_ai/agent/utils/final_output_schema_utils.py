@@ -2,10 +2,90 @@ from copy import deepcopy
 
 
 class FinalOutputSchemaUtils:
-    """Build, validate, and adapt phase final-output JSON Schemas."""
+    """Build, validate, and adapt phase final-output JSON Schemas.
+
+    This utility covers three stages of the phase-output lifecycle:
+    1. Build a phase schema by combining framework fields with skill-defined output.
+    2. Validate and normalize an LLM's final output against that schema.
+    3. Adapt the schema to the strict JSON Schema format accepted by the LLM API.
+    """
 
     @classmethod
     def build(cls, base_schema, additional_output, event, phase):
+        """Return the effective output schema for one event phase.
+
+        ``base_schema`` contains framework-owned fields such as
+        ``analysis_report``. ``additional_output`` comes from the event skill.
+        A skill may add a new field or refine an existing field's nested
+        constraints, but it cannot change protected attributes such as its type
+        or required status. Inputs are deep-copied so the shared base schema is
+        never mutated.
+
+        Example based on ``skills/github_issue_added/analysis.md``::
+
+            # AnalysisPhaseSpec already defines recommended_actions as an array
+            # of strings. The skill metadata narrows its items and adds two
+            # event-specific fields.
+            base_schema = {
+                'type': 'object',
+                'properties': {
+                    'analysis_report': {'type': 'string'},
+                    'recommended_actions': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                    },
+                    'skip_handling': {'type': 'boolean'},
+                },
+                'required': [
+                    'analysis_report',
+                    'recommended_actions',
+                    'skip_handling',
+                ],
+            }
+            additional_output = {
+                'recommended_actions': {
+                    'items': {
+                        'enum': [
+                            'suggest_modify_type',
+                            'suggest_assign_labels',
+                            'suggest_reply',
+                            'suggest_create_ticket',
+                            'no_op',
+                        ],
+                    },
+                },
+                'original_issue_type': {
+                    'type': 'string',
+                    'description': 'The exact issue type supplied by the source record.',
+                },
+                'classified_issue_type': {
+                    'type': 'string',
+                    'enum': ['Bug', 'Feature', 'Question'],
+                    'description': 'The issue type classified by Analysis.',
+                },
+            }
+
+            # The existing item type is retained and receives the skill enum:
+            result['properties']['recommended_actions']['items'] == {
+                'type': 'string',
+                'enum': [
+                    'suggest_modify_type',
+                    'suggest_assign_labels',
+                    'suggest_reply',
+                    'suggest_create_ticket',
+                    'no_op',
+                ],
+            }
+
+            # New skill fields default to required and are appended:
+            result['required'] == [
+                'analysis_report',
+                'recommended_actions',
+                'skip_handling',
+                'original_issue_type',
+                'classified_issue_type',
+            ]
+        """
         cls._validate_additional_output(additional_output, event, phase, base_schema)
         schema = deepcopy(base_schema)
         properties = schema.setdefault('properties', {})
@@ -26,6 +106,12 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _validate_additional_output(cls, additional_output, event, phase, base_schema):
+        """Validate skill-defined schema additions before merging them.
+
+        New fields must provide a type and description. Overrides of framework
+        fields are checked against the corresponding base field. Enum values and
+        optional defaults are also checked against the resulting field schema.
+        """
         if additional_output is None:
             return
         if not isinstance(additional_output, dict):
@@ -82,6 +168,12 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _deep_merge_schema(cls, base_schema, overrides):
+        """Deep-copy a schema and recursively apply skill-provided overrides.
+
+        Nested dictionaries such as ``items`` are merged instead of replaced.
+        ``required`` is intentionally ignored because skill output is not
+        allowed to change the framework's required-field contract.
+        """
         schema = deepcopy(base_schema)
         for key, value in overrides.items():
             if key == 'required':
@@ -94,6 +186,7 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _validate_base_field_override(cls, base_schema, overrides, event, phase, name):
+        """Ensure a skill refinement preserves the base field's nested types."""
         if not isinstance(base_schema, dict) or not isinstance(overrides, dict):
             return
         if 'type' in overrides and overrides['type'] != base_schema.get('type'):
@@ -106,6 +199,7 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _validate_property_enum_values(cls, property_schema, event, phase, name):
+        """Recursively ensure every enum value matches its containing schema."""
         if not isinstance(property_schema, dict):
             return
         enum = property_schema.get('enum')
@@ -144,6 +238,45 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def validate_and_normalize_output(cls, value, schema, error_type, path='$'):
+        """Validate an LLM final output and return its normalized representation.
+
+        Validation enforces ``const``, ``enum``, type, and required-field
+        constraints recursively. During object normalization, undeclared fields
+        are omitted, missing optional fields receive their schema default (or
+        ``None``), and nested objects and arrays are normalized in the same way.
+        ``path`` is carried through recursion to produce precise error messages.
+
+        Example using the effective ``github_issue_added`` Analysis schema::
+
+            value = {
+                'analysis_report': 'The issue describes a reproducible failure.',
+                'recommended_actions': [
+                    'suggest_modify_type',
+                    'suggest_create_ticket',
+                ],
+                'skip_handling': False,
+                'original_issue_type': '',
+                'classified_issue_type': 'Bug',
+                'model_debug_note': 'must not reach downstream phases',
+            }
+
+            # All declared values pass their framework and skill constraints.
+            # The undeclared model_debug_note is omitted from normalized output.
+            normalized = {
+                'analysis_report': 'The issue describes a reproducible failure.',
+                'recommended_actions': [
+                    'suggest_modify_type',
+                    'suggest_create_ticket',
+                ],
+                'skip_handling': False,
+                'original_issue_type': '',
+                'classified_issue_type': 'Bug',
+            }
+
+            # A value such as classified_issue_type='Incident' would fail at
+            # $.classified_issue_type because the skill permits only Bug,
+            # Feature, or Question.
+        """
         if not isinstance(schema, dict):
             raise error_type(f'{path}: schema must be an object')
         if 'const' in schema and value != schema['const']:
@@ -200,6 +333,45 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def to_strict_response_schema(cls, schema):
+        """Adapt a phase schema for the Responses API structured-output format.
+
+        The API can use strict mode only when every declared property, including
+        nested properties, is required. This method detects that condition,
+        validates and normalizes the schema tree, and then either sets
+        ``additionalProperties: false`` throughout the tree or removes that
+        restriction when optional fields require non-strict mode.
+
+        Example using the effective ``github_issue_added`` Analysis schema::
+
+            # The framework fields analysis_report, recommended_actions, and
+            # skip_handling are required. The skill fields original_issue_type
+            # and classified_issue_type also default to required.
+            schema['required'] == [
+                'analysis_report',
+                'recommended_actions',
+                'skip_handling',
+                'original_issue_type',
+                'classified_issue_type',
+            ]
+
+            # Because all five properties are required, the API receives:
+            response_schema['strict'] is True
+            response_schema['schema']['additionalProperties'] is False
+
+            # The skill restriction is preserved during adaptation:
+            response_schema['schema']['properties'][
+                'recommended_actions'
+            ]['items']['enum'] == [
+                'suggest_modify_type',
+                'suggest_assign_labels',
+                'suggest_reply',
+                'suggest_create_ticket',
+                'no_op',
+            ]
+
+            # If a skill field declared required: false, strict would be False
+            # and additionalProperties would be removed from every object node.
+        """
         if not isinstance(schema, dict):
             raise TypeError('schema must be an object')
         schema = deepcopy(schema)
@@ -213,6 +385,11 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _normalize_strict_response_schema(cls, schema):
+        """Recursively validate object schemas before API submission.
+
+        Traversal covers composition branches, array items, and nested object
+        properties while preserving all schema constraints.
+        """
         for key in ('allOf', 'anyOf', 'oneOf'):
             if isinstance(schema.get(key), list):
                 schema[key] = [
@@ -235,6 +412,7 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _all_properties_required(cls, schema):
+        """Return whether every property in the complete schema tree is required."""
         for key in ('allOf', 'anyOf', 'oneOf'):
             if any(
                 isinstance(item, dict) and not cls._all_properties_required(item)
@@ -256,6 +434,7 @@ class FinalOutputSchemaUtils:
 
     @classmethod
     def _apply_strict_additional_properties(cls, schema, strict):
+        """Apply the selected strictness policy to every object schema node."""
         for key in ('allOf', 'anyOf', 'oneOf'):
             for item in schema.get(key, []):
                 if isinstance(item, dict):
