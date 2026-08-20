@@ -89,7 +89,7 @@ class FinalOutputSchemaUtils:
         cls._validate_additional_output(additional_output, event, phase, base_schema)
         schema = deepcopy(base_schema)
         properties = schema.setdefault('properties', {})
-        for name, property_schema in additional_output.items():
+        for name, property_schema in (additional_output or {}).items():
             is_base_field_override = name in properties
             output_schema = {
                 key: value

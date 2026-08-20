@@ -21,7 +21,7 @@ class AgentPhaseSpec:
 
         return FinalOutputSchemaUtils.build(
             self.base_final_output_schema,
-            self.skill_metadata.get('additional_output', {}),
+            self.skill_metadata.get('additional_output'),
             self.event,
             self.phase,
         )
