@@ -18,22 +18,23 @@ additional_output:
 - Use `triggering_event`, `event_summary`, successful `get_record` tool observations, and search observations from this phase.
 - Read `event.new_value` as the authoritative new comment.
 - Use the parent issue and a linked Ticket identified by successful `get_record` observations only to determine whether a problem is already covered and whether owner follow-up is needed.
-- Do not retrieve records, use suggestions, or rely on author role.
+- Do not retrieve records or use suggestions. For non-internal authors, do not rely on author role.
 
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable comment and parent issue.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read the new comment before considering older discussion.
-4. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking.
-5. Check the strict `no_op` boundary against the comment's own content.
-6. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
-7. Search with focused terms from the new comment, not generic parent-issue text.
-8. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
-9. Determine follow-up by linkage state:
+3. Before evaluating content or searching, determine from available event or record metadata whether the comment author is an internal member (staff, maintainer, repository administrator, organization member, employee, support agent, or equivalent internal role). If so, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
+4. Read the new comment before considering older discussion.
+5. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking.
+6. Check the strict `no_op` boundary against the comment's own content.
+7. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
+8. Search with focused terms from the new comment, not generic parent-issue text.
+9. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
+10. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering issue independently.
    - Otherwise recommend `suggest_reply`, `suggest_create_ticket`, or `no_op`.
-10. Set `skip_handling: true` only for `no_op`.
-11. State why a ticket is independent or why no action is strictly justified.
+11. Set `skip_handling: true` only for `no_op`.
+12. State why a ticket is independent or why no action is strictly justified.
 
 ## Decision Rules
 - Use `no_op` only when this new comment itself supplies a concrete answer or workaround.
@@ -42,7 +43,7 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step requiring no agent-written reply.
-- Do not infer `no_op` because the author is staff, a maintainer, or experienced.
+- For non-internal authors, do not infer `no_op` because the author is experienced or holds a role.
 - Reproduction confirmation is not `no_op`.
 - A speculative workaround, partial information, new question, tracking request, or “open a separate ticket” is not `no_op`.
 - When uncertain, prefer a supported suggestion rather than `no_op`.
@@ -84,7 +85,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or invoke suggestions.
-- Do not decide `no_op` from author identity or a generic thread state.
+- Do not decide `no_op` from author identity or a generic thread state for non-internal authors.
 - Do not create a ticket for a problem already covered by the parent issue or when successful `get_record` observations identify a linked Ticket.
 - Do not call weak topical overlap a direct answer or tracked case.
 - Do not place personal contacts, credentials, tokens, secrets, private URLs, or unnecessary quoted content in a search query.
