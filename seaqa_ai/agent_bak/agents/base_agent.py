@@ -311,8 +311,8 @@ class BaseAgent:
                 tool_metadata[tool_name] = {
                     'action_type': getattr(tool_instance, 'action_type', 'tool_call'),
                     'action_status': getattr(tool_instance, 'action_status', 'completed'),
-                    'suggestion_text': getattr(tool_instance, 'suggestion_text', ''),
-                    'get_suggestion_text': getattr(tool_instance, 'get_suggestion_text', None),
+                    'suggestion_title': getattr(tool_instance, 'suggestion_title', ''),
+                    'get_suggestion_title': getattr(tool_instance, 'get_suggestion_title', None),
                     'get_suggestion_content': getattr(tool_instance, 'get_suggestion_content', None),
                     'resolve_action_targets': getattr(tool_instance, 'resolve_action_targets', None),
                 }

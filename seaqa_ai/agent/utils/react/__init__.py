@@ -412,11 +412,11 @@ class AgentReACT:
                                 tool_arguments=arguments,
                                 observation=observation, result=raw_result,
                                 statistics=statistics, trace_id=trace_id,
-                                source_type=target['source_type'],
-                                source_id=target['source_id'],
-                                source_title=target['source_title'],
+                                target_source_type=target['source_type'],
+                                target_source_id=target['source_id'],
+                                target_source_title=target['source_title'],
                                 suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
-                                suggestion_text=str(raw_result.get('suggestion_text', '') or ''),
+                                suggestion_title=str(raw_result.get('suggestion_title', '') or ''),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
                             )
                     self._append_tool_output(tool_call, observation)
@@ -639,8 +639,8 @@ class AgentReACT:
 
     def _trace(self, *, action_type, action_status, step, result=None, tool_name=None,
                tool_arguments=None, observation=None, statistics=None,
-                suggestion_reason='', suggestion_text='', suggestion_content='',
-                source_type=None, source_id=None, source_title=None,
+                suggestion_reason='', suggestion_title='', suggestion_content='',
+                target_source_type=None, target_source_id=None, target_source_title=None,
                 record_phase_context=False, trace_id=None, sources=None, with_input=False):
         if self.react_tracer is None:
             return None
@@ -659,12 +659,12 @@ class AgentReACT:
             observation=observation,
             statistics=statistics,
             suggestion_reason=suggestion_reason,
-            suggestion_text=suggestion_text,
+            suggestion_title=suggestion_title,
             suggestion_content=suggestion_content,
             sources=sources,
-            source_type=source_type,
-            source_id=source_id,
-            source_title=source_title,
+            target_source_type=target_source_type,
+            target_source_id=target_source_id,
+            target_source_title=target_source_title,
             trace_id=trace_id,
         )
 

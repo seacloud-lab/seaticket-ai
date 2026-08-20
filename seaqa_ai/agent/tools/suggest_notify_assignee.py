@@ -3,7 +3,7 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class SuggestNotifyAssignee(BasicAgentSuggestionTool):
-    suggestion_text = 'Notify assignees of the ticket'
+    suggestion_title = 'Notify assignees of the ticket'
     tool = {
         'type': 'function', 'name': 'suggest_notify_assignee',
         'description': 'Create a pending suggestion to notify ticket assignees.',

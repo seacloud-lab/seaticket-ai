@@ -36,17 +36,10 @@ class AgentReACTTracer(list):
         self,
         project_uuid,
         seadb_service,
-        *,
-        target_source_type=None,
-        target_source_id=None,
-        target_source_title=None,
     ):
         super().__init__()
         self.project_uuid = project_uuid
         self.seadb_service = seadb_service
-        self.target_source_type = target_source_type
-        self.target_source_id = target_source_id
-        self.target_source_title = target_source_title
 
     def record(
         self,
@@ -64,13 +57,13 @@ class AgentReACTTracer(list):
         tool_arguments=None,
         observation=None,
         suggestion_reason='',
-        suggestion_text='',
+        suggestion_title='',
         suggestion_content='',
         sources=None,
         statistics=None,
-        source_type=None,
-        source_id=None,
-        source_title=None,
+        target_source_type=None,
+        target_source_id=None,
+        target_source_title=None,
         trace_id=None,
     ):
         """Normalize an action and append its SeaDB row to this tracer."""
@@ -79,21 +72,9 @@ class AgentReACTTracer(list):
             raise TypeError('context must be a dictionary')
         row = self._build_row(
             run_id=context.get('run_id'),
-            source_type=(
-                source_type if source_type is not None
-                else self.target_source_type if self.target_source_type is not None
-                else context.get('source_type')
-            ),
-            source_id=(
-                source_id if source_id is not None
-                else self.target_source_id if self.target_source_id is not None
-                else context.get('source_id')
-            ),
-            source_title=(
-                source_title if source_title is not None
-                else self.target_source_title if self.target_source_title is not None
-                else context.get('source_title')
-            ),
+            target_source_type=target_source_type,
+            target_source_id=target_source_id,
+            target_source_title=target_source_title,
             trace_id=trace_id or context.get('trace_id') or uuid.uuid4().hex,
             phase=phase if phase is not None else context.get('phase'),
             record_phase_context=record_phase_context,
@@ -107,7 +88,7 @@ class AgentReACTTracer(list):
             tool_arguments=tool_arguments,
             observation=observation,
             suggestion_reason=suggestion_reason,
-            suggestion_text=suggestion_text,
+            suggestion_title=suggestion_title,
             suggestion_content=suggestion_content,
             sources=sources,
             statistics=statistics,
@@ -118,11 +99,20 @@ class AgentReACTTracer(list):
     __call__ = record
 
     def flush(self):
-        """Persist actions and return IDs of pending suggestion actions."""
+        """Persist actions and return flush summary for run finalization."""
         if not self:
-            return []
+            return {
+                'succeeded': True,
+                'pending_suggestion_action_ids': [],
+                'suggestions_status': 'none',
+            }
 
         rows = [self._serialize_row(row) for row in self]
+        pending_indices = [
+            index
+            for index, row in enumerate(rows)
+            if row['action_type'] == 'suggestion' and row['status'] == 'pending'
+        ]
         try:
             response = self.seadb_service.insert_rows(
                 self.project_uuid,
@@ -131,7 +121,11 @@ class AgentReACTTracer(list):
             )
         except Exception:
             logger.warning('Failed to record agent ReACT actions.', exc_info=True)
-            return []
+            return {
+                'succeeded': False,
+                'pending_suggestion_action_ids': [],
+                'suggestions_status': '',
+            }
 
         pks = response.get('pks', [])
         if len(pks) != len(rows):
@@ -139,14 +133,33 @@ class AgentReACTTracer(list):
                 'Failed to map agent ReACT actions to inserted IDs: expected %s IDs, received %s.',
                 len(rows), len(pks),
             )
-            return []
+            return {
+                'succeeded': False,
+                'pending_suggestion_action_ids': [],
+                'suggestions_status': '',
+            }
 
         self.clear()
-        return [
-            action_id
-            for row, action_id in zip(rows, pks)
-            if row['action_type'] == 'suggestion' and row['status'] == 'pending'
+        return {
+            'succeeded': True,
+            'pending_suggestion_action_ids': [pks[index] for index in pending_indices],
+            'suggestions_status': self._calculate_suggestions_status(rows),
+        }
+
+    @staticmethod
+    def _calculate_suggestions_status(rows):
+        suggestion_statuses = [
+            str(row.get('status', '') or '').strip()
+            for row in rows
+            if row.get('action_type') == 'suggestion'
         ]
+        if not suggestion_statuses:
+            return 'none'
+        if any(status in ('pending', 'executing') for status in suggestion_statuses):
+            return 'pending'
+        if any(status == 'failed' for status in suggestion_statuses):
+            return 'failed'
+        return 'resolved'
 
     @staticmethod
     def _serialize_row(row):
@@ -163,9 +176,9 @@ class AgentReACTTracer(list):
     def _build_row(
         *,
         run_id,
-        source_type,
-        source_id,
-        source_title,
+        target_source_type,
+        target_source_id,
+        target_source_title,
         trace_id,
         phase,
         record_phase_context,
@@ -179,7 +192,7 @@ class AgentReACTTracer(list):
         tool_arguments,
         observation,
         suggestion_reason,
-        suggestion_text,
+        suggestion_title,
         suggestion_content,
         sources,
         statistics,
@@ -239,9 +252,9 @@ class AgentReACTTracer(list):
         return {
             'run_id': run_id,
             'trace_id': trace_id,
-            'source_type': source_type or '',
-            'source_id': str(source_id) if source_id is not None else '',
-            'source_title': source_title or '',
+            'target_source_type': target_source_type or '',
+            'target_source_id': str(target_source_id) if target_source_id is not None else '',
+            'target_source_title': target_source_title or '',
             'action_type': action_type,
             'phase': phase or '',
             'result': str(result) if result is not None else '',
@@ -253,7 +266,7 @@ class AgentReACTTracer(list):
             'observation': normalized_observation or '',
             'status': action_status,
             'suggestion_reason': suggestion_reason or '',
-            'suggestion_text': suggestion_text or '',
+            'suggestion_title': suggestion_title or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources_payload,
             'statistics': deepcopy(statistics) if statistics is not None else None,

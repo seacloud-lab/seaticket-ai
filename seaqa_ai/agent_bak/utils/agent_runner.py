@@ -66,9 +66,9 @@ class AgentRunner:
                             (e.g. org_id, project_uuid).
             action_recorder: callable(run_id, source_type, source_id, source_title,
                              action_type, tool_name, content, result, action_status,
-                             suggestion_text, sources, statistics) -> int
+                             suggestion_title, sources, statistics) -> int
             run_id: current agent run _pk in SeaDB.
-            tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_text}.
+            tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_title}.
             prelude_phase: AskPhase for the prelude event-summary step.
             analysis_phase: ReactPhase for the analysis phase.
             handling_phase: ReactPhase for the handling phase.
@@ -806,13 +806,13 @@ class AgentRunner:
         action_status = metadata.get('action_status', 'completed')
         recorded_tool_name = tool_name
         if action_type == 'suggestion':
-            getter = metadata.get('get_suggestion_text')
+            getter = metadata.get('get_suggestion_title')
             if callable(getter):
-                suggestion_text = getter(**tool_arguments)
+                suggestion_title = getter(**tool_arguments)
             else:
-                suggestion_text = metadata.get('suggestion_text', '')
+                suggestion_title = metadata.get('suggestion_title', '')
         else:
-            suggestion_text = ''
+            suggestion_title = ''
 
         sources = []
         if action_type == 'analysis':
@@ -855,7 +855,7 @@ class AgentRunner:
             sources=sources,
             statistics=statistics,
             default_tool_name=recorded_tool_name,
-            default_suggestion_text=suggestion_text,
+            default_suggestion_title=suggestion_title,
         ):
             return
 
@@ -869,7 +869,7 @@ class AgentRunner:
             tool_arguments=tool_arguments,
             observation=observation,
             suggestion_reason=tool_arguments.get('reason') if action_type == 'suggestion' else '',
-            suggestion_text=suggestion_text if action_type == 'suggestion' else '',
+            suggestion_title=suggestion_title if action_type == 'suggestion' else '',
             suggestion_content=suggestion_content,
             sources=sources,
             statistics=statistics,
@@ -897,7 +897,7 @@ class AgentRunner:
         sources: list,
         statistics: str | None,
         default_tool_name: str,
-        default_suggestion_text: str,
+        default_suggestion_title: str,
     ) -> bool:
         multi_target_resolver = metadata.get('resolve_action_targets')
         if action_type != 'suggestion' or not callable(multi_target_resolver):
@@ -925,7 +925,7 @@ class AgentRunner:
             statistics=statistics,
             targets=targets,
             default_tool_name=default_tool_name,
-            default_suggestion_text=default_suggestion_text,
+            default_suggestion_title=default_suggestion_title,
         )
         return True
     
@@ -944,7 +944,7 @@ class AgentRunner:
         statistics: str | None,
         targets,
         default_tool_name: str,
-        default_suggestion_text: str,
+        default_suggestion_title: str,
     ) -> None:
         for target in targets:
             if not isinstance(target, dict):
@@ -953,7 +953,7 @@ class AgentRunner:
             target_source_id = target.get('source_id') or None
             target_source_title = target.get('source_title') or None
             target_tool_name = target.get('tool_name') or default_tool_name
-            target_suggestion_text = target.get('suggestion_text') or default_suggestion_text
+            target_suggestion_title = target.get('suggestion_title') or default_suggestion_title
             action_id = self._record_action(
                 phase=phase,
                 result=result,
@@ -963,7 +963,7 @@ class AgentRunner:
                 tool_name=target_tool_name,
                 tool_arguments=tool_arguments,
                 observation=observation,
-                suggestion_text=target_suggestion_text,
+                suggestion_title=target_suggestion_title,
                 suggestion_content=content,
                 sources=sources,
                 statistics=statistics,
@@ -988,7 +988,7 @@ class AgentRunner:
         tool_arguments=None,
         observation=None,
         suggestion_reason=None,
-        suggestion_text=None,
+        suggestion_title=None,
         suggestion_content=None,
         sources=None,
         statistics=None,
@@ -1024,7 +1024,7 @@ class AgentRunner:
             'tool_arguments': tool_arguments,
             'observation': observation or '',
             'suggestion_reason': suggestion_reason or '',
-            'suggestion_text': suggestion_text or '',
+            'suggestion_title': suggestion_title or '',
             'suggestion_content': suggestion_content or '',
             'sources': sources or [],
             'statistics': statistics,

@@ -101,7 +101,7 @@ class SuggestNotifyAssigneeTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Notify assignees of the ticket'
+    suggestion_title = 'Notify assignees of the ticket'
 
     def execute(self, message, reason=None):
         source_id = self.get_source_id()
@@ -152,7 +152,7 @@ class SuggestCloseTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Close this ticket'
+    suggestion_title = 'Close this ticket'
 
     def execute(self, reason, rule=None):
         source_id = self.get_source_id()
@@ -197,7 +197,7 @@ class SuggestReplyExternalTargetsTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Send a reply'
+    suggestion_title = 'Send a reply'
 
     def resolve_action_targets(self, **kwargs) -> list[dict]:
         external_reply_targets = (self.record_context or {}).get('external_reply_targets') or []
@@ -212,15 +212,15 @@ class SuggestReplyExternalTargetsTool(BaseAgentTool):
             ).strip()
             if not target_source_type or not target_source_id:
                 continue
-            suggestion_text = self.suggestion_text
+            suggestion_title = self.suggestion_title
             if target_source_type == AgentSourceType.GITHUB_ISSUE.value:
-                suggestion_text = 'Send a reply to the linked GitHub issue'
+                suggestion_title = 'Send a reply to the linked GitHub issue'
             targets.append({
                 'source_type': target_source_type,
                 'source_id': target_source_id,
                 'source_title': target_source_title,
                 'tool_name': 'suggest_reply',
-                'suggestion_text': suggestion_text,
+                'suggestion_title': suggestion_title,
             })
         return targets
 

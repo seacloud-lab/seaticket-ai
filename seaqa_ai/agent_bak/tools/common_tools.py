@@ -62,9 +62,9 @@ class BaseAgentTool(BasicTool):
         """Return the runtime app when available."""
         return (self.record_context or {}).get('app')
 
-    def get_suggestion_text(self, **kwargs):
-        """Return the suggestion_text for this tool, optionally using call arguments."""
-        return getattr(self, 'suggestion_text', '')
+    def get_suggestion_title(self, **kwargs):
+        """Return the suggestion_title for this tool, optionally using call arguments."""
+        return getattr(self, 'suggestion_title', '')
 
 
 class RecordIssueAnalysisTool(BaseAgentTool):
@@ -185,7 +185,7 @@ class SuggestReplyTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Send a reply'
+    suggestion_title = 'Send a reply'
 
     def execute(self, reply, reason=''):
         source_type = self.get_source_type()
@@ -232,7 +232,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Create an internal ticket from this record'
+    suggestion_title = 'Create an internal ticket from this record'
 
     @staticmethod
     def _format_ticket_suggestion_content(title, description):

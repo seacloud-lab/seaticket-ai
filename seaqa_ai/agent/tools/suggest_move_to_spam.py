@@ -2,7 +2,7 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 
 
 class SuggestMoveToSpam(BasicAgentSuggestionTool):
-    suggestion_text = 'Move this email thread to the spam folder'
+    suggestion_title = 'Move this email thread to the spam folder'
     tool = {
         'type': 'function', 'name': 'suggest_move_to_spam',
         'description': 'Create a pending suggestion to move an email thread to spam.',
