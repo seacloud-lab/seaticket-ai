@@ -59,6 +59,7 @@ class AgentReACTTracer(list):
         suggestion_reason='',
         suggestion_title='',
         suggestion_content='',
+        suggestion_payload=None,
         sources=None,
         statistics=None,
         target_source_type=None,
@@ -90,6 +91,7 @@ class AgentReACTTracer(list):
             suggestion_reason=suggestion_reason,
             suggestion_title=suggestion_title,
             suggestion_content=suggestion_content,
+            suggestion_payload=suggestion_payload,
             sources=sources,
             statistics=statistics,
         )
@@ -194,6 +196,7 @@ class AgentReACTTracer(list):
         suggestion_reason,
         suggestion_title,
         suggestion_content,
+        suggestion_payload,
         sources,
         statistics,
     ):
@@ -268,6 +271,7 @@ class AgentReACTTracer(list):
             'suggestion_reason': suggestion_reason or '',
             'suggestion_title': suggestion_title or '',
             'suggestion_content': suggestion_content or '',
+            'suggestion_payload': json.dumps(suggestion_payload or {}, ensure_ascii=False),
             'sources': sources_payload,
             'statistics': deepcopy(statistics) if statistics is not None else None,
             'created_at': now_iso(),
