@@ -23,7 +23,7 @@ additional_output:
 ## Required Steps
 1. Verify `event_summary` and successful `get_record` tool observations identify a usable message and parent thread.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify the message's new question, report, answer, workaround, or request.
+3. Identify the message's new question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
 4. Apply the strict `no_op` boundary before searching.
 5. Choose a first search tool only when evidence can support a decision.
 6. Search from the message's concrete terms and retain only direct evidence.
@@ -42,13 +42,13 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step needing no reply.
-- Never infer `no_op` from author role, moderator status, or a thread marker.
+- Do not infer `no_op` from author identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member), or from a thread marker.
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - When uncertain, prefer a supported suggestion.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering thread needs a visible acknowledgement, clarification, or supported status response.
-- Notification and an external reply may coexist only when each has independent evidence; `no_op` is exclusive.
+- Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
 - Require direct-answer evidence or a strong tracked-case match with usable URL for a reply.
 - Weak topical overlap cannot support an answer.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new message as the decision subject or become a direct answer without a usable public URL and direct applicability.
@@ -74,7 +74,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or suggestion tools.
-- Do not use author status to suppress action.
+- Do not use an author's identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) to select or suppress an action.
 - Do not create a ticket for a matter already covered by the parent thread or when successful `get_record` observations identify a linked Ticket.
 - Do not represent a vague search match as a direct answer.
 - Do not expose personal data, credentials, secrets, or unneeded quotations.
