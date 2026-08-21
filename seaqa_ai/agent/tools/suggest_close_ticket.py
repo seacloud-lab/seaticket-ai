@@ -3,7 +3,6 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class SuggestCloseTicket(BasicAgentSuggestionTool):
-    suggestion_title = 'Close this ticket'
     tool = {
         'type': 'function', 'name': 'suggest_close_ticket',
         'description': 'Create a pending suggestion to close the current or specified ticket.',

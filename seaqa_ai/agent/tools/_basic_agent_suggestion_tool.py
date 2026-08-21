@@ -12,7 +12,6 @@ class BasicAgentSuggestionTool(BasicTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_title = ''
     suggestion_content = None
 
     @staticmethod
@@ -124,7 +123,7 @@ class BasicAgentSuggestionTool(BasicTool):
         return normalized_targets
 
     def suggestion_result(
-        self, *, suggestion_content='', context=None, targets=None, suggestion_reason='', suggestion_title=None,
+        self, *, suggestion_content='', context=None, targets=None, suggestion_reason='',
         tool_name=None, suggestion_payload=None,
     ):
         if targets is None:
@@ -132,7 +131,6 @@ class BasicAgentSuggestionTool(BasicTool):
         normalized_targets = [self._normalize_target(target) for target in targets]
         return {
             'status': self.action_status,
-            'suggestion_title': self.suggestion_title if suggestion_title is None else suggestion_title,
             'suggestion_content': self.suggestion_content if suggestion_content is None else suggestion_content,
             'suggestion_reason': str(suggestion_reason or '').strip(),
             'suggestion_payload': suggestion_payload if isinstance(suggestion_payload, dict) else {},

@@ -1,10 +1,7 @@
-import json
-
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
 
 
 class SuggestAssignLabels(BasicAgentSuggestionTool):
-    suggestion_title = 'Assign labels to this GitHub issue'
     tool = {
         'type': 'function', 'name': 'suggest_assign_labels',
         'description': 'Create a pending suggestion to assign existing GitHub issue labels.',
@@ -33,9 +30,5 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
             context=context,
             targets=[self._target_from_trigger_context(context)],
             suggestion_reason=reason,
-            suggestion_title=(
-                f'Assign labels {json.dumps(labels, ensure_ascii=False)} '
-                'to this GitHub issue'
-            ),
             suggestion_payload={'suggested_labels': labels},
         )

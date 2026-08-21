@@ -122,7 +122,7 @@ class SuggestAssignLabelsTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_title = 'Suggest assigning labels to this GitHub issue'
+    suggestion_title = 'Assign labels to this GitHub issue'
 
     def get_suggestion_title(self, **kwargs):
         labels = kwargs.get('suggested_labels') or []

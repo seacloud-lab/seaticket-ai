@@ -2,7 +2,6 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 
 
 class SuggestReply(BasicAgentSuggestionTool):
-    suggestion_title = 'Send a reply'
     tool = {
         'type': 'function', 'name': 'suggest_reply',
         'description': 'Create a pending suggestion to send a user-facing reply.',
