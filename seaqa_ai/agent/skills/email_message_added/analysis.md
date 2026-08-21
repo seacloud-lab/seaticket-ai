@@ -12,7 +12,7 @@ additional_output:
 ## Role And Scope
 - Assess one newly added email message and select a reply, linked-ticket follow-up, or an independent ticket proposal.
 - The new message is primary; the existing thread is background context only.
-- Do not use a sender's identity, role, permissions, or recipient list to select or suppress an action.
+- Do not use a sender's identity, role, permissions, or recipient list (e.g., employee, staff, support agent, administrator, or organization member) to select or suppress an action.
 
 ## Input Contract
 - Use only the triggering event, `event_summary`, successful `get_record` tool observations, and allowed search observations.
@@ -24,7 +24,7 @@ additional_output:
 ## Required Steps
 1. Confirm the new message and parent thread are usable.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify whether the message asks a question, reports a problem, requests capability, or supplies relevant clarification without using sender identity or role as a decision rule.
+3. Identify whether the message asks a question, reports a problem, requests capability, or supplies relevant clarification without using sender identity, role, or permissions (e.g., employee, staff, support agent, administrator, or organization member) as a decision rule.
 4. Apply the strict `no_op` boundary against the message's own content before searching.
 5. Determine whether the message's issue is already covered by the existing thread.
 6. Choose `documents_search` first for documentation, configuration, explanation, or how-to content.
@@ -49,7 +49,7 @@ additional_output:
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering thread needs a visible acknowledgement, clarification, or supported status response.
 - Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new message as the decision subject or become a direct answer without a usable public URL and direct applicability.
-- Do not use a sender's identity, role, permissions, or recipient list as a decision rule. Automation alone does not justify `no_op`.
+- Do not use a sender's identity, role, permissions, or recipient list (e.g., employee, staff, support agent, administrator, or organization member) as a decision rule. Automation alone does not justify `no_op`.
 - Do not infer resolution from a thank-you, quoted mail, or acknowledgement.
 
 ## Tool Rules
@@ -75,6 +75,6 @@ additional_output:
 - Do not call `get_record` or invoke suggestions.
 - Do not create a ticket for a duplicate of the parent-thread problem.
 - Do not call vague search overlap a direct answer.
-- Do not suppress action based solely on a sender's identity, role, permissions, recipients, or urgency language.
+- Do not suppress action based solely on a sender's identity, role, permissions, recipients, urgency language, or perceived experience (e.g., employee, staff, support agent, administrator, or organization member).
 - Do not leak personal, financial, credential, token, or irrelevant quoted mail data.
 - **Do not claim an action was already performed.**

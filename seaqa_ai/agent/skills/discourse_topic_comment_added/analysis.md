@@ -23,7 +23,7 @@ additional_output:
 ## Required Steps
 1. Verify `event_summary` and successful `get_record` tool observations identify a usable comment and parent topic.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify the comment's new question, report, answer, workaround, or request without using author identity or role as a decision rule.
+3. Identify the comment's new question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
 4. Apply the strict `no_op` boundary before searching.
 5. Choose a first search tool only when evidence can support a decision.
 6. Search from the comment's concrete terms and retain only direct evidence.
@@ -42,7 +42,7 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step needing no reply.
-- Do not infer `no_op` from author identity, role, permissions, moderator status, or a topic's resolution marker.
+- Do not infer `no_op` from author identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member), or from a topic's resolution marker.
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - When uncertain, prefer a supported suggestion.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
@@ -74,7 +74,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or suggestion tools.
-- Do not use an author's identity, role, or permissions to select or suppress an action.
+- Do not use an author's identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) to select or suppress an action.
 - Do not create a ticket for a matter already covered by the parent topic or when successful `get_record` observations identify a linked Ticket.
 - Do not represent a vague search match as a direct answer.
 - Do not expose personal data, credentials, secrets, or unneeded quotations.

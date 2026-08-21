@@ -18,13 +18,13 @@ additional_output:
 - Use `triggering_event`, `event_summary`, successful `get_record` tool observations, and search observations from this phase.
 - Read `event.new_value` as the authoritative new comment.
 - Use the parent issue and a linked Ticket identified by successful `get_record` observations only to determine whether a problem is already covered and whether owner follow-up is needed.
-- Do not retrieve records or use suggestions. Do not use an author's identity, role, or permissions to select or suppress an action.
+- Do not retrieve records or use suggestions. Do not use an author's identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) to select or suppress an action.
 
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable comment and parent issue.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
 3. Read the new comment before considering older discussion.
-4. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking without using author identity or role as a decision rule.
+4. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
 5. Check the strict `no_op` boundary against the comment's own content.
 6. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
 7. Search with focused terms from the new comment, not generic parent-issue text.
@@ -42,7 +42,7 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step requiring no agent-written reply.
-- Do not infer `no_op` from an author's identity, role, or permissions.
+- Do not infer `no_op` from an author's identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member).
 - Reproduction confirmation is not `no_op`.
 - A speculative workaround, partial information, new question, tracking request, or “open a separate ticket” is not `no_op`.
 - When uncertain, prefer a supported suggestion rather than `no_op`.
@@ -84,7 +84,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or invoke suggestions.
-- Do not decide `no_op` from an author's identity, role, permissions, or a generic thread state.
+- Do not decide `no_op` from an author's identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member), or from a generic thread state.
 - Do not create a ticket for a problem already covered by the parent issue or when successful `get_record` observations identify a linked Ticket.
 - Do not call weak topical overlap a direct answer or tracked case.
 - Do not place personal contacts, credentials, tokens, secrets, private URLs, or unnecessary quoted content in a search query.
