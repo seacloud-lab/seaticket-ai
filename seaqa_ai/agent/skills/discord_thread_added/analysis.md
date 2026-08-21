@@ -55,7 +55,7 @@ additional_output:
 
 ## Forbidden Behavior
 - **Do not call `get_record` or a suggestion tool.**
-- Do not treat author status or thread popularity as proof that no handling is required.
+- Do not treat an author's identity or permissions, or thread popularity, as proof that no handling is required.
 - Do not use weak search matches as direct evidence.
 - Do not expose secrets, private contacts, or internal-only content in queries or output.
 - **Do not claim that a reply or ticket has been created.**

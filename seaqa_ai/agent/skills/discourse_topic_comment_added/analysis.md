@@ -23,18 +23,17 @@ additional_output:
 ## Required Steps
 1. Verify `event_summary` and successful `get_record` tool observations identify a usable comment and parent topic.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Before evaluating content or searching, determine from available event or record metadata whether the comment author is an internal member (staff, maintainer, administrator, moderator, employee, support agent, organization member, or equivalent internal role). If so, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-4. Identify the comment's new question, report, answer, workaround, or request.
-5. Apply the strict `no_op` boundary before searching.
-6. Choose a first search tool only when evidence can support a decision.
-7. Search from the comment's concrete terms and retain only direct evidence.
-8. Stop under the defined budget and diminishing-return limits.
-9. Determine follow-up by linkage state:
+3. Identify the comment's new question, report, answer, workaround, or request without using author identity or role as a decision rule.
+4. Apply the strict `no_op` boundary before searching.
+5. Choose a first search tool only when evidence can support a decision.
+6. Search from the comment's concrete terms and retain only direct evidence.
+7. Stop under the defined budget and diminishing-return limits.
+8. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering topic independently.
    - Otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
-10. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
-11. Otherwise recommend `no_op` only under its strict boundary.
-12. Explain the decision with citations and state why an omitted action is not justified.
+9. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
+10. Otherwise recommend `no_op` only under its strict boundary.
+11. Explain the decision with citations and state why an omitted action is not justified.
 
 ## Decision Rules
 - Use `no_op` only when the comment itself provides a concrete answer or workaround.
@@ -43,13 +42,13 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step needing no reply.
-- For non-internal authors, never infer `no_op` from author role, moderator status, or a topic's resolution marker.
+- Do not infer `no_op` from author identity, role, permissions, moderator status, or a topic's resolution marker.
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - When uncertain, prefer a supported suggestion.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering topic needs a visible acknowledgement, clarification, or supported status response.
-- Notification and an external reply may coexist only when each has independent evidence; `no_op` is exclusive.
+- Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
 - Require direct-answer evidence or a strong tracked-case match with usable URL for a reply.
 - Weak topical overlap cannot support an answer.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
@@ -75,7 +74,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or suggestion tools.
-- Do not use author status to suppress action for non-internal authors.
+- Do not use an author's identity, role, or permissions to select or suppress an action.
 - Do not create a ticket for a matter already covered by the parent topic or when successful `get_record` observations identify a linked Ticket.
 - Do not represent a vague search match as a direct answer.
 - Do not expose personal data, credentials, secrets, or unneeded quotations.

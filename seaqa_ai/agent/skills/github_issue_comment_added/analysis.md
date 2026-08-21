@@ -18,23 +18,22 @@ additional_output:
 - Use `triggering_event`, `event_summary`, successful `get_record` tool observations, and search observations from this phase.
 - Read `event.new_value` as the authoritative new comment.
 - Use the parent issue and a linked Ticket identified by successful `get_record` observations only to determine whether a problem is already covered and whether owner follow-up is needed.
-- Do not retrieve records or use suggestions. For non-internal authors, do not rely on author role.
+- Do not retrieve records or use suggestions. Do not use an author's identity, role, or permissions to select or suppress an action.
 
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable comment and parent issue.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Before evaluating content or searching, determine from available event or record metadata whether the comment author is an internal member (staff, maintainer, repository administrator, organization member, employee, support agent, or equivalent internal role). If so, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-4. Read the new comment before considering older discussion.
-5. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking.
-6. Check the strict `no_op` boundary against the comment's own content.
-7. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
-8. Search with focused terms from the new comment, not generic parent-issue text.
-9. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
-10. Determine follow-up by linkage state:
+3. Read the new comment before considering older discussion.
+4. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking without using author identity or role as a decision rule.
+5. Check the strict `no_op` boundary against the comment's own content.
+6. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
+7. Search with focused terms from the new comment, not generic parent-issue text.
+8. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
+9. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering issue independently.
    - Otherwise recommend `suggest_reply`, `suggest_create_ticket`, or `no_op`.
-11. Set `skip_handling: true` only for `no_op`.
-12. State why a ticket is independent or why no action is strictly justified.
+10. Set `skip_handling: true` only for `no_op`.
+11. State why a ticket is independent or why no action is strictly justified.
 
 ## Decision Rules
 - Use `no_op` only when this new comment itself supplies a concrete answer or workaround.
@@ -43,14 +42,14 @@ additional_output:
   - A redirect.
   - A closure outcome.
   - An explicit next step requiring no agent-written reply.
-- For non-internal authors, do not infer `no_op` because the author is experienced or holds a role.
+- Do not infer `no_op` from an author's identity, role, or permissions.
 - Reproduction confirmation is not `no_op`.
 - A speculative workaround, partial information, new question, tracking request, or “open a separate ticket” is not `no_op`.
 - When uncertain, prefer a supported suggestion rather than `no_op`.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering issue needs a visible acknowledgement, clarification, or supported status response.
-- Notification and an external reply may coexist only when each has independent evidence; `no_op` is exclusive.
+- Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
 - Use `suggest_reply` for a direct answer, tracked case, or useful supported partial response.
 - Use `suggest_create_ticket` only for a clearly independent unresolved problem not covered by the parent issue.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
@@ -85,7 +84,7 @@ additional_output:
 
 ## Forbidden Behavior
 - Do not call `get_record` or invoke suggestions.
-- Do not decide `no_op` from author identity or a generic thread state for non-internal authors.
+- Do not decide `no_op` from an author's identity, role, permissions, or a generic thread state.
 - Do not create a ticket for a problem already covered by the parent issue or when successful `get_record` observations identify a linked Ticket.
 - Do not call weak topical overlap a direct answer or tracked case.
 - Do not place personal contacts, credentials, tokens, secrets, private URLs, or unnecessary quoted content in a search query.

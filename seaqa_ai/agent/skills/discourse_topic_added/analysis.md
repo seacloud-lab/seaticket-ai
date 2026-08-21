@@ -59,7 +59,7 @@ additional_output:
 ## Forbidden Behavior
 - Do not call `get_record` or a suggestion tool.
 - Do not infer GitHub type or labels for a Discourse topic.
-- Do not treat topic resolution, author status, or category as proof that no handling is required.
+- Do not treat topic resolution, an author's identity or permissions, or category as proof that no handling is required.
 - Do not use weak search matches as direct evidence.
 - Do not expose secrets, private contacts, or internal-only content in queries or output.
 - Do not claim that a reply or ticket has been created.
