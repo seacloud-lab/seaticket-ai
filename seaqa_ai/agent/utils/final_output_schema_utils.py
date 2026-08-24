@@ -279,6 +279,20 @@ class FinalOutputSchemaUtils:
         """
         if not isinstance(schema, dict):
             raise error_type(f'{path}: schema must be an object')
+        any_of = schema.get('anyOf')
+        if any_of is not None:
+            if not isinstance(any_of, list) or not any_of:
+                raise error_type(f'{path}: anyOf must be a non-empty array')
+            errors = []
+            for branch in any_of:
+                if not isinstance(branch, dict):
+                    errors.append('branch schema must be an object')
+                    continue
+                try:
+                    return cls.validate_and_normalize_output(value, branch, error_type, path)
+                except error_type as error:
+                    errors.append(str(error))
+            raise error_type(f'{path}: must match one anyOf schema: {"; ".join(errors)}')
         if 'const' in schema and value != schema['const']:
             raise error_type(f'{path}: must equal {schema["const"]!r}')
         if 'enum' in schema and value not in schema['enum']:

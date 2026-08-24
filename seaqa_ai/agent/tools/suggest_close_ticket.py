@@ -5,7 +5,8 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 class SuggestCloseTicket(BasicAgentSuggestionTool):
     suggestion_text = 'Close this ticket'
     tool = {
-        'type': 'function', 'name': 'suggest_close_ticket',
+        'type': 'function',
+        'name': 'suggest_close_ticket',
         'description': 'Create a pending suggestion to close the current or specified ticket.',
         'parameters': {
             'type': 'object',
@@ -13,11 +14,13 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
                 'reason': {'type': 'string'},
                 'rule': {'type': 'string'},
                 'target': {
-                    **record_identity_schema(include_source_title=True),
+                    **record_identity_schema(nested=True),
                 },
             },
-            'required': ['reason'], 'additionalProperties': False,
-        }, 'strict': True,
+            'required': ['reason'],
+            'additionalProperties': False,
+        },
+        'strict': False,
     }
 
     def execute(self, reason, rule='', target=None, context=None):

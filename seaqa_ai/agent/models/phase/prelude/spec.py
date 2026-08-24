@@ -23,7 +23,7 @@ class PreludePhaseSpec(AgentPhaseSpec):
                     'Successfully loaded record identities selected by Prelude for this event. '
                     'The triggering record is the first entry.'
                 ),
-                'items': record_identity_schema(),
+                'items': record_identity_schema(nested=True),
             },
         },
         'required': [
