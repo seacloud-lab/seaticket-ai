@@ -13,7 +13,7 @@ class SuggestCloseTicket(BasicAgentSuggestionTool):
                 'reason': {'type': 'string'},
                 'rule': {'type': 'string'},
                 'target': {
-                    **record_identity_schema(include_source_title=True),
+                    **record_identity_schema(include_source_title=True, nested=True),
                 },
             },
             'required': ['reason'], 'additionalProperties': False,

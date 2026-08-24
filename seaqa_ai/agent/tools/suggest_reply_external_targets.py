@@ -14,7 +14,7 @@ class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
                 'reason': {'type': 'string'},
                 'reply_targets': {
                     'type': 'array',
-                    'items': record_identity_schema(include_source_title=True),
+                    'items': record_identity_schema(include_source_title=True, nested=True),
                     'minItems': 1,
                     'description': 'Linked external records that should receive the reply.',
                 },

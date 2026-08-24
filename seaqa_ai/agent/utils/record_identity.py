@@ -9,7 +9,7 @@ CONNECTION_RECORD_SOURCE_TYPES = ConnectionType.get_document_connection_types() 
 ALL_SOURCES_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SOURCE_TYPES
 
 
-def record_identity_schema(*, include_source_title=False):
+def record_identity_schema(*, include_source_title=False, nested=False):
     properties = {
         'source_type': {
             'type': 'string',
@@ -31,17 +31,36 @@ def record_identity_schema(*, include_source_title=False):
     }
     if include_source_title:
         properties['source_title'] = {'type': 'string'}
-    return {
+    schema = {
         'type': 'object',
         'properties': properties,
         'required': ['source_type', 'connection_id', 'record_id'],
         'additionalProperties': False,
-        'allOf': [
-            {
-                'if': {'properties': {'source_type': {'enum': list(EXTRA_RECORD_SOURCE_TYPES)}}},
-                'then': {'properties': {'connection_id': {'type': 'null'}}},
-                'else': {'properties': {'connection_id': {'type': 'integer'}}},
-            },
+    }
+    if not nested:
+        return schema
+
+    def branch(source_types, connection_id_type):
+        branch_properties = dict(properties)
+        branch_properties['source_type'] = {
+            **branch_properties['source_type'],
+            'enum': list(source_types),
+        }
+        branch_properties['connection_id'] = {
+            **branch_properties['connection_id'],
+            'type': connection_id_type,
+        }
+        return {
+            'type': 'object',
+            'properties': branch_properties,
+            'required': list(schema['required']),
+            'additionalProperties': False,
+        }
+
+    return {
+        'anyOf': [
+            branch(EXTRA_RECORD_SOURCE_TYPES, 'null'),
+            branch(CONNECTION_RECORD_SOURCE_TYPES, 'integer'),
         ],
     }
 

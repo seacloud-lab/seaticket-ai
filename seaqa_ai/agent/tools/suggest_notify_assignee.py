@@ -13,7 +13,7 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
                 'message': {'type': 'string'},
                 'reason': {'type': 'string'},
                 'target': {
-                    **record_identity_schema(include_source_title=True),
+                    **record_identity_schema(include_source_title=True, nested=True),
                 },
             },
             'required': ['message', 'reason'], 'additionalProperties': False,
