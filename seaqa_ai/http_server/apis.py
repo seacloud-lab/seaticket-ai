@@ -117,6 +117,7 @@ def generate_chat_title():
     ai_reply = data.get('ai_reply')
     org_id = data.get('org_id')
     project_uuid = data.get('project_uuid')
+    session_uuid = data.get('session_uuid')
     scenario = data.get('scenario', AIScenario.CHAT.value)
 
     if not query:
@@ -129,6 +130,7 @@ def generate_chat_title():
     context = {
         'org_id': org_id,
         'project_uuid': project_uuid,
+        'session_uuid': session_uuid,
         'scenario': scenario,
     }
 
