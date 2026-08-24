@@ -7,12 +7,14 @@ from seaqa_ai.utils.constants import AIScenario
 class SuggestCreateTicket(BasicAgentSuggestionTool):
     suggestion_text = 'Create an internal ticket from this record'
     tool = {
-        'type': 'function', 'name': 'suggest_create_ticket',
+        'type': 'function',
+        'name': 'suggest_create_ticket',
         'description': 'Create a pending suggestion to create an internal ticket.',
         'parameters': {
             'type': 'object',
             'properties': {'reason': {'type': 'string'}},
-            'required': ['reason'], 'additionalProperties': False,
+            'required': ['reason'],
+            'additionalProperties': False,
         },
         'strict': True,
     }

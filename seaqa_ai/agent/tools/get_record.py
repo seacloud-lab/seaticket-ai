@@ -8,7 +8,10 @@ from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query, discord_thread_messages_query
-from seaqa_ai.agent.utils.record_identity import record_identity_schema
+from seaqa_ai.agent.utils.record_identity import (
+    record_identity_schema,
+    validate_record_identity,
+)
 
 AGENT_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
 MESSAGES_OMITTED_NOTICE = '[messages omitted due to content limit]'
@@ -131,7 +134,8 @@ class _RecordRetriever:
             connection_id = self._parse_id(target.get('connection_id'), 'connection_id')
             self._validate_connection(source_type, connection_id)
         else:
-            connection_id = None
+            connection_id = target.get('connection_id')
+        validate_record_identity(source_type, connection_id, record_id)
         return {
             'source_type': source_type,
             'connection_id': connection_id,

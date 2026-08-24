@@ -9,7 +9,7 @@ CONNECTION_RECORD_SOURCE_TYPES = ConnectionType.get_document_connection_types() 
 ALL_SOURCES_TYPES = EXTRA_RECORD_SOURCE_TYPES + CONNECTION_RECORD_SOURCE_TYPES
 
 
-def record_identity_schema(*, include_source_title=False, nested=False):
+def record_identity_schema(*, nested=False):
     properties = {
         'source_type': {
             'type': 'string',
@@ -29,8 +29,6 @@ def record_identity_schema(*, include_source_title=False, nested=False):
             'description': 'The SeaDB primary key of the record.',
         },
     }
-    if include_source_title:
-        properties['source_title'] = {'type': 'string'}
     schema = {
         'type': 'object',
         'properties': properties,

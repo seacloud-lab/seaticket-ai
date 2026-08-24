@@ -5,7 +5,8 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 class SuggestNotifyAssignee(BasicAgentSuggestionTool):
     suggestion_text = 'Notify assignees of the ticket'
     tool = {
-        'type': 'function', 'name': 'suggest_notify_assignee',
+        'type': 'function',
+        'name': 'suggest_notify_assignee',
         'description': 'Create a pending suggestion to notify ticket assignees.',
         'parameters': {
             'type': 'object',
@@ -13,11 +14,13 @@ class SuggestNotifyAssignee(BasicAgentSuggestionTool):
                 'message': {'type': 'string'},
                 'reason': {'type': 'string'},
                 'target': {
-                    **record_identity_schema(include_source_title=True, nested=True),
+                    **record_identity_schema(nested=True),
                 },
             },
-            'required': ['message', 'reason'], 'additionalProperties': False,
-        }, 'strict': True,
+            'required': ['message', 'reason'],
+            'additionalProperties': False,
+        },
+        'strict': False,
     }
 
     def execute(self, message, reason, target=None, context=None):

@@ -3,7 +3,8 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 
 class SuggestModifyType(BasicAgentSuggestionTool):
     tool = {
-        'type': 'function', 'name': 'suggest_modify_type',
+        'type': 'function',
+        'name': 'suggest_modify_type',
         'description': 'Create a pending suggestion to change a GitHub issue type.',
         'parameters': {
             'type': 'object',

@@ -5,7 +5,8 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
     suggestion_text = 'Send a reply'
     tool = {
-        'type': 'function', 'name': 'suggest_reply_external_targets',
+        'type': 'function',
+        'name': 'suggest_reply_external_targets',
         'description': 'Create a pending public reply suggestion for linked external records.',
         'parameters': {
             'type': 'object',
@@ -14,13 +15,15 @@ class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
                 'reason': {'type': 'string'},
                 'reply_targets': {
                     'type': 'array',
-                    'items': record_identity_schema(include_source_title=True, nested=True),
+                    'items': record_identity_schema(nested=True),
                     'minItems': 1,
                     'description': 'Linked external records that should receive the reply.',
                 },
             },
-            'required': ['reply', 'reason', 'reply_targets'], 'additionalProperties': False,
-        }, 'strict': True,
+            'required': ['reply', 'reason', 'reply_targets'],
+            'additionalProperties': False,
+        },
+        'strict': True,
     }
 
     def execute(self, reply, reason, reply_targets, context=None):

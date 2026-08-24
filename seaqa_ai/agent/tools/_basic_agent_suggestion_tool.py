@@ -119,7 +119,25 @@ class BasicAgentSuggestionTool(BasicTool):
                 or source_id in seen_source_ids
             ):
                 continue
+            matching_records = [
+                record
+                for key, record in ((context or {}).get('record_cache') or {}).items()
+                if (
+                    isinstance(key, tuple)
+                    and len(key) == 3
+                    and key[0] == normalized_target['source_type']
+                    and (
+                        f'{key[1]}_{key[2]}' if key[1] is not None else str(key[2])
+                    ) == source_id
+                    and isinstance(record, dict)
+                )
+            ]
+            if len(matching_records) != 1:
+                continue
             seen_source_ids.add(source_id)
+            normalized_target['source_title'] = str(
+                matching_records[0].get('title', '') or '',
+            ).strip()
             normalized_targets.append(normalized_target)
         return normalized_targets
 

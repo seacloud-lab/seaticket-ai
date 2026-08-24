@@ -6,7 +6,8 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 class SuggestAssignLabels(BasicAgentSuggestionTool):
     suggestion_text = 'Suggest assigning labels to this GitHub issue'
     tool = {
-        'type': 'function', 'name': 'suggest_assign_labels',
+        'type': 'function',
+        'name': 'suggest_assign_labels',
         'description': 'Create a pending suggestion to assign existing GitHub issue labels.',
         'parameters': {
             'type': 'object',
@@ -14,7 +15,8 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
                 'suggested_labels': {'type': 'array', 'items': {'type': 'string'}},
                 'reason': {'type': 'string'},
             },
-            'required': ['suggested_labels', 'reason'], 'additionalProperties': False,
+            'required': ['suggested_labels', 'reason'],
+            'additionalProperties': False,
         },
         'strict': True,
     }

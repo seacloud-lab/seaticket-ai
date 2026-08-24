@@ -4,7 +4,8 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 class SuggestReply(BasicAgentSuggestionTool):
     suggestion_text = 'Send a reply'
     tool = {
-        'type': 'function', 'name': 'suggest_reply',
+        'type': 'function',
+        'name': 'suggest_reply',
         'description': 'Create a pending suggestion to send a user-facing reply.',
         'parameters': {
             'type': 'object',
@@ -12,7 +13,8 @@ class SuggestReply(BasicAgentSuggestionTool):
                 'reply': {'type': 'string'},
                 'reason': {'type': 'string'},
             },
-            'required': ['reply', 'reason'], 'additionalProperties': False,
+            'required': ['reply', 'reason'],
+            'additionalProperties': False,
         },
         'strict': True,
     }
