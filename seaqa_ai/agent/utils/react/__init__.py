@@ -633,7 +633,7 @@ class AgentReACT:
         self._trace(
             action_type=f'{phase}', action_status='completed', step=step,
             result=result, statistics=self._statistics(None, usage, retries),
-            sources=sources, with_input=True
+            references=sources, with_input=True
         )
         return result
 
@@ -641,7 +641,7 @@ class AgentReACT:
                tool_arguments=None, observation=None, statistics=None,
                 suggestion_reason='', suggestion_content='', suggestion_payload=None,
                 target_item_type=None, target_item_id=None, target_item_title=None,
-                record_phase_context=False, trace_id=None, sources=None, with_input=False):
+                record_phase_context=False, trace_id=None, references=None, with_input=False):
         if self.react_tracer is None:
             return None
         return self.react_tracer.record(
@@ -661,7 +661,7 @@ class AgentReACT:
             suggestion_reason=suggestion_reason,
             suggestion_content=suggestion_content,
             suggestion_payload=suggestion_payload,
-            sources=sources,
+            references=references,
             target_item_type=target_item_type,
             target_item_id=target_item_id,
             target_item_title=target_item_title,

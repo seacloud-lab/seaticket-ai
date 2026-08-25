@@ -66,7 +66,7 @@ class AgentRunner:
                             (e.g. org_id, project_uuid).
             action_recorder: callable(run_id, source_type, source_id, source_title,
                              action_type, tool_name, content, result, action_status,
-                             suggestion_title, sources, statistics) -> int
+                             suggestion_title, references, statistics) -> int
             run_id: current agent run _pk in SeaDB.
             tool_metadata: dict mapping tool_name to {action_type, action_status, suggestion_title}.
             prelude_phase: AskPhase for the prelude event-summary step.
@@ -852,7 +852,7 @@ class AgentRunner:
             observation=observation,
             content=content,
             result=result,
-            sources=sources,
+            references=sources,
             statistics=statistics,
             default_tool_name=recorded_tool_name,
             default_suggestion_title=suggestion_title,
@@ -871,7 +871,7 @@ class AgentRunner:
             suggestion_reason=tool_arguments.get('reason') if action_type == 'suggestion' else '',
             suggestion_title=suggestion_title if action_type == 'suggestion' else '',
             suggestion_content=suggestion_content,
-            sources=sources,
+            references=sources,
             statistics=statistics,
         )
 
@@ -894,7 +894,7 @@ class AgentRunner:
         observation: str,
         content: str,
         result: str,
-        sources: list,
+        references: list,
         statistics: str | None,
         default_tool_name: str,
         default_suggestion_title: str,
@@ -921,7 +921,7 @@ class AgentRunner:
             observation=observation,
             content=content,
             result=result,
-            sources=sources,
+            references=sources,
             statistics=statistics,
             targets=targets,
             default_tool_name=default_tool_name,
@@ -940,7 +940,7 @@ class AgentRunner:
         observation: str,
         content: str,
         result: str,
-        sources: list,
+        references: list,
         statistics: str | None,
         targets,
         default_tool_name: str,
@@ -965,7 +965,7 @@ class AgentRunner:
                 observation=observation,
                 suggestion_title=target_suggestion_title,
                 suggestion_content=content,
-                sources=sources,
+                references=sources,
                 statistics=statistics,
                 source_type_override=target_item_type,
                 source_id_override=target_item_id,
@@ -990,7 +990,7 @@ class AgentRunner:
         suggestion_reason=None,
         suggestion_title=None,
         suggestion_content=None,
-        sources=None,
+        references=None,
         statistics=None,
         record_phase_context=False,
         source_type_override=None,
@@ -1026,7 +1026,7 @@ class AgentRunner:
             'suggestion_reason': suggestion_reason or '',
             'suggestion_title': suggestion_title or '',
             'suggestion_content': suggestion_content or '',
-            'sources': sources or [],
+            'references': references or [],
             'statistics': statistics,
         }
             

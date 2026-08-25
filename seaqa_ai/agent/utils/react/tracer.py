@@ -59,7 +59,7 @@ class AgentReACTTracer(list):
         suggestion_reason='',
         suggestion_content='',
         suggestion_payload=None,
-        sources=None,
+        references=None,
         statistics=None,
         target_item_type=None,
         target_item_id=None,
@@ -90,7 +90,7 @@ class AgentReACTTracer(list):
             suggestion_reason=suggestion_reason,
             suggestion_content=suggestion_content,
             suggestion_payload=suggestion_payload,
-            sources=sources,
+            references=references,
             statistics=statistics,
         )
         self.append(row)
@@ -194,15 +194,15 @@ class AgentReACTTracer(list):
         suggestion_reason,
         suggestion_content,
         suggestion_payload,
-        sources,
+        references,
         statistics,
     ):
-        if isinstance(sources, list):
-            sources_payload = json.dumps(sources, ensure_ascii=False)
-        elif isinstance(sources, str):
-            sources_payload = sources
+        if isinstance(references, list):
+            references_payload = json.dumps(references, ensure_ascii=False)
+        elif isinstance(references, str):
+            references_payload = references
         else:
-            sources_payload = '[]'
+            references_payload = '[]'
 
         result = (
             _truncate_string(result)
@@ -268,7 +268,7 @@ class AgentReACTTracer(list):
             'suggestion_reason': suggestion_reason or '',
             'suggestion_content': suggestion_content or '',
             'suggestion_payload': json.dumps(suggestion_payload or {}, ensure_ascii=False),
-            'sources': sources_payload,
+            'references': references_payload,
             'statistics': deepcopy(statistics) if statistics is not None else None,
             'created_at': now_iso(),
         }
