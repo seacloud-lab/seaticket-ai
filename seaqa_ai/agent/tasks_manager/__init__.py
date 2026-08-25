@@ -99,7 +99,7 @@ class TaskManager:
                 'Queued agent task %s for project %s (target=%s:%s)',
                 task.task_id,
                 task.project_uuid,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
             )
             return True
@@ -128,7 +128,7 @@ class TaskManager:
             schema_version=AGENT_TASK_SCHEMA_VERSION,
             task_id=str(uuid4()),
             project_uuid=template.project_uuid,
-            target_source_type=template.target_source_type,
+            target_item_type=template.target_item_type,
             target_record_id=template.target_record_id,
             target_connection_id=template.target_connection_id,
             trigger_event=trigger_event,
@@ -144,7 +144,7 @@ class TaskManager:
     def _pending_task_key(self, task: AgentTask) -> tuple:
         return (
             task.project_uuid,
-            task.target_source_type,
+            task.target_item_type,
             task.target_connection_id,
             str(task.target_record_id),
         )

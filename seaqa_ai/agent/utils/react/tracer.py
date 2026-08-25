@@ -61,9 +61,9 @@ class AgentReACTTracer(list):
         suggestion_payload=None,
         sources=None,
         statistics=None,
-        target_source_type=None,
-        target_source_id=None,
-        target_source_title=None,
+        target_item_type=None,
+        target_item_id=None,
+        target_item_title=None,
         trace_id=None,
     ):
         """Normalize an action and append its SeaDB row to this tracer."""
@@ -72,9 +72,9 @@ class AgentReACTTracer(list):
             raise TypeError('context must be a dictionary')
         row = self._build_row(
             run_id=context.get('run_id'),
-            target_source_type=target_source_type,
-            target_source_id=target_source_id,
-            target_source_title=target_source_title,
+            target_item_type=target_item_type,
+            target_item_id=target_item_id,
+            target_item_title=target_item_title,
             trace_id=trace_id or context.get('trace_id') or uuid.uuid4().hex,
             phase=phase if phase is not None else context.get('phase'),
             record_phase_context=record_phase_context,
@@ -176,9 +176,9 @@ class AgentReACTTracer(list):
     def _build_row(
         *,
         run_id,
-        target_source_type,
-        target_source_id,
-        target_source_title,
+        target_item_type,
+        target_item_id,
+        target_item_title,
         trace_id,
         phase,
         record_phase_context,
@@ -252,9 +252,9 @@ class AgentReACTTracer(list):
         return {
             'run_id': run_id,
             'trace_id': trace_id,
-            'target_source_type': target_source_type or '',
-            'target_source_id': str(target_source_id) if target_source_id is not None else '',
-            'target_source_title': target_source_title or '',
+            'target_item_type': target_item_type or '',
+            'target_item_id': str(target_item_id) if target_item_id is not None else '',
+            'target_item_title': target_item_title or '',
             'action_type': action_type,
             'phase': phase or '',
             'result': str(result) if result is not None else '',

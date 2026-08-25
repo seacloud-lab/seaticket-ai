@@ -205,20 +205,20 @@ class SuggestReplyExternalTargetsTool(BaseAgentTool):
         for target in external_reply_targets:
             if not isinstance(target, dict):
                 continue
-            target_source_type = str(target.get('source_type') or '').strip()
-            target_source_id = str(target.get('source_id') or '').strip()
-            target_source_title = str(
+            target_item_type = str(target.get('source_type') or '').strip()
+            target_item_id = str(target.get('source_id') or '').strip()
+            target_item_title = str(
                 target.get('source_title') or target.get('title') or ''
             ).strip()
-            if not target_source_type or not target_source_id:
+            if not target_item_type or not target_item_id:
                 continue
             suggestion_title = self.suggestion_title
-            if target_source_type == AgentSourceType.GITHUB_ISSUE.value:
+            if target_item_type == AgentSourceType.GITHUB_ISSUE.value:
                 suggestion_title = 'Send a reply to the linked GitHub issue'
             targets.append({
-                'source_type': target_source_type,
-                'source_id': target_source_id,
-                'source_title': target_source_title,
+                'source_type': target_item_type,
+                'source_id': target_item_id,
+                'source_title': target_item_title,
                 'tool_name': 'suggest_reply',
                 'suggestion_title': suggestion_title,
             })

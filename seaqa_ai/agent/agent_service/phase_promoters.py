@@ -22,7 +22,7 @@ class _RecordInputFormatter:
     @staticmethod
     def target_record_identity(task):
         return {
-            'source_type': task.target_source_type,
+            'source_type': task.target_item_type,
             'connection_id': task.target_connection_id,
             'record_id': task.target_record_id,
         }

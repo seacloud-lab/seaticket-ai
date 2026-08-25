@@ -412,9 +412,9 @@ class AgentReACT:
                                 tool_arguments=arguments,
                                 observation=observation, result=raw_result,
                                 statistics=statistics, trace_id=trace_id,
-                                target_source_type=target['source_type'],
-                                target_source_id=target['source_id'],
-                                target_source_title=target['source_title'],
+                                target_item_type=target['source_type'],
+                                target_item_id=target['source_id'],
+                                target_item_title=target['source_title'],
                                 suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
                                 suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
@@ -640,7 +640,7 @@ class AgentReACT:
     def _trace(self, *, action_type, action_status, step, result=None, tool_name=None,
                tool_arguments=None, observation=None, statistics=None,
                 suggestion_reason='', suggestion_content='', suggestion_payload=None,
-                target_source_type=None, target_source_id=None, target_source_title=None,
+                target_item_type=None, target_item_id=None, target_item_title=None,
                 record_phase_context=False, trace_id=None, sources=None, with_input=False):
         if self.react_tracer is None:
             return None
@@ -662,9 +662,9 @@ class AgentReACT:
             suggestion_content=suggestion_content,
             suggestion_payload=suggestion_payload,
             sources=sources,
-            target_source_type=target_source_type,
-            target_source_id=target_source_id,
-            target_source_title=target_source_title,
+            target_item_type=target_item_type,
+            target_item_id=target_item_id,
+            target_item_title=target_item_title,
             trace_id=trace_id,
         )
 

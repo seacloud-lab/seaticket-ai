@@ -45,7 +45,7 @@ class AgentService:
             context['record_cache'] = record_cache
 
             target_record = GetRecord().execute(
-                source_type=task.target_source_type,
+                source_type=task.target_item_type,
                 connection_id=task.target_connection_id,
                 record_id=task.target_record_id,
                 project_uuid=task.project_uuid,
@@ -106,7 +106,7 @@ class AgentService:
                 'Skipping agent task without required linked ticket: '
                 'task_id=%s target=%s:%s event_type=%s',
                 task.task_id,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
                 task.trigger_event.event_type,
             )
@@ -123,7 +123,7 @@ class AgentService:
                 'Agent task failed: task_id=%s project=%s target=%s:%s',
                 task.task_id,
                 task.project_uuid,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
             )
             raise
@@ -181,7 +181,7 @@ class AgentService:
                     logger.warning(
                         'Failed to load linked ticket %s for %s:%s; using the triggering record.',
                         linked_ticket_id,
-                        task.target_source_type,
+                        task.target_item_type,
                         task.target_record_id,
                         exc_info=True,
                     )
@@ -197,10 +197,10 @@ class AgentService:
         source_id = self._source_id(task.target_connection_id, task.target_record_id)
         source_title = target_record.get('title', '')
         return self._new_tracer(task), {
-            'source_type': task.target_source_type,
+            'source_type': task.target_item_type,
             'source_id': source_id,
             'source_title': source_title,
-            'trigger_source_type': task.target_source_type,
+            'trigger_source_type': task.target_item_type,
             'trigger_source_id': source_id,
             'trigger_source_title': source_title,
             'target_record': target_record,
@@ -220,7 +220,7 @@ class AgentService:
             'source_type': 'ticket',
             'source_id': linked_ticket_id,
             'source_title': source_title,
-            'trigger_source_type': task.target_source_type,
+            'trigger_source_type': task.target_item_type,
             'trigger_source_id': trigger_source_id,
             'trigger_source_title': trigger_source_title,
             'target_record': target_record,
@@ -273,7 +273,7 @@ class AgentService:
                 'suggestions_status': suggestions_status,
             }}],
         )
-        if status == 'completed' and task.target_source_type == 'ticket':
+        if status == 'completed' and task.target_item_type == 'ticket':
             self.app.seadb_service.update_rows(
                 task.project_uuid,
                 SchemaTables.TICKETS.table_name(),

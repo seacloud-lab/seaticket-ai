@@ -949,9 +949,9 @@ class AgentRunner:
         for target in targets:
             if not isinstance(target, dict):
                 continue
-            target_source_type = target.get('source_type') or None
-            target_source_id = target.get('source_id') or None
-            target_source_title = target.get('source_title') or None
+            target_item_type = target.get('source_type') or None
+            target_item_id = target.get('source_id') or None
+            target_item_title = target.get('source_title') or None
             target_tool_name = target.get('tool_name') or default_tool_name
             target_suggestion_title = target.get('suggestion_title') or default_suggestion_title
             action_id = self._record_action(
@@ -967,9 +967,9 @@ class AgentRunner:
                 suggestion_content=content,
                 sources=sources,
                 statistics=statistics,
-                source_type_override=target_source_type,
-                source_id_override=target_source_id,
-                source_title_override=target_source_title,
+                source_type_override=target_item_type,
+                source_id_override=target_item_id,
+                source_title_override=target_item_title,
             )
             if action_id and action_status == 'pending':
                 self.pending_suggestion_actions.append({

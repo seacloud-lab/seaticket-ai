@@ -110,7 +110,7 @@ class AgentTaskWorker:
                 'Agent task failed: task_id=%s project=%s target=%s:%s',
                 task.task_id,
                 task.project_uuid,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
             )
 
