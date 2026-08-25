@@ -46,7 +46,7 @@ class AgentService:
             context['record_cache'] = record_cache
 
             target_record = GetRecord().execute(
-                source_type=task.target_source_type,
+                source_type=task.target_item_type,
                 connection_id=task.target_connection_id,
                 record_id=task.target_record_id,
                 project_uuid=task.project_uuid,
@@ -60,7 +60,12 @@ class AgentService:
             )
             context.update(trace_context)
 
-            run_id = self._create_run_record(task)
+            run_id = self._create_run_record(
+                task,
+                owner_source_type=trace_context.get('source_type', ''),
+                owner_source_id=trace_context.get('source_id', ''),
+                owner_source_title=trace_context.get('source_title', ''),
+            )
             context['run_id'] = run_id
 
             responses_client = get_responses_client_by_model_id(
@@ -78,11 +83,18 @@ class AgentService:
                 project_prompt=(self.project.get('settings') or {}).get('prompt', ''),
             ).start()
 
-            self._finalize_run_record(
-                task, run_id, status='completed', items_processed=1,
-            )
-            pending_suggestion_action_ids = tracer.flush()
+            flush_result = tracer.flush()
+            if not flush_result.get('succeeded'):
+                raise RuntimeError('Failed to persist agent actions for this run.')
             traces_flushed = True
+
+            self._finalize_run_record(
+                task,
+                run_id,
+                status='completed',
+                suggestions_status=flush_result.get('suggestions_status', 'none'),
+            )
+            pending_suggestion_action_ids = flush_result.get('pending_suggestion_action_ids', [])
             threading.Thread(
                 target=self._trigger_auto_actions,
                 args=(task.project_uuid, pending_suggestion_action_ids),
@@ -95,7 +107,7 @@ class AgentService:
                 'Skipping agent task without required linked ticket: '
                 'task_id=%s target=%s:%s event_type=%s',
                 task.task_id,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
                 task.trigger_event.event_type,
             )
@@ -105,14 +117,14 @@ class AgentService:
                     task,
                     run_id,
                     status='failed',
-                    items_processed=0,
                     error_message=str(error)[:1000],
+                    suggestions_status='failed',
                 )
             logger.exception(
                 'Agent task failed: task_id=%s project=%s target=%s:%s',
                 task.task_id,
                 task.project_uuid,
-                task.target_source_type,
+                task.target_item_type,
                 task.target_record_id,
             )
             raise
@@ -173,7 +185,7 @@ class AgentService:
                     logger.warning(
                         'Failed to load linked ticket %s for %s:%s; using the triggering record.',
                         linked_ticket_id,
-                        task.target_source_type,
+                        task.target_item_type,
                         task.target_record_id,
                         exc_info=True,
                     )
@@ -188,11 +200,11 @@ class AgentService:
     def _build_target_trace_context(self, task, target_record):
         source_id = self._source_id(task.target_connection_id, task.target_record_id)
         source_title = target_record.get('title', '')
-        return self._new_tracer(task, task.target_source_type, source_id, source_title), {
-            'source_type': task.target_source_type,
+        return self._new_tracer(task), {
+            'source_type': task.target_item_type,
             'source_id': source_id,
             'source_title': source_title,
-            'trigger_source_type': task.target_source_type,
+            'trigger_source_type': task.target_item_type,
             'trigger_source_id': source_id,
             'trigger_source_title': source_title,
             'target_record': target_record,
@@ -208,11 +220,11 @@ class AgentService:
             'record_id': linked_ticket_id,
         }
         source_title = linked_ticket_record.get('title', '')
-        return self._new_tracer(task, 'ticket', linked_ticket_id, source_title), {
+        return self._new_tracer(task), {
             'source_type': 'ticket',
             'source_id': linked_ticket_id,
             'source_title': source_title,
-            'trigger_source_type': task.target_source_type,
+            'trigger_source_type': task.target_item_type,
             'trigger_source_id': trigger_source_id,
             'trigger_source_title': trigger_source_title,
             'target_record': target_record,
@@ -221,24 +233,24 @@ class AgentService:
         }
 
     ##### Tracer & SeaDB record OP #####
-    def _new_tracer(self, task, source_type, source_id, source_title):
+    def _new_tracer(self, task):
         return AgentReACTTracer(
             task.project_uuid,
             self.app.seadb_service,
-            target_source_type=source_type,
-            target_source_id=source_id,
-            target_source_title=source_title,
         )
 
-    def _create_run_record(self, task):
+    def _create_run_record(self, task, *, owner_source_type, owner_source_id, owner_source_title):
         response = self.app.seadb_service.insert_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
             [{
                 'status': 'running',
+                'owner_source_type': owner_source_type,
+                'owner_source_id': str(owner_source_id) if owner_source_id is not None else '',
+                'owner_source_title': owner_source_title or '',
+                'suggestions_status': '',
                 'started_at': now_iso(),
-                'items_processed': 0,
-                'events': json.dumps(task.trigger_event.event, ensure_ascii=False),
+                'event': json.dumps(task.trigger_event.event, ensure_ascii=False),
             }],
         )
         pks = response.get('pks', [])
@@ -246,18 +258,26 @@ class AgentService:
             raise RuntimeError(f'Expected one agent run record, received {len(pks)}')
         return pks[0]
 
-    def _finalize_run_record(self, task, run_id, *, status, items_processed, error_message=''):
+    def _finalize_run_record(
+        self,
+        task,
+        run_id,
+        *,
+        status,
+        error_message='',
+        suggestions_status='',
+    ):
         self.app.seadb_service.update_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
             [{'pk': run_id, 'row': {
                 'status': status,
                 'finished_at': now_iso(),
-                'items_processed': items_processed,
                 'error_message': error_message,
+                'suggestions_status': suggestions_status,
             }}],
         )
-        if status == 'completed' and task.target_source_type == 'ticket':
+        if status == 'completed' and task.target_item_type == 'ticket':
             self.app.seadb_service.update_rows(
                 task.project_uuid,
                 SchemaTables.TICKETS.table_name(),

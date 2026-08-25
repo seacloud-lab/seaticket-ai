@@ -44,18 +44,18 @@ class AgentActionRecorder:
         tool_arguments,
         observation,
         suggestion_reason='',
-        suggestion_text='',
+        suggestion_title='',
         suggestion_content='',
-        sources=None,
+        references=None,
         statistics=''
     ):
         """Insert a new agent_actions row. Returns _pk."""
-        if isinstance(sources, list):
-            sources_payload = json.dumps(sources, ensure_ascii=False)
-        elif isinstance(sources, str):
-            sources_payload = sources
+        if isinstance(references, list):
+            references_payload = json.dumps(references, ensure_ascii=False)
+        elif isinstance(references, str):
+            references_payload = references
         else:
-            sources_payload = '[]'
+            references_payload = '[]'
 
         if not isinstance(result, str):
             result = object_to_json_str(result)
@@ -125,9 +125,9 @@ class AgentActionRecorder:
             'observation': new_observation or '',
             'status': action_status,
             'suggestion_reason': suggestion_reason or '',
-            'suggestion_text': suggestion_text or '',
+            'suggestion_title': suggestion_title or '',
             'suggestion_content': suggestion_content or '',
-            'sources': sources_payload,
+            'references': references_payload,
             'statistics': statistics or '',
             'created_at': now_iso(),
         }

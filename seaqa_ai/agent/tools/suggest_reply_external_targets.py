@@ -3,7 +3,6 @@ from seaqa_ai.agent.utils.record_identity import record_identity_schema
 
 
 class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
-    suggestion_text = 'Send a reply'
     tool = {
         'type': 'function',
         'name': 'suggest_reply_external_targets',
@@ -41,6 +40,5 @@ class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
             suggestion_content=reply,
             targets=targets,
             suggestion_reason=reason,
-            suggestion_text='Send a reply to the linked external record',
             tool_name='suggest_reply',
         )

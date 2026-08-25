@@ -57,9 +57,9 @@ class SuggestModifyTypeTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest a more suitable issue type for this GitHub issue'
+    suggestion_title = 'Suggest a more suitable issue type for this GitHub issue'
 
-    def get_suggestion_text(self, **kwargs):
+    def get_suggestion_title(self, **kwargs):
         current = kwargs.get('current_issue_type', '')
         suggested = kwargs.get('suggested_type', '')
         if current:
@@ -122,9 +122,9 @@ class SuggestAssignLabelsTool(BaseAgentTool):
 
     action_type = 'suggestion'
     action_status = 'pending'
-    suggestion_text = 'Suggest assigning labels to this GitHub issue'
+    suggestion_title = 'Assign labels to this GitHub issue'
 
-    def get_suggestion_text(self, **kwargs):
+    def get_suggestion_title(self, **kwargs):
         labels = kwargs.get('suggested_labels') or []
         if not isinstance(labels, list):
             labels = []

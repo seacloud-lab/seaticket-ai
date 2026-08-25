@@ -18,7 +18,7 @@ class AgentTaskSerializer:
             'task_id': task.task_id,
             'project_uuid': task.project_uuid,
             'target': {
-                'source_type': task.target_source_type,
+                'source_type': task.target_item_type,
                 'record_id': task.target_record_id,
                 'connection_id': task.target_connection_id,
             },
@@ -58,7 +58,7 @@ class AgentTaskSerializer:
             schema_version=int(data['schema_version']),
             task_id=data['task_id'],
             project_uuid=data['project_uuid'],
-            target_source_type=target['source_type'],
+            target_item_type=target['source_type'],
             target_record_id=int(target['record_id']),
             target_connection_id=target.get('connection_id'),
             trigger_event=event,

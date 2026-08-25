@@ -415,12 +415,12 @@ class AgentReACT:
                                 tool_arguments=arguments,
                                 observation=observation, result=raw_result,
                                 statistics=statistics, trace_id=trace_id,
-                                source_type=target['source_type'],
-                                source_id=target['source_id'],
-                                source_title=target['source_title'],
+                                target_item_type=target['source_type'],
+                                target_item_id=target['source_id'],
+                                target_item_title=target['source_title'],
                                 suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
-                                suggestion_text=str(raw_result.get('suggestion_text', '') or ''),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
+                                suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
                             )
                     self._append_tool_output(tool_call, observation)
                     return True
@@ -636,15 +636,15 @@ class AgentReACT:
         self._trace(
             action_type=f'{phase}', action_status='completed', step=step,
             result=result, statistics=self._statistics(None, usage, retries),
-            sources=sources, with_input=True
+            references=sources, with_input=True
         )
         return result
 
     def _trace(self, *, action_type, action_status, step, result=None, tool_name=None,
                tool_arguments=None, observation=None, statistics=None,
-                suggestion_reason='', suggestion_text='', suggestion_content='',
-                source_type=None, source_id=None, source_title=None,
-                record_phase_context=False, trace_id=None, sources=None, with_input=False):
+                suggestion_reason='', suggestion_content='', suggestion_payload=None,
+                target_item_type=None, target_item_id=None, target_item_title=None,
+                record_phase_context=False, trace_id=None, references=None, with_input=False):
         if self.react_tracer is None:
             return None
         return self.react_tracer.record(
@@ -662,12 +662,12 @@ class AgentReACT:
             observation=observation,
             statistics=statistics,
             suggestion_reason=suggestion_reason,
-            suggestion_text=suggestion_text,
             suggestion_content=suggestion_content,
-            sources=sources,
-            source_type=source_type,
-            source_id=source_id,
-            source_title=source_title,
+            suggestion_payload=suggestion_payload,
+            references=references,
+            target_item_type=target_item_type,
+            target_item_id=target_item_id,
+            target_item_title=target_item_title,
             trace_id=trace_id,
         )
 

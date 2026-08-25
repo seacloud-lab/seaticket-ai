@@ -5,7 +5,6 @@ from seaqa_ai.utils.constants import AIScenario
 
 
 class SuggestCreateTicket(BasicAgentSuggestionTool):
-    suggestion_text = 'Create an internal ticket from this record'
     tool = {
         'type': 'function',
         'name': 'suggest_create_ticket',

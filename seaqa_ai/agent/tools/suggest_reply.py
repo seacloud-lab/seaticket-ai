@@ -2,7 +2,6 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 
 
 class SuggestReply(BasicAgentSuggestionTool):
-    suggestion_text = 'Send a reply'
     tool = {
         'type': 'function',
         'name': 'suggest_reply',
