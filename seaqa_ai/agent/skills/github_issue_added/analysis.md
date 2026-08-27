@@ -19,6 +19,12 @@ additional_output:
     description: >
       The issue type classified by Analysis from the issue title and body.
       Use one of Bug, Feature, or Question.
+  related_ticket:
+    type: integer
+    description: >
+      The internal ticket number this record should be linked to. Set a
+      positive ticket number only when recommending suggest_link_existing_ticket;
+      set 0 for every other recommendation.
 ====================
 ## Role And Scope
 - Classify and research one newly created GitHub issue.
@@ -73,8 +79,9 @@ additional_output:
 - **Never call `get_record`, suggestion tools, or any undeclared tool.**
 
 ## Required Output
-- Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, and `skip_handling`.
+- Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `related_ticket`, and `skip_handling`.
 - Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
+- Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
 - Never invent, alter, merge, or retain non-decisive reference labels.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.

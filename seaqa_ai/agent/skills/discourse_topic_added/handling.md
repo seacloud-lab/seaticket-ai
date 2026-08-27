@@ -23,7 +23,7 @@ tools:
 3. Create the one Analysis-selected primary suggestion:
     - For an Analysis-selected, evidence-supported reply, call `suggest_reply` with a non-empty reply and reason that address the topic's opening request. Include only selected supporting URLs.
     - For an Analysis-selected unresolved report or request, call `suggest_create_ticket` with a non-empty reason that preserves user facts and uncertainty.
-    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` observed by Analysis and a non-empty reason.
+    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 4. Record the actual outcome in the report.
 
 ## Decision Rules

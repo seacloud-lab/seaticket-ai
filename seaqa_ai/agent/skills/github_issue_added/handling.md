@@ -34,7 +34,7 @@ tools:
 6. Create the one Analysis-selected primary suggestion:
     - For Analysis-selected `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
     - For Analysis-selected `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.
-    - For Analysis-selected `suggest_link_existing_ticket`, pass a positive integer `related_ticket` observed by Analysis and a non-empty reason grounded in the same evidence.
+    - For Analysis-selected `suggest_link_existing_ticket`, pass the Analysis-provided positive integer `related_ticket` and a non-empty reason grounded in the same evidence; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 7. Record each attempted action and its separate actual outcome in the report.
 
 ## Decision Rules

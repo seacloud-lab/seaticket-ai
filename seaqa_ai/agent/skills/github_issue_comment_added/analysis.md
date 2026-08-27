@@ -8,6 +8,12 @@ additional_output:
   recommended_actions:
     items:
       enum: [suggest_reply, suggest_create_ticket, suggest_link_existing_ticket, suggest_notify_assignee, no_op]
+  related_ticket:
+    type: integer
+    description: >
+      The internal ticket number this record should be linked to. Set a
+      positive ticket number only when recommending suggest_link_existing_ticket;
+      set 0 for every other recommendation.
 ====================
 ## Role And Scope
 - Assess one newly added GitHub issue comment, not the entire issue history.
@@ -76,6 +82,7 @@ additional_output:
 
 ## Required Output
 - Return all required Analysis JSON fields.
+- Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
 - For an unlinked record, include exactly one primary recommended action.
 - For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
 - Use exact returned labels beside supported claims in `analysis_report`.

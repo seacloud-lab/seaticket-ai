@@ -25,7 +25,7 @@ tools:
     - When Analysis selects `Spam`, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its triage basis.
     - For an Analysis-selected reply, call `suggest_reply` with a non-empty courteous reply, Analysis-grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs.
     - For an Analysis-selected ticket, call `suggest_create_ticket` with a non-empty reason that preserves unresolved reported facts and uncertainty.
-    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` observed by Analysis and a non-empty reason.
+    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
