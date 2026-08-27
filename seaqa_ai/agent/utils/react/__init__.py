@@ -392,13 +392,20 @@ class AgentReACT:
                 started_at,
             )
 
+        self.tool_executor.thought_process.add_tool_calls_group()
         retries = []
         try:
             for retry in range(self.tool_call_max_retries + 1):
                 try:
                     raw_result = self.tool_executor.execute(tool_call)
                     observation = self._format_observation(raw_result)
-                    statistics = self._statistics(started_at, usage, response_retries + retries)
+                    tool_token_usage = self._pop_tool_token_usage()
+                    statistics = self._statistics(
+                        started_at,
+                        usage,
+                        response_retries + retries,
+                        tool_token_usage,
+                    )
                     suggestion_targets = self._get_suggestion_targets(raw_result)
                     if suggestion_targets is None:
                         self._trace(
@@ -438,10 +445,16 @@ class AgentReACT:
                         continue
                     raise
         except Exception as error:
+            tool_token_usage = self._pop_tool_token_usage()
             return self._record_tool_error(
                 tool_call, arguments, error, step, usage, response_retries + retries,
-                started_at,
+                started_at, tool_token_usage,
             )
+
+    def _pop_tool_token_usage(self):
+        if not self.tool_executor.thought_process.actions:
+            return {}
+        return self.tool_executor.thought_process.actions.pop().get('token_usage', {})
 
     def _get_suggestion_targets(self, result):
         if not isinstance(result, dict) or result.get('status') != 'pending':
@@ -489,7 +502,8 @@ class AgentReACT:
             return {}, TypeError('Tool arguments must be a JSON object.')
         return arguments, None
 
-    def _record_tool_error(self, tool_call, arguments, error, step, usage, retries, started_at):
+    def _record_tool_error(self, tool_call, arguments, error, step, usage, retries, started_at,
+                           tool_token_usage=None):
         tool_name = tool_call.get('name', '')
         error_details = self._classify_tool_error(error)
         observation = self._tool_error_observation(
@@ -501,7 +515,7 @@ class AgentReACT:
             action_type='error', action_status='failed', step=step,
             tool_name=tool_name, tool_arguments=arguments,
             observation=observation, result=str(error),
-            statistics=self._statistics(started_at, usage, retries),
+            statistics=self._statistics(started_at, usage, retries, tool_token_usage),
         )
         self._append_tool_output(tool_call, observation)
         return False
@@ -682,8 +696,11 @@ class AgentReACT:
         return str(result).strip()
 
     @staticmethod
-    def _statistics(started_at, usage, retries):
+    def _statistics(started_at, usage, retries, tool_token_usage=None):
         statistics = dict(usage or {})
+        for key in ('input_tokens', 'output_tokens', 'total_tokens'):
+            if tool_token_usage and tool_token_usage.get(key):
+                statistics[key] = statistics.get(key, 0) + tool_token_usage[key]
         if retries:
             statistics['retries'] = retries
         if started_at is not None:
