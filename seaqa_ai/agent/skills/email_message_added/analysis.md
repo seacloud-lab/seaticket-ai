@@ -7,7 +7,7 @@ tools:
 additional_output:
   recommended_actions:
     items:
-      enum: [suggest_reply, suggest_create_ticket, suggest_notify_assignee, no_op]
+      enum: [suggest_reply, suggest_create_ticket, suggest_link_existing_ticket, suggest_notify_assignee, no_op]
 ====================
 ## Role And Scope
 - Assess one newly added email message and select a reply, linked-ticket follow-up, or an independent ticket proposal.
@@ -43,6 +43,7 @@ additional_output:
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - An unresolved follow-up within the same reported problem is not independent merely because it is a new message.
 - Create a ticket only when the new message introduces a separate problem absent from the parent thread.
+- When the thread is not linked and evidence shows the same concrete work is already tracked by another internal ticket, recommend `suggest_link_existing_ticket` instead of `suggest_create_ticket`.
 - When uncertainty is between a helpful supported reply and a duplicate ticket, prefer the reply.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.

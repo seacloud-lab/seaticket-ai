@@ -7,7 +7,7 @@ tools:
 additional_output:
   recommended_actions:
     items:
-      enum: [suggest_reply, suggest_create_ticket, suggest_notify_assignee, no_op]
+      enum: [suggest_reply, suggest_create_ticket, suggest_link_existing_ticket, suggest_notify_assignee, no_op]
 ====================
 ## Role And Scope
 - Analyze one newly added Discourse comment and choose a justified follow-up.
@@ -46,6 +46,7 @@ additional_output:
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - When uncertain, prefer a supported suggestion.
 - When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
+- When the topic is not linked and evidence shows the same concrete work is already tracked by another internal ticket, recommend `suggest_link_existing_ticket` instead of `suggest_create_ticket`.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering topic needs a visible acknowledgement, clarification, or supported status response.
 - Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
