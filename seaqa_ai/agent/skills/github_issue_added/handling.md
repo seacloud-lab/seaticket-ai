@@ -30,7 +30,7 @@ tools:
    - `classified_issue_type` is passed.
    - A non-empty reason grounded in `analysis_report` is provided.
    - Neither value is inferred, normalized, or reclassified.
-5. For labels, pass one to three exact observed `available_labels` and a non-empty Analysis-grounded reason.
+5. For labels, pass the Analysis-provided `suggested_labels` output field (one to three exact observed `available_labels`) and a non-empty Analysis-grounded reason; if `suggested_labels` is empty or contains no exact observed `available_labels`, omit the call and report the constraint.
 6. Create the one Analysis-selected primary suggestion:
     - For Analysis-selected `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
     - For Analysis-selected `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.

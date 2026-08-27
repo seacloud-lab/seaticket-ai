@@ -19,6 +19,14 @@ additional_output:
     description: >
       The issue type classified by Analysis from the issue title and body.
       Use one of Bug, Feature, or Question.
+  suggested_labels:
+    type: array
+    items:
+      type: string
+    description: >
+      One to three exact observed available_labels to assign. Set them only
+      when recommending suggest_assign_labels; set an empty array for every
+      other recommendation.
   related_ticket:
     type: integer
     description: >
@@ -64,7 +72,7 @@ additional_output:
   - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
 - For issue metadata:
   - Add `suggest_modify_type` only with high confidence when the classified type differs substantively from the supplied type or the supplied type is empty.
-  - Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong.
+  - Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong, and list them in `suggested_labels`.
 
 ## Tool Rules
 - Only `issues_search` and `documents_search` are permitted.
@@ -79,8 +87,9 @@ additional_output:
 - **Never call `get_record`, suggestion tools, or any undeclared tool.**
 
 ## Required Output
-- Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `related_ticket`, and `skip_handling`.
+- Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `suggested_labels`, `related_ticket`, and `skip_handling`.
 - Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
+- Set `suggested_labels` to one to three exact observed `available_labels` only when recommending `suggest_assign_labels`; otherwise set it to an empty array. Never include `suggest_assign_labels` unless `suggested_labels` lists the proposed labels.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
 - Never invent, alter, merge, or retain non-decisive reference labels.
