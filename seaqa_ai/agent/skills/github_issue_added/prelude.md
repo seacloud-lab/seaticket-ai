@@ -1,6 +1,6 @@
 event: github_issue_added
 phase: prelude
-description: "Prepare factual context for a new unlinked GitHub issue."
+description: "Prepare factual context for a new GitHub issue."
 tools:
   - get_record
 ====================
@@ -33,6 +33,7 @@ tools:
 ## Required Output
 - **Return the required Prelude JSON output only.**
 - `event_summary` is factual and contains no recommendation.
+- `event_summary` is user-facing. Do not mention `unlinked`, Ticket association status, record loading or linking, or other internal workflow terms.
 - `event_related_records` contains the successfully loaded triggering issue first, followed only by successfully loaded, materially relevant records.
 - State when a usable target or event cannot be prepared; Analysis decides the next action.
 

@@ -53,6 +53,7 @@ For linked-`Ticket` events, use only successful `get_record` observations for th
 - For a creation event without separate new content, summarize the newly created record at a high level.
 - For a follow-up event, focus on the newly added or changed content. Do not let historical record details replace the event as the summary subject.
 - **Do not classify the issue, investigate root causes, plan searches, recommend handling actions, or write a reply.**
+- `event_summary` is user-facing. Do not mention internal workflow terminology, including `unlinked`, Ticket association status, record loading or linking, phase names, tool calls, or search strategy.
 - Do not include the event trigger time or timestamp. The frontend presents it separately.
 - Do not expose internal user email addresses or internal user IDs, including values ending in `@auth.local`. Use a supplied display name; if none is available, use a neutral role such as "assignee" or "internal member".
 </event_summary_rules>
