@@ -29,3 +29,4 @@ class SchemaTables:
     CONFLUENCE = SCHEMA.ConfluenceTable
     JIRA_ISSUES = SCHEMA.JiraIssuesTable
     JIRA_ISSUE_COMMENTS = SCHEMA.JiraIssueCommentsTable
+    FIREBASE_CRASH_ISSUES = SCHEMA.FirebaseCrashIssuesTable
