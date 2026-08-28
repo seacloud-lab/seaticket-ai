@@ -1,6 +1,6 @@
 event: discord_thread_added
 phase: prelude
-description: "Prepare factual context for a new unlinked Discord thread."
+description: "Prepare factual context for a new Discord thread."
 tools:
   - get_record
 ====================
@@ -32,6 +32,7 @@ tools:
 ## Required Output
 - **Return the required Prelude JSON output only.**
 - `event_summary` states the opening-message substance and any material context already present.
+- `event_summary` is user-facing. Do not mention `unlinked`, Ticket association status, record loading or linking, or other internal workflow terms.
 - `event_related_records` contains the successfully loaded triggering thread first, followed only by successfully loaded, materially relevant records.
 - State when a usable target or event cannot be prepared; Analysis decides the next action.
 
