@@ -4,6 +4,7 @@ description: "Create Analysis-selected follow-up suggestions for a new GitHub co
 tools:
   - suggest_reply
   - suggest_create_ticket
+  - suggest_link_existing_ticket
   - suggest_notify_assignee
 ====================
 ## Role And Scope
@@ -22,6 +23,7 @@ tools:
 2. Create the one Analysis-selected primary suggestion:
     - For an Analysis-selected reply, call `suggest_reply`. It targets the triggering GitHub issue, not the selected Ticket or another related record, and uses a non-empty reply and reason that address the new comment directly. Include only Analysis-selected supporting URLs.
     - For an independently selected problem, call `suggest_create_ticket`. It targets the triggering GitHub issue and uses a non-empty reason covering only the independent problem identified by Analysis.
+    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. For an Analysis-selected Ticket notification:
    - Call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket.
    - Use that Ticket as `target` with:
@@ -31,14 +33,14 @@ tools:
 4. Record each call or intentional omission in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply` or `suggest_create_ticket`, never both. Call `suggest_notify_assignee` only when Analysis independently selects it.
+- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one. Call `suggest_notify_assignee` only when Analysis independently selects it.
 - Do not turn a parent-issue recap into a response to the new comment.
 - Do not add a ticket for a problem Analysis did not call independent.
 - An omitted action remains omitted after a tool failure.
 - Pending suggestion creation is not evidence of public delivery or completion.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_notify_assignee` are permitted.
+- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
 - Do not call `get_record`, search, or undeclared tools.
 - Invoke only the exact suggestion tool selected by Analysis.
 - Do not retry, substitute an action, or seek new evidence.

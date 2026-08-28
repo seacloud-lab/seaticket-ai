@@ -95,8 +95,8 @@ def _validate_skill(skill, event, phase):
     tool_names = metadata.get('tools')
     if not isinstance(tool_names, list) or not all(isinstance(name, str) for name in tool_names):
         raise ValueError(f'Skill {event}/{phase} tools must be a string array')
-    if phase != 'prelude' and 'get_record' in tool_names:
-        raise ValueError(f'Only prelude skills may use get_record: {event}/{phase}')
+    if phase not in ('prelude', 'analysis') and 'get_record' in tool_names:
+        raise ValueError(f'Only prelude and analysis skills may use get_record: {event}/{phase}')
 
 def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compact related Ticket changes while retaining their first-seen order."""

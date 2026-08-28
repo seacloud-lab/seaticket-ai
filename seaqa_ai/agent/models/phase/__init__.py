@@ -60,8 +60,10 @@ class AgentPhaseSpec:
         tool_names = metadata.get('tools', [])
         if not isinstance(tool_names, list) or not all(isinstance(name, str) for name in tool_names):
             raise ValueError(f'Skill {self.event}/{self.phase} has invalid tools metadata')
-        if self.phase != 'prelude' and 'get_record' in tool_names:
-            raise ValueError(f'Only prelude skills may use get_record: {self.event}/{self.phase}')
+        if self.phase not in ('prelude', 'analysis') and 'get_record' in tool_names:
+            raise ValueError(
+                f'Only prelude and analysis skills may use get_record: {self.event}/{self.phase}'
+            )
         tools_map = get_tools_map()
         unknown_tools = sorted(set(tool_names) - set(tools_map))
         if unknown_tools:

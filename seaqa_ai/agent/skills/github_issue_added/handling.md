@@ -6,6 +6,7 @@ tools:
   - suggest_assign_labels
   - suggest_reply
   - suggest_create_ticket
+  - suggest_link_existing_ticket
 ====================
 ## Role And Scope
 - Create only pending GitHub suggestions explicitly selected by completed Analysis.
@@ -29,14 +30,15 @@ tools:
    - `classified_issue_type` is passed.
    - A non-empty reason grounded in `analysis_report` is provided.
    - Neither value is inferred, normalized, or reclassified.
-5. For labels, pass one to three exact observed `available_labels` and a non-empty Analysis-grounded reason.
+5. For labels, pass the Analysis-provided `suggested_labels` output field (one to three exact observed `available_labels`) and a non-empty Analysis-grounded reason; if `suggested_labels` is empty or contains no exact observed `available_labels`, omit the call and report the constraint.
 6. Create the one Analysis-selected primary suggestion:
     - For Analysis-selected `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
     - For Analysis-selected `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.
+    - For Analysis-selected `suggest_link_existing_ticket`, pass the Analysis-provided positive integer `related_ticket` and a non-empty reason grounded in the same evidence; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 7. Record each attempted action and its separate actual outcome in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply` or `suggest_create_ticket`, never both.
+- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
 - Metadata-tool results must not alter the Analysis-selected primary action.
 - Type modification requires:
   - Explicit selection by Analysis.
