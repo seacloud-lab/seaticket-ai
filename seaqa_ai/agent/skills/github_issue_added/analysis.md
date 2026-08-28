@@ -4,6 +4,7 @@ description: "Classify and research a new GitHub issue."
 tools:
   - issues_search
   - documents_search
+  - get_record
 additional_output:
   recommended_actions:
     items:
@@ -45,7 +46,7 @@ additional_output:
 - Treat the successful passive issue observation as immutable input.
 - Use `event_summary` and successful `get_record` tool observations for target identity and factual context, not as a substitute for source facts.
 - Use supplied `issue_type`, `labels`, and `available_labels` without inventing values.
-- Do not refresh records, inspect external records directly, or invoke suggestions.
+- Do not refresh records, inspect external records directly, or invoke suggestions; retrieving a candidate internal ticket for link verification is the only permitted record retrieval.
 - Never use information from a search result unless its returned label is available for citation.
 
 ## Required Steps
@@ -66,7 +67,8 @@ additional_output:
   - Recommend `suggest_reply` only for a direct supported answer or a clearly tracked case with a usable URL.
   - A known case requires strong overlap in symptom, requested capability, or root problem.
   - General topical similarity, a shared product area, or a matching keyword is insufficient.
-  - Recommend `suggest_link_existing_ticket` when strong evidence shows the same concrete work is already tracked by an existing internal ticket.
+  - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
+  - A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
   - A related Ticket prevents `suggest_create_ticket` only when its successfully observed content clearly tracks the same concrete work.
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the issue.
   - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
@@ -75,16 +77,17 @@ additional_output:
   - Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong, and list them in `suggested_labels`.
 
 ## Tool Rules
-- Only `issues_search` and `documents_search` are permitted.
+- Only `issues_search`, `documents_search`, and `get_record` are permitted.
+- Call `get_record` only to verify a candidate internal ticket before recommending `suggest_link_existing_ticket`: load the ticket with source type `ticket` and the candidate ticket number, then confirm its content tracks the same concrete work. Verify at most two candidate tickets.
 - For `Bug` or `Feature`, call `issues_search` first.
 - For `Question`, call `documents_search` first.
 - Use the other search tool only when the first leaves material decision uncertainty.
 - Use distinctive symptoms, version, product area, or requested capability in non-duplicate queries.
 - Refine a follow-up query only to resolve a stated gap by adding a distinctive symptom, version, affected component, exact error, or configuration term. Do not repeat the same semantic query with superficial wording changes.
-- **The total combined budget is eight tool calls.**
+- **The total combined budget is eight tool calls, including ticket-verification `get_record` calls.**
 - Stop immediately when evidence supports a concrete outcome.
 - Also stop after two consecutive searches with no material evidence gain, at budget exhaustion, or when further search cannot change the choice.
-- **Never call `get_record`, suggestion tools, or any undeclared tool.**
+- **Never call suggestion tools or any undeclared tool, and never call `get_record` outside candidate-ticket verification.**
 
 ## Required Output
 - Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `suggested_labels`, `related_ticket`, and `skip_handling`.
@@ -99,7 +102,8 @@ additional_output:
 - Explain classification, evidence, omissions, and uncertainty in `analysis_report`.
 
 ## Forbidden Behavior
-- Do not call `get_record` or any suggestion tool.
+- Do not call any suggestion tool, and do not call `get_record` except to verify a candidate internal ticket for `suggest_link_existing_ticket`.
+- Do not set `related_ticket` from a `linked_ticket` number alone without verifying that ticket's content.
 - Do not search with secrets, private contact data, credentials, tokens, or unredacted sensitive content.
 - Do not present a weak match as a duplicate or direct answer.
 - Do not invent labels or propose labels outside observed `available_labels`.
