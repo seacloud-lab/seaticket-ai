@@ -34,6 +34,14 @@ class SuggestLinkExistingTicket(BasicAgentSuggestionTool):
             raise ValueError('related_ticket must be a positive integer') from error
         if related_ticket <= 0:
             raise ValueError('related_ticket must be a positive integer')
+        self._loaded_target(
+            {
+                'source_type': 'ticket',
+                'source_id': related_ticket,
+            },
+            context,
+            required_source_type='ticket',
+        )
         return self.suggestion_result(
             context=context,
             targets=[self._target_from_trigger_context(context)],
