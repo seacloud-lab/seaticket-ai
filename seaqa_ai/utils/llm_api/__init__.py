@@ -34,6 +34,7 @@ class BasicLLMAPI:
                 },
                 'org_id': context.get('org_id'),
                 'project_uuid': context.get('project_uuid'),
+                'session_uuid': context.get('session_uuid'),
                 'scenario': context.get('scenario', AIScenario.UNKNOWN.value),
             }))
         except Exception as e:
