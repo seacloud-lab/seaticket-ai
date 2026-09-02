@@ -43,6 +43,7 @@ additional_output:
 
 ## Input Contract
 - Use only records returned by successful passive observations, `triggering_event`, `event_summary`, and search observations made in this phase.
+- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_record`.
 - Treat the successful passive issue observation as immutable input.
 - Use `event_summary` and successful `get_record` tool observations for target identity and factual context, not as a substitute for source facts.
 - Use supplied `issue_type`, `labels`, and `available_labels` without inventing values.
@@ -51,8 +52,8 @@ additional_output:
 
 ## Required Steps
 1. Confirm `event_summary`, `triggering_event`, and successful `get_record` tool observations identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` to `true`.
-2. Read title and body, then assess current issue state and later comments for progress after the opening issue.
-3. Because this event has no opening-comment identity, current issue state or comments cannot by themselves establish that the opening issue is stale. Use them as context; recommend `no_op` without searching only when their concrete content establishes an answer, resolution, closure, or next step requiring no agent-written follow-up.
+2. Read the title and event issue body, then assess current issue context for later progress.
+3. This event has no opening-comment identity. Current issue context alone cannot establish that the event issue body is stale. Use current issue context only as supporting evidence; recommend `no_op` without searching only when concrete current comments or state establish an answer, resolution, closure, or next step requiring no agent-written follow-up.
 4. Record the supplied `issue_type` exactly as `original_issue_type`, then set `classified_issue_type` from the applicable unresolved request:
    - Use `Bug` for broken, failed, incorrect, or unexpected behavior.
    - Use `Feature` for a requested unavailable capability.

@@ -11,17 +11,19 @@ tools:
 
 ## Input Contract
 - Read `triggering_event` and `get_record` observations.
+- The event opening email is `triggering_event.event.new_value`. The current latest email is `get_record.content.latest_email`.
 - Thread fields may include title, first email, recent emails, and unread state.
 - The first email remains primary; recipient lists are normally unnecessary.
 - Do not infer a relationship from sender identity, text, URLs, or apparent similarity.
 
 ## Required Steps
 1. Confirm the triggering thread and opening email are usable.
-2. Use `event.new_value` as the opening email only when it has a usable `message_id` and `content`. Determine that it is stale only when both its `message_id` and `content.latest_email.message_id` are present and differ. If the event payload does not identify a usable opening email or either identifier is unavailable, state that freshness cannot be verified; use the earliest available email and latest email from `get_record` only as factual context.
-3. Preserve automated wording as factual context.
-4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
-5. Set `event_related_records` to the successfully loaded triggering thread only.
-6. Leave the subsequent workflow phases enabled for a usable event.
+2. Use the event opening email only when it has a usable `message_id` and `content`. Treat the event opening email as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_email.message_id` are both present and differ.
+3. If the event payload does not identify a usable opening email, or either message ID is unavailable, state that whether the event opening email is still current cannot be verified. Use the earliest available email and current latest email from `get_record` only as factual context; do not call the event opening email stale.
+4. Preserve automated wording as factual context.
+5. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
+6. Set `event_related_records` to the successfully loaded triggering thread only.
+7. Leave the subsequent workflow phases enabled for a usable event.
 
 ## Decision Rules
 - This event represents a newly created, unlinked thread. Do not infer a related identity from a relationship field, sender identity, text, URL, or apparent similarity.

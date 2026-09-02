@@ -22,21 +22,24 @@ additional_output:
 
 ## Input Contract
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
+- The event opening message is `triggering_event.event.new_value`. The current latest message is `get_record.content.latest_message`.
 - Treat opening-message content as immutable primary evidence.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
 1. Confirm the thread is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable thread and opening message, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read title and opening message, then compare it with the current latest message only when both message IDs are present. If either ID is unavailable, freshness cannot be verified and later context must not by itself make the opening request stale.
-4. When both message IDs show that later progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
-5. Choose the initial search tool from the applicable concrete request:
+3. Read the title and the event opening message. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_message.message_id` are both present and differ.
+4. If either message ID is unavailable, do not infer that the event opening message is stale from the current latest message, content, author, or timestamps. Analyze the event opening message under the normal rules.
+5. If the event opening message is stale and the current latest message gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
+6. If the event opening message is stale and the current latest message still contains an unresolved request, analyze the current latest message. Do not produce a reply to the event opening message.
+7. Choose the initial search tool from the applicable concrete request:
    - Start with `issues_search` for reported failures, regressions, requested capabilities, or tracked work.
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.
-6. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
-7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-8. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
-9. Explain uncertainty clearly without claiming an unverified root cause.
+8. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
+9. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
+10. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
+11. Explain uncertainty clearly without claiming an unverified root cause.
 
 ## Decision Rules
 - A tracked-case reply requires strong matching symptoms, request, or root problem and a usable URL.

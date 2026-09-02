@@ -23,6 +23,7 @@ additional_output:
 
 ## Input Contract
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
+- The event opening post is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
 - Treat first-post content as immutable primary evidence.
 - Use the topic's resolved state as context, not as a shortcut to an action.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
@@ -30,15 +31,17 @@ additional_output:
 ## Required Steps
 1. Confirm the topic is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable topic and opening post, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read title and first post, then compare it with the current latest comment only when both post numbers are present. If either ID is unavailable, freshness cannot be verified and later context must not by itself make the opening request stale.
-4. When both post numbers show that later progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
-5. Choose the initial search tool from the applicable concrete request:
+3. Read the title and the event opening post. Treat the event opening post as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ.
+4. If either post number is unavailable, do not infer that the event opening post is stale from the current latest comment, content, author, or timestamps. Analyze the event opening post under the normal rules.
+5. If the event opening post is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
+6. If the event opening post is stale and the current latest comment still contains an unresolved request, analyze the current latest comment. Do not produce a reply to the event opening post.
+7. Choose the initial search tool from the applicable concrete request:
    - Start with `issues_search` for reported failures, regressions, requested capabilities, or tracked work.
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.
-6. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
-7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-8. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
-9. Explain the Discourse-specific context and uncertainty without assigning GitHub labels or type changes.
+8. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
+9. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
+10. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
+11. Explain the Discourse-specific context and uncertainty without assigning GitHub labels or type changes.
 
 ## Decision Rules
 - **A resolved Discourse topic is not automatically `no_op`** and does not remove the need to analyze the opening post.
