@@ -30,14 +30,15 @@ additional_output:
 ## Required Steps
 1. Confirm the topic is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable topic and opening post, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read title and first post and identify the primary requested outcome.
-4. Choose the initial search tool from the concrete request:
+3. Read title and first post, then compare it with the current latest comment.
+4. When later progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
+5. Choose the initial search tool from the applicable concrete request:
    - Start with `issues_search` for reported failures, regressions, requested capabilities, or tracked work.
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.
-5. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
-6. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-7. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
-8. Explain the Discourse-specific context and uncertainty without assigning GitHub labels or type changes.
+6. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
+7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
+8. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
+9. Explain the Discourse-specific context and uncertainty without assigning GitHub labels or type changes.
 
 ## Decision Rules
 - **A resolved Discourse topic is not automatically `no_op`** and does not remove the need to analyze the opening post.

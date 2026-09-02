@@ -17,7 +17,7 @@ tools:
 
 ## Required Steps
 1. Confirm the triggering issue and its opening content are usable.
-2. Extract only the factual request, report, or observed behavior stated in the issue title and body.
+2. Use `event.new_value` as the opening issue. If the current issue state or comments show later progress, state that the opening request may be stale and summarize the current latest progress as well.
 3. Preserve supplied visible state, labels, and issue type without evaluating them.
 4. Keep the triggering issue primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering issue only.

@@ -17,7 +17,7 @@ tools:
 
 ## Required Steps
 1. Confirm the triggering thread and opening message are usable.
-2. Extract only the factual request or reported behavior stated in the opening message.
+2. Use `event.new_value` as the opening message. If `content.latest_message.message_id` differs from `event.new_value.message_id`, state that the opening request is stale and summarize the current latest progress as well.
 3. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
 4. Set `event_related_records` to the successfully loaded triggering thread only.
 5. Write a neutral factual summary and leave subsequent workflow phases enabled for a usable event.

@@ -51,16 +51,17 @@ additional_output:
 
 ## Required Steps
 1. Confirm `event_summary`, `triggering_event`, and successful `get_record` tool observations identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` to `true`.
-2. Read title and body and identify the primary requested outcome.
-3. Record the supplied `issue_type` exactly as `original_issue_type`, then set `classified_issue_type` from the title and body:
+2. Read title and body, then assess current issue state and later comments for progress after the opening issue.
+3. When current progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
+4. Record the supplied `issue_type` exactly as `original_issue_type`, then set `classified_issue_type` from the applicable unresolved request:
    - Use `Bug` for broken, failed, incorrect, or unexpected behavior.
    - Use `Feature` for a requested unavailable capability.
    - Use `Question` for explanation, configuration, documentation, or how-to requests.
    - For mixed content, prefer Bug, then Feature, then Question.
-4. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
-5. Evaluate each result for direct relevance and retain only decisive evidence.
-6. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-7. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports Analysis-selected type-change suggestions.
+5. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
+6. Evaluate each result for direct relevance and retain only decisive evidence.
+7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
+8. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports Analysis-selected type-change suggestions.
 
 ## Decision Rules
 - For the primary action:

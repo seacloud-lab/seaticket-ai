@@ -17,7 +17,7 @@ tools:
 
 ## Required Steps
 1. Confirm the triggering thread and opening email are usable.
-2. State only the factual request, report, or notice in the opening email.
+2. Use `event.new_value` as the opening email. Compare it with `content.latest_email`; if the latest email differs, state that the opening request is stale and summarize the current latest progress as well.
 3. Preserve automated wording as factual context.
 4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering thread only.
@@ -25,6 +25,7 @@ tools:
 
 ## Decision Rules
 - This event represents a newly created, unlinked thread. Do not infer a related identity from a relationship field, sender identity, text, URL, or apparent similarity.
+- Use `is_sender` to describe email direction: `false` is the other party and `true` is our side. Do not infer direction from addresses.
 
 ## Context Rules
 - Do not treat an inferred identity as factual context.
