@@ -16,8 +16,8 @@ tools:
 
 ## Required Steps
 1. Confirm the parent topic and new comment are usable.
-2. Compare `event.new_value.post_number` with `content.latest_comment.post_number`. If they differ, the trigger has been superseded by a later comment; state that fact and summarize the current latest progress as well as the triggering comment.
-3. Keep `event.new_value` primary as the original trigger. When superseded, do not present it as the current latest request.
+2. Compare `event.new_value.post_number` with `content.latest_comment.post_number`. If they differ, the trigger is stale because the topic has a later comment; state that fact and summarize the current latest progress as well as the triggering comment.
+3. Keep `event.new_value` primary as the original trigger. When stale, do not present it as the current latest request.
 4. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent topic first.
 5. State missing comment or target identity factually in `event_summary`.
 

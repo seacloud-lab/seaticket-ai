@@ -31,9 +31,9 @@ additional_output:
 ## Required Steps
 1. Confirm the new message and parent thread are usable.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Compare `event.new_value.message_id` with `content.latest_email.message_id`. When they differ, assess the current latest unresolved request rather than mechanically replying to the superseded trigger.
-4. For a superseded trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
-5. For a superseded trigger whose latest email still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
+3. Compare `event.new_value.message_id` with `content.latest_email.message_id`. When they differ, the trigger is stale; assess the current latest unresolved request rather than mechanically replying to it.
+4. For a stale trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
+5. For a stale trigger whose latest email still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
 6. If the message IDs are unavailable, do not infer supersession from content, sender, or timestamps; analyze the triggering message under the normal rules.
 7. An outgoing trigger (`is_sender: true`) must not produce an external reply suggestion. Consider only an unresolved latest incoming request or a material linked-ticket follow-up.
 8. Identify whether the applicable unresolved message asks a question, reports a problem, requests capability, or supplies relevant clarification without using sender identity, role, or permissions (e.g., employee, staff, support agent, administrator, or organization member) as a decision rule.
@@ -49,8 +49,8 @@ additional_output:
 
 ## Decision Rules
 - A reply must directly address the new email or link a strongly matching tracked case with a usable URL.
-- If an incoming trigger is superseded by a later outgoing email that materially addresses it, use `no_op`; if the outgoing email does not address the unresolved matter, assess the latest message instead.
-- If a later incoming email supersedes the trigger, assess that latest incoming request rather than duplicate work for the older email.
+- If an incoming trigger is stale because a later outgoing email materially addresses it, use `no_op`; if the outgoing email does not address the unresolved matter, assess the latest message instead.
+- If a later incoming email makes the trigger stale, assess that latest incoming request rather than duplicate work for the older email.
 - Weakly related results, matching product names, and generic documentation are not direct evidence.
 - Use `no_op` only when the message itself provides a concrete answer or workaround.
 - It may also be `no_op` for a clear duplicate, redirect, closure outcome, or explicit next step requiring no agent-written reply.

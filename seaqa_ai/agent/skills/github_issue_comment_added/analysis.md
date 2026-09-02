@@ -30,9 +30,9 @@ additional_output:
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable comment and parent issue.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Compare `event.new_value.comment_id` with `content.latest_comment.comment_id`. When they differ, assess the current latest unresolved request rather than mechanically replying to the superseded trigger.
-4. For a superseded trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
-5. For a superseded trigger whose latest comment still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
+3. Compare `event.new_value.comment_id` with `content.latest_comment.comment_id`. When they differ, the trigger is stale; assess the current latest unresolved request rather than mechanically replying to it.
+4. For a stale trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
+5. For a stale trigger whose latest comment still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
 6. If either comment ID is unavailable, do not infer supersession from content, author, or timestamps; analyze the triggering comment under the normal rules.
 7. Identify whether the applicable unresolved comment asks a new question, provides an answer, reports a problem, or requests tracking without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
 8. Check the strict `no_op` boundary against the applicable unresolved comment.
@@ -47,7 +47,7 @@ additional_output:
 
 ## Decision Rules
 - Use `no_op` only when this new comment itself supplies a concrete answer or workaround.
-- When the trigger is superseded, use `no_op` if later comments already provide a concrete answer, resolution, closure, or next step; otherwise assess the latest unresolved comment.
+- When the trigger is stale, use `no_op` if later comments already provide a concrete answer, resolution, closure, or next step; otherwise assess the latest unresolved comment.
 - It may also be `no_op` for:
   - A clear duplicate.
   - A redirect.

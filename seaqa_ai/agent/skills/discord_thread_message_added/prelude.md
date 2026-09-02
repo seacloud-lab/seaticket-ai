@@ -16,8 +16,8 @@ tools:
 
 ## Required Steps
 1. Confirm the parent thread and new message are usable.
-2. Compare `event.new_value.message_id` with `content.latest_message.message_id`. If they differ, the trigger has been superseded by a later message; state that fact and summarize the current latest progress as well as the triggering message.
-3. **Keep `event.new_value` primary as the original trigger. When superseded, do not present it as the current latest request.**
+2. Compare `event.new_value.message_id` with `content.latest_message.message_id`. If they differ, the trigger is stale because the thread has a later message; state that fact and summarize the current latest progress as well as the triggering message.
+3. **Keep `event.new_value` primary as the original trigger. When stale, do not present it as the current latest request.**
 4. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent thread first.
 5. State missing message or target identity factually in `event_summary`.
 

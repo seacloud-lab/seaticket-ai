@@ -9,7 +9,7 @@ tools:
 ====================
 ## Role And Scope
 - Create pending suggestions only for independently selected actions on a new Discourse comment.
-- The reply or ticket must concern the Analysis-selected current unresolved comment, not a generic topic summary or a superseded trigger.
+- The reply or ticket must concern the Analysis-selected current unresolved comment, not a generic topic summary or a stale trigger.
 - Analysis is the sole authority for action selection.
 
 ## Input Contract
@@ -36,7 +36,7 @@ tools:
 ## Decision Rules
 - Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one. Call `suggest_notify_assignee` only when Analysis independently selects it.
 - Do not treat a generic topic answer as a response to a new specific question.
-- When Analysis identifies a superseded trigger, do not reply to the older comment; address only the current unresolved comment selected by Analysis.
+- When Analysis identifies a stale trigger, do not reply to the older comment; address only the current unresolved comment selected by Analysis.
 - Do not add a ticket for a problem already covered by the topic.
 - Do not include internal evidence or non-selected links.
 - A failed Analysis-selected call does not permit retry, substitution, or extra action.
