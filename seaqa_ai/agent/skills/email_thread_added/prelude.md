@@ -17,7 +17,7 @@ tools:
 
 ## Required Steps
 1. Confirm the triggering thread and opening email are usable.
-2. Use `event.new_value` as the opening email. Compare it with `content.latest_email`; if the latest email differs, state that the opening request is stale and summarize the current latest progress as well.
+2. Use `event.new_value` as the opening email only when it has a usable `message_id` and `content`. Determine that it is stale only when both its `message_id` and `content.latest_email.message_id` are present and differ. If the event payload does not identify a usable opening email or either identifier is unavailable, state that freshness cannot be verified; use the earliest available email and latest email from `get_record` only as factual context.
 3. Preserve automated wording as factual context.
 4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering thread only.

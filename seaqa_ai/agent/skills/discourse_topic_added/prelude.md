@@ -17,7 +17,7 @@ tools:
 
 ## Required Steps
 1. Confirm the triggering topic and opening post are usable.
-2. Use `event.new_value` as the opening post. If `content.latest_comment.post_number` differs from `event.new_value.post_number`, state that the opening request is stale and summarize the current latest progress as well.
+2. Use `event.new_value` as the opening post only when it has a usable `post_number` and `content`. Determine that it is stale only when both its `post_number` and `content.latest_comment.post_number` are present and differ. If either identifier is unavailable, state that freshness cannot be verified and summarize the available opening and latest context factually.
 3. Preserve supplied resolution state without treating it as closure or sufficiency.
 4. Keep the triggering topic primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering topic only.

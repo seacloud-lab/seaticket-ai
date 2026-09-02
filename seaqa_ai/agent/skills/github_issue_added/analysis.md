@@ -52,7 +52,7 @@ additional_output:
 ## Required Steps
 1. Confirm `event_summary`, `triggering_event`, and successful `get_record` tool observations identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` to `true`.
 2. Read title and body, then assess current issue state and later comments for progress after the opening issue.
-3. When current progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
+3. Because this event has no opening-comment identity, current issue state or comments cannot by themselves establish that the opening issue is stale. Use them as context; recommend `no_op` without searching only when their concrete content establishes an answer, resolution, closure, or next step requiring no agent-written follow-up.
 4. Record the supplied `issue_type` exactly as `original_issue_type`, then set `classified_issue_type` from the applicable unresolved request:
    - Use `Bug` for broken, failed, incorrect, or unexpected behavior.
    - Use `Feature` for a requested unavailable capability.

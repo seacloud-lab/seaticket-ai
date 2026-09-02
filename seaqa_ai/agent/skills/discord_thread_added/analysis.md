@@ -28,8 +28,8 @@ additional_output:
 ## Required Steps
 1. Confirm the thread is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable thread and opening message, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read title and opening message, then compare it with the current latest message.
-4. When later progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
+3. Read title and opening message, then compare it with the current latest message only when both message IDs are present. If either ID is unavailable, freshness cannot be verified and later context must not by itself make the opening request stale.
+4. When both message IDs show that later progress makes the opening request stale, use `no_op` without searching if it provides a concrete answer, resolution, closure, or next step requiring no agent-written follow-up. Otherwise analyze only the current latest unresolved request.
 5. Choose the initial search tool from the applicable concrete request:
    - Start with `issues_search` for reported failures, regressions, requested capabilities, or tracked work.
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.

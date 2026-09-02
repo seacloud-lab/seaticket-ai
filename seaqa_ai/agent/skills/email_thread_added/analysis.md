@@ -31,8 +31,8 @@ additional_output:
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable new thread.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable thread and opening email, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read the opening subject and message to identify its primary purpose. Compare it with the current latest email.
-4. When later mail makes the opening request stale, use `no_op` without searching if it gives a concrete answer, resolution, closure, or next step requiring no agent-written follow-up.
+3. Read the opening subject and message to identify its primary purpose. Compare it with the current latest email only when both message IDs are present. If the opening email payload or either ID is unavailable, freshness cannot be verified and later mail must not by itself make the opening request stale.
+4. When both message IDs show that later mail makes the opening request stale, use `no_op` without searching if it gives a concrete answer, resolution, closure, or next step requiring no agent-written follow-up.
 5. When later mail leaves an unresolved request, analyze only the current latest unresolved request and do not reply to the stale opening email.
 6. Check Spam and Notification definitions before treating the applicable request as support content.
 7. For `Spam`, do not search and recommend only `suggest_move_to_spam`.
