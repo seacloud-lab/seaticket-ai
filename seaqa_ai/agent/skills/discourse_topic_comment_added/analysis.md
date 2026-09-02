@@ -30,20 +30,25 @@ additional_output:
 ## Required Steps
 1. Verify `event_summary` and successful `get_record` tool observations identify a usable comment and parent topic.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify the comment's new question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
-4. Apply the strict `no_op` boundary before searching.
-5. Choose a first search tool only when evidence can support a decision.
-6. Search from the comment's concrete terms and retain only direct evidence.
-7. Stop under the defined budget and diminishing-return limits.
-8. Determine follow-up by linkage state:
+3. Compare `event.new_value.post_number` with `content.latest_comment.post_number`. When they differ, assess the current latest unresolved request rather than mechanically replying to the superseded trigger.
+4. For a superseded trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
+5. For a superseded trigger whose latest comment still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
+6. If either post number is unavailable, do not infer supersession from content, author, or timestamps; analyze the triggering comment under the normal rules.
+7. Identify the applicable unresolved comment's question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
+8. Apply the strict `no_op` boundary before searching.
+9. Choose a first search tool only when evidence can support a decision.
+10. Search from the applicable unresolved comment's concrete terms and retain only direct evidence.
+11. Stop under the defined budget and diminishing-return limits.
+12. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering topic independently.
    - Otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
-9. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
-10. Otherwise recommend `no_op` only under its strict boundary.
-11. Explain the decision with citations and state why an omitted action is not justified.
+13. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
+14. Otherwise recommend `no_op` only under its strict boundary.
+15. Explain the decision with citations and state why an omitted action is not justified.
 
 ## Decision Rules
 - Use `no_op` only when the comment itself provides a concrete answer or workaround.
+- When the trigger is superseded, use `no_op` if later comments already provide a concrete answer, resolution, closure, or next step; otherwise assess the latest unresolved comment.
 - It may also be `no_op` for:
   - A clear duplicate.
   - A redirect.

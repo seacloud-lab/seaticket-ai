@@ -17,13 +17,15 @@ tools:
 
 ## Required Steps
 1. Confirm the parent thread and new message are usable.
-2. Use the successful observations and summarize what the new message asks, reports, confirms, supplies, or acknowledges.
-3. Keep `event.new_value` primary; never replace it with an older mail or related context.
+2. Compare `event.new_value.message_id` with `content.latest_email.message_id`. If they differ, the trigger has been superseded by a later email; state that fact and summarize the current latest progress as well as the triggering message.
+3. Keep `event.new_value` primary as the original trigger. When superseded, do not present it as the current latest request.
 4. Set `event_related_records` to successfully loaded, materially relevant identities, with the thread first.
 5. State missing message or target identity factually in `event_summary`.
 
 ## Decision Rules
 - Sender identity, automation, recipients, thanks, or quoted history do not determine action.
+- `is_sender: false` identifies an incoming message from the other party; `is_sender: true` identifies an outgoing message from our side. Use the same field on `latest_email` to describe the direction of later progress.
+- If either message ID is unavailable, state that the current-message relationship cannot be verified; do not infer it from content, author, or timestamps.
 - Mail text, URLs, names, and apparent similarity cannot identify a related record.
 
 ## Context Rules

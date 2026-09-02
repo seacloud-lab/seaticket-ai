@@ -28,7 +28,7 @@ def github_issue_comments_query(table_name, limit_per_thread):
         table_name=table_name,
         thread_id_field='issue_id',
         order_by=('comment_id',),
-        select_fields='comment_id, author, content',
+        select_fields='comment_id, author, content, created_time, modified_time',
         limit_per_thread=limit_per_thread,
         has_deleted_field=False,
     )
@@ -50,7 +50,7 @@ def email_messages_query(table_name, limit_per_thread):
         table_name=table_name,
         thread_id_field='thread_id',
         order_by=('modified_time', 'message_id'),
-        select_fields='title, email_from, email_to, cc, content, message_id, modified_time',
+        select_fields='title, email_from, email_to, cc, content, message_id, modified_time, is_sender',
         limit_per_thread=limit_per_thread,
     )
 
@@ -71,7 +71,7 @@ def discord_thread_messages_query(table_name, limit_per_thread):
         table_name=table_name,
         thread_id_field='thread_id',
         order_by=('created_time', 'message_id'),
-        select_fields='message_id, author, content, created_time',
+        select_fields='message_id, author, content, created_time, modified_time',
         limit_per_thread=limit_per_thread,
         has_deleted_field=False,
     )

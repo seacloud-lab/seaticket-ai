@@ -226,16 +226,22 @@ class _RecordRetriever:
             bodies_by_thread_id=bodies_by_issue_id,
             budget=AGENT_CONTENT_BUDGET,
         )
-        for record_id, record in records_by_id.items():
+        for record in records_by_id.values():
             issue_content = content_by_issue_id[record['issue_id']]
             history_comments = [
-                self._format_message(message, ('author', 'content'))
+                self._format_message(message, ('comment_id', 'author', 'created_time', 'modified_time', 'content'))
                 for message in issue_content.history_messages
             ]
             if issue_content.has_omitted_messages:
-                history_comments.append({'author': None, 'content': MESSAGES_OMITTED_NOTICE})
+                history_comments.append({
+                    'comment_id': None, 'author': None, 'created_time': None,
+                    'modified_time': None, 'content': MESSAGES_OMITTED_NOTICE,
+                })
             record['content'] = {
-                'latest_comment': self._format_message(issue_content.latest_message, ('author', 'content')),
+                'latest_comment': self._format_message(
+                    issue_content.latest_message,
+                    ('comment_id', 'author', 'created_time', 'modified_time', 'content'),
+                ),
                 'content': issue_content.body,
                 'history_comments': history_comments,
             }
@@ -250,22 +256,26 @@ class _RecordRetriever:
         for record in records_by_id.values():
             topic_content = content_by_topic_id[record['topic_id']]
             history_comments = [
-                self._format_message(message, ('author', 'post_number', 'content'))
+                self._format_message(message, ('author', 'post_number', 'modified_time', 'content'))
                 for message in topic_content.history_messages
             ]
             if topic_content.has_omitted_messages:
                 history_comments.append({
-                    'author': None, 'post_number': None, 'content': MESSAGES_OMITTED_NOTICE,
+                    'author': None, 'post_number': None, 'modified_time': None,
+                    'content': MESSAGES_OMITTED_NOTICE,
                 })
             record['content'] = {
                 'latest_comment': self._format_message(
-                    topic_content.latest_message, ('author', 'post_number', 'content'),
+                    topic_content.latest_message, ('author', 'post_number', 'modified_time', 'content'),
                 ),
                 'history_comments': history_comments,
             }
 
     def _load_email_content(self, connection_id, records_by_id):
-        email_fields = ('title', 'email_from', 'email_to', 'cc', 'content')
+        email_fields = (
+            'message_id', 'modified_time', 'is_sender', 'title', 'email_from',
+            'email_to', 'cc', 'content',
+        )
         content_by_thread_id = self.app.seadb_service.get_thread_content(
             self.project_uuid,
             records_by_id.keys(),
@@ -280,6 +290,7 @@ class _RecordRetriever:
             ]
             if thread_content.has_omitted_messages:
                 history_emails.append({
+                    'message_id': None, 'modified_time': None, 'is_sender': None,
                     'title': None, 'email_from': None, 'email_to': None, 'cc': None,
                     'content': MESSAGES_OMITTED_NOTICE,
                 })
@@ -331,16 +342,18 @@ class _RecordRetriever:
         for record in records_by_id.values():
             thread_content = content_by_thread_id[record['thread_id']]
             history_messages = [
-                self._format_message(message, ('author', 'created_time', 'content'))
+                self._format_message(message, ('message_id', 'author', 'created_time', 'modified_time', 'content'))
                 for message in thread_content.history_messages
             ]
             if thread_content.has_omitted_messages:
                 history_messages.append({
-                    'author': None, 'created_time': None, 'content': MESSAGES_OMITTED_NOTICE,
+                    'message_id': None, 'author': None, 'created_time': None,
+                    'modified_time': None, 'content': MESSAGES_OMITTED_NOTICE,
                 })
             record['content'] = {
                 'latest_message': self._format_message(
-                    thread_content.latest_message, ('author', 'created_time', 'content'),
+                    thread_content.latest_message,
+                    ('message_id', 'author', 'created_time', 'modified_time', 'content'),
                 ),
                 'history_messages': history_messages,
             }

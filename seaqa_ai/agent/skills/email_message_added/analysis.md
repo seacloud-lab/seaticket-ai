@@ -31,19 +31,26 @@ additional_output:
 ## Required Steps
 1. Confirm the new message and parent thread are usable.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify whether the message asks a question, reports a problem, requests capability, or supplies relevant clarification without using sender identity, role, or permissions (e.g., employee, staff, support agent, administrator, or organization member) as a decision rule.
-4. Apply the strict `no_op` boundary against the message's own content before searching.
-5. Determine whether the message's issue is already covered by the existing thread.
-6. Choose `documents_search` first for documentation, configuration, explanation, or how-to content.
-7. Choose `issues_search` first for a bug, feature request, or product problem.
-8. Use focused terms from the new email, not generic thread subject text.
-9. Retain only direct-answer or strong tracked-case evidence.
-10. When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering thread independently; otherwise recommend `suggest_reply` for a direct answer, tracked case, or helpful supported partial response.
-11. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem.
-12. Explain why a ticket would not duplicate the existing thread.
+3. Compare `event.new_value.message_id` with `content.latest_email.message_id`. When they differ, assess the current latest unresolved request rather than mechanically replying to the superseded trigger.
+4. For a superseded trigger, recommend only `no_op` and skip Handling when later progress gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up. Do not search in that case.
+5. For a superseded trigger whose latest email still asks, reports, or confirms an unresolved matter, analyze that latest unresolved request. Do not produce a reply to the older trigger.
+6. If the message IDs are unavailable, do not infer supersession from content, sender, or timestamps; analyze the triggering message under the normal rules.
+7. An outgoing trigger (`is_sender: true`) must not produce an external reply suggestion. Consider only an unresolved latest incoming request or a material linked-ticket follow-up.
+8. Identify whether the applicable unresolved message asks a question, reports a problem, requests capability, or supplies relevant clarification without using sender identity, role, or permissions (e.g., employee, staff, support agent, administrator, or organization member) as a decision rule.
+9. Apply the strict `no_op` boundary against the applicable unresolved message before searching.
+10. Determine whether its issue is already covered by the existing thread.
+11. Choose `documents_search` first for documentation, configuration, explanation, or how-to content.
+12. Choose `issues_search` first for a bug, feature request, or product problem.
+13. Use focused terms from the applicable unresolved message, not generic thread subject text.
+14. Retain only direct-answer or strong tracked-case evidence.
+15. When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering thread independently; otherwise recommend `suggest_reply` for a direct answer, tracked case, or helpful supported partial response.
+16. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem.
+17. Explain why a ticket would not duplicate the existing thread.
 
 ## Decision Rules
 - A reply must directly address the new email or link a strongly matching tracked case with a usable URL.
+- If an incoming trigger is superseded by a later outgoing email that materially addresses it, use `no_op`; if the outgoing email does not address the unresolved matter, assess the latest message instead.
+- If a later incoming email supersedes the trigger, assess that latest incoming request rather than duplicate work for the older email.
 - Weakly related results, matching product names, and generic documentation are not direct evidence.
 - Use `no_op` only when the message itself provides a concrete answer or workaround.
 - It may also be `no_op` for a clear duplicate, redirect, closure outcome, or explicit next step requiring no agent-written reply.

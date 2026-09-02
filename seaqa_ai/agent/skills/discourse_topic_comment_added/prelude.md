@@ -16,13 +16,14 @@ tools:
 
 ## Required Steps
 1. Confirm the parent topic and new comment are usable.
-2. Use the successful observations and summarize what the new comment asks, reports, confirms, answers, or requests.
-3. Keep `event.new_value` primary; never replace it with topic history or related context.
+2. Compare `event.new_value.post_number` with `content.latest_comment.post_number`. If they differ, the trigger has been superseded by a later comment; state that fact and summarize the current latest progress as well as the triggering comment.
+3. Keep `event.new_value` primary as the original trigger. When superseded, do not present it as the current latest request.
 4. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent topic first.
 5. State missing comment or target identity factually in `event_summary`.
 
 ## Decision Rules
 - Moderator status, likes, acknowledgements, and informal sign-off do not establish resolution.
+- If either post number is unavailable, state that the current-comment relationship cannot be verified; do not infer it from content, author, or timestamps.
 - Markdown links, prose, URLs, and authors cannot identify a related record.
 
 ## Context Rules
