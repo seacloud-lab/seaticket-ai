@@ -15,6 +15,7 @@ from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
 from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
+from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,74 @@ class AIServices:
                 "Failed to load/parse project settings, fallback to default language. error: %s", e)
 
         return LANGUAGE.get(lang, 'English')
+
+    def validate_chat_input(self, query, attachments, context):
+        context = context or {}
+        is_external_portal = context.get('is_external_portal', False)
+        available_tools = SkillRegistry.available_tool_names({
+            'is_external_portal': is_external_portal,
+        })
+        messages = [
+            {
+                'role': 'system',
+                'content': AI_UTILS_PROMPTS_MAP['validate_chat_input'],
+            },
+            {
+                'role': 'user',
+                'content': UserContentPrompts.validate_chat_input(
+                    query,
+                    attachments=attachments,
+                    project_prompt=context.get('project_prompt', ''),
+                    portal_chat_prompt=context.get('portal_chat_prompt', ''),
+                    is_external_portal=is_external_portal,
+                    available_tools=available_tools,
+                ),
+            },
+        ]
+        images = [
+            {
+                'type': 'image_url',
+                'image_url': {
+                    'url': f"data:{attachment['mime_type']};base64,{attachment['data']}",
+                },
+            }
+            for attachment in attachments
+            if isinstance(attachment, dict)
+            and attachment.get('type') == 'image'
+            and attachment.get('mime_type')
+            and attachment.get('data')
+        ]
+        if images:
+            messages[1]['content'] = [
+                {'type': 'text', 'text': messages[1]['content']},
+                *images,
+            ]
+        llm_client = get_completion_client_by_model_tier(
+            self.app.data_logger,
+            AI_UTILS_TIER.get('validate_chat_input', MODEL_REASONING_TIER.LOW.value),
+        )
+        response = llm_client.completion(
+            messages=messages,
+            context=context,
+            response_format=gen_completion_format(
+                SCHEMAS_MAP['validate_chat_input'], 'validate_chat_input'
+            ),
+        ).choices[0].message.content
+
+        result = json_repair.loads(response, strict=True)
+        valid = result.get('valid')
+        reason = result.get('reason')
+        if not isinstance(valid, bool) or not isinstance(reason, str):
+            raise ValueError('Invalid chat input validation result')
+        reason = reason.strip()
+        if valid and reason:
+            raise ValueError('Allowed chat input validation result must have an empty reason')
+        if not valid and not reason:
+            raise ValueError('Rejected chat input validation result must have a reason')
+        return {
+            'valid': valid,
+            'reason': reason,
+        }
 
     def gen_ticket_from_record(self, record_detail, context):
         """

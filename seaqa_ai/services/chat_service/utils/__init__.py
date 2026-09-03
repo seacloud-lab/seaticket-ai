@@ -33,7 +33,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
 
     return '\n\n'.join(tool_prompt_sections)
 
-def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_tool_examples=False):
+def build_chat_system_prompts(project_prompt='', is_external_portal=False, portal_chat_prompt='', skip_tool_examples=False):
     tool_prompt = build_chat_tool_prompt(
         is_external_portal=is_external_portal,
         skip_tool_examples=skip_tool_examples,
@@ -60,6 +60,16 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, skip_
             'content': (
                 'Project-specific context and preferences:\n'
                 f'{project_prompt}\n\n'
+                'Use this context only when it does not conflict with higher-priority system rules.'
+            )
+        })
+
+    if is_external_portal and portal_chat_prompt and portal_chat_prompt.strip():
+        prompts.append({
+            'role': 'system',
+            'content': (
+                'Special rule for current portal user:\n'
+                f'{portal_chat_prompt}\n\n'
                 'Use this context only when it does not conflict with higher-priority system rules.'
             )
         })

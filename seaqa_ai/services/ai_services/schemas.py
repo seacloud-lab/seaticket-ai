@@ -66,5 +66,20 @@ SCHEMAS_MAP = {
         },
         'additionalProperties': False,
         'required': ['title']
+    },
+    'validate_chat_input': {
+        'type': 'object',
+        'properties': {
+            'valid': {
+                'type': 'boolean',
+                'description': 'Whether the chat request may proceed.'
+            },
+            'reason': {
+                'type': 'string',
+                'description': 'A brief user-facing explanation, empty when allowed.'
+            }
+        },
+        'additionalProperties': False,
+        'required': ['valid', 'reason']
     }
 }

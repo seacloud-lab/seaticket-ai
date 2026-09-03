@@ -51,6 +51,7 @@ def get_ai_reply():
     stream = data.get('stream', False)
     project_prompt = data.get('project_prompt', '')
     is_external_portal = data.get('is_external_portal', False) is True
+    portal_chat_prompt = data.get('portal_chat_prompt', '')
     connection_ids = data.get('connection_ids')
     extra_sources = data.get('extra_sources')
     scenario = data.get('scenario', AIScenario.CHAT.value)
@@ -60,6 +61,7 @@ def get_ai_reply():
         'org_id': org_id,
         'project_prompt': project_prompt,
         'is_external_portal': is_external_portal,
+        'portal_chat_prompt': portal_chat_prompt,
         'connection_ids': connection_ids,
         'extra_sources': extra_sources,
         'skip_search_record_hashes': [
@@ -101,6 +103,44 @@ def get_ai_reply():
             return {'error_msg': 'Internet server error.'}, 500
 
 # AI utils
+@flask_app.route('/validate-chat-input', methods=['POST'])
+def validate_chat_input():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    query = data.get('query')
+    attachments = data.get('attachments', [])
+    if not isinstance(query, str) or not query.strip():
+        return {'error_msg': 'query invalid.'}, 400
+    if len(query) > config.CHAT_INPUT_VALIDATION_MAX_CHARS:
+        return {'error_msg': 'query too long.'}, 400
+    if not isinstance(attachments, list):
+        return {'error_msg': 'attachments invalid.'}, 400
+
+    context = {
+        'org_id': data.get('org_id'),
+        'project_uuid': data.get('project_uuid'),
+        'session_uuid': data.get('session_uuid'),
+        'project_prompt': data.get('project_prompt', ''),
+        'is_external_portal': data.get('is_external_portal', False) is True,
+        'portal_chat_prompt': data.get('portal_chat_prompt', ''),
+        'scenario': data.get('scenario', AIScenario.CHAT.value),
+    }
+    try:
+        result = flask_app.app.ai_services.validate_chat_input(query, attachments, context)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+    return result, 200
+
+
 @flask_app.route('/generate-chat-title', methods=['POST'])
 def generate_chat_title():
     is_valid = check_auth_token(request)
@@ -393,4 +433,3 @@ def batch_generate_embeddings():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-

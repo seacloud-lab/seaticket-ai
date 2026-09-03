@@ -10,6 +10,26 @@ logger = logging.getLogger(__name__)
 
 class BasicChatUtils:
     @classmethod
+    def record_skipped_tool_call(cls, tool_executor, tool_call, memory):
+        tool_name = tool_call['name']
+        arguments = tool_call.get('arguments')
+        if isinstance(arguments, str):
+            arguments = parse_json(arguments)
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        error_message = (
+            'Tool call was not executed because this response exceeded the maximum of '
+            f'{config.MAX_TOOL_CALLS_PER_RESPONSE} tool calls.'
+        )
+        tool_executor.thought_process.add_tool_call(tool_name, arguments, {}, error_message)
+        memory += {
+            'type': 'function_call_output',
+            'call_id': tool_call.get('call_id', ''),
+            'output': error_message,
+        }
+
+    @classmethod
     def _append_skill_activation_prompt(cls, memory, tool_name, tool_output):
         if tool_name != 'skill' or not isinstance(tool_output, dict):
             return
@@ -143,3 +163,13 @@ class StreamingChatUtils(BasicChatUtils):
                     'output': retry_errors[-1]
                 }
                 return
+
+    @classmethod
+    def record_skipped_tool_call(cls, tool_executor, tool_call, memory, current_tool_call_id, total_tool_calls_num):
+        detail = (
+            f'{tool_call["name"]}, {current_tool_call_id + 1} of {total_tool_calls_num}, '
+            f'skipped because the response exceeds the maximum of '
+            f'{config.MAX_TOOL_CALLS_PER_RESPONSE} tool calls'
+        )
+        yield SSE.status('Calling tools', detail)
+        super().record_skipped_tool_call(tool_executor, tool_call, memory)
