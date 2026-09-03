@@ -119,8 +119,6 @@ def validate_chat_input():
     attachments = data.get('attachments', [])
     if not isinstance(query, str) or not query.strip():
         return {'error_msg': 'query invalid.'}, 400
-    if len(query) > config.CHAT_INPUT_VALIDATION_MAX_CHARS:
-        return {'error_msg': 'query too long.'}, 400
     if not isinstance(attachments, list):
         return {'error_msg': 'attachments invalid.'}, 400
 
