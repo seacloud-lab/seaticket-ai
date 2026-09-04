@@ -142,6 +142,7 @@ class SyncChat(BasicChat):
         system_prompts = build_chat_system_prompts(
             project_prompt=project_prompt,
             is_external_portal=context.get('is_external_portal', False),
+            portal_chat_prompt=context.get('portal_chat_prompt', '')
         )
         memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -231,8 +232,13 @@ class SyncChat(BasicChat):
                 tool_executor.thought_process.add_tool_calls_group()
                 if completion_retries:
                     tool_executor.thought_process.set_last_group_completion_retry(completion_retries)
-                for tool_call in llm_message.tool_calls:
-                    BasicChatUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+                for tool_call_id, tool_call in enumerate(llm_message.tool_calls):
+                    if tool_call_id < config.MAX_TOOL_CALLS_PER_RESPONSE:
+                        BasicChatUtils.execute_tool_with_retry(
+                            tool_executor, tool_call, ChatCallBacker, memory
+                        )
+                    else:
+                        BasicChatUtils.record_skipped_tool_call(tool_executor, tool_call, memory)
                 tool_executor.thought_process.update_last_group_tokens_usage(result.usage)
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
@@ -276,6 +282,7 @@ class StreamingChat(BasicChat):
             system_prompts = build_chat_system_prompts(
                 project_prompt=project_prompt,
                 is_external_portal=context.get('is_external_portal', False),
+                portal_chat_prompt=context.get('portal_chat_prompt', '')
             )
             memory = self._prepare_chat_memory(system_prompts, session_uuid, context)
 
@@ -455,16 +462,25 @@ class StreamingChat(BasicChat):
                     tool_calls_num = len(tool_calls)
                     for tool_call_id, tool_call in enumerate(tool_calls):
                         tool_name = tool_call.get('name', '')
-                        if tool_name in SEARCH_TOOL_NAMES:
-                            has_search_tool = True
-                        yield from StreamingChatUtils.execute_tool_with_retry(
-                            tool_executor,
-                            tool_call,
-                            ChatCallBacker,
-                            memory,
-                            tool_call_id,
-                            tool_calls_num,
-                        )
+                        if tool_call_id < config.MAX_TOOL_CALLS_PER_RESPONSE:
+                            if tool_name in SEARCH_TOOL_NAMES:
+                                has_search_tool = True
+                            yield from StreamingChatUtils.execute_tool_with_retry(
+                                tool_executor,
+                                tool_call,
+                                ChatCallBacker,
+                                memory,
+                                tool_call_id,
+                                tool_calls_num,
+                            )
+                        else:
+                            yield from StreamingChatUtils.record_skipped_tool_call(
+                                tool_executor,
+                                tool_call,
+                                memory,
+                                tool_call_id,
+                                tool_calls_num,
+                            )
                     tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
                     completion_retries = []
