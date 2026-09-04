@@ -76,7 +76,7 @@ SCHEMAS_MAP = {
             },
             'reason': {
                 'type': 'string',
-                'description': 'A brief user-facing explanation, empty when allowed.'
+                'description': 'A brief user-facing explanation'
             }
         },
         'additionalProperties': False,
