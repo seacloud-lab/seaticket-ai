@@ -29,3 +29,5 @@ class SchemaTables:
     CONFLUENCE = SCHEMA.ConfluenceTable
     JIRA_ISSUES = SCHEMA.JiraIssuesTable
     JIRA_ISSUE_COMMENTS = SCHEMA.JiraIssueCommentsTable
+    SLACK_MESSAGES = SCHEMA.SlackMessagesTable
+    SLACK_MESSAGE_REPLIES = SCHEMA.SlackMessageRepliesTable
