@@ -147,6 +147,40 @@ class TicketCreator(BasicTool):
         'strict': True,
     }
 
+    @staticmethod
+    def _resolve_default_substate(seadb_service, project_uuid):
+        """Resolve a valid default substate from current SeaDB metadata."""
+        try:
+            base_metadata = seadb_service.get_base_metadata(project_uuid) or {}
+            tables = base_metadata.get('tables') or []
+            ticket_table_name = SchemaTables.TICKETS.table_name()
+            ticket_table = next(
+                (table for table in tables if table.get('name') == ticket_table_name),
+                None
+            )
+            if not ticket_table:
+                return ''
+
+            columns = ticket_table.get('columns') or []
+            substate_column_name = SchemaTables.TICKETS.column.substate.name
+            substate_column = next(
+                (column for column in columns if column.get('name') == substate_column_name),
+                {}
+            )
+            options = ((substate_column.get('data') or {}).get('options') or [])
+            if not options:
+                return ''
+
+            for option in options:
+                option_name = str(option.get('name') or '').strip()
+                if option_name.lower() == 'new':
+                    return option_name
+
+            return str(options[0].get('name') or '').strip()
+        except Exception as e:
+            logger.warning(f'Failed to resolve default ticket substate: {e}')
+            return ''
+
     def execute(self, title, content, context):
         """
         Create ticket and return <seaqa-ticket> HTML tag with title and pk.
@@ -165,12 +199,14 @@ class TicketCreator(BasicTool):
             config.SEADB_USER,
             config.SEADB_PASSWORD
         )
+        default_substate = self._resolve_default_substate(
+            seadb_service, context['project_uuid']
+        )
 
         row = {
             'title': title,
             'content': content,
             'state': 'open',
-            'substate': '',
             'type': '',
             'tags': [],
             'assignees': [],
@@ -184,6 +220,8 @@ class TicketCreator(BasicTool):
             'deleted': False,
             'due_date': '',
         }
+        if default_substate:
+            row['substate'] = default_substate
         res = seadb_service.insert_rows(context['project_uuid'], SchemaTables.TICKETS.table_name(), [row])
         pks = res.get('pks', [])
         if len(pks) != 1:
