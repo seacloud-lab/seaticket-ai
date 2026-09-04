@@ -99,8 +99,6 @@ class AIServices:
         if not isinstance(valid, bool) or not isinstance(reason, str):
             raise ValueError('Invalid chat input validation result')
         reason = reason.strip()
-        if valid and reason:
-            raise ValueError('Allowed chat input validation result must have an empty reason')
         if not valid and not reason:
             raise ValueError('Rejected chat input validation result must have a reason')
         return {
