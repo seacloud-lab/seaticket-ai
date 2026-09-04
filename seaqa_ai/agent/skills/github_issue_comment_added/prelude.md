@@ -11,18 +11,21 @@ tools:
 
 ## Input Contract
 - Read `triggering_event.event.new_value` and `get_record` observations.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
 - Use the parent issue only to identify and interpret the new comment. **Use only record context available in successful `get_record` observations.**
 - Missing comment content or target identity is a material data gap.
 
 ## Required Steps
 1. Confirm the parent issue and new comment are usable.
-2. Use the successful observations and summarize the new comment's request, report, confirmation, answer, or acknowledgement.
-3. **Keep `event.new_value` primary; never replace it with historical or related context.**
-4. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent issue first.
-5. State missing comment or target identity factually in `event_summary`.
+2. Treat the event comment as stale only when `triggering_event.event.new_value.comment_id` and `get_record.content.latest_comment.comment_id` are both present and differ. State that the issue has a later comment and summarize both the event comment and the current latest comment.
+3. If either comment ID is unavailable, state that whether the event comment is still current cannot be verified. Summarize the available event comment and current latest comment factually without calling the event comment stale.
+4. **Keep the event comment primary as the original trigger. When it is stale, do not present it as the current latest request.**
+5. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent issue first.
+6. State missing comment or target identity factually in `event_summary`.
 
 ## Decision Rules
 - Staff or maintainer status does not make a comment authoritative or complete.
+- Do not infer whether the event comment is current from content, author, or timestamps.
 - Do not infer a duplicate, resolution, or next step from tone.
 - **Prose references, URLs, authors, and issue numbers cannot identify a related record.**
 

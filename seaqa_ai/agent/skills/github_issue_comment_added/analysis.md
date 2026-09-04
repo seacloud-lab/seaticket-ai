@@ -24,26 +24,31 @@ additional_output:
 ## Input Contract
 - Use `triggering_event`, `event_summary`, successful `get_record` tool observations, and search observations from this phase.
 - Read `event.new_value` as the authoritative new comment.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
 - Use the parent issue and a linked Ticket identified by successful `get_record` observations only to determine whether a problem is already covered and whether owner follow-up is needed.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not use suggestions. Do not use an author's identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) to select or suppress an action.
 
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable comment and parent issue.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read the new comment before considering older discussion.
-4. Identify whether it asks a new question, provides an answer, reports a problem, or requests tracking without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
-5. Check the strict `no_op` boundary against the comment's own content.
-6. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
-7. Search with focused terms from the new comment, not generic parent-issue text.
-8. Retain only evidence that directly answers the comment or strongly identifies a tracked case.
-9. Determine follow-up by linkage state:
+3. Treat the event comment as stale only when `triggering_event.event.new_value.comment_id` and `get_record.content.latest_comment.comment_id` are both present and differ.
+4. If the event comment is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
+5. If the event comment is stale and the current latest comment still asks, reports, or confirms an unresolved matter, analyze the current latest comment. Do not produce a reply to the event comment.
+6. If either comment ID is unavailable, do not infer whether the event comment is stale from content, author, or timestamps; analyze the event comment under the normal rules.
+7. Identify whether the applicable unresolved comment asks a new question, provides an answer, reports a problem, or requests tracking without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
+8. Check the strict `no_op` boundary against the applicable unresolved comment.
+9. If evidence can support a reply, owner-notification, or independent-ticket decision, select the initial search tool by content type.
+10. Search with focused terms from the applicable unresolved comment, not generic parent-issue text.
+11. Retain only evidence that directly answers the applicable unresolved comment or strongly identifies a tracked case.
+12. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering issue independently.
    - Otherwise recommend `suggest_reply`, `suggest_create_ticket`, or `no_op`.
-10. Set `skip_handling: true` only for `no_op`.
-11. State why a ticket is independent or why no action is strictly justified.
+13. Set `skip_handling: true` only for `no_op`.
+14. State why a ticket is independent or why no action is strictly justified.
 
 ## Decision Rules
 - Use `no_op` only when this new comment itself supplies a concrete answer or workaround.
+- When the event comment is stale, use `no_op` if the current latest comment already provides a concrete answer, resolution, closure, or next step; otherwise assess the current latest unresolved comment.
 - It may also be `no_op` for:
   - A clear duplicate.
   - A redirect.

@@ -11,16 +11,18 @@ tools:
 
 ## Input Contract
 - Read `triggering_event` and `get_record` observations.
+- The event opening message is `triggering_event.event.new_value`. The current latest message is `get_record.content.latest_message`.
 - Thread data may include title, content messages, URL fields, and linked-ticket fields.
 - The opening message remains primary even when later messages exist.
 - Do not infer tags, issue type, or related identities not explicitly supplied.
 
 ## Required Steps
 1. Confirm the triggering thread and opening message are usable.
-2. Extract only the factual request or reported behavior stated in the opening message.
-3. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
-4. Set `event_related_records` to the successfully loaded triggering thread only.
-5. Write a neutral factual summary and leave subsequent workflow phases enabled for a usable event.
+2. Use the event opening message only when it has a usable `message_id` and `content`. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_message.message_id` are both present and differ.
+3. If either message ID is unavailable, state that whether the event opening message is still current cannot be verified. Summarize the available event opening message and current latest message factually without calling the event opening message stale.
+4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
+5. Set `event_related_records` to the successfully loaded triggering thread only.
+6. Write a neutral factual summary and leave subsequent workflow phases enabled for a usable event.
 
 ## Decision Rules
 - This event represents a newly created, unlinked thread. Do not infer a related identity from markdown links, discussion text, URL fragments, or author hints.

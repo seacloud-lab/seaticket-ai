@@ -11,13 +11,14 @@ tools:
 
 ## Input Contract
 - Read `triggering_event` and `get_record` observations.
+- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_record`.
 - Issue fields may include title, issue number, state, content, labels, issue type, and URL.
 - Recent comments are background only and do not replace the new issue body.
 - Missing fields remain unknown; never infer identities from names, URLs, or text.
 
 ## Required Steps
 1. Confirm the triggering issue and its opening content are usable.
-2. Extract only the factual request, report, or observed behavior stated in the issue title and body.
+2. Use the event issue body as the original reported request. This event does not identify a specific opening-comment identity, so do not call the event issue body stale only because current issue context contains later comments or a different state. Summarize material current issue context factually.
 3. Preserve supplied visible state, labels, and issue type without evaluating them.
 4. Keep the triggering issue primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering issue only.

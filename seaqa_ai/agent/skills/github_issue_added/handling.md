@@ -9,7 +9,7 @@ tools:
   - suggest_link_existing_ticket
 ====================
 ## Role And Scope
-- Create only pending GitHub suggestions explicitly selected by completed Analysis.
+- Create only pending GitHub suggestions explicitly selected by completed Analysis for the current unresolved request, not a stale opening issue.
 - Handling executes recommendations; it does not reconsider classification or evidence.
 - Suggestions are pending proposals, never completed issue changes.
 

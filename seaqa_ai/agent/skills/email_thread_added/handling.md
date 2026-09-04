@@ -8,7 +8,7 @@ tools:
   - suggest_move_to_spam
 ====================
 ## Role And Scope
-- Create exactly the Analysis-selected pending email-thread suggestion, or deliberately make none.
+- Create exactly the Analysis-selected pending email-thread suggestion for the current unresolved request, or deliberately make none for a stale opening email.
 - Handling must preserve the Analysis distinction between Spam and Notification.
 - It creates proposals only and never sends, moves, or resolves mail directly.
 

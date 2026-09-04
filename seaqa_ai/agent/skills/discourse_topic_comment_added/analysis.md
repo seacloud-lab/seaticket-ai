@@ -24,26 +24,32 @@ additional_output:
 ## Input Contract
 - Use only the triggering event, `event_summary`, successful `get_record` tool observations, and observations from allowed searches.
 - Read `event.new_value` as the authoritative comment.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
 - Use parent-topic content and a linked Ticket identified by successful `get_record` observations only to determine whether the comment raises an independent problem and whether owner follow-up is needed.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
 1. Verify `event_summary` and successful `get_record` tool observations identify a usable comment and parent topic.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Identify the comment's new question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
-4. Apply the strict `no_op` boundary before searching.
-5. Choose a first search tool only when evidence can support a decision.
-6. Search from the comment's concrete terms and retain only direct evidence.
-7. Stop under the defined budget and diminishing-return limits.
-8. Determine follow-up by linkage state:
+3. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ.
+4. If the event comment is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
+5. If the event comment is stale and the current latest comment still asks, reports, or confirms an unresolved matter, analyze the current latest comment. Do not produce a reply to the event comment.
+6. If either post number is unavailable, do not infer whether the event comment is stale from content, author, or timestamps; analyze the event comment under the normal rules.
+7. Identify the applicable unresolved comment's question, report, answer, workaround, or request without using author identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) as a decision rule.
+8. Apply the strict `no_op` boundary before searching.
+9. Choose a first search tool only when evidence can support a decision.
+10. Search from the applicable unresolved comment's concrete terms and retain only direct evidence.
+11. Stop under the defined budget and diminishing-return limits.
+12. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering topic independently.
    - Otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
-9. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
-10. Otherwise recommend `no_op` only under its strict boundary.
-11. Explain the decision with citations and state why an omitted action is not justified.
+13. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
+14. Otherwise recommend `no_op` only under its strict boundary.
+15. Explain the decision with citations and state why an omitted action is not justified.
 
 ## Decision Rules
 - Use `no_op` only when the comment itself provides a concrete answer or workaround.
+- When the event comment is stale, use `no_op` if the current latest comment already provides a concrete answer, resolution, closure, or next step; otherwise assess the current latest unresolved comment.
 - It may also be `no_op` for:
   - A clear duplicate.
   - A redirect.

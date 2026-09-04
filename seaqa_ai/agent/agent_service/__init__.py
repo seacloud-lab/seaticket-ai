@@ -240,6 +240,12 @@ class AgentService:
         )
 
     def _create_run_record(self, task, *, owner_source_type, owner_source_id, owner_source_title):
+        event = dict(task.trigger_event.event)
+        new_value = event.get('new_value')
+        if isinstance(new_value, dict):
+            event['new_value'] = {
+                key: value for key, value in new_value.items() if key != 'content'
+            }
         response = self.app.seadb_service.insert_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
@@ -250,7 +256,7 @@ class AgentService:
                 'owner_source_title': owner_source_title or '',
                 'suggestions_status': '',
                 'started_at': now_iso(),
-                'event': json.dumps(task.trigger_event.event, ensure_ascii=False),
+                'event': json.dumps(event, ensure_ascii=False),
             }],
         )
         pks = response.get('pks', [])

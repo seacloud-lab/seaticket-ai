@@ -11,18 +11,21 @@ tools:
 
 ## Input Contract
 - Read `triggering_event.event.new_value` and `get_record` observations.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
 - **Use only record context available in successful `get_record` observations.**
 - Missing new-comment content or parent identity is a material gap.
 
 ## Required Steps
 1. Confirm the parent topic and new comment are usable.
-2. Use the successful observations and summarize what the new comment asks, reports, confirms, answers, or requests.
-3. Keep `event.new_value` primary; never replace it with topic history or related context.
-4. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent topic first.
-5. State missing comment or target identity factually in `event_summary`.
+2. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ. State that the topic has a later comment and summarize both the event comment and the current latest comment.
+3. If either post number is unavailable, state that whether the event comment is still current cannot be verified. Summarize the available event comment and current latest comment factually without calling the event comment stale.
+4. Keep the event comment primary as the original trigger. When it is stale, do not present it as the current latest request.
+5. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent topic first.
+6. State missing comment or target identity factually in `event_summary`.
 
 ## Decision Rules
 - Moderator status, likes, acknowledgements, and informal sign-off do not establish resolution.
+- Do not infer whether the event comment is current from content, author, or timestamps.
 - Markdown links, prose, URLs, and authors cannot identify a related record.
 
 ## Context Rules
