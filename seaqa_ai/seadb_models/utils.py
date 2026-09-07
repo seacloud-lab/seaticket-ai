@@ -18,6 +18,7 @@ SCHEMA_TABLE_CONNECTION = {
 EXTRA_SOURCE_TABLE_MAP = {
     ExtraSourceType.KNOWLEDGE_BASE.value: SchemaTables.KNOWLEDGE_BASE,
     ExtraSourceType.TICKET.value: SchemaTables.TICKETS,
+    ExtraSourceType.PORTAL_ISSUE.value: SchemaTables.PORTAL_ISSUES,
 }
 
 

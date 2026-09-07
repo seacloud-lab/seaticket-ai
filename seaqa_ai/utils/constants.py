@@ -96,6 +96,7 @@ class ConnectionType(Enum):
 class ExtraSourceType(Enum):
     KNOWLEDGE_BASE = 'knowledge_base'
     TICKET = 'ticket'
+    PORTAL_ISSUE = 'portal_issue'
 
     @classmethod
     def is_valid(cls, value):
@@ -130,6 +131,7 @@ class SOURCES_TYPE(Enum):
     )
     ISSUES = (
         ExtraSourceType.TICKET.value,
+        ExtraSourceType.PORTAL_ISSUE.value,
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.DISCORD.value,

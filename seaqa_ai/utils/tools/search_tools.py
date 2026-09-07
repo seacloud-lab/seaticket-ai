@@ -78,6 +78,8 @@ class BasicSearchTool(BasicTool):
 
         if source_type == ExtraSourceType.TICKET.value:
             record_path = f'/tickets/{record_id}/'
+        elif source_type == ExtraSourceType.PORTAL_ISSUE.value:
+            record_path = f'/portal-issues/{record_id}/'
         elif source_type == ExtraSourceType.KNOWLEDGE_BASE.value:
             record_path = f'/knowledge-base/{record_id}/'
         elif ConnectionType.is_valid(source_type) and connection_id:

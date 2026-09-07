@@ -23,6 +23,16 @@ def ticket_comments_query(table_name, limit_per_thread):
     )
 
 
+def portal_issue_comments_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='issue_id',
+        order_by=('_pk',),
+        select_fields='_pk, creator, content, created_time, modified_time, via_agent',
+        limit_per_thread=limit_per_thread,
+    )
+
+
 def github_issue_comments_query(table_name, limit_per_thread):
     return ThreadMessagesQuery(
         table_name=table_name,

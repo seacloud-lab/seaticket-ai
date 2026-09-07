@@ -22,7 +22,8 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             connection_id = int(record.get('connection_id', 'unknown'))
         except:
             connection_id = record.get('connection_id', 'unknown')
-        if ExtraSourceType.is_valid(record['type']):
+        is_extra_source = ExtraSourceType.is_valid(record['type'])
+        if is_extra_source:
             connection_id = record['type']
 
         try:
@@ -31,7 +32,9 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             record_id = record['_id']
 
         # Ignore if the record in skip record list
-        record_hex = gen_record_hash(record['type'], connection_id, record_id)
+        record_hex = gen_record_hash(
+            record['type'], None if is_extra_source else connection_id, record_id,
+        )
         if record_hex in skip_search_record_hashes:
             continue
 
