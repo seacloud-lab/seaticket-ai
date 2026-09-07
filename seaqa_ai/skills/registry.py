@@ -13,7 +13,8 @@ from seaqa_ai.skills.scenario import (
     SkillScenarioKind,
 )
 from seaqa_ai.skills.spec import SkillSummary
-
+from seaqa_ai import config
+from seaqa_ai.utils.tools import SEARCH_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 SKILL_SUMMARIES_CONTEXT_KEY = '_skill_summaries'
@@ -213,3 +214,19 @@ class SkillRegistry:
         context = context or {}
         context[AGENT_SCENARIO_CONTEXT_KEY] = True
         return cls.available_skills_prompt(seadb_service, context)
+
+    @classmethod
+    def available_tool_names(cls, context=None):
+        context = context or {}
+        tool_names = set(SEARCH_TOOL_NAMES)
+        if not context.get('is_external_portal'):
+            tool_names.update({
+                'generate_markdown',
+                'create_knowledge_base_entry',
+                'create_ticket',
+            })
+        else:
+            tool_names.add('generate_markdown')
+        if config.ENABLE_TEST_TOOL:
+            tool_names.add('test_tool')
+        return tool_names
