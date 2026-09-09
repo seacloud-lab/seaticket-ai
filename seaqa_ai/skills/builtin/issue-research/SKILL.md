@@ -21,9 +21,10 @@ Workflow:
 
 Tool policy:
 - Use only the available research/report tools.
-- Make at most 4 total search tool calls before generating the Markdown report.
+- Make at most 8 total tool calls.
+- `generate_markdown` must be the final tool call.
 - Once you have enough evidence, stop searching and call `generate_markdown`.
-- Reserve enough steps to call `generate_markdown` and then provide the final user-facing answer.
+- Reserve enough steps to synthesize findings and call `generate_markdown` last.
 - Do not make random, repeated, or weakly related searches.
 - Do not repeat equivalent queries with minor wording changes.
 - Prefer a small number of high-quality searches over broad exploratory searching.
