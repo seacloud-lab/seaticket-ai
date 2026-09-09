@@ -15,7 +15,7 @@ from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
 from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
-from seaqa_ai.services.chat_service.skills.registry import SkillRegistry
+from seaqa_ai.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 

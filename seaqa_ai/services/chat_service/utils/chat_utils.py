@@ -31,7 +31,7 @@ class BasicChatUtils:
 
     @classmethod
     def _append_skill_activation_prompt(cls, memory, tool_name, tool_output):
-        if tool_name != 'skill' or not isinstance(tool_output, dict):
+        if tool_name != 'load_extra_skill' or not isinstance(tool_output, dict):
             return
         memory += {
             'role': 'system',

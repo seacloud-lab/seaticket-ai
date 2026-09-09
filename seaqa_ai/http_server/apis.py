@@ -5,6 +5,13 @@ from flask import Flask, request, Response, stream_with_context
 from seaqa_ai import config
 from seaqa_ai.utils import chunk_text, gen_record_hash
 from seaqa_ai.services.chat_service import StreamingChat, SyncChat
+from seaqa_ai.skills.loader import (
+    load_builtin_skill_summaries_map,
+    load_builtin_skill,
+    load_builtin_skill_content,
+    serialize_skill_summary,
+    serialize_skill_spec,
+)
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
 from seaqa_ai.services.chat_service import SyncChat, StreamingChat
@@ -28,6 +35,43 @@ def check_auth_token(req):
         return False
 
     return True
+
+
+@flask_app.route('/internal/skills/builtins', methods=['GET'])
+def list_builtin_skills_api():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        skills = [
+            serialize_skill_summary(skill)
+            for skill in load_builtin_skill_summaries_map().values()
+        ]
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+
+    return {'skills': skills}, 200
+
+
+@flask_app.route('/internal/skills/builtins/<skill_name>', methods=['GET'])
+def get_builtin_skill_api(skill_name):
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        skill = load_builtin_skill(skill_name)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+
+    if not skill:
+        return {'error_msg': 'Skill not found.'}, 404
+    content = load_builtin_skill_content(skill_name)
+    return {'skill': serialize_skill_spec(skill, content)}, 200
+
 
 # completion API
 @flask_app.route('/get-ai-reply', methods=['POST'])
@@ -54,6 +98,7 @@ def get_ai_reply():
     portal_chat_prompt = data.get('portal_chat_prompt', '')
     connection_ids = data.get('connection_ids')
     extra_sources = data.get('extra_sources')
+    disabled_builtin_skills = data.get('disabled_builtin_skills') or []
     scenario = data.get('scenario', AIScenario.CHAT.value)
     context = {
         'session_uuid': session_uuid,
@@ -64,6 +109,7 @@ def get_ai_reply():
         'portal_chat_prompt': portal_chat_prompt,
         'connection_ids': connection_ids,
         'extra_sources': extra_sources,
+        'disabled_builtin_skills': disabled_builtin_skills if isinstance(disabled_builtin_skills, list) else [],
         'skip_search_record_hashes': [
             gen_record_hash(attachment.get('type'), attachment.get('connection_id'), attachment.get('record_id'))
             for attachment in attachments
