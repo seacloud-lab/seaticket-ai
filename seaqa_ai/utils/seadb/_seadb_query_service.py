@@ -121,6 +121,20 @@ class SeaDBQueryService:
             for thread_id in thread_ids
         }
 
+    def get_first_messages(self, base_id, thread_ids, *, query):
+        """Return {thread_id: the single oldest message}, or {} if missing."""
+        thread_ids = list(thread_ids or [])
+        if not thread_ids:
+            return {}
+
+        select_fields = self._normalize_select_fields(
+            query.select_fields, [query.thread_id_field, '_pk'],
+        )
+        rows = self._api.query_rows(
+            base_id, self._build_first_messages_sql(query, thread_ids, select_fields),
+        ).get('results', [])
+        return {row[query.thread_id_field]: row for row in rows}
+
     @staticmethod
     def _first_plus_recent(messages, limit_per_thread):
         if limit_per_thread <= 0 or not messages:
@@ -164,3 +178,17 @@ class SeaDBQueryService:
         order_by_fields = [query.thread_id_field, *[f for f in query.order_by if f]]
         sql += ' ORDER BY ' + ', '.join(f'`{field}` ASC' for field in order_by_fields)
         return sql
+
+    @classmethod
+    def _build_first_messages_sql(cls, query, thread_ids, select_fields):
+        # The first message of a thread is the one with the smallest _pk, since
+        # rows are appended in arrival order. MIN(_pk) per thread keeps this a
+        # plain GROUP BY instead of a window function.
+        inner = (
+            f'SELECT MIN(_pk) FROM {query.table_name} '
+            f'WHERE {query.thread_id_field} IN ({cls._build_in_condition(thread_ids)})'
+        )
+        if query.has_deleted_field:
+            inner += ' AND (`deleted` = False OR `deleted` IS NULL)'
+        inner += f' GROUP BY `{query.thread_id_field}`'
+        return f'SELECT {select_fields} FROM {query.table_name} WHERE _pk IN ({inner})'

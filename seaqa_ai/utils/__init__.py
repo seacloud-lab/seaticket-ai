@@ -172,6 +172,26 @@ def chunk_text(text, max_tokens=500, overlap_tokens=120):
 def remove_reference_markers(content):
     return re.sub(r'\[Reference \d+\]', '', content)
 
+HTML_DROPPED_ELEMENT_RE = re.compile(r'<(script|style|head)\b[^>]*>.*?</\1>', re.IGNORECASE | re.DOTALL)
+HTML_LINE_BREAK_RE = re.compile(
+    r'\s*(?:</?(?:br|p|div|tr|li|h[1-6]|table|blockquote|hr)\b[^>]*>\s*)+', re.IGNORECASE,
+)
+HTML_TAG_RE = re.compile(r'<[^>]+>')
+BLANK_LINES_RE = re.compile(r'\n{3,}')
+
+def html_to_text(html_content):
+    """Render an HTML email body as plain text, without any external dependency."""
+    if not html_content:
+        return ''
+
+    text = html_content.strip().strip('`')
+    text = HTML_DROPPED_ELEMENT_RE.sub(' ', text)
+    text = HTML_LINE_BREAK_RE.sub('\n', text)
+    text = HTML_TAG_RE.sub('', text)
+    text = html.unescape(text).replace('\xa0', ' ')
+    text = '\n'.join(line.strip() for line in text.splitlines())
+    return BLANK_LINES_RE.sub('\n\n', text).strip()
+
 MARKDOWN_IMAGE_RE = re.compile(r'!\[[^\]]*\]\(([^)\s]+(?:\s+"[^"]*")?)\)')
 HTML_IMAGE_RE = re.compile(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
 
