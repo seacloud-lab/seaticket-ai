@@ -353,10 +353,15 @@ class _RecordRetriever:
         if not forward_thread_ids:
             return {}
 
+        # The raw body lives in text_content / html_content, which the message
+        # listing does not select; ask for them explicitly.
+        first_message_query = email_messages_query(
+            SchemaTables.EMAIL.table_name(connection_id), 1,
+        ).with_select_fields('text_content, html_content')
         first_message_by_thread_id = self.app.seadb_service.get_first_thread_messages(
             self.project_uuid,
             forward_thread_ids,
-            query=email_messages_query(SchemaTables.EMAIL.table_name(connection_id), 1),
+            query=first_message_query,
         )
         result = {}
         for thread_id, message in first_message_by_thread_id.items():

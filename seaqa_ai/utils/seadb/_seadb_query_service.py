@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 
 
@@ -10,6 +11,13 @@ class ThreadMessagesQuery:
     select_fields: str = '*'
     limit_per_thread: int = 20
     has_deleted_field: bool = True
+
+    def with_select_fields(self, extra_fields):
+        """Return a copy selecting extra columns, for a narrower fetch."""
+        return dataclasses.replace(
+            self,
+            select_fields=f'{self.select_fields}, {extra_fields}',
+        )
 
 
 # Predefined queries for the known thread-message tables.
