@@ -5,7 +5,7 @@ from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX
     S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
 from seaqa_ai.utils import url_to_filename, extract_markdown_image_url, normalize_image_url
 from seaqa_ai.utils.storage import S3Storage
-from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, \
+from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query
 from seaqa_ai.seadb_models import SchemaTables
@@ -255,6 +255,71 @@ class ContentRetriever:
             }
 
             record['content'] = content
+            record['images'] = merge_image_urls(image_source_contents)
+        return record_id_record_map
+
+    def _get_portal_issue_content(self, record_id_record_map, _):
+        issues_table_name = SchemaTables.PORTAL_ISSUES.table_name()
+        comments_table_name = SchemaTables.PORTAL_ISSUE_COMMENTS.table_name()
+        record_ids = record_id_record_map.keys()
+        issues_by_id = self.seadb_service.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=issues_table_name,
+            pks=record_ids,
+            fields_str='creator, content, state, substate, type, tags, priority, linked_ticket',
+        )
+        content_by_issue_id = self.seadb_service.get_thread_content(
+            self.project_uuid,
+            record_ids,
+            query=portal_issue_comments_query(
+                comments_table_name, SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            ),
+            bodies_by_thread_id={
+                record_id: issue['content']
+                for record_id, issue in issues_by_id.items()
+            },
+            budget=SEARCH_CONTENT_BUDGET,
+        )
+
+        related_usernames = []
+        for record_id in record_id_record_map:
+            issue = issues_by_id[record_id]
+            issue_content = content_by_issue_id[record_id]
+            related_usernames.append(issue['creator'])
+            related_usernames.extend(
+                message['creator']
+                for message in chronological_messages(issue_content)
+            )
+        username_nickname_map = self.username_resolver.emails2nicknames(
+            list(set(related_usernames)), return_map=True,
+        )
+
+        for record_id, record in record_id_record_map.items():
+            issue = issues_by_id[record_id]
+            issue_content = content_by_issue_id[record_id]
+            image_source_contents = [issue['content'] or '']
+            comments = [
+                {
+                    'creator': username_nickname_map.get(message['creator'], ''),
+                    'via_agent': message.get('via_agent') is True,
+                    'content': message['content'] or '',
+                }
+                for message in chronological_messages(issue_content)
+            ]
+            if issue_content.has_omitted_messages:
+                comments.append(build_ticket_comment_notice(MORE_COMMENTS_OMITTED_NOTICE))
+            image_source_contents.extend(comment['content'] for comment in comments)
+            record['content'] = {
+                'author': username_nickname_map.get(issue['creator'], ''),
+                'content': issue_content.body,
+                'comments': comments,
+                'state': issue['state'],
+                'substate': issue['substate'],
+                'type': issue['type'],
+                'tags': issue['tags'],
+                'priority': issue['priority'],
+                'linked_ticket': issue['linked_ticket'],
+            }
             record['images'] = merge_image_urls(image_source_contents)
         return record_id_record_map
     

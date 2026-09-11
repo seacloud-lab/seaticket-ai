@@ -463,7 +463,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         connection_id_type_map.update({
             ExtraSourceType.KNOWLEDGE_BASE.value: ExtraSourceType.KNOWLEDGE_BASE.value,
-            ExtraSourceType.TICKET.value: ExtraSourceType.TICKET.value
+            ExtraSourceType.TICKET.value: ExtraSourceType.TICKET.value,
+            ExtraSourceType.PORTAL_ISSUE.value: ExtraSourceType.PORTAL_ISSUE.value,
         })
 
         skip_search_record_hashes = context.get('skip_search_record_hashes', [])

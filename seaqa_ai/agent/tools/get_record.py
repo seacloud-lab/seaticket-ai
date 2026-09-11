@@ -7,7 +7,7 @@ from seaqa_ai.utils import html_to_text, url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.tools import BasicTool
-from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, \
+from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query, discord_thread_messages_query
 from seaqa_ai.agent.utils.record_identity import (
@@ -44,6 +44,11 @@ class _RecordRetriever:
             'participants', 'linked_connection_records', 'priority', 'creator',
             'comment_count', 'created_time', 'modified_time', 'closed_time',
             'due_date', 'last_agent_processed_at',
+        ),
+        ExtraSourceType.PORTAL_ISSUE.value: (
+            '_pk', 'title', 'state', 'substate', 'type', 'tags', 'priority',
+            'creator', 'comment_count', 'linked_ticket', 'created_time',
+            'modified_time', 'closed_time',
         ),
         ExtraSourceType.KNOWLEDGE_BASE.value: (
             '_pk', 'title', 'tags', 'creator', 'created_time', 'last_modifier',
@@ -109,7 +114,10 @@ class _RecordRetriever:
         for (source_type, connection_id), source_targets in targets_by_source.items():
             loaded_records = self._load_primary_records(source_type, connection_id, source_targets)
             self._load_content(source_type, connection_id, loaded_records)
-            if source_type == ExtraSourceType.TICKET.value:
+            if source_type in {
+                ExtraSourceType.TICKET.value,
+                ExtraSourceType.PORTAL_ISSUE.value,
+            }:
                 loaded_records = {
                     record_id: self._format_ticket_users(
                         record, getattr(self.app, 'username_resolver', None),
@@ -226,6 +234,44 @@ class _RecordRetriever:
             record['content'] = {
                 'latest_comment': self._format_ticket_comment(ticket_content.latest_message, resolver),
                 'content': ticket_content.body,
+                'history_comments': history_comments,
+            }
+
+    def _load_portal_issue_content(self, _, records_by_id):
+        bodies_by_issue_id = self._contents_by_id(
+            SchemaTables.PORTAL_ISSUES.table_name(), records_by_id,
+        )
+        content_by_issue_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            records_by_id.keys(),
+            query=portal_issue_comments_query(
+                SchemaTables.PORTAL_ISSUE_COMMENTS.table_name(),
+                SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            ),
+            bodies_by_thread_id=bodies_by_issue_id,
+            budget=AGENT_CONTENT_BUDGET,
+        )
+        resolver = getattr(self.app, 'username_resolver', None)
+        for record_id, record in records_by_id.items():
+            issue_content = content_by_issue_id[record_id]
+            history_comments = [
+                self._format_portal_issue_comment(message, resolver)
+                for message in issue_content.history_messages
+            ]
+            if issue_content.has_omitted_messages:
+                history_comments.append({
+                    '_pk': None,
+                    'creator': None,
+                    'created_time': None,
+                    'modified_time': None,
+                    'via_agent': None,
+                    'content': MESSAGES_OMITTED_NOTICE,
+                })
+            record['content'] = {
+                'latest_comment': self._format_portal_issue_comment(
+                    issue_content.latest_message, resolver,
+                ),
+                'content': issue_content.body,
                 'history_comments': history_comments,
             }
 
@@ -464,6 +510,15 @@ class _RecordRetriever:
 
     def _format_ticket_comment(self, message, resolver):
         formatted = self._format_message(message, ('creator', 'content'))
+        if formatted is not None:
+            formatted['creator'] = self._resolve_ticket_user(formatted['creator'], resolver)
+        return formatted
+
+    def _format_portal_issue_comment(self, message, resolver):
+        formatted = self._format_message(
+            message,
+            ('_pk', 'creator', 'created_time', 'modified_time', 'via_agent', 'content'),
+        )
         if formatted is not None:
             formatted['creator'] = self._resolve_ticket_user(formatted['creator'], resolver)
         return formatted

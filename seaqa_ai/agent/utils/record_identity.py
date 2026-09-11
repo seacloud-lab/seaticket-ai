@@ -19,7 +19,7 @@ def record_identity_schema(*, nested=False):
         'connection_id': {
             'type': ['integer', 'null'],
             'description': (
-                'Use null only for ticket and knowledge_base records. Use an integer for '
+                'Use null only for ticket, portal_issue, and knowledge_base records. Use an integer for '
                 'site, seafile, github_issue, discourse_forum, email, general_task, '
                 'linear, and discord records.'
             ),
