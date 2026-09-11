@@ -1,7 +1,9 @@
+import re
+
 from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.seadb_models.utils import get_connection_table_name
-from seaqa_ai.utils import url_to_filename
+from seaqa_ai.utils import html_to_text, url_to_filename
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.tools import BasicTool
@@ -15,6 +17,22 @@ from seaqa_ai.agent.utils.record_identity import (
 
 AGENT_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
 MESSAGES_OMITTED_NOTICE = '[messages omitted due to content limit]'
+
+# The stored `content` of an email strips its quoted history. That is lossless
+# for a reply, whose quoted part is stored as the earlier messages of the
+# thread, but not for a forward: the forwarded original never becomes a message
+# of the thread. A forward thread is recognized by its subject prefix.
+FORWARD_SUBJECT_RE = re.compile(
+    r'^(?:\s*(?:\[[^\]]{0,40}\]|(?:re|aw|antw|回复|回覆|答复|答覆)\s*[:：]))*'
+    r'\s*(?:fwd|fw|tr|wg|rv|转发|轉發|转寄|轉寄)\s*[:：]',
+    re.IGNORECASE,
+)
+# Where the forwarded original starts inside a raw body, e.g.
+# '----- Original message -----' or '---------- 转发的邮件 ----------'.
+FORWARD_BODY_MARKER_RE = re.compile(
+    r'[\-*\s]*(?:begin forwarded message:?|-+\s*(?:original|forwarded)\s+message\s*-+|-+\s*(?:原始|转发|轉發|转寄)的?邮件\s*-+|转发的邮件|轉發的郵件|原始邮件)[\-*\s]*\n',
+    re.IGNORECASE,
+)
 
 
 class _RecordRetriever:
@@ -276,11 +294,19 @@ class _RecordRetriever:
             'message_id', 'modified_time', 'is_sender', 'title', 'email_from',
             'email_to', 'cc', 'content',
         )
+        thread_title_by_id = self._get_email_thread_titles(connection_id, records_by_id.keys())
+        fwd_original_by_thread_id = self._load_fwd_original_messages(
+            connection_id, records_by_id.keys(), thread_title_by_id,
+        )
         content_by_thread_id = self.app.seadb_service.get_thread_content(
             self.project_uuid,
             records_by_id.keys(),
             query=email_messages_query(SchemaTables.EMAIL.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
             budget=AGENT_CONTENT_BUDGET,
+            extras_by_thread_id={
+                thread_id: {'text': original}
+                for thread_id, original in fwd_original_by_thread_id.items()
+            },
         )
         for record_id, record in records_by_id.items():
             thread_content = content_by_thread_id[record_id]
@@ -298,6 +324,64 @@ class _RecordRetriever:
                 'latest_email': self._format_message(thread_content.latest_message, email_fields),
                 'history_emails': history_emails,
             }
+            fwd_original = (thread_content.extras or {}).get('text')
+            if fwd_original:
+                record['content']['fwd_original_messages'] = fwd_original
+                record['content']['is_fwd_email'] = True
+
+    def _get_email_thread_titles(self, connection_id, thread_ids):
+        rows = self.app.seadb_service.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=SchemaTables.THREAD.table_name(connection_id),
+            pks=thread_ids,
+            fields_str='title',
+        )
+        return {thread_id: row.get('title') for thread_id, row in rows.items()}
+
+    def _load_fwd_original_messages(self, connection_id, thread_ids, thread_title_by_id):
+        """The forwarded original of each forward thread, read once per thread.
+
+        A forward thread starts with an email whose subject carries a forward
+        prefix and whose quoted part is the forwarded original. The parsed
+        `content` strips that part, so it is read from the first email's raw
+        body instead and kept once per thread rather than repeated per email.
+        """
+        forward_thread_ids = [
+            thread_id for thread_id in thread_ids
+            if FORWARD_SUBJECT_RE.match(str(thread_title_by_id.get(thread_id) or ''))
+        ]
+        if not forward_thread_ids:
+            return {}
+
+        # The raw body lives in text_content / html_content, which the message
+        # listing does not select; ask for them explicitly.
+        first_message_query = email_messages_query(
+            SchemaTables.EMAIL.table_name(connection_id), 1,
+        ).with_select_fields('text_content, html_content')
+        first_message_by_thread_id = self.app.seadb_service.get_first_thread_messages(
+            self.project_uuid,
+            forward_thread_ids,
+            query=first_message_query,
+        )
+        result = {}
+        for thread_id, message in first_message_by_thread_id.items():
+            original = self._extract_fwd_original_text(message)
+            if original:
+                result[thread_id] = original
+        return result
+
+    @staticmethod
+    def _extract_fwd_original_text(message):
+        """The forwarded part of a raw email body, starting at its marker.
+
+        Falls back to the whole body when the marker cannot be located, so a
+        forward with an unrecognized separator still surfaces its content.
+        """
+        raw = (message.get('text_content') or '').strip() or html_to_text(message.get('html_content'))
+        if not raw:
+            return ''
+        marker = FORWARD_BODY_MARKER_RE.search(raw)
+        return raw[marker.start():].strip() if marker else raw
 
     def _load_linear_content(self, connection_id, records_by_id):
         contents_by_id = self._contents_by_id(

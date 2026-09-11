@@ -21,9 +21,12 @@ class ThreadContent:
     latest_message: dict | None
     history_messages: list  # ascending by time, excluding latest_message
     has_omitted_messages: bool
+    # Thread-level text stored once rather than duplicated per message, e.g. a
+    # forward's original message. Fitted into the budget like the other parts.
+    extras: dict | None = None
 
 
-def fit_thread_content_to_budget(*, body, messages, budget):
+def fit_thread_content_to_budget(*, body, messages, budget, extras=None):
     """Fit one thread's body and messages into the shared budget.
 
     The budget is spent as a greedy waterfall, in decreasing order of
@@ -44,6 +47,11 @@ def fit_thread_content_to_budget(*, body, messages, budget):
 
     ``messages`` must be ascending by time (guaranteed by the query layer),
     so the latest message is simply the last one.
+
+    ``extras`` is thread-level text kept once per thread (a forward's original
+    message). It spends the budget right after the piece favoured by
+    ``budget.priority``: a forward's original is usually the reason the mail
+    exists, so it should not lose to ordinary history messages.
     """
     messages = [message for message in (messages or []) if message]
     latest_message = messages[-1] if messages else None
@@ -82,6 +90,9 @@ def fit_thread_content_to_budget(*, body, messages, budget):
     fitted_body, _ = fit_text_within_remaining_budget(body)
     if budget.priority is ContentPriority.BODY_FIRST:
         fit_message_within_remaining_budget(latest_message)
+    if extras:
+        fitted_extras, _ = fit_text_within_remaining_budget(extras.get('text'))
+        extras = {**extras, 'text': fitted_extras}
     if first_message is not latest_message:
         fit_message_within_remaining_budget(first_message)
     for message in middle_messages_newest_first:
@@ -103,6 +114,7 @@ def fit_thread_content_to_budget(*, body, messages, budget):
             if (fitted := message_with_fitted_content(message)) is not None
         ],
         has_omitted_messages=has_omitted_messages,
+        extras=extras,
     )
 
 
