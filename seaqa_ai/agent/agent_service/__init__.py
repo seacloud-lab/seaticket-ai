@@ -65,6 +65,9 @@ class AgentService:
                 owner_source_type=trace_context.get('source_type', ''),
                 owner_source_id=trace_context.get('source_id', ''),
                 owner_source_title=trace_context.get('source_title', ''),
+                trigger_source_type=trace_context.get('trigger_source_type', ''),
+                trigger_source_id=trace_context.get('trigger_source_id', ''),
+                trigger_source_title=trace_context.get('trigger_source_title', ''),
             )
             context['run_id'] = run_id
 
@@ -246,13 +249,31 @@ class AgentService:
             self.app.seadb_service,
         )
 
-    def _create_run_record(self, task, *, owner_source_type, owner_source_id, owner_source_title):
+    def _create_run_record(
+        self,
+        task,
+        *,
+        owner_source_type,
+        owner_source_id,
+        owner_source_title,
+        trigger_source_type,
+        trigger_source_id,
+        trigger_source_title,
+    ):
         event = dict(task.trigger_event.event)
         new_value = event.get('new_value')
         if isinstance(new_value, dict):
             event['new_value'] = {
                 key: value for key, value in new_value.items() if key != 'content'
             }
+        # The record that the triggering event fired on. When the run is owned by
+        # a linked ticket this differs from owner_source_* and lets the UI jump
+        # to the actual source record (e.g. the GitHub issue, not the ticket).
+        event['trigger_source'] = {
+            'type': trigger_source_type or '',
+            'id': str(trigger_source_id) if trigger_source_id is not None else '',
+            'title': trigger_source_title or '',
+        }
         response = self.app.seadb_service.insert_rows(
             task.project_uuid,
             SchemaTables.AGENT_RUNS.table_name(),
