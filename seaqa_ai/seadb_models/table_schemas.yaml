@@ -536,6 +536,8 @@ tables:
         column_type: bool
       ai_processed_time:
         column_type: datetime
+      featured:
+        column_type: bool
       ai_summary_vector:
         column_type: list
         column_data:
@@ -547,6 +549,7 @@ tables:
     - - modified_time
     - - deleted
     - - ai_processed_time
+    - - featured
     table_name: knowledge_base
   TagTable:
     columns:
