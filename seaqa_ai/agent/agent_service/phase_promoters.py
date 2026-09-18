@@ -5,6 +5,7 @@ from seaqa_ai.agent.models.phase import AgentPhaseSpec
 from seaqa_ai.agent.models.phase.analysis.spec import AnalysisPhaseSpec
 from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
+from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
 from seaqa_ai.agent.utils.record_identity import validate_record_identity
 from seaqa_ai.utils import gen_record_hash
@@ -15,6 +16,7 @@ ALL_PHASES = {
     'prelude': PreludePhaseSpec,
     'analysis': AnalysisPhaseSpec,
     'handling': HandlingPhaseSpec,
+    'regeneration': RegenerationPhaseSpec,
 }
 
 
@@ -265,6 +267,20 @@ class AgentPhasePromoter:
         self._start_analysis()
         self._start_handling()
 
+    def start_regeneration(
+        self,
+        user_instruction,
+        previous_drafts=None,
+        error_message=None,
+        resume_from='regeneration',
+    ):
+        if resume_from == 'prelude':
+            self._start_prelude()
+            self._start_analysis()
+        elif resume_from == 'analysis':
+            self._start_analysis()
+        self._start_regeneration(user_instruction, previous_drafts, error_message)
+
     def _start_prelude(self):
         target_record = _RecordInputFormatter.target_record_identity(self.task)
         linked_ticket_identity = self.context.get('linked_ticket_identity')
@@ -363,6 +379,85 @@ class AgentPhasePromoter:
             message_input,
             records_input,
         )
+
+    def _start_regeneration(self, user_instruction, previous_drafts=None, error_message=None):
+        prelude_output = self.result.get('prelude', {})
+        event_summary = prelude_output.get('event_summary')
+        event_related_records = prelude_output.get('event_related_records', [])
+
+        analysis_output = self.result.get('analysis', {})
+        analysis_report = analysis_output.get('analysis_report')
+        regeneration_tools = AgentPhaseSpec.get_skill_metadata(
+            self.event.event_type, 'regeneration',
+        ).get('tools', [])
+        reference_related_records = analysis_output.get('reference_related_records', [])
+
+        message_input = self._build_default_message_input()
+        if event_summary is not None:
+            message_input['event_summary'] = event_summary
+        if analysis_report is not None:
+            message_input['analysis_report'] = analysis_report
+        message_input['recommended_actions'] = [
+            tool_name
+            for tool_name in regeneration_tools
+            if isinstance(tool_name, str) and tool_name
+        ]
+        if 'skip_handling' in analysis_output:
+            message_input['skip_handling'] = analysis_output.get('skip_handling')
+        message_input['user_instruction'] = str(user_instruction or '').strip()
+        compacted_drafts = self._compact_previous_drafts(previous_drafts)
+        if compacted_drafts:
+            message_input['previous_drafts'] = compacted_drafts
+        if error_message:
+            message_input['error_message'] = str(error_message)
+        if analysis_output:
+            message_input.update(self._declared_additional_output('analysis', analysis_output))
+
+        records_input = _RecordInputFormatter.build_event_records_input(
+            self.task, self.context, event_related_records,
+        )
+        if isinstance(records_input, dict):
+            records_input['PreStep 4: Inject records related to the analysis report'] = (
+                reference_related_records
+            )
+        else:
+            records_input = {
+                'PreStep 1: Inject records related to the event': records_input,
+                'PreStep 2: Inject records related to the analysis report': (
+                    reference_related_records
+                ),
+            }
+
+        self.result['regeneration'] = self._engage_phase(
+            'regeneration',
+            message_input,
+            records_input,
+        )
+
+    @staticmethod
+    def _compact_previous_drafts(previous_drafts):
+        if not isinstance(previous_drafts, list):
+            return []
+        compacted = []
+        for draft in previous_drafts:
+            if not isinstance(draft, dict):
+                continue
+            payload = draft.get('suggestion_payload')
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except (TypeError, ValueError):
+                    payload = {}
+            compacted.append({
+                'tool_name': draft.get('tool_name') or '',
+                'suggestion_content': draft.get('suggestion_content') or '',
+                'suggestion_reason': draft.get('suggestion_reason') or '',
+                'suggestion_payload': payload if isinstance(payload, dict) else {},
+                'target_item_type': draft.get('target_item_type') or '',
+                'target_item_id': draft.get('target_item_id') or '',
+                'target_item_title': draft.get('target_item_title') or '',
+            })
+        return compacted
 
     def _build_default_message_input(self):
         return {
