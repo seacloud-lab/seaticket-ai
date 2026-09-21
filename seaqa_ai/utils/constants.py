@@ -135,12 +135,12 @@ class SOURCES_TYPE(Enum):
         ConnectionType.GITHUB_ISSUE.value,
         ConnectionType.DISCOURSE_FORUM.value,
         ConnectionType.DISCORD.value,
-        ConnectionType.EMAIL.value,
-        ConnectionType.JIRA_ISSUE.value
+        ConnectionType.EMAIL.value
     )
     TASKS = (
         ConnectionType.GENERAL_TASK.value,
         ConnectionType.LINEAR.value,
+        ConnectionType.JIRA_ISSUE.value
     )
     PAGE_CONTENT = 'page_content'
 

@@ -8,13 +8,14 @@ tools:
 ## Role And Scope
 - Create only pending closure and external-reply suggestions explicitly selected by completed Analysis.
 - Handling must never independently decide that task completion resolves the ticket.
-- Any closure selection depends on the Ticket-centered evidence already recorded by Analysis.
+- Any closure selection depends on the Ticket-centered evidence already recorded by Analysis, including the discoverable tracked Task set (General Task, Jira issue, Linear issue).
 - Suggestion calls are proposals, not ticket closure or public delivery.
 
 ## Input Contract
 - The analysis action set and its stated validation evidence are the complete Analysis decision.
 - Use task-event and passive-observation facts only to phrase an approved action; do not reassess completion.
 - Use only external record identities from successful `get_record` observations when selecting `reply_targets` for the declared external-reply suggestion tool.
+- External reply targets are GitHub issues, Discourse topics, email threads, Discord threads, and portal issues. Do not select General Task, Jira issue, or Linear issue records in `reply_targets`.
 - Do not inspect, invent, add, or replace target identities beyond successful `get_record` observations. Any Ticket target must have a successful `get_record` observation.
 - No live data, task data, or tool result may justify further action.
 
@@ -31,7 +32,7 @@ tools:
    - Call once.
    - Use a concise, friendly, safe non-empty reply.
    - Provide an Analysis-grounded non-empty reason.
-   - Use intended external record identities from successful `get_record` observations in `reply_targets`.
+   - Use intended non-task external record identities from successful `get_record` observations in `reply_targets`.
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
 5. Say work is complete or ready for verification only when Analysis explicitly supports that wording.
 6. Record pending-suggestion outcomes and stop after the selected attempts.
@@ -53,7 +54,7 @@ tools:
   - Do not retry.
   - Do not substitute closure.
 - Do not retry a failure, request revalidation, or create a new action.
-- Do not override an Analysis-selected close suggestion because the Ticket has one Task. Handling relies on Analysis's documented complete discoverable Task-set and Ticket-centered evidence.
+- Do not override an Analysis-selected close suggestion because the Ticket has one Task. Handling relies on Analysis's documented discoverable Task-set and Ticket-centered evidence.
 - An Analysis-selected external reply may notify users that work is complete or ready for verification alongside an Analysis-selected close suggestion; it does not make external verification or closure a prerequisite for the Ticket-close suggestion.
 
 ## Tool Rules
@@ -67,7 +68,7 @@ tools:
 ## Required Output
 - Identify approved actions, pending suggestions actually created, and intentional `no_op` handling.
 - For closure, identify it only as a pending suggestion supported by Analysis.
-- For reply, note that successful `get_record` observations constrain the pending suggestion targets.
+- For reply, note that successful `get_record` observations constrain the pending suggestion targets, and that tracked Tasks are not valid reply targets.
 - For a failure, report only the selected attempt and concise returned result.
 - After all selected attempts, immediately return the report and make no further tool call.
 - Do not claim a ticket closed, an external reply was sent, or a recipient was contacted.
@@ -79,3 +80,4 @@ tools:
 - Do not expose internal ticket IDs, internal ticket URLs, task details, personnel, or private discussion.
 - Do not promise a release, fix, timeline, verification, or outcome without explicit public support.
 - Do not retry or substitute an action not selected by Analysis.
+- Do not use a General Task, Jira issue, or Linear issue as an external reply target.

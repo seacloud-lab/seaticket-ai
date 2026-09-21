@@ -21,7 +21,7 @@ def record_identity_schema(*, nested=False):
             'description': (
                 'Use null only for ticket, portal_issue, and knowledge_base records. Use an integer for '
                 'site, seafile, github_issue, discourse_forum, email, general_task, '
-                'linear, and discord records.'
+                'linear, jira_issue, and discord records.'
             ),
         },
         'record_id': {

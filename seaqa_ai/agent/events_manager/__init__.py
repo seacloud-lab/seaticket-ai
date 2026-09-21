@@ -10,7 +10,7 @@ from seaqa_ai import config
 from seaqa_ai.agent.models import AgentTask
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
 
-from .constants import EVENT_TYPE_GENERAL_TASK_UPDATED, EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED
+from .constants import EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED, TASK_COMPLETION_EVENT_SPECS
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +89,12 @@ class EventsManager:
 
     @staticmethod
     def _should_process(event: AgentEvent) -> bool:
-        if event.event_type == EVENT_TYPE_GENERAL_TASK_UPDATED:
-            old_status = str(event.event['old_value'].get('status') or '').strip().lower()
-            new_status = str(event.event['new_value'].get('status') or '').strip().lower()
-            return old_status != 'done' and new_status == 'done'
+        completion_spec = TASK_COMPLETION_EVENT_SPECS.get(event.event_type)
+        if completion_spec:
+            field, done_value = completion_spec
+            old_value = str(event.event['old_value'].get(field) or '').strip().lower()
+            new_value = str(event.event['new_value'].get(field) or '').strip().lower()
+            return old_value != done_value and new_value == done_value
         if event.source_type == 'github_issue' and event.event_type == EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED:
             author = str(event.event['new_value'].get('author') or '').strip().lower()
             return not author.endswith('[bot]')
