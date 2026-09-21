@@ -91,10 +91,10 @@ class EventsManager:
     def _should_process(event: AgentEvent) -> bool:
         completion_spec = TASK_COMPLETION_EVENT_SPECS.get(event.event_type)
         if completion_spec:
-            field, done_value = completion_spec
+            field, done_values = completion_spec
             old_value = str(event.event['old_value'].get(field) or '').strip().lower()
             new_value = str(event.event['new_value'].get(field) or '').strip().lower()
-            return old_value != done_value and new_value == done_value
+            return old_value not in done_values and new_value in done_values
         if event.source_type == 'github_issue' and event.event_type == EVENT_TYPE_GITHUB_ISSUE_COMMENT_ADDED:
             author = str(event.event['new_value'].get('author') or '').strip().lower()
             return not author.endswith('[bot]')

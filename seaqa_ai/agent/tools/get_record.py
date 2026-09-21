@@ -74,12 +74,12 @@ class _RecordRetriever:
             'modified_time', 'created_time', 'linked_ticket',
         ),
         ConnectionType.LINEAR.value: (
-            '_pk', 'issue_id', 'identifier', 'title', 'state', 'labels', 'author',
+            '_pk', 'issue_id', 'identifier', 'title', 'state', 'state_type', 'labels', 'author',
             'assignees', 'priority', 'due_date', 'created_time', 'modified_time',
             'closed_time', 'linked_ticket',
         ),
         ConnectionType.JIRA_ISSUE.value: (
-            '_pk', 'issue_id', 'issue_key', 'title', 'status', 'priority', 'author',
+            '_pk', 'issue_id', 'issue_key', 'title', 'status', 'status_category', 'priority', 'author',
             'assignees', 'issue_type', 'due_date', 'created_time', 'modified_time',
             'linked_ticket',
         ),

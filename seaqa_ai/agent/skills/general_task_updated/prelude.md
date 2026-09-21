@@ -19,7 +19,7 @@ tools:
   - The discoverable total tracked Task count.
   - The completed tracked Task count.
   - Whether an unfinished tracked Task exists.
-- Treat a General Task as completed when its `status` is `done`. Treat a Jira issue as completed when its `status` belongs to Jira's done category; for the triggering Jira record, the event `status_category` is authoritative. Treat a Linear issue as completed when its `state` type is `completed` or `closed_time` is set; for the triggering Linear record, the event `state_type` is authoritative.
+- Treat a General Task as completed when its `status` is `done`. Treat a Jira issue as completed when its `status_category` is `done`. Treat a Linear issue as completed when its `state_type` is `completed` or `canceled`, or when its `closed_time` is set. The event's `status_category` / `state_type` fields are authoritative for the triggering record; sibling records carry the same fields in SeaDB.
 
 ## Required Steps
 1. Confirm the routed General Task target and completion update are usable.

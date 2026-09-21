@@ -75,9 +75,9 @@ CONNECTION_REQUIRED_SOURCE_TYPES = SUPPORTED_SOURCE_TYPES - {
 }
 
 TASK_COMPLETION_EVENT_SPECS = {
-    EVENT_TYPE_GENERAL_TASK_UPDATED: ('status', 'done'),
-    EVENT_TYPE_JIRA_ISSUE_UPDATED: ('status_category', 'done'),
-    EVENT_TYPE_LINEAR_ISSUE_UPDATED: ('state_type', 'completed'),
+    EVENT_TYPE_GENERAL_TASK_UPDATED: ('status', ('done',)),
+    EVENT_TYPE_JIRA_ISSUE_UPDATED: ('status_category', ('done',)),
+    EVENT_TYPE_LINEAR_ISSUE_UPDATED: ('state_type', ('completed', 'canceled')),
 }
 
 MAX_EVENT_AGE_DAYS = 7
