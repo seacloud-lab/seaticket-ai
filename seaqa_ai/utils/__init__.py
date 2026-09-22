@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import ast
-import hashlib
 import html
 import json
 import logging
@@ -106,26 +105,6 @@ def parse_response(response):
             return response.json()
         except:
             pass
-
-def url_to_filename(url):
-    """
-    Convert URL to valid filename
-    """
-    # Remove protocol prefix
-    url = re.sub(r'^https?://', '', url)
-
-    # Replace invalid characters
-    filename = urllib.parse.quote_plus(url)
-    # filename = unquote(urllib.parse.quote_plus(url))
-
-    # Ensure filename doesn't exceed maximum length limit (255 characters)
-    if len(filename) > 240:
-        # Keep beginning and end, use hash value in the middle
-        hash_part = hashlib.md5(url.encode('utf-8')).hexdigest()[:16]
-        filename = filename[:110] + '_' + hash_part + '_' + filename[-110:]
-
-    # Add .json extension
-    return filename + '.json'
 
 def object_to_json_str(obj):
     result = obj
