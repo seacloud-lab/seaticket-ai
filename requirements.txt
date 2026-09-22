@@ -12,4 +12,3 @@ pyyaml~=6.0
 json_repair~=0.62.0
 jsonschema~=4.26.0
 tiktoken~=0.13.0
-boto3==1.43.*
