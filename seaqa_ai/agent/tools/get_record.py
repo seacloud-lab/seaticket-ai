@@ -3,9 +3,8 @@ import re
 from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.seadb_models.utils import get_connection_table_name
-from seaqa_ai.utils import html_to_text, url_to_filename
+from seaqa_ai.utils import html_to_text
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
-from seaqa_ai.utils.storage import S3Storage
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
@@ -202,16 +201,7 @@ class _RecordRetriever:
             record['content'] = self._truncate(contents_by_id.get(record_id, {}).get('content'))
 
     def _load_site_content(self, connection_id, records_by_id):
-        from seaqa_ai.config import S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-
-        with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as storage:
-            for record in records_by_id.values():
-                page = storage.read_json(
-                    site_id=connection_id,
-                    project_uuid=self.project_uuid,
-                    filename=url_to_filename(record['url']),
-                ) or {}
-                record['content'] = self._truncate(page.get('content'))
+        self._load_plain_content(SchemaTables.WEB_CRAWL.table_name(connection_id), records_by_id)
 
     def _load_ticket_content(self, _, records_by_id):
         bodies_by_ticket_id = self._contents_by_id(SchemaTables.TICKETS.table_name(), records_by_id)

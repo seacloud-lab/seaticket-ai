@@ -1,10 +1,8 @@
 import logging
 import re
 from html import unescape
-from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS, \
-    S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET
-from seaqa_ai.utils import url_to_filename, extract_markdown_image_url, normalize_image_url
-from seaqa_ai.utils.storage import S3Storage
+from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE, SEARCH_TOOL_ISSUES_MAX_COMMENTS
+from seaqa_ai.utils import extract_markdown_image_url, normalize_image_url
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query
@@ -99,7 +97,7 @@ class ContentRetriever:
 
     def retrieve(self, search_results, connection_id_type_map):
         """
-        func type: retrieve the search results contents from s3/seadb
+        func type: retrieve the search results contents from seadb
 
         Args: 
         search_results: a map of {
@@ -145,18 +143,13 @@ class ContentRetriever:
             base_id=self.project_uuid,
             table_name=SchemaTables.WEB_CRAWL.table_name(connection_id),
             pks=record_id_record_map.keys(),
-            fields_str='url'
+            fields_str='url, content'
         )
-        # set content from keywords search result (priority) or from s3
-        with S3Storage(S3_HOST, S3_KEY_ID, S3_SECRET_KEY, S3_WEB_CRAWL_BUCKET) as s3_storage:
-            for record_id, record in record_id_record_map.items():
-                url = results_from_seadb[record_id]['url']
-                record['url'] = url
-                record['content'] = (record.get('content') or s3_storage.read_json(
-                    site_id=connection_id,
-                    project_uuid=self.project_uuid,
-                    filename=url_to_filename(url)
-                )['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+        # set content from keywords search result (priority) or from seadb
+        for record_id, record in record_id_record_map.items():
+            site = results_from_seadb.get(record_id) or {}
+            record['url'] = site.get('url')
+            record['content'] = (record.get('content') or site.get('content') or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         return record_id_record_map
 
     ## seafile
