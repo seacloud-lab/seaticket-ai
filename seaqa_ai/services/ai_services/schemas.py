@@ -9,10 +9,25 @@ SCHEMAS_MAP = {
             'description': {
                 'type': 'string',
                 'description': 'A detailed summary of the ticket body'
+            },
+            'type': {
+                'type': 'string',
+                'description': 'One of the provided type names. Use an empty string when none fits.'
+            },
+            'priority': {
+                'type': 'integer',
+                'description': 'Ticket priority: 0 unset, 1 low, 2 medium, 3 high, 4 urgent. Use 0 when unclear.'
+            },
+            'tags': {
+                'type': 'array',
+                'description': 'Names chosen only from the provided tags. Use an empty array when none fits.',
+                'items': {
+                    'type': 'string'
+                }
             }
         },
         'additionalProperties': False,
-        'required': ['title', 'description']
+        'required': ['title', 'description', 'type', 'priority', 'tags']
     },
     'generate_kb_record_from_ticket': {
         'type': 'object',

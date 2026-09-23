@@ -253,11 +253,21 @@ def convert_record_to_ticket():
         return {'error_msg': 'record_detail invalid.'}, 400
 
     try:
-        title, description = flask_app.app.ai_services.gen_ticket_from_record(record_detail, context)
+        draft = flask_app.app.ai_services.gen_ticket_from_record(record_detail, context) or {}
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
-    return {'title': title, 'description': description}, 200
+    tags = draft.get('tags') if isinstance(draft.get('tags'), list) else []
+    priority = draft.get('priority')
+    if isinstance(priority, bool) or not isinstance(priority, int):
+        priority = 0
+    return {
+        'title': draft.get('title', ''),
+        'description': draft.get('description', ''),
+        'type': draft.get('type', '') or '',
+        'priority': priority,
+        'tags': tags,
+    }, 200
 
 
 @flask_app.route('/convert-ticket-to-kb-record', methods=['POST'])

@@ -234,15 +234,6 @@ class SuggestCreateTicketTool(BaseAgentTool):
     action_status = 'pending'
     suggestion_title = 'Create an internal ticket from this record'
 
-    @staticmethod
-    def _format_ticket_suggestion_content(title, description):
-        title = (title or '').strip() or 'Untitled'
-        description = (description or '').strip() or 'No description provided.'
-        return json.dumps({
-            'title': title,
-            'content': description,
-        }, ensure_ascii=False)
-
     def _build_ticket_generation_detail(self, reason):
         detail = {
             'source_type': self.get_source_type(),
@@ -277,7 +268,7 @@ class SuggestCreateTicketTool(BaseAgentTool):
         record_detail = self._build_ticket_generation_detail(reason)
 
         try:
-            title, description = app.ai_services.gen_ticket_from_record(record_detail, context)
+            draft = app.ai_services.gen_ticket_from_record(record_detail, context) or {}
         except Exception as e:
             logger.warning(
                 'Failed to generate ticket draft suggestion for %s %s: %s',
@@ -287,12 +278,22 @@ class SuggestCreateTicketTool(BaseAgentTool):
             )
             return ''
 
-        title = (title or self.get_source_title() or '').strip()
-        description = (description or '').strip()
+        title = (draft.get('title') or self.get_source_title() or '').strip()
+        description = (draft.get('description') or '').strip()
         if not title and not description:
             return ''
 
-        return self._format_ticket_suggestion_content(title, description)
+        priority = draft.get('priority')
+        if isinstance(priority, bool) or not isinstance(priority, int):
+            priority = 0
+        tags = draft.get('tags') if isinstance(draft.get('tags'), list) else []
+        return json.dumps({
+            'title': title or 'Untitled',
+            'content': description or 'No description provided.',
+            'type': str(draft.get('type') or '').strip(),
+            'priority': priority,
+            'tags': tags,
+        }, ensure_ascii=False)
 
     def execute(self, reason):
         source_type = self.get_source_type()
