@@ -249,7 +249,7 @@ class _RecordInputFormatter:
 
 class AgentPhasePromoter:
     def __init__(self, app, task, responses_client, react_tracer, context, record_cache,
-                 project_prompt=''):
+                 project_prompt='', ticket_rules=''):
         self.app = app
         self.task = task
         self.event = task.trigger_event
@@ -258,6 +258,7 @@ class AgentPhasePromoter:
         self.context = context
         self.record_cache = record_cache
         self.project_prompt = project_prompt
+        self.ticket_rules = ticket_rules
         self.result = {}
 
     def start(self):
@@ -406,5 +407,6 @@ class AgentPhasePromoter:
             phase_spec=phase_spec,
             react_tracer=self.react_tracer,
             project_prompt=self.project_prompt,
+            ticket_rules=self.ticket_rules if phase in ('analysis', 'handling') else '',
         )
         return react.run()
