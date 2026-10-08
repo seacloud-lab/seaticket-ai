@@ -52,6 +52,7 @@ class AgentReACT:
         react_tracer,
         *,
         project_prompt='',
+        ticket_rules='',
         completion_max_retries=None,
         completion_retry_interval=None,
         tool_call_max_retries=None,
@@ -62,6 +63,9 @@ class AgentReACT:
         self.phase_spec = phase_spec
         self.context = dict(phase_spec.context or {})
         self.system_prompts = [phase_spec.get_system_prompt()]
+        ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
+        if ticket_rules_prompt:
+            self.system_prompts.append(ticket_rules_prompt)
         if project_prompt and project_prompt.strip():
             self.system_prompts.append(
                 '<project_context>\n'
@@ -725,6 +729,22 @@ class AgentReACT:
             'Your final answer must be a JSON value that conforms exactly to this '
             'JSON Schema. Do not include markdown or explanatory text:\n'
             f'{json.dumps(self.final_output_schema, ensure_ascii=False)}'
+        )
+
+    @staticmethod
+    def _build_ticket_rules_prompt(ticket_rules):
+        if not isinstance(ticket_rules, str):
+            return ''
+        safe_rules_text = sanitize_project_prompt(ticket_rules)
+        if not safe_rules_text:
+            return ''
+        return (
+            '<custom_ticket_rules priority="highest">\n'
+            'The project owner defined the following ticket processing rules.\n'
+            'When a rule matches, it overrides default behavior in this prompt.\n'
+            'Do not ignore tool-call constraints. In analysis, explicitly cite which rule was applied.\n'
+            f'{safe_rules_text}\n'
+            '</custom_ticket_rules>'
         )
 
     @staticmethod

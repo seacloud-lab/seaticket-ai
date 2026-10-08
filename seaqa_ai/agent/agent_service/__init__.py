@@ -71,9 +71,17 @@ class AgentService:
             )
             context['run_id'] = run_id
 
+            settings = self.project.get('settings') or {}
+            agent_settings = settings.get('agent') or {}
+            if not isinstance(agent_settings, dict):
+                agent_settings = {}
+            ticket_rules = agent_settings.get('ticket_rules') or ''
+            if not isinstance(ticket_rules, str) or trace_context.get('source_type') != 'ticket':
+                ticket_rules = ''
+
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
-                ((self.project.get('settings') or {}).get('agent') or {}).get('model'),
+                agent_settings.get('model'),
             )
 
             AgentPhasePromoter(
@@ -83,7 +91,8 @@ class AgentService:
                 tracer,
                 context,
                 record_cache,
-                project_prompt=(self.project.get('settings') or {}).get('prompt', ''),
+                project_prompt=settings.get('prompt', ''),
+                ticket_rules=ticket_rules,
             ).start()
 
             flush_result = tracer.flush()
