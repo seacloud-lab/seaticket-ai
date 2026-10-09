@@ -222,6 +222,24 @@ class _RecordInputFormatter:
         )
 
     @staticmethod
+    def build_records_with_references(event_records_input, reference_related_records):
+        """Append Analysis references after event records in injection order."""
+        if isinstance(event_records_input, dict):
+            # Linked-ticket input already groups the event records into three steps.
+            return {
+                **event_records_input,
+                'PreStep 4: Inject records related to the analysis report': (
+                    reference_related_records
+                ),
+            }
+        return {
+            'PreStep 1: Inject records related to the event': event_records_input,
+            'PreStep 2: Inject records related to the analysis report': (
+                reference_related_records
+            ),
+        }
+
+    @staticmethod
     def build_reference_related_records(sources):
         records = []
         seen_records = set()
@@ -304,8 +322,8 @@ class AgentPhasePromoter:
 
     def _start_analysis(self):
         prelude_output = self.result.get('prelude', {})
-        event_summary = prelude_output.get('event_summary')
         event_related_records = prelude_output.get('event_related_records', [])
+        # These records are already injected, so searches should exclude them.
         self.context['skip_search_record_hashes'] = [
             gen_record_hash(
                 record['source_type'], record['connection_id'], record['record_id'],
@@ -313,18 +331,13 @@ class AgentPhasePromoter:
             for record in event_related_records
         ]
 
-        message_input = self._build_default_message_input()
-        if event_summary is not None:
-            message_input['event_summary'] = event_summary
+        message_input, records_input = self._build_event_inputs()
         message_input.update(self._declared_additional_output('prelude', prelude_output))
 
         analysis_output = self._engage_phase(
-            'analysis',
-            message_input,
-            _RecordInputFormatter.build_event_records_input(
-                self.task, self.context, event_related_records,
-            ),
+            'analysis', message_input, records_input,
         )
+        # Retain reference identities for injection in Handling and Regeneration.
         analysis_output['reference_related_records'] = (
             _RecordInputFormatter.build_reference_related_records(
                 analysis_output.get('sources', []),
@@ -333,76 +346,48 @@ class AgentPhasePromoter:
         self.result['analysis'] = analysis_output
 
     def _start_handling(self):
-        prelude_output = self.result.get('prelude', {})
-        event_summary = prelude_output.get('event_summary')
-        event_related_records = prelude_output.get('event_related_records', [])
-
         analysis_output = self.result.get('analysis', {})
         if analysis_output.get('skip_handling'):
             return
-        analysis_report = analysis_output.get('analysis_report')
-        recommended_actions = analysis_output.get('recommended_actions', [])
-        reference_related_records = analysis_output.get('reference_related_records', [])
 
-        message_input = self._build_default_message_input()
-        if event_summary is not None:
-            message_input['event_summary'] = event_summary
-        if analysis_report is not None:
-            message_input['analysis_report'] = analysis_report
+        message_input, records_input = self._build_inputs_with_analysis()
+        recommended_actions = analysis_output.get('recommended_actions', [])
         if recommended_actions is not None:
-            handling_tools = AgentPhaseSpec.get_skill_metadata(self.event.event_type, 'handling').get('tools', [])
+            # Keep only Analysis-recommended actions allowed by the Handling skill.
+            handling_tools = AgentPhaseSpec.get_skill_metadata(
+                self.event.event_type, 'handling',
+            ).get('tools', [])
+            # no_op represents taking no action; it does not require a tool.
             allowed_actions = set(handling_tools) | {'no_op'}
+            if not isinstance(recommended_actions, list):
+                recommended_actions = []
             message_input['recommended_actions'] = [
                 action
                 for action in recommended_actions
                 if isinstance(action, str) and action in allowed_actions
-            ] if isinstance(recommended_actions, list) else []
+            ]
         message_input.update(self._declared_additional_output('analysis', analysis_output))
 
-        records_input = _RecordInputFormatter.build_event_records_input(
-            self.task, self.context, event_related_records,
-        )
-        if isinstance(records_input, dict):
-            records_input['PreStep 4: Inject records related to the analysis report'] = (
-                reference_related_records
-            )
-        else:
-            records_input = {
-                'PreStep 1: Inject records related to the event': records_input,
-                'PreStep 2: Inject records related to the analysis report': (
-                    reference_related_records
-                ),
-            }
-
         self.result['handling'] = self._engage_phase(
-            'handling',
-            message_input,
-            records_input,
+            'handling', message_input, records_input,
         )
 
     def _start_regeneration(self, user_instruction, previous_drafts=None, error_message=None):
-        prelude_output = self.result.get('prelude', {})
-        event_summary = prelude_output.get('event_summary')
-        event_related_records = prelude_output.get('event_related_records', [])
-
         analysis_output = self.result.get('analysis', {})
-        analysis_report = analysis_output.get('analysis_report')
         regeneration_tools = AgentPhaseSpec.get_skill_metadata(
             self.event.event_type, 'regeneration',
         ).get('tools', [])
-        reference_related_records = analysis_output.get('reference_related_records', [])
 
-        message_input = self._build_default_message_input()
-        if event_summary is not None:
-            message_input['event_summary'] = event_summary
-        if analysis_report is not None:
-            message_input['analysis_report'] = analysis_report
+        message_input, records_input = self._build_inputs_with_analysis()
+        # The user can request any tool allowed by the Regeneration skill,
+        # including actions that Analysis did not originally recommend.
         message_input['recommended_actions'] = [
             tool_name
             for tool_name in regeneration_tools
             if isinstance(tool_name, str) and tool_name
         ]
         if 'skip_handling' in analysis_output:
+            # Preserve the original decision as context, without skipping regeneration.
             message_input['skip_handling'] = analysis_output.get('skip_handling')
         message_input['user_instruction'] = str(user_instruction or '').strip()
         compacted_drafts = self._compact_previous_drafts(previous_drafts)
@@ -413,26 +398,44 @@ class AgentPhasePromoter:
         if analysis_output:
             message_input.update(self._declared_additional_output('analysis', analysis_output))
 
+        self.result['regeneration'] = self._engage_phase(
+            'regeneration', message_input, records_input,
+        )
+
+    def _build_event_inputs(self):
+        """Build the event input shared by Analysis, Handling and Regeneration.
+
+        Include task/event metadata, Prelude's summary and event records.
+        Callers add stage-specific fields and skill-declared output.
+        """
+        prelude_output = self.result.get('prelude', {})
+        event_summary = prelude_output.get('event_summary')
+        event_related_records = prelude_output.get('event_related_records', [])
+
+        message_input = self._build_default_message_input()
+        if event_summary is not None:
+            message_input['event_summary'] = event_summary
         records_input = _RecordInputFormatter.build_event_records_input(
             self.task, self.context, event_related_records,
         )
-        if isinstance(records_input, dict):
-            records_input['PreStep 4: Inject records related to the analysis report'] = (
-                reference_related_records
-            )
-        else:
-            records_input = {
-                'PreStep 1: Inject records related to the event': records_input,
-                'PreStep 2: Inject records related to the analysis report': (
-                    reference_related_records
-                ),
-            }
+        return message_input, records_input
 
-        self.result['regeneration'] = self._engage_phase(
-            'regeneration',
-            message_input,
-            records_input,
+    def _build_inputs_with_analysis(self):
+        """Extend event input with the analysis report and reference records.
+
+        Handling and Regeneration share this context but supply their own
+        action rules and other fields in their respective entry points.
+        """
+        message_input, records_input = self._build_event_inputs()
+        analysis_output = self.result.get('analysis', {})
+        analysis_report = analysis_output.get('analysis_report')
+        if analysis_report is not None:
+            message_input['analysis_report'] = analysis_report
+
+        records_input = _RecordInputFormatter.build_records_with_references(
+            records_input, analysis_output.get('reference_related_records', []),
         )
+        return message_input, records_input
 
     @staticmethod
     def _compact_previous_drafts(previous_drafts):
@@ -474,6 +477,11 @@ class AgentPhasePromoter:
         }
 
     def _declared_additional_output(self, phase, result):
+        """Select skill-declared output, excluding the source phase's base fields.
+
+        Callers merge these fields last to preserve their precedence over
+        other prepared message fields.
+        """
         additional_output = AgentPhaseSpec.get_skill_metadata(
             self.event.event_type, phase,
         ).get('additional_output', {})
