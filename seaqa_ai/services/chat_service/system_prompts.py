@@ -38,11 +38,11 @@ When tools are not needed:
 - If the answer can be given directly, tools are unavailable, or the maximum step has been reached, return a final answer only.
 - Do not claim that you performed an action unless a tool actually performed it.
 
-When search tools were used:
+When search tools or read_documents were used:
 - Cite only with labels returned by tool results, such as <reference_0>.
 - Place citations immediately after the supported statement.
 - Combine multiple citations directly, such as <reference_0><reference_2>.
-- Do not output any <reference_x> tag if search tools were not used or the results are not useful.
+- Do not output any <reference_x> tag if neither search tools nor read_documents were used or the results are not useful.
 
 When content-generation tools were used:
 - You may add one short user-facing sentence before the generated content.
@@ -53,15 +53,18 @@ CHAT_SEARCH_POLICY = """Search policy:
 - Use search tools only when the answer needs external reference material.
 - Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem, including feature development handling tasks and requirement design tasks.
 - Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
-- Start with `documents_search` unless the user explicitly asks for issue history, past cases, or ticket-like records.
+- For general questions needing documentation, first check the `featured_documents` catalog, when provided. If relevant entries exist, call `read_documents` with an `entries` mapping of connection_id to record IDs, such as {"entries": {"knowledge_base": [1, 2]}}.
+- The catalog is only an index. Do not answer from its summaries alone or fabricate citation labels. Use the document content returned by tools.
+- If read documents are sufficient, stop and answer. If no featured entries match, or the read content is insufficient, use `documents_search`.
+- When the user explicitly asks for issue history, past cases, or ticket-like records, use `issues_search` directly.
 - If `documents_search` is sufficient, stop searching and answer.
 - Use `issues_search` only after documentation is insufficient, or when the user explicitly asks for issue-style evidence.
 - Search queries should be short natural-language sentences, not keyword piles.
 - Do not perform exploratory searches without a clear reason tied to the user's request."""
 
 CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
-- Search tools may return records with a `label` such as `<reference_0>`.
-- Only use those labels as citations in the final answer.
+- Search tools and read_documents may return records with a `label` such as `<reference_0>`.
+- Only use those labels as citations in the final answer. A search tool or read_documents notice may return the same existing label as `reference_id`; use the previously provided content for that reference.
 - Cite only the statements that are actually supported by the search results.
 - If several references support the same statement, place the labels together, for example `<reference_0><reference_3>`.
 - If search results are irrelevant, weak, or unused in the answer, do not cite them.
@@ -73,7 +76,7 @@ CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - You may output the image as Markdown `![short caption](exact_url)` or HTML `<img src="exact_url" alt="short caption">`.
 - Copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
 - Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content.
-- If no search tool was used, do not output any `<reference_x>` tags."""
+- If neither a search tool nor read_documents was used, do not output any `<reference_x>` tags."""
 
 CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
 - Use content-generation tools only when the user explicitly asks to create, record, save, or generate content as an artifact.
@@ -99,7 +102,7 @@ Tool result includes `<reference_0>` with a Seafile introduction.
 Final answer: Seafile is an open source cloud storage system for file sync, sharing, and document collaboration<reference_0>.
 
 Example 2
-User: Has this kind of LDAP login problem happened before?
+User: How can I troubleshoot this LDAP login problem after upgrading?
 Step 1 tool call:
 {
   "name": "documents_search",
@@ -156,7 +159,35 @@ Final answer: I found a related task for this problem<reference_0>.
 Example 5
 User: Which number is largest in 5, 9, 19, 28, and 3?
 Tool call: none
-Final answer: 28."""
+Final answer: 28.
+
+Example 6
+User: How can I download all files in a file column?
+The featured_documents catalog lists a relevant knowledge_base document with record_id 123.
+Tool call:
+{
+  "name": "read_documents",
+  "arguments": {"entries": {"knowledge_base": [123]}}
+}
+Tool result includes `<reference_0>` with the download steps.
+Final answer: Follow the file-column batch download steps described in the documentation<reference_0>.
+
+Example 7
+User: Explain shared views and custom sharing permissions.
+The featured_documents catalog lists relevant knowledge_base documents with record_ids 124 and 125.
+Tool call:
+{
+  "name": "read_documents",
+  "arguments": {"entries": {"knowledge_base": [124, 125]}}
+}
+The returned content is insufficient for the specific question.
+Next tool call:
+{
+  "name": "documents_search",
+  "arguments": {"query": "shared view custom sharing permission configuration"}
+}
+Use issues_search only if the documentation is still insufficient.
+If the catalog has no relevant entries, start with documents_search directly."""
 
 CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES = """Content-generation examples:
 

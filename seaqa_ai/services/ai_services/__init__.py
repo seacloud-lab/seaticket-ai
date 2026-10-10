@@ -8,7 +8,7 @@ from seaqa_ai.db import init_db_session_class
 from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserContentPrompts, GENERATE_SUMMARY_PROMPTS_MAP
 from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
-from seaqa_ai.utils import gen_completion_format
+from seaqa_ai.utils import gen_completion_format, gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_completion_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
@@ -410,7 +410,10 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         ranked_record_id_connection_pairs, rerank_token_usage = self.rank_records_by_relevance(query, new_records, context)
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
-        for pair in ranked_record_id_connection_pairs:
+        to_retrieve = {}
+        provided_labels = context.get('_provided_source_labels', {})
+        remaining_budget = context.get('_remaining_source_budget', limit)
+        for rank, pair in enumerate(ranked_record_id_connection_pairs):
             after_unpack = pair.split(':')
             if len(after_unpack) != 2:
                 continue
@@ -426,7 +429,24 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             
             conn_results = search_result.get(connection_id)
             if conn_results and record_id in conn_results:
-                search_result_after_ranked.setdefault(connection_id, {})[record_id] = conn_results[record_id]
+                ranked_group = search_result_after_ranked.setdefault(connection_id, {})
+                if record_id in ranked_group:
+                    continue
+                record = conn_results[record_id]
+                record_hash = gen_record_hash(record['type'], connection_id, record_id)
+                entry = {'connection_id': connection_id, 'record_id': record_id}
+                if record_hash in provided_labels:
+                    record = {
+                        'notice': 'Document was already provided.', **entry,
+                        'reference_id': provided_labels[record_hash],
+                    }
+                elif remaining_budget <= 0:
+                    record = {'notice': 'Document source limit reached.', **entry}
+                else:
+                    remaining_budget -= 1
+                    to_retrieve.setdefault(connection_id, {})[record_id] = record
+                record['_search_rank'] = rank
+                ranked_group[record_id] = record
 
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
@@ -440,12 +460,17 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         content_retriever = ContentRetriever(
             self.app.username_resolver, self.app.seadb_service, project_uuid,
         )
-        search_result_with_whole_data = content_retriever.retrieve(search_result_after_ranked, connection_id_type_map)
+        if to_retrieve:
+            content_retriever.retrieve(to_retrieve, connection_id_type_map)
+        for connection_id, group in search_result_after_ranked.items():
+            for record_id, record in list(group.items()):
+                if 'notice' not in record and record_id not in to_retrieve.get(connection_id, {}):
+                    del group[record_id]
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
             call_back('update_execution_detail', {'Requst whole data': f'time usage: {round(time_end - time_begin, 2)} s'})
 
-        return search_result_with_whole_data, rerank_token_usage
+        return search_result_after_ranked, rerank_token_usage
     
     def search(self, query, connections, extra_sources, context, limit=100, call_back=None):
         if limit <= 0:
@@ -496,5 +521,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             for sublist in search_results.values()
             for record in sublist.values()
         ]
+        sources_results.sort(key=lambda record: record['_search_rank'])
+        for record in sources_results:
+            del record['_search_rank']
         
         return sources_results, rerank_token_usage

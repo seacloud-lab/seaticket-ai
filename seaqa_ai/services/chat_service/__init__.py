@@ -14,11 +14,12 @@ from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch
+from seaqa_ai.services.chat_service.tools.read_documents import ReadDocuments
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator, TicketCreator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
-    extract_skill_command_from_message
+    extract_skill_command_from_message, load_featured_documents
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.skills.tool import LoadExtraSkill
@@ -40,6 +41,7 @@ class BasicChat(object):
             TicketCreator(),
         )
         self.test_tool = TestTool()
+        self.read_documents_tool = ReadDocuments()
         self.load_extra_skill_tool = LoadExtraSkill()
 
     def _prepare_chat_memory(self, system_prompts, session_uuid, context):
@@ -95,6 +97,7 @@ class BasicChat(object):
         tool_executor.clean()
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
+        self.read_documents_tool.register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
             for tool in self.content_generators:
                 tool.register(tool_executor, context=context)
@@ -119,6 +122,7 @@ class BasicChat(object):
 
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
+        load_featured_documents(context, self.app.seadb_service)
         available_skill_ids = [skill.name for skill in SkillRegistry.available_skills(self.app.seadb_service, context)]
         skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
         context['selected_skill_id'] = skill_id

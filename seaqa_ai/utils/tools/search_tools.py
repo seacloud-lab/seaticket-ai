@@ -4,6 +4,7 @@ from urllib.parse import quote
 from seaqa_ai import config
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
+from seaqa_ai.utils import gen_record_hash
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,9 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
         // ... Other useful information, e.g., snippets ...
     }
 ]
+Relevant records already provided may instead return:
+{"notice": "Document was already provided.", "connection_id": "knowledge_base", "record_id": 123, "reference_id": "<reference_0>"}.
+Use the previously provided content and its existing reference_id. Notices do not contain new document content.
 """
 
 class BasicSearchTool(BasicTool):
@@ -89,21 +93,34 @@ class BasicSearchTool(BasicTool):
 
         return f'{project_base_url}{record_path}'
 
+    @staticmethod
+    def record_hash(record):
+        return gen_record_hash(record['type'], record.get('connection_id'), record['_id'])
+
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
         sources_results = tool_executor.cache.get('sources_results', [])
         existed_search_records_num = len(sources_results)
 
-        if not connections and not extra_sources or existed_search_records_num >= self.MAX_SOURCES_COUNT:
+        if not connections and not extra_sources:
             return []
 
-        limit = self.MAX_SOURCES_COUNT - existed_search_records_num
-        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
-            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
-
-        current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
+        search_context = dict(context)
+        search_context['_provided_source_labels'] = {
+            self.record_hash(record): f'<reference_{i}>' for i, record in enumerate(sources_results)
+        }
+        search_context['_remaining_source_budget'] = max(0, self.MAX_SOURCES_COUNT - existed_search_records_num)
+        current_search_results, rerank_token_usage = app.ai_services.search(
+            query, connections, extra_sources, search_context, self.SINGLE_TOOL_MAX_SOURCES_COUNT, call_back,
+        )
 
         tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
+
+        return self._provide_results(current_search_results, context, app, tool_executor)
+
+    def _provide_results(self, current_search_results, context, app, tool_executor):
+        sources_results = tool_executor.cache.get('sources_results', [])
+        existed_search_records_num = len(sources_results)
 
         project_base_url = (
             self._build_project_base_url(context, app, tool_executor)
@@ -111,7 +128,12 @@ class BasicSearchTool(BasicTool):
             else ''
         )
         to_observation = []
-        for i, search_result in enumerate(current_search_results, existed_search_records_num):
+        new_sources = []
+        for search_result in current_search_results:
+            if 'notice' in search_result:
+                to_observation.append(search_result)
+                continue
+            i = existed_search_records_num + len(new_sources)
             doc = {
                 'label': f'<reference_{i}>',
                 'type': search_result['type'],
@@ -134,9 +156,10 @@ class BasicSearchTool(BasicTool):
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
+            new_sources.append(search_result)
 
         tool_executor.cache.update({
-            'sources_results': sources_results + current_search_results
+            'sources_results': sources_results + new_sources
         })
 
         return to_observation
