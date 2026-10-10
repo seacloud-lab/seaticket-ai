@@ -41,12 +41,14 @@ def load_featured_documents(context, seadb_service):
             'WHERE featured = True AND (deleted = False OR deleted IS NULL) '
             f'ORDER BY modified_time DESC, _pk DESC LIMIT {limit}',
         ).get('results', [])
-        tag_ids = {tag for row in rows for tag in row.get('tags') or []}
+        tag_ids = {int(tag) for row in rows for tag in row.get('tags') or []}
         tags = {}
         if tag_ids:
+            tag_ids_sql = ', '.join(str(tag_id) for tag_id in sorted(tag_ids))
             tag_rows = seadb_service.query_rows(
                 context['project_uuid'],
-                f'SELECT _pk, name FROM `{SchemaTables.TAG.table_name()}`',
+                f'SELECT _pk, name FROM `{SchemaTables.TAG.table_name()}` '
+                f'WHERE _pk IN ({tag_ids_sql})',
             ).get('results', [])
             tags = {row['_pk']: row['name'] for row in tag_rows}
         documents = []
