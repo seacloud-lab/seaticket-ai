@@ -7,6 +7,7 @@ from ._seadb_query_service import (
     discourse_replies_query,
     email_messages_query,
     linear_issue_comments_query,
+    jira_issue_comments_query,
     discord_thread_messages_query,
 )
 from ._thread_content import (
@@ -84,6 +85,7 @@ __all__ = [
     'discourse_replies_query',
     'email_messages_query',
     'linear_issue_comments_query',
+    'jira_issue_comments_query',
     'discord_thread_messages_query',
     'ContentBudget',
     'ContentPriority',

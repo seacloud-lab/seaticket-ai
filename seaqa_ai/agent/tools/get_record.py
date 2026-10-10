@@ -8,7 +8,7 @@ from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
-    linear_issue_comments_query, discord_thread_messages_query
+    linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query
 from seaqa_ai.agent.utils.record_identity import (
     record_identity_schema,
     validate_record_identity,
@@ -73,9 +73,14 @@ class _RecordRetriever:
             'modified_time', 'created_time', 'linked_ticket',
         ),
         ConnectionType.LINEAR.value: (
-            '_pk', 'issue_id', 'identifier', 'title', 'state', 'labels', 'author',
+            '_pk', 'issue_id', 'identifier', 'title', 'state', 'state_type', 'labels', 'author',
             'assignees', 'priority', 'due_date', 'created_time', 'modified_time',
             'closed_time', 'linked_ticket',
+        ),
+        ConnectionType.JIRA_ISSUE.value: (
+            '_pk', 'issue_id', 'issue_key', 'title', 'status', 'status_category', 'priority', 'author',
+            'assignees', 'issue_type', 'due_date', 'created_time', 'modified_time',
+            'linked_ticket',
         ),
         ConnectionType.DISCORD.value: (
             '_pk', 'thread_id', 'title', 'created_time', 'modified_time', 'linked_ticket',
@@ -447,6 +452,44 @@ class _RecordRetriever:
             record['content'] = {
                 'latest_comment': self._format_message(
                     issue_content.latest_message, ('author', 'created_time', 'content'),
+                ),
+                'content': issue_content.body,
+                'history_comments': history_comments,
+            }
+
+    def _load_jira_issue_content(self, connection_id, records_by_id):
+        contents_by_id = self._contents_by_id(
+            SchemaTables.JIRA_ISSUES.table_name(connection_id), records_by_id,
+        )
+        bodies_by_issue_id = {
+            record['issue_id']: contents_by_id.get(record_id)
+            for record_id, record in records_by_id.items()
+        }
+        content_by_issue_id = self.app.seadb_service.get_thread_content(
+            self.project_uuid,
+            bodies_by_issue_id.keys(),
+            query=jira_issue_comments_query(
+                SchemaTables.JIRA_ISSUE_COMMENTS.table_name(connection_id),
+                SEARCH_TOOL_ISSUES_MAX_COMMENTS,
+            ),
+            bodies_by_thread_id=bodies_by_issue_id,
+            budget=AGENT_CONTENT_BUDGET,
+        )
+        for record_id, record in records_by_id.items():
+            issue_content = content_by_issue_id[record['issue_id']]
+            history_comments = [
+                self._format_message(message, ('comment_id', 'author', 'created_time', 'modified_time', 'content'))
+                for message in issue_content.history_messages
+            ]
+            if issue_content.has_omitted_messages:
+                history_comments.append({
+                    'comment_id': None, 'author': None, 'created_time': None,
+                    'modified_time': None, 'content': MESSAGES_OMITTED_NOTICE,
+                })
+            record['content'] = {
+                'latest_comment': self._format_message(
+                    issue_content.latest_message,
+                    ('comment_id', 'author', 'created_time', 'modified_time', 'content'),
                 ),
                 'content': issue_content.body,
                 'history_comments': history_comments,

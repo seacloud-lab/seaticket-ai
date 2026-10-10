@@ -84,6 +84,17 @@ def linear_issue_comments_query(table_name, limit_per_thread):
     )
 
 
+def jira_issue_comments_query(table_name, limit_per_thread):
+    return ThreadMessagesQuery(
+        table_name=table_name,
+        thread_id_field='issue_id',
+        order_by=('comment_id',),
+        select_fields='comment_id, author, content, created_time, modified_time',
+        limit_per_thread=limit_per_thread,
+        has_deleted_field=False,
+    )
+
+
 def discord_thread_messages_query(table_name, limit_per_thread):
     return ThreadMessagesQuery(
         table_name=table_name,
