@@ -15,6 +15,8 @@ from seaqa_ai.skills.loader import (
 from seaqa_ai.utils import chunk_text
 from seaqa_ai.utils.constants import AIScenario
 from seaqa_ai.services.chat_service import SyncChat, StreamingChat
+from seaqa_ai.agent.agent_service import MissingRequiredLinkedTicket
+from seaqa_ai.agent.agent_service.run_rebuilder import regenerate_agent_suggestions as regenerate
 
 logger = logging.getLogger(__name__)
 flask_app = Flask(__name__)
@@ -477,3 +479,51 @@ def batch_generate_embeddings():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
+
+
+@flask_app.route('/regenerate-agent-suggestions', methods=['POST'])
+def regenerate_agent_suggestions():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data)
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    project_uuid = data.get('project_uuid')
+    run = data.get('run')
+    user_instruction = str(data.get('instruction') or '').strip()
+    phase_actions = data.get('phase_actions') or []
+    previous_drafts = data.get('previous_drafts') or []
+
+    if not project_uuid:
+        return {'error_msg': 'project_uuid invalid.'}, 400
+    if not isinstance(run, dict):
+        return {'error_msg': 'run invalid.'}, 400
+    if not user_instruction:
+        return {'error_msg': 'instruction invalid.'}, 400
+    if not isinstance(phase_actions, list):
+        return {'error_msg': 'phase_actions invalid.'}, 400
+    if not isinstance(previous_drafts, list):
+        return {'error_msg': 'previous_drafts invalid.'}, 400
+
+    try:
+        result = regenerate(
+            flask_app.app,
+            project_uuid=project_uuid,
+            run=run,
+            phase_actions=phase_actions,
+            user_instruction=user_instruction,
+            previous_drafts=previous_drafts,
+        )
+    except (ValueError, MissingRequiredLinkedTicket) as e:
+        logger.warning('Failed to regenerate agent suggestions: %s', e)
+        return {'error_msg': str(e) or 'Bad request.'}, 400
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Internet server error.'}, 500
+
+    return result, 200
