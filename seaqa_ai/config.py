@@ -139,6 +139,7 @@ if not check_llm_validated(EMBEDDING_MODEL):
 
 ## AI_UTILS
 AI_UTILS_TIER = configs.get('AI_UTILS_TIER', {})
+KNOWLEDGE_GAPS_MAX_QA_PER_RUN = int(configs.get('KNOWLEDGE_GAPS', {}).get('max_qa_per_run', 200) or 200)
 
 ## CONTEXT
 DISABLE_CONTEXT = configs.get('DISABLE_CONTEXT', False)

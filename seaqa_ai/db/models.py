@@ -325,12 +325,20 @@ class PortalChatMessages(Base):
     message_id = Column(String(length=4), nullable=True)
     role = Column(String(length=20), nullable=False)
     content = Column(Text, nullable=True)
+    sources = Column(Text, nullable=True)
+    evaluated_at = Column(DateTime, nullable=True)
+    evaluation = Column(String(length=20), nullable=True)
+    evaluation_reason = Column(Text, nullable=True)
+    normalized_question = Column(Text, nullable=True)
+    gap_suggestion = Column(Text, nullable=True)
+    gap_status = Column(String(length=16), nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
     as_context = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         Index('idx_portal_chat_msg_session_created', 'session_uuid', 'created_at'),
+        Index('idx_portal_chat_msg_evaluation', 'evaluation', 'gap_status'),
     )
 
     def to_dict(self):

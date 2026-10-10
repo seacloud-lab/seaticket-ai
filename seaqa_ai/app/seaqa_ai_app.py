@@ -3,6 +3,7 @@ import logging
 from seaqa_ai.http_server.seaqa_ai_http_server import SeaQAAIHttpServer
 from seaqa_ai.utils.data_logging import DataLogging
 from seaqa_ai.services.ai_services import AIServices
+from seaqa_ai.services.analysis_service import AnalysisService
 from seaqa_ai.utils.llm_api import EmbeddingAPI
 from seaqa_ai.utils.seaqa_indexer_api import SeaQAIndexerAPI
 from seaqa_ai.utils.seaqa_web_api import SeaQAWebAPI
@@ -25,6 +26,7 @@ class SeaQAAIApp(object):
         self.redis_client = RedisClient(config.REDIS_HOST, config.REDIS_PORT, config.REDIS_PASSWORD)
         self.data_logger = DataLogging(self.redis_client)
         self.ai_services = AIServices(self)
+        self.analysis_service = AnalysisService(self)
         self.seaqa_web_api = SeaQAWebAPI(config.SEAQA_WEB_INNER_SERVER_URL, config.JWT_PRIVATE_KEY)
         self.seaqa_indexer_api = SeaQAIndexerAPI(config.SEAQA_INDEXER_INNER_SERVER_URL, config.JWT_PRIVATE_KEY)
         self.seadb_service = SeaDBService(

@@ -504,6 +504,7 @@ def regenerate_agent_suggestions():
         return {'error_msg': 'Bad request.'}, 400
 
     project_uuid = data.get('project_uuid')
+
     run = data.get('run')
     user_instruction = str(data.get('instruction') or '').strip()
     phase_actions = data.get('phase_actions') or []
@@ -535,5 +536,28 @@ def regenerate_agent_suggestions():
     except Exception as e:
         logger.exception(e)
         return {'error_msg': 'Internet server error.'}, 500
+
+    return result, 200
+
+
+@flask_app.route('/internal/analyze/knowledge-gaps', methods=['POST'])
+def analyze_knowledge_gaps():
+    is_valid = check_auth_token(request)
+    if not is_valid:
+        return {'error_msg': 'Permission denied'}, 403
+
+    try:
+        data = json.loads(request.data or b'{}')
+    except Exception as e:
+        logger.exception(e)
+        return {'error_msg': 'Bad request.'}, 400
+
+    project_uuid = data.get('project_uuid')
+    if not project_uuid or not isinstance(project_uuid, str):
+        return {'error_msg': 'project_uuid invalid.'}, 400
+
+    result = flask_app.app.analysis_service.run_knowledge_gaps(project_uuid)
+    if result is None:
+        return {'error_msg': 'Analysis queue is full.'}, 429
 
     return result, 200
