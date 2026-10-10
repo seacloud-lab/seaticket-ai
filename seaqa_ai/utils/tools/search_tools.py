@@ -104,6 +104,8 @@ class BasicSearchTool(BasicTool):
 
         if not connections and not extra_sources:
             return []
+        if existed_search_records_num >= self.MAX_SOURCES_COUNT:
+            return [{'notice': 'Document source limit reached. Use the sources already provided.'}]
 
         search_context = dict(context)
         search_context['_provided_source_labels'] = {
