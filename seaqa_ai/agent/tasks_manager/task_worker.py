@@ -107,11 +107,11 @@ class AgentTaskWorker:
             AgentService(self._app, project).run(task)
         except Exception:
             logger.exception(
-                'Agent task failed: task_id=%s project=%s target=%s:%s',
+                'Agent task failed: task_id=%s project=%s trigger=%s:%s',
                 task.task_id,
                 task.project_uuid,
-                task.target_item_type,
-                task.target_record_id,
+                task.trigger_event.source_type,
+                task.trigger_event.record_id,
             )
 
     def _build_agent_project_context(self, project):

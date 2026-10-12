@@ -42,17 +42,17 @@ def regenerate_agent_suggestions(
     record_cache = {}
     context['record_cache'] = record_cache
 
-    target_record = GetRecord().execute(
-        source_type=task.target_item_type,
-        connection_id=task.target_connection_id,
-        record_id=task.target_record_id,
+    trigger_record = GetRecord().execute(
+        source_type=task.trigger_event.source_type,
+        connection_id=task.trigger_event.connection_id,
+        record_id=task.trigger_event.record_id,
         project_uuid=task.project_uuid,
         app=app,
         record_cache=record_cache,
         context=context,
     )
     tracer, trace_context = agent_service._build_trace_context(
-        task, context, record_cache, target_record,
+        task, context, record_cache, trigger_record,
     )
     context.update(trace_context)
     _ensure_linked_ticket_from_owner(app, task, run, context, record_cache)
@@ -116,9 +116,6 @@ def rebuild_agent_task(project_uuid, run) -> AgentTask:
         schema_version=AGENT_TASK_SCHEMA_VERSION,
         task_id=str(uuid4()),
         project_uuid=project_uuid,
-        target_item_type=source_type,
-        target_record_id=record_id,
-        target_connection_id=connection_id,
         trigger_event=agent_event,
         created_at=datetime.now(timezone.utc),
     )
@@ -130,11 +127,11 @@ def restore_phase_outputs(promoter, phase_actions) -> dict:
 
     prelude_output = completed.get('prelude')
     if prelude_output is not None:
-        target_record = _RecordInputFormatter.target_record_identity(promoter.task)
+        trigger_identity = _RecordInputFormatter.trigger_record_identity(promoter.task)
         linked_ticket_identity = promoter.context.get('linked_ticket_identity')
         prelude_output['event_related_records'] = (
             _RecordInputFormatter.build_event_related_records(
-                target_record,
+                trigger_identity,
                 linked_ticket_identity,
                 prelude_output.get('event_related_records', []),
                 promoter.context,

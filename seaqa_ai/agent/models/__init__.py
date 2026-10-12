@@ -24,8 +24,5 @@ class AgentTask:
     schema_version: int
     task_id: str
     project_uuid: str
-    target_item_type: str
-    target_record_id: int
-    target_connection_id: int | None
     trigger_event: AgentEvent
     created_at: datetime

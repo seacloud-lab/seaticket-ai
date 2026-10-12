@@ -96,11 +96,11 @@ class TaskManager:
         try:
             self._redis_connection.lpush(AGENT_TASK_QUEUE_NAME, AgentTaskSerializer.serialize(task))
             logger.debug(
-                'Queued agent task %s for project %s (target=%s:%s)',
+                'Queued agent task %s for project %s (trigger=%s:%s)',
                 task.task_id,
                 task.project_uuid,
-                task.target_item_type,
-                task.target_record_id,
+                task.trigger_event.source_type,
+                task.trigger_event.record_id,
             )
             return True
         except Exception:
@@ -128,9 +128,6 @@ class TaskManager:
             schema_version=AGENT_TASK_SCHEMA_VERSION,
             task_id=str(uuid4()),
             project_uuid=template.project_uuid,
-            target_item_type=template.target_item_type,
-            target_record_id=template.target_record_id,
-            target_connection_id=template.target_connection_id,
             trigger_event=trigger_event,
             created_at=datetime.now(timezone.utc),
         )
@@ -142,9 +139,10 @@ class TaskManager:
         return float(state.get('first_event_at', now)) + config.AGENT_ENQUEUE_TICKET_INITIAL_DEBOUNCE
 
     def _pending_task_key(self, task: AgentTask) -> tuple:
+        trigger = task.trigger_event
         return (
             task.project_uuid,
-            task.target_item_type,
-            task.target_connection_id,
-            str(task.target_record_id),
+            trigger.source_type,
+            trigger.connection_id,
+            str(trigger.record_id),
         )

@@ -60,9 +60,6 @@ class EventsManager:
                 schema_version=AGENT_TASK_SCHEMA_VERSION,
                 task_id=str(uuid4()),
                 project_uuid=event.project_uuid,
-                target_item_type=event.source_type,
-                target_record_id=event.record_id,
-                target_connection_id=event.connection_id,
                 trigger_event=event,
                 created_at=datetime.now(timezone.utc),
             )

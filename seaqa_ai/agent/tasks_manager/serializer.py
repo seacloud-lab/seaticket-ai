@@ -17,11 +17,6 @@ class AgentTaskSerializer:
             'schema_version': task.schema_version,
             'task_id': task.task_id,
             'project_uuid': task.project_uuid,
-            'target': {
-                'source_type': task.target_item_type,
-                'record_id': task.target_record_id,
-                'connection_id': task.target_connection_id,
-            },
             'trigger_event': {
                 'source_type': event.source_type,
                 'record_id': event.record_id,
@@ -42,7 +37,6 @@ class AgentTaskSerializer:
         if isinstance(value, bytes):
             value = value.decode('utf-8')
         data = json.loads(value)
-        target = data['target']
         trigger = data['trigger_event']
         event = AgentEvent(
             project_uuid=data['project_uuid'],
@@ -58,9 +52,6 @@ class AgentTaskSerializer:
             schema_version=int(data['schema_version']),
             task_id=data['task_id'],
             project_uuid=data['project_uuid'],
-            target_item_type=target['source_type'],
-            target_record_id=int(target['record_id']),
-            target_connection_id=target.get('connection_id'),
             trigger_event=event,
             created_at=cls._parse_datetime(data['created_at']),
         )
