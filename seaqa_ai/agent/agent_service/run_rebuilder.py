@@ -129,11 +129,13 @@ def restore_phase_outputs(promoter, phase_actions) -> dict:
     if prelude_output is not None:
         trigger_identity = _RecordInputFormatter.trigger_record_identity(promoter.task)
         linked_ticket_identity = promoter.context.get('linked_ticket_identity')
+        selected_records = prelude_output.get('event_related_records', [])
+        _load_records_into_cache(promoter, selected_records)
         prelude_output['event_related_records'] = (
             _RecordInputFormatter.build_event_related_records(
                 trigger_identity,
                 linked_ticket_identity,
-                prelude_output.get('event_related_records', []),
+                selected_records,
                 promoter.context,
                 promoter.record_cache,
             )
@@ -150,6 +152,35 @@ def restore_phase_outputs(promoter, phase_actions) -> dict:
         outputs['analysis'] = analysis_output
 
     return outputs
+
+
+def _load_records_into_cache(promoter, records):
+    """Reload persisted Prelude selections; filtering keeps only cached records."""
+    if not isinstance(records, list):
+        return
+    for record in records:
+        record_key = _RecordInputFormatter._record_key(record)
+        if record_key is None or record_key in promoter.record_cache:
+            continue
+        source_type, connection_id, record_id = record_key
+        try:
+            GetRecord().execute(
+                source_type=source_type,
+                connection_id=connection_id,
+                record_id=record_id,
+                project_uuid=promoter.task.project_uuid,
+                app=promoter.app,
+                record_cache=promoter.record_cache,
+                context=promoter.context,
+            )
+        except Exception:
+            logger.warning(
+                'Failed to reload record %s:%s:%s while rebuilding run context.',
+                source_type,
+                connection_id,
+                record_id,
+                exc_info=True,
+            )
 
 
 def _resume_from(phase_outputs) -> str:
