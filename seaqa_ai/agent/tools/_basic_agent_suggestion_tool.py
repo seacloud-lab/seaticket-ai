@@ -1,6 +1,7 @@
 """Shared pending-suggestion action behavior for agent tools."""
 
 from seaqa_ai.utils.tools import BasicTool
+from seaqa_ai.agent.utils.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.record_identity import (
     ALL_SOURCES_TYPES,
     validate_record_identity,
@@ -75,24 +76,19 @@ class BasicAgentSuggestionTool(BasicTool):
         if normalized_target['source_type'] != required_source_type:
             raise ValueError(f'target must be a {required_source_type}')
 
-        matching_records = [
-            record
-            for key, record in (context.get('record_cache') or {}).items()
-            if (
-                isinstance(key, tuple)
-                and len(key) == 3
-                and key[0] == required_source_type
-                and str(key[2]) == normalized_target['source_id']
-                and isinstance(record, dict)
-            )
-        ]
-        if len(matching_records) != 1:
+        record = cls._loaded_records(context).find_by_source_id(
+            required_source_type, normalized_target['source_id'],
+        )
+        if not isinstance(record, dict):
             raise ValueError(f'target is not an available loaded {required_source_type}')
-        normalized_target['source_title'] = str(
-            matching_records[0].get('title', '') or '',
-        ).strip()
+        normalized_target['source_title'] = str(record.get('title', '') or '').strip()
         return normalized_target
-    
+
+    @staticmethod
+    def _loaded_records(context):
+        loaded_records = (context or {}).get('loaded_records')
+        return loaded_records if loaded_records is not None else LoadedRecords()
+
     @staticmethod
     def _linked_source_ids(context):
         linked_ticket = (context or {}).get('linked_ticket_record') or {}
@@ -106,6 +102,7 @@ class BasicAgentSuggestionTool(BasicTool):
     @classmethod
     def _linked_external_targets(cls, targets, context):
         linked_source_ids = cls._linked_source_ids(context)
+        loaded_records = cls._loaded_records(context)
         trigger_source_id = str((context or {}).get('trigger_source_id', '') or '').strip()
         normalized_targets = []
         seen_source_ids = set()
@@ -118,25 +115,13 @@ class BasicAgentSuggestionTool(BasicTool):
                 or source_id in seen_source_ids
             ):
                 continue
-            matching_records = [
-                record
-                for key, record in ((context or {}).get('record_cache') or {}).items()
-                if (
-                    isinstance(key, tuple)
-                    and len(key) == 3
-                    and key[0] == normalized_target['source_type']
-                    and (
-                        f'{key[1]}_{key[2]}' if key[1] is not None else str(key[2])
-                    ) == source_id
-                    and isinstance(record, dict)
-                )
-            ]
-            if len(matching_records) != 1:
+            record = loaded_records.find_by_source_id(
+                normalized_target['source_type'], source_id,
+            )
+            if not isinstance(record, dict):
                 continue
             seen_source_ids.add(source_id)
-            normalized_target['source_title'] = str(
-                matching_records[0].get('title', '') or '',
-            ).strip()
+            normalized_target['source_title'] = str(record.get('title', '') or '').strip()
             normalized_targets.append(normalized_target)
         return normalized_targets
 

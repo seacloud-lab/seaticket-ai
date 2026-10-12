@@ -227,7 +227,7 @@ class AgentReACT:
                         **arguments,
                         project_uuid=self.context['project_uuid'],
                         app=self.app,
-                        record_cache=self.context.get('record_cache'),
+                        loaded_records=self.context.get('loaded_records'),
                         context=self.context,
                     )
                 except Exception as error:

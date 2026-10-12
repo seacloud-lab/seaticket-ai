@@ -9,6 +9,7 @@ from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query
+from seaqa_ai.agent.utils.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.record_identity import (
     record_identity_schema,
     validate_record_identity,
@@ -92,11 +93,11 @@ class _RecordRetriever:
         if not ExtraSourceType.is_valid(source_type)
     )
 
-    def __init__(self, app, project_uuid, context=None, record_cache=None):
+    def __init__(self, app, project_uuid, context=None, loaded_records=None):
         self.app = app
         self.project_uuid = project_uuid
         self.context = context or {}
-        self.record_cache = record_cache
+        self.loaded_records = loaded_records if loaded_records is not None else LoadedRecords()
 
     def retrieve(self, targets):
         """Load records for targets, preserving their input order."""
@@ -107,9 +108,9 @@ class _RecordRetriever:
         targets_by_source = {}
 
         for target in normalized_targets:
-            cache_key = self._cache_key(**target)
-            if self.record_cache is not None and cache_key in self.record_cache:
-                records_by_key[cache_key] = self.record_cache[cache_key]
+            record = self.loaded_records.get(**target)
+            if record is not None:
+                records_by_key[LoadedRecords.key(**target)] = record
                 continue
             targets_by_source.setdefault(
                 (target['source_type'], target['connection_id']), [],
@@ -132,15 +133,12 @@ class _RecordRetriever:
                 self._add_github_available_labels(connection_id, loaded_records)
 
             for record_id, record in loaded_records.items():
-                cache_key = self._cache_key(source_type, connection_id, record_id)
-                records_by_key[cache_key] = record
-                if self.record_cache is not None:
-                    self.record_cache[cache_key] = record
+                records_by_key[LoadedRecords.key(source_type, connection_id, record_id)] = record
+                self.loaded_records.add(source_type, connection_id, record_id, record)
 
         results = []
         for target in normalized_targets:
-            cache_key = self._cache_key(**target)
-            record = records_by_key.get(cache_key)
+            record = records_by_key.get(LoadedRecords.key(**target))
             if record is None:
                 raise ValueError(
                     f"No active {target['source_type']!r} record found with record_id "
@@ -557,13 +555,12 @@ class _RecordRetriever:
         return formatted
 
     def _add_github_available_labels(self, connection_id, records_by_id):
-        cache_key = ('github_available_labels', connection_id)
-        if self.record_cache is not None and cache_key in self.record_cache:
-            labels = self.record_cache[cache_key]
+        labels_by_connection = self.loaded_records.github_available_labels
+        if connection_id in labels_by_connection:
+            labels = labels_by_connection[connection_id]
         else:
             labels = self._get_github_available_labels(connection_id)
-            if self.record_cache is not None:
-                self.record_cache[cache_key] = labels
+            labels_by_connection[connection_id] = labels
         for record in records_by_id.values():
             record['available_labels'] = labels
 
@@ -620,10 +617,6 @@ class _RecordRetriever:
         return parsed_value
 
     @staticmethod
-    def _cache_key(source_type, connection_id, record_id):
-        return source_type, connection_id, record_id
-
-    @staticmethod
     def _truncate(content):
         return (content or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
 
@@ -662,12 +655,12 @@ class GetRecord(BasicTool):
     }
 
     def execute(self, source_type, connection_id, record_id, project_uuid, app,
-                record_cache=None, context=None):
+                loaded_records=None, context=None):
         return _RecordRetriever(
             app=app,
             project_uuid=project_uuid,
             context=context,
-            record_cache=record_cache,
+            loaded_records=loaded_records,
         ).retrieve([{
             'source_type': source_type,
             'connection_id': connection_id,
