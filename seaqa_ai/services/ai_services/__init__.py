@@ -15,6 +15,7 @@ from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
 from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
+from seaqa_ai.seadb_models.models import SchemaTables
 from seaqa_ai.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
@@ -106,13 +107,143 @@ class AIServices:
             'reason': reason,
         }
 
+    @staticmethod
+    def _empty_generated_ticket():
+        return {
+            'title': '',
+            'description': '',
+            'type': '',
+            'priority': 0,
+            'tags': [],
+        }
+
+    def _get_ticket_field_context(self, project_uuid):
+        field_context = {'type_options': [], 'tags': []}
+        if not project_uuid:
+            return field_context
+
+        try:
+            metadata = self.app.seadb_service.get_base_metadata(project_uuid) or {}
+            table_name = SchemaTables.TICKETS.table_name()
+            table_meta = next(
+                (
+                    table for table in metadata.get('tables', [])
+                    if table.get('name') == table_name
+                ),
+                None,
+            )
+            type_column_name = SchemaTables.TICKETS.column.type.name
+            type_column = next(
+                (
+                    column for column in (table_meta or {}).get('columns', [])
+                    if column.get('name') == type_column_name
+                ),
+                None,
+            )
+            type_options = []
+            seen_type_names = set()
+            for option in ((type_column or {}).get('data') or {}).get('options') or []:
+                name = str(option.get('name') or '').strip()
+                option_id = str(option.get('id') or '').strip()
+                name_key = name.casefold()
+                if not name or not option_id or name_key in seen_type_names:
+                    continue
+                seen_type_names.add(name_key)
+                type_options.append({'id': option_id, 'name': name})
+            field_context['type_options'] = type_options
+        except Exception as e:
+            logger.warning('Failed to load ticket type options. error: %s', e)
+
+        try:
+            tag_table = SchemaTables.TAG.table_name()
+            name_column = SchemaTables.TAG.column.name.name
+            description_column = SchemaTables.TAG.column.description.name
+            sql = (
+                f"SELECT `_pk`, `{name_column}`, `{description_column}` "
+                f"FROM `{tag_table}` LIMIT 0, 500"
+            )
+            rows = (
+                self.app.seadb_service.query_rows(project_uuid, sql, convert_keys=True) or {}
+            ).get('results') or []
+            tags = []
+            seen_tag_names = set()
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                name = str(row.get(name_column) or '').strip()
+                name_key = name.casefold()
+                try:
+                    tag_id = int(row.get('_pk'))
+                except (TypeError, ValueError):
+                    continue
+                if not name or name_key in seen_tag_names:
+                    continue
+                seen_tag_names.add(name_key)
+                tags.append({
+                    'id': tag_id,
+                    'name': name,
+                    'description': str(row.get(description_column) or '').strip(),
+                })
+            field_context['tags'] = tags
+        except Exception as e:
+            logger.warning('Failed to load ticket tags. error: %s', e)
+
+        return field_context
+
+    @staticmethod
+    def _normalize_generated_ticket(result, field_context):
+        result = result if isinstance(result, dict) else {}
+        field_context = field_context or {}
+        type_name = str(result.get('type') or '').strip().casefold()
+        type_id = ''
+        if type_name:
+            for option in field_context.get('type_options') or []:
+                if str(option.get('name') or '').strip().casefold() == type_name:
+                    type_id = str(option.get('id') or '').strip()
+                    break
+
+        tags_by_name = {}
+        for tag in field_context.get('tags') or []:
+            name_key = str(tag.get('name') or '').strip().casefold()
+            if name_key and name_key not in tags_by_name:
+                tags_by_name[name_key] = tag.get('id')
+        tag_ids = []
+        seen_tag_ids = set()
+        raw_tags = result.get('tags') if isinstance(result.get('tags'), list) else []
+        for raw_tag in raw_tags:
+            tag_id = tags_by_name.get(str(raw_tag or '').strip().casefold())
+            if not isinstance(tag_id, int) or isinstance(tag_id, bool) or tag_id in seen_tag_ids:
+                continue
+            seen_tag_ids.add(tag_id)
+            tag_ids.append(tag_id)
+
+        raw_priority = result.get('priority')
+        try:
+            if isinstance(raw_priority, bool):
+                raise ValueError
+            priority = int(raw_priority)
+        except (TypeError, ValueError):
+            priority = 0
+        priority = min(4, max(0, priority))
+
+        return {
+            'title': str(result.get('title') or '').strip(),
+            'description': str(result.get('description') or '').strip(),
+            'type': type_id,
+            'priority': priority,
+            'tags': tag_ids,
+        }
+
     def gen_ticket_from_record(self, record_detail, context):
         """
-        Generate a ticket with a title and description based on the input title and body content.
+        Generate a ticket draft from the input record.
+        type is a tickets type option id and tags are tag row ids.
         """
         try:
             context = context or {}
-            target_lang = self._get_project_target_language(context.get('project_uuid'))
+            project_uuid = context.get('project_uuid')
+            target_lang = self._get_project_target_language(project_uuid)
+            field_context = self._get_ticket_field_context(project_uuid)
             lang_instruction = (
                 f"Output language requirement: You must write the generated ticket in {target_lang}."
             )
@@ -123,7 +254,9 @@ class AIServices:
                 },
                 {
                     "role": "user",
-                    "content": UserContentPrompts.generate_ticket(record_detail, target_lang)
+                    "content": UserContentPrompts.generate_ticket(
+                        record_detail, target_lang, field_context
+                    )
                 }
             ]
 
@@ -139,15 +272,13 @@ class AIServices:
                 result = json_repair.loads(response, strict=True)
             except Exception as e:
                 logger.exception(f'Failure to parse ticket result: {e}')
-                return '', ''
+                return self._empty_generated_ticket()
 
-            ai_title = result.get('title', '')
-            ai_description = result.get('description', '')
-            return ai_title, ai_description
+            return self._normalize_generated_ticket(result, field_context)
 
         except Exception as e:
             logger.error(f"Error generating ticket: {str(e)}")
-            return '', ''
+            return self._empty_generated_ticket()
 
     def gen_kb_record_from_ticket(self, ticket_title, ticket_content, ticket_comments, context):
         """

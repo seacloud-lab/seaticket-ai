@@ -33,16 +33,25 @@ class SuggestCreateTicket(BasicAgentSuggestionTool):
         }, ensure_ascii=False, indent=2)
         content = ''
         if app is not None and context.get('project_uuid'):
-            title, description = app.ai_services.gen_ticket_from_record(detail, {
+            draft = app.ai_services.gen_ticket_from_record(detail, {
                 'project_uuid': context['project_uuid'],
                 'org_id': context.get('org_id', -1),
                 'scenario': AIScenario.RECORD_GENERATION.value,
-            })
+            }) or {}
+            priority = draft.get('priority')
+            if isinstance(priority, bool) or not isinstance(priority, int):
+                priority = 0
+            tags = draft.get('tags') if isinstance(draft.get('tags'), list) else []
             content = json.dumps({
                 'title': str(
-                    title or context.get('trigger_source_title', context.get('source_title')) or ''
+                    draft.get('title')
+                    or context.get('trigger_source_title', context.get('source_title'))
+                    or ''
                 ).strip(),
-                'content': str(description or '').strip(),
+                'content': str(draft.get('description') or '').strip(),
+                'type': str(draft.get('type') or '').strip(),
+                'priority': priority,
+                'tags': tags,
             }, ensure_ascii=False)
         return self.suggestion_result(
             suggestion_content=content,
