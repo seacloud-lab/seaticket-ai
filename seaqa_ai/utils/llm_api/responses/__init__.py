@@ -5,6 +5,7 @@ import litellm
 from seaqa_ai.utils.llm_api import BasicLLMAPI
 from seaqa_ai.utils.llm_api.responses.constants import STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.llm_api.responses.parser import ResponsesParser, ResponsesResult
+from seaqa_ai.utils.llm_api.constants import TEMPERATURE_1_MODEL_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,10 @@ class ResponsesAPI(BasicLLMAPI):
             if value is not None:
                 request[key] = value
 
-        if 'gpt-5' in self.model_id:
+        if any([
+            model_prefix in self.model_id
+            for model_prefix in TEMPERATURE_1_MODEL_PREFIX
+        ]):
             kwargs['temperature'] = 1
         return request
 
