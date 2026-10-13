@@ -22,7 +22,7 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
         labels = [str(label).strip() for label in suggested_labels if str(label).strip()]
         if not labels or not str(reason or '').strip():
             raise ValueError('suggested_labels and reason must not be empty')
-        available = (context or {}).get('target_record', {}).get('available_labels')
+        available = (context or {}).get('trigger_record', {}).get('available_labels')
         if not isinstance(available, list) or not available:
             raise ValueError('available_labels must be available to suggest labels')
         available_normalized = {str(label).casefold() for label in available}

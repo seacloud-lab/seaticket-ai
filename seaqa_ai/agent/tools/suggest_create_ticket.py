@@ -29,7 +29,7 @@ class SuggestCreateTicket(BasicAgentSuggestionTool):
             'source_title': context.get('trigger_source_title', context.get('source_title')),
             'reason': reason,
             'event': context.get('triggering_event', {}),
-            'record': context.get('target_record', {}),
+            'record': context.get('trigger_record', {}),
         }, ensure_ascii=False, indent=2)
         content = ''
         if app is not None and context.get('project_uuid'):

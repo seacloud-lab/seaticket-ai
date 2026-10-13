@@ -63,6 +63,23 @@ def record_identity_schema(*, nested=False):
     }
 
 
+def identity_key(identity):
+    """Return the (source_type, connection_id, record_id) key of an identity dict, or None."""
+    if not isinstance(identity, dict):
+        return None
+    source_type = identity.get('source_type')
+    connection_id = identity.get('connection_id')
+    record_id = identity.get('record_id')
+    if (
+        not isinstance(source_type, str)
+        or not source_type
+        or (connection_id is not None and not isinstance(connection_id, int))
+        or not isinstance(record_id, int)
+    ):
+        return None
+    return source_type, connection_id, record_id
+
+
 def validate_record_identity(source_type, connection_id, record_id):
     source_type = str(source_type or '').strip()
     if source_type not in ALL_SOURCES_TYPES:

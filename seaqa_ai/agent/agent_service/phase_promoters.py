@@ -1,4 +1,5 @@
 import json
+import logging
 
 from seaqa_ai.agent.agent_service.constants import LINKED_TICKET_TRACE_EVENT_TYPES
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
@@ -7,9 +8,12 @@ from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
 from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
-from seaqa_ai.agent.utils.record_identity import validate_record_identity
+from seaqa_ai.agent.utils.record_identity import identity_key, validate_record_identity
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
+
+
+logger = logging.getLogger(__name__)
 
 
 ALL_PHASES = {
@@ -20,34 +24,27 @@ ALL_PHASES = {
 }
 
 
+def _log_dropped_record(record, reason):
+    logger.warning(
+        'Dropped Prelude-selected record %s because %s.',
+        identity_key(record) or record,
+        reason,
+    )
+
+
 class _RecordInputFormatter:
     @staticmethod
-    def target_record_identity(task):
+    def trigger_record_identity(task):
+        trigger = task.trigger_event
         return {
-            'source_type': task.target_item_type,
-            'connection_id': task.target_connection_id,
-            'record_id': task.target_record_id,
+            'source_type': trigger.source_type,
+            'connection_id': trigger.connection_id,
+            'record_id': trigger.record_id,
         }
 
     @staticmethod
-    def _record_key(record):
-        if not isinstance(record, dict):
-            return None
-        source_type = record.get('source_type')
-        connection_id = record.get('connection_id')
-        record_id = record.get('record_id')
-        if (
-            not isinstance(source_type, str)
-            or not source_type
-            or (connection_id is not None and not isinstance(connection_id, int))
-            or not isinstance(record_id, int)
-        ):
-            return None
-        return source_type, connection_id, record_id
-
-    @staticmethod
     def _linked_connection_record_key(record):
-        record_key = _RecordInputFormatter._record_key(record)
+        record_key = identity_key(record)
         if record_key is None:
             return None
         _, connection_id, record_id = record_key
@@ -58,7 +55,7 @@ class _RecordInputFormatter:
     @staticmethod
     def _has_valid_linked_ticket_identity(context):
         linked_ticket_identity = context.get('linked_ticket_identity')
-        if _RecordInputFormatter._record_key(linked_ticket_identity) is None:
+        if identity_key(linked_ticket_identity) is None:
             return False
         try:
             validate_record_identity(
@@ -92,11 +89,11 @@ class _RecordInputFormatter:
         source_types = _RecordInputFormatter._connection_source_types(context)
         records = []
         seen_records = {
-            _RecordInputFormatter._record_key(
-                _RecordInputFormatter.target_record_identity(task),
+            identity_key(
+                _RecordInputFormatter.trigger_record_identity(task),
             ),
         }
-        linked_ticket_key = _RecordInputFormatter._record_key(
+        linked_ticket_key = identity_key(
             context['linked_ticket_identity'],
         )
         for linked_record in linked_ticket.get('linked_connection_records', []):
@@ -120,7 +117,7 @@ class _RecordInputFormatter:
                 'connection_id': connection_id,
                 'record_id': record_id,
             }
-            record_key = _RecordInputFormatter._record_key(record)
+            record_key = identity_key(record)
             if record_key in seen_records or record_key == linked_ticket_key:
                 continue
             seen_records.add(record_key)
@@ -131,7 +128,7 @@ class _RecordInputFormatter:
     def _build_linked_ticket_records_input(task, context, other_records):
         return {
             'PreStep 1: Inject the record that triggered the event': [
-                _RecordInputFormatter.target_record_identity(task),
+                _RecordInputFormatter.trigger_record_identity(task),
             ],
             'PreStep 2: Inject the Ticket linked by the triggering record': [
                 context['linked_ticket_identity'],
@@ -145,7 +142,7 @@ class _RecordInputFormatter:
             event.event_type not in LINKED_TICKET_TRACE_EVENT_TYPES
             or not _RecordInputFormatter._has_valid_linked_ticket_identity(context)
         ):
-            return [_RecordInputFormatter.target_record_identity(task)]
+            return [_RecordInputFormatter.trigger_record_identity(task)]
         return _RecordInputFormatter._build_linked_ticket_records_input(
             task,
             context,
@@ -154,21 +151,43 @@ class _RecordInputFormatter:
 
     @staticmethod
     def build_event_related_records(
-        target_record, linked_ticket_identity, selected_records, context, record_cache,
+        trigger_identity, linked_ticket_identity, selected_records, context, loaded_records,
     ):
-        target_key = _RecordInputFormatter._record_key(target_record)
-        linked_ticket_key = _RecordInputFormatter._record_key(linked_ticket_identity)
+        trigger_key = identity_key(trigger_identity)
+        linked_ticket_key = identity_key(linked_ticket_identity)
         selected_records = selected_records if isinstance(selected_records, list) else []
 
         if linked_ticket_key is None:
-            records = [target_record]
-            seen_records = {target_key}
+            records = [trigger_identity]
+            seen_records = {trigger_key}
             for record in selected_records:
-                record_key = _RecordInputFormatter._record_key(record)
-                if record_key in record_cache and record_key not in seen_records:
-                    seen_records.add(record_key)
-                    records.append(record)
+                record_key = identity_key(record)
+                if record_key in seen_records:
+                    continue
+                if not loaded_records.contains(record):
+                    _log_dropped_record(record, 'it was not loaded in this run')
+                    continue
+                seen_records.add(record_key)
+                records.append(record)
             return records
+
+        linked_ticket_selected = any(
+            identity_key(record) == linked_ticket_key
+            for record in selected_records
+        )
+        linked_ticket_loaded = loaded_records.contains(linked_ticket_identity)
+        if not linked_ticket_selected or not linked_ticket_loaded:
+            dropped_count = sum(
+                1 for record in selected_records if identity_key(record) != trigger_key
+            )
+            if dropped_count:
+                logger.warning(
+                    'Dropped %d Prelude-selected records because linked ticket %s was %s.',
+                    dropped_count,
+                    linked_ticket_key,
+                    'not loaded in this run' if linked_ticket_selected else 'not selected',
+                )
+            return [trigger_identity]
 
         linked_ticket = context.get('linked_ticket_record') or {}
         allowed_records = {
@@ -176,24 +195,20 @@ class _RecordInputFormatter:
             for linked_record in linked_ticket.get('linked_connection_records', [])
             if isinstance(linked_record, str)
         }
-        linked_ticket_selected = any(
-            _RecordInputFormatter._record_key(record) == linked_ticket_key
-            for record in selected_records
-        )
-        if not linked_ticket_selected or linked_ticket_key not in record_cache:
-            return [target_record]
-
-        records = [target_record, linked_ticket_identity]
-        seen_records = {target_key, linked_ticket_key}
+        records = [trigger_identity, linked_ticket_identity]
+        seen_records = {trigger_key, linked_ticket_key}
         for record in selected_records:
-            record_key = _RecordInputFormatter._record_key(record)
-            if (
-                _RecordInputFormatter._linked_connection_record_key(record) in allowed_records
-                and record_key in record_cache
-                and record_key not in seen_records
-            ):
-                seen_records.add(record_key)
-                records.append(record)
+            record_key = identity_key(record)
+            if record_key in seen_records:
+                continue
+            if _RecordInputFormatter._linked_connection_record_key(record) not in allowed_records:
+                _log_dropped_record(record, 'it is not linked to the ticket')
+                continue
+            if not loaded_records.contains(record):
+                _log_dropped_record(record, 'it was not loaded in this run')
+                continue
+            seen_records.add(record_key)
+            records.append(record)
         return records
 
     @staticmethod
@@ -201,20 +216,20 @@ class _RecordInputFormatter:
         if not _RecordInputFormatter._has_valid_linked_ticket_identity(context):
             return event_related_records
         linked_ticket_identity = context['linked_ticket_identity']
-        linked_ticket_key = _RecordInputFormatter._record_key(linked_ticket_identity)
+        linked_ticket_key = identity_key(linked_ticket_identity)
         if not any(
-            _RecordInputFormatter._record_key(record) == linked_ticket_key
+            identity_key(record) == linked_ticket_key
             for record in event_related_records
         ):
             return event_related_records
-        target_key = _RecordInputFormatter._record_key(
-            _RecordInputFormatter.target_record_identity(task),
+        trigger_key = identity_key(
+            _RecordInputFormatter.trigger_record_identity(task),
         )
         other_records = [
             record
             for record in event_related_records
-            if _RecordInputFormatter._record_key(record) not in {
-                target_key, linked_ticket_key,
+            if identity_key(record) not in {
+                trigger_key, linked_ticket_key,
             }
         ]
         return _RecordInputFormatter._build_linked_ticket_records_input(
@@ -268,7 +283,7 @@ class _RecordInputFormatter:
 
 
 class AgentPhasePromoter:
-    def __init__(self, app, task, responses_client, react_tracer, context, record_cache,
+    def __init__(self, app, task, responses_client, react_tracer, context, loaded_records,
                  project_prompt='', ticket_rules=''):
         self.app = app
         self.task = task
@@ -276,7 +291,7 @@ class AgentPhasePromoter:
         self.responses_client = responses_client
         self.react_tracer = react_tracer
         self.context = context
-        self.record_cache = record_cache
+        self.loaded_records = loaded_records
         self.project_prompt = project_prompt
         self.ticket_rules = ticket_rules
         self.result = {}
@@ -301,7 +316,7 @@ class AgentPhasePromoter:
         self._start_regeneration(user_instruction, previous_drafts, error_message)
 
     def _start_prelude(self):
-        target_record = _RecordInputFormatter.target_record_identity(self.task)
+        trigger_identity = _RecordInputFormatter.trigger_record_identity(self.task)
         linked_ticket_identity = self.context.get('linked_ticket_identity')
         prelude_output = self._engage_phase(
             'prelude',
@@ -312,11 +327,11 @@ class AgentPhasePromoter:
         )
         prelude_output['event_related_records'] = (
             _RecordInputFormatter.build_event_related_records(
-                target_record,
+                trigger_identity,
                 linked_ticket_identity,
                 prelude_output.get('event_related_records', []),
                 self.context,
-                self.record_cache,
+                self.loaded_records,
             )
         )
         self.result['prelude'] = prelude_output
