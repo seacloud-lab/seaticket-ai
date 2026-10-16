@@ -1,11 +1,11 @@
 import logging
+import re
 
 import litellm
 
 from seaqa_ai.utils.llm_api import BasicLLMAPI
 from seaqa_ai.utils.llm_api.responses.constants import STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.llm_api.responses.parser import ResponsesParser, ResponsesResult
-from seaqa_ai.utils.llm_api.constants import TEMPERATURE_1_MODEL_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,14 @@ class ResponsesAPI(BasicLLMAPI):
             if value is not None:
                 request[key] = value
 
-        if any([
-            model_prefix in self.model_id
-            for model_prefix in TEMPERATURE_1_MODEL_PREFIX
-        ]):
+        gpt_version = re.search(r'\bgpt-(\d+)\b', self.model_id)
+        if gpt_version and int(gpt_version.group(1)) >= 5:
             kwargs['temperature'] = 1
+            if request.get('tools'):
+                kwargs['reasoning'] = {**(kwargs.get('reasoning') or {}), 'effort': 'none'}
+
+        if re.search(r'\bclaude\b', self.model_id, re.IGNORECASE):
+            kwargs.pop('temperature', None)
         return request
 
     def responses(self, **kwargs):

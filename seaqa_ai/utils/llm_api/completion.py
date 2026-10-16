@@ -1,7 +1,8 @@
+import re
+
 import litellm
 
 from seaqa_ai.utils.llm_api import BasicLLMAPI
-from seaqa_ai.utils.llm_api.constants import TEMPERATURE_1_MODEL_PREFIX
 
 
 class CompletionAPI(BasicLLMAPI):
@@ -19,11 +20,14 @@ class CompletionAPI(BasicLLMAPI):
         if 'context' in kwargs:
             context = kwargs.pop('context')
 
-        if any([
-            model_prefix in self.model_id
-            for model_prefix in TEMPERATURE_1_MODEL_PREFIX
-        ]):
+        gpt_version = re.search(r'\bgpt-(\d+)\b', self.model_id)
+        if gpt_version and int(gpt_version.group(1)) >= 5:
             kwargs['temperature'] = 1
+            if kwargs.get('tools'):
+                kwargs['reasoning_effort'] = 'none'
+
+        if re.search(r'\bclaude\b', self.model_id, re.IGNORECASE):
+            kwargs.pop('temperature', None)
 
         response = litellm.completion(
             model=self.model,
