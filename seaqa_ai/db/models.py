@@ -326,19 +326,12 @@ class PortalChatMessages(Base):
     role = Column(String(length=20), nullable=False)
     content = Column(Text, nullable=True)
     sources = Column(Text, nullable=True)
-    evaluated_at = Column(DateTime, nullable=True)
-    evaluation = Column(String(length=20), nullable=True)
-    evaluation_reason = Column(Text, nullable=True)
-    normalized_question = Column(Text, nullable=True)
-    gap_suggestion = Column(Text, nullable=True)
-    gap_status = Column(String(length=16), nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
     as_context = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         Index('idx_portal_chat_msg_session_created', 'session_uuid', 'created_at'),
-        Index('idx_portal_chat_msg_evaluation', 'evaluation', 'gap_status'),
     )
 
     def to_dict(self):
@@ -354,3 +347,24 @@ class PortalChatMessages(Base):
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
             'as_context': self.as_context
         }
+
+
+class PortalChatAnalysis(Base):
+    __tablename__ = 'portal_chat_analysis'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    session_uuid = Column(String(length=36), nullable=False)
+    message_id = Column(String(length=4), nullable=False)
+    evaluated_at = Column(DateTime, nullable=True)
+    evaluation = Column(String(length=20), nullable=True)
+    evaluation_reason = Column(Text, nullable=True)
+    normalized_question = Column(Text, nullable=True)
+    gap_suggestion = Column(Text, nullable=True)
+    gap_status = Column(String(length=16), nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('uniq_portal_chat_analysis_turn', 'session_uuid', 'message_id', unique=True),
+        Index('idx_portal_chat_analysis_evaluation', 'evaluation', 'gap_status'),
+    )

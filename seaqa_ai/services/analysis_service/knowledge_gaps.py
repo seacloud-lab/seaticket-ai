@@ -6,7 +6,7 @@ import json_repair
 from sqlalchemy import text
 
 from seaqa_ai import config
-from seaqa_ai.db.models import PortalChatMessages, Project, ProjectConnection, Workspace
+from seaqa_ai.db.models import PortalChatAnalysis, PortalChatMessages, Project, ProjectConnection, Workspace
 from seaqa_ai.utils import gen_completion_format, uuid_str_to_32_chars, uuid_str_to_36_chars
 from seaqa_ai.utils.constants import AIScenario, LANGUAGE, MODEL_REASONING_TIER
 from seaqa_ai.utils.llm_api import get_completion_client_by_model_tier
@@ -35,8 +35,11 @@ def analyze(app, project_uuid):
             text(
                 'SELECT m.id FROM portal_chat_messages m '
                 'INNER JOIN portal_chat_sessions s ON s.session_uuid = m.session_uuid '
+                'LEFT JOIN portal_chat_analysis a ON a.session_uuid = m.session_uuid '
+                'AND a.message_id = m.message_id '
                 'WHERE s.project_uuid = :project_uuid AND m.role = :role '
-                'AND m.evaluated_at IS NULL AND m.created_at < :cutoff '
+                'AND m.message_id IS NOT NULL AND m.created_at < :cutoff '
+                'AND (a.id IS NULL OR a.evaluated_at IS NULL) '
                 'ORDER BY m.created_at ASC LIMIT :limit'
             ),
             {
@@ -64,8 +67,16 @@ def analyze(app, project_uuid):
 def _review_message(app, message_id, scope, usage_context, target_language):
     with app.db_session_class() as session:
         message = session.query(PortalChatMessages).filter(PortalChatMessages.id == message_id).first()
-        if not message or message.evaluated_at is not None:
+        if not message or not message.message_id:
             return False
+        existing = session.query(PortalChatAnalysis).filter(
+            PortalChatAnalysis.session_uuid == message.session_uuid,
+            PortalChatAnalysis.message_id == message.message_id,
+        ).first()
+        if existing and existing.evaluated_at is not None:
+            return False
+        turn_session_uuid = message.session_uuid
+        turn_message_id = message.message_id
         assistant = session.query(PortalChatMessages).filter(
             PortalChatMessages.session_uuid == message.session_uuid,
             PortalChatMessages.message_id == message.message_id,
@@ -87,16 +98,28 @@ def _review_message(app, message_id, scope, usage_context, target_language):
         raise ValueError(f'Invalid evaluation: {evaluation}')
 
     with app.db_session_class() as session:
-        message = session.query(PortalChatMessages).filter(PortalChatMessages.id == message_id).first()
-        if not message or message.evaluated_at is not None:
+        analysis = session.query(PortalChatAnalysis).filter(
+            PortalChatAnalysis.session_uuid == turn_session_uuid,
+            PortalChatAnalysis.message_id == turn_message_id,
+        ).first()
+        if analysis and analysis.evaluated_at is not None:
             return False
-        message.evaluated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        message.evaluation = evaluation
-        message.evaluation_reason = (result.get('reason') or '').strip() or None
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if not analysis:
+            analysis = PortalChatAnalysis(
+                session_uuid=turn_session_uuid,
+                message_id=turn_message_id,
+                created_at=now,
+            )
+            session.add(analysis)
+        analysis.evaluated_at = now
+        analysis.evaluation = evaluation
+        analysis.evaluation_reason = (result.get('reason') or '').strip() or None
+        analysis.updated_at = now
         if evaluation == 'knowledge_gap':
-            message.normalized_question = (result.get('normalized_question') or '').strip() or question.strip()
-            message.gap_suggestion = (result.get('suggestion') or '').strip() or None
-            message.gap_status = 'open'
+            analysis.normalized_question = (result.get('normalized_question') or '').strip() or question.strip()
+            analysis.gap_suggestion = (result.get('suggestion') or '').strip() or None
+            analysis.gap_status = 'open'
         session.commit()
     return True
 
