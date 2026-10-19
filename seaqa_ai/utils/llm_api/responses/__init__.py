@@ -35,8 +35,6 @@ class ResponsesAPI(BasicLLMAPI):
         gpt_version = re.search(r'\bgpt-(\d+)\b', self.model_id)
         if gpt_version and int(gpt_version.group(1)) >= 5:
             kwargs['temperature'] = 1
-            if request.get('tools'):
-                kwargs['reasoning'] = {**(kwargs.get('reasoning') or {}), 'effort': 'none'}
 
         if re.search(r'\bclaude\b', self.model_id, re.IGNORECASE):
             kwargs.pop('temperature', None)
