@@ -62,7 +62,7 @@ additional_output:
 5. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 6. Evaluate each result for direct relevance and retain only decisive evidence.
 7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-8. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports Analysis-selected type-change suggestions.
+8. Make three separate decisions: one primary handling action, whether the issue type should change, and whether labels should be added. Evaluate both metadata decisions for every actionable issue, regardless of the primary action or the other metadata decision. Return the primary action plus every independently justified metadata action. Include the issue-type fields because this skill supports type-change suggestions.
 
 ## Decision Rules
 - For the primary action:
@@ -75,8 +75,10 @@ additional_output:
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the issue.
   - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
 - For issue metadata:
-  - Add `suggest_modify_type` only with high confidence when the classified type differs substantively from the supplied type or the supplied type is empty.
-  - Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong, and list them in `suggested_labels`.
+  - Decide `suggest_modify_type` by comparing the exact `original_issue_type` with `classified_issue_type`. An empty current type is a strong reason to recommend setting the classified type; a non-empty type warrants a suggestion when it substantively conflicts with the classification. Do not suppress this decision because the primary action is ticket creation or because a matching label is available.
+  - Independently decide `suggest_assign_labels` by comparing current `labels` with `available_labels` and the issue content. Recommend one to three exact available labels only when a relevant label is missing, incomplete, or clearly wrong. Do not infer that a type change makes a label unnecessary, or that a matching label makes a type change unnecessary.
+  - Type and label recommendations are independent of each other and of the primary action. Creating or linking a ticket does not apply either metadata change; each selected action becomes its own pending suggestion.
+  - Metadata suggestions are separate pending actions requiring their own confirmation; do not claim they will be applied by creating the ticket.
 
 ## Tool Rules
 - Only `issues_search`, `documents_search`, and `get_record` are permitted.
@@ -93,7 +95,7 @@ additional_output:
 
 ## Required Output
 - Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `suggested_labels`, `related_ticket`, and `skip_handling`.
-- Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
+- Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Use these fields to make and explain an independent type-change decision; do not omit that decision merely because another action was selected.
 - Set `suggested_labels` to one to three exact observed `available_labels` only when recommending `suggest_assign_labels`; otherwise set it to an empty array. Never include `suggest_assign_labels` unless `suggested_labels` lists the proposed labels.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
