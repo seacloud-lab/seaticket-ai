@@ -20,9 +20,12 @@ MAX_TEXT_CHARS = 2000
 CONTEXT_MESSAGE_LIMIT = 4
 
 
-def analyze(app, project_uuid):
+def analyze(app, project_uuid, should_stop=None):
     project_uuid_36 = uuid_str_to_36_chars(project_uuid)
     project_uuid_32 = uuid_str_to_32_chars(project_uuid)
+    if should_stop and should_stop():
+        logger.info('Knowledge gap analysis stopped for project %s', project_uuid_36)
+        return
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
     limit = config.KNOWLEDGE_GAPS_MAX_QA_PER_RUN
 
@@ -53,6 +56,12 @@ def analyze(app, project_uuid):
 
     reviewed = 0
     for message_id in message_ids:
+        if should_stop and should_stop():
+            logger.info(
+                'Knowledge gap analysis stopped for project %s, candidates=%s, reviewed=%s',
+                project_uuid_36, len(message_ids), reviewed,
+            )
+            return
         try:
             if _review_message(app, message_id, scope, context, target_language):
                 reviewed += 1

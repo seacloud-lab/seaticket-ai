@@ -63,6 +63,11 @@ class SeaQAAIApp(object):
             logger.exception('Failed to stop AgentTaskWorker: %s', e)
 
         try:
+            self.analysis_service.stop()
+        except Exception as e:
+            logger.exception('Failed to stop AnalysisService: %s', e)
+
+        try:
             self.seaqa_ai_http_server.stop()
             self.seaqa_ai_http_server.join(timeout=5)
         except Exception as e:

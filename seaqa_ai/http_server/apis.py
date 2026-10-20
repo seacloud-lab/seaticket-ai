@@ -559,5 +559,7 @@ def analyze_knowledge_gaps():
     result = flask_app.app.analysis_service.run_knowledge_gaps(project_uuid)
     if result is None:
         return {'error_msg': 'Analysis queue is full.'}, 429
+    if result.get('stopped'):
+        return {'error_msg': 'Analysis service is stopping.'}, 503
 
     return result, 200
