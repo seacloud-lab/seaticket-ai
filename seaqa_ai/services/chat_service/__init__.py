@@ -19,7 +19,7 @@ from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBas
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
-    extract_skill_command_from_message, load_featured_documents
+    extract_skill_command_from_message, load_featured_document_catalog
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.skills.tool import LoadExtraSkill
@@ -122,7 +122,7 @@ class BasicChat(object):
 
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
-        load_featured_documents(context, self.app.seadb_service)
+        load_featured_document_catalog(context, self.app.seadb_service)
         available_skill_ids = [skill.name for skill in SkillRegistry.available_skills(self.app.seadb_service, context)]
         skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
         context['selected_skill_id'] = skill_id

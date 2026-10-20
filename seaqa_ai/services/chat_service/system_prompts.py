@@ -53,7 +53,7 @@ CHAT_SEARCH_POLICY = """Search policy:
 - Use search tools only when the answer needs external reference material.
 - Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem, including feature development handling tasks and requirement design tasks.
 - Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
-- For general questions needing documentation, first check the `featured_documents` catalog, when provided. If relevant entries exist, call `read_documents` with an `entries` mapping of connection_id to record IDs, such as {"entries": {"knowledge_base": [1, 2]}}.
+- For general questions needing documentation, first check the `featured_document_catalog`, when provided. If relevant entries exist, call `read_documents` with an `entries` mapping of connection_id to record IDs, such as {"entries": {"knowledge_base": [1, 2]}}.
 - The catalog is only an index. Do not answer from its summaries alone or fabricate citation labels. Use the document content returned by tools.
 - If read documents are sufficient, stop and answer. If no featured entries match, or the read content is insufficient, use `documents_search`.
 - When the user explicitly asks for issue history, past cases, or ticket-like records, use `issues_search` directly.
@@ -163,7 +163,7 @@ Final answer: 28.
 
 Example 6
 User: How can I download all files in a file column?
-The featured_documents catalog lists a relevant knowledge_base document with record_id 123.
+The featured_document_catalog lists a relevant knowledge_base document with record_id 123.
 Tool call:
 {
   "name": "read_documents",
@@ -174,7 +174,7 @@ Final answer: Follow the file-column batch download steps described in the docum
 
 Example 7
 User: Explain shared views and custom sharing permissions.
-The featured_documents catalog lists relevant knowledge_base documents with record_ids 124 and 125.
+The featured_document_catalog lists relevant knowledge_base documents with record_ids 124 and 125.
 Tool call:
 {
   "name": "read_documents",
