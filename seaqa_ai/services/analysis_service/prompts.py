@@ -21,8 +21,8 @@ def build_knowledge_gap_system_prompt(target_language):
     )
 
 
-def build_knowledge_gap_user_prompt(scope, context_text, question, answer, source_titles):
-    sources = '\n'.join(f'- {title}' for title in source_titles) or '(none)'
+def build_knowledge_gap_user_prompt(scope, context_text, question, answer, sources):
+    source_text = '\n'.join(f'- {source}' for source in sources) or '(none)'
     return f"""<project_scope>
 {scope}
 </project_scope>
@@ -39,7 +39,7 @@ def build_knowledge_gap_user_prompt(scope, context_text, question, answer, sourc
 {answer or '(none)'}
 </assistant_reply>
 
-<retrieved_source_titles>
-{sources}
-</retrieved_source_titles>
+<retrieved_sources>
+{source_text}
+</retrieved_sources>
 """
