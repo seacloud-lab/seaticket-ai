@@ -124,11 +124,11 @@ ENABLE_SYS_LOG = configs.get('ENABLE_SYS_LOG', False)
 APP_NAME = 'seaqa-ai'
 
 # Database
-MYSQL_HOST = configs.get('SEAQA_MYSQL_DB_HOST', 'db')
-MYSQL_USER = configs.get('SEAQA_MYSQL_DB_USER', 'seaqa')
-MYSQL_PASSWORD = configs.get('SEAQA_MYSQL_DB_PASSWORD', '')
-MYSQL_PORT = configs.get('SEAQA_MYSQL_DB_PORT', 3306)
-MYSQL_DB = configs.get('SEAQA_MYSQL_SEAQA_DB_NAME', 'sea_qa')
+MYSQL_HOST = configs.get('MYSQL_DB_HOST', 'db')
+MYSQL_USER = configs.get('MYSQL_DB_USER', 'seaticket')
+MYSQL_PASSWORD = configs.get('MYSQL_DB_PASSWORD', '')
+MYSQL_PORT = configs.get('MYSQL_DB_PORT', 3306)
+MYSQL_DB = configs.get('MYSQL_DB_NAME', 'seaticket_db')
 MYSQL_UNIX_SOCKET = os.getenv('DB_UNIX_SOCKET', '')
 
 # LLM
