@@ -368,3 +368,22 @@ class PortalChatAnalysis(Base):
         Index('uniq_portal_chat_analysis_turn', 'session_uuid', 'message_id', unique=True),
         Index('idx_portal_chat_analysis_evaluation', 'evaluation', 'gap_status'),
     )
+
+    @classmethod
+    def upsert(cls, session, session_uuid, message_id, **fields):
+        analysis = session.query(cls).filter(
+            cls.session_uuid == session_uuid,
+            cls.message_id == message_id,
+        ).first()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if not analysis:
+            analysis = cls(
+                session_uuid=session_uuid,
+                message_id=message_id,
+                created_at=now,
+            )
+            session.add(analysis)
+        for key, value in fields.items():
+            setattr(analysis, key, value)
+        analysis.updated_at = now
+        return analysis

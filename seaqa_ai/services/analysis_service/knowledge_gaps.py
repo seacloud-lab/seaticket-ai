@@ -131,31 +131,18 @@ def _evaluate_turn(app, turn, scope, usage_context, target_language):
     if evaluation not in KNOWLEDGE_GAP_EVALUATIONS:
         raise ValueError(f'Invalid evaluation: {evaluation}')
 
-    turn_session_uuid = turn['session_uuid']
-    turn_message_id = turn['message_id']
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    fields = {
+        'evaluated_at': now,
+        'evaluation': evaluation,
+        'evaluation_reason': (result.get('reason') or '').strip() or None,
+    }
+    if evaluation == 'knowledge_gap':
+        fields['normalized_question'] = (result.get('normalized_question') or '').strip() or question.strip()
+        fields['gap_suggestion'] = (result.get('suggestion') or '').strip() or None
+        fields['gap_status'] = 'open'
     with app.db_session_class() as session:
-        analysis = session.query(PortalChatAnalysis).filter(
-            PortalChatAnalysis.session_uuid == turn_session_uuid,
-            PortalChatAnalysis.message_id == turn_message_id,
-        ).first()
-        if analysis and analysis.evaluated_at is not None:
-            return False
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        if not analysis:
-            analysis = PortalChatAnalysis(
-                session_uuid=turn_session_uuid,
-                message_id=turn_message_id,
-                created_at=now,
-            )
-            session.add(analysis)
-        analysis.evaluated_at = now
-        analysis.evaluation = evaluation
-        analysis.evaluation_reason = (result.get('reason') or '').strip() or None
-        analysis.updated_at = now
-        if evaluation == 'knowledge_gap':
-            analysis.normalized_question = (result.get('normalized_question') or '').strip() or question.strip()
-            analysis.gap_suggestion = (result.get('suggestion') or '').strip() or None
-            analysis.gap_status = 'open'
+        PortalChatAnalysis.upsert(session, turn['session_uuid'], turn['message_id'], **fields)
         session.commit()
     return True
 
