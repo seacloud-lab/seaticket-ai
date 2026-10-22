@@ -22,15 +22,9 @@ tools:
 ## Required Steps
 1. Read `skip_handling` and the complete Analysis-selected action set.
 2. For `no_op` or skipped handling, make no tool call.
-3. Run Analysis-selected metadata suggestions in this order: `suggest_modify_type`, then `suggest_assign_labels`.
-4. Call `suggest_modify_type` only when:
-    - `recommended_actions` includes it.
-   - `classified_issue_type` is non-empty.
-   - `original_issue_type` is passed exactly as supplied.
-   - `classified_issue_type` is passed.
-   - A non-empty reason grounded in `analysis_report` is provided.
-   - Neither value is inferred, normalized, or reclassified.
-5. For labels, pass the Analysis-provided `suggested_labels` output field (one to three exact observed `available_labels`) and a non-empty Analysis-grounded reason; if `suggested_labels` is empty or contains no exact observed `available_labels`, omit the call and report the constraint.
+3. For each action in `recommended_actions`, make exactly one corresponding tool call, metadata first (`suggest_modify_type`, then `suggest_assign_labels`), then the primary action. The primary-action limit does not apply to metadata calls.
+4. For `suggest_modify_type`, pass `original_issue_type` exactly as `current_issue_type` (empty string allowed) and `classified_issue_type` as `suggested_type`; the type fields alone are sufficient grounding. Never infer, normalize, or reclassify either value. Omit the call and report the constraint only if `classified_issue_type` is empty.
+5. For `suggest_assign_labels`, pass only those Analysis-provided `suggested_labels` that exactly appear in `available_labels`; omit the call and report the constraint if none remain.
 6. Create the one Analysis-selected primary suggestion:
     - For Analysis-selected `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
     - For Analysis-selected `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.
@@ -39,16 +33,9 @@ tools:
 
 ## Decision Rules
 - Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
+- Type and label actions are independent: attempt every one selected by Analysis, and do not infer one from the other. Do not make a metadata suggestion that Analysis did not select, even when the fields appear to support one.
 - Metadata-tool results must not alter the Analysis-selected primary action.
-- Type modification requires:
-  - Explicit selection by Analysis.
-  - A non-empty classified type.
-  - A substantive Analysis-grounded reason.
-- If any required Analysis type value is unavailable:
-  - Omit the type suggestion.
-  - Report the constraint.
 - Do not normalize, invent, or guess label names.
-- Skip a label suggestion when no exact Analysis-selected label fits.
 - A reply must not disclose internal ticket details or unrelated evidence.
 - A ticket proposal must not convert uncertainty into a confirmed root cause.
 - Tool failure does not justify substitution, retry, or additional suggestions.

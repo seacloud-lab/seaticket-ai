@@ -62,7 +62,7 @@ additional_output:
 5. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 6. Evaluate each result for direct relevance and retain only decisive evidence.
 7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-8. Return one primary action plus any independently justified type or label action. Include the issue-type fields because this skill supports Analysis-selected type-change suggestions.
+8. Make three separate decisions under the Decision Rules: one primary handling action, a type decision, and a label decision. Return the primary action plus every metadata action decided yes. Include the issue-type fields because this skill supports type-change suggestions.
 
 ## Decision Rules
 - For the primary action:
@@ -74,9 +74,12 @@ additional_output:
   - A related Ticket prevents `suggest_create_ticket` only when its successfully observed content clearly tracks the same concrete work.
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the issue.
   - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
-- For issue metadata:
-  - Add `suggest_modify_type` only with high confidence when the classified type differs substantively from the supplied type or the supplied type is empty.
-  - Add `suggest_assign_labels` only for one to three exact available labels that are missing, incomplete, or clearly wrong, and list them in `suggested_labels`.
+- For issue metadata (decide both for every actionable issue, independently of each other and of the primary action; neither is applied by creating or linking a ticket):
+  - Type: treat `original_issue_type` as matching when it equals `classified_issue_type` case-insensitively or is an obvious synonym (for example `enhancement` for `Feature`).
+    - If `original_issue_type` is empty, recommend `suggest_modify_type`.
+    - If it matches, do not recommend it.
+    - If it differs, recommend it only with high confidence that the supplied type misdescribes the request; do not recommend it when the supplied type is a reasonable reading of mixed content.
+  - Labels: `suggest_assign_labels` only adds labels. Recommend one to three exact `available_labels` that are not already in `labels` when they clearly describe the issue, preferring a label that mirrors `classified_issue_type` (for example `bug`, `enhancement`, `question`) and then a clearly named product area or component. If `available_labels` is absent or empty, skip labels and say so.
 
 ## Tool Rules
 - Only `issues_search`, `documents_search`, and `get_record` are permitted.
@@ -93,7 +96,7 @@ additional_output:
 
 ## Required Output
 - Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `suggested_labels`, `related_ticket`, and `skip_handling`.
-- Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`. Never include `suggest_modify_type` unless those fields support the proposed change.
+- Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`.
 - Set `suggested_labels` to one to three exact observed `available_labels` only when recommending `suggest_assign_labels`; otherwise set it to an empty array. Never include `suggest_assign_labels` unless `suggested_labels` lists the proposed labels.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
@@ -116,3 +119,4 @@ additional_output:
 - `Bug`: “Export fails after 3.2,” including when phrased as “Why does export fail?”
 - `Feature`: “Can I bulk archive projects?” when bulk archive is requested but unavailable.
 - `Question`: “How do I configure SSO?” when it requests documented configuration.
+- Combined example: an unresolved bug with empty `issue_type`, `labels: []`, and `bug` in `available_labels` returns `recommended_actions: ["suggest_modify_type", "suggest_assign_labels", "suggest_create_ticket"]`, `classified_issue_type: "Bug"`, `suggested_labels: ["bug"]`.
