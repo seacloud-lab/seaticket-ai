@@ -191,10 +191,10 @@ REDIS_PORT = configs.get('REDIS_PORT', 6379)
 REDIS_PASSWORD = configs.get('REDIS_PASSWORD', '')
 
 # SeaQA Indexer
-SEAQA_INDEXER_INNER_SERVER_URL = configs.get('SEAQA_INDEXER_INNER_SERVER_URL', 'http://seaqa-indexer:8888')
+SEAQA_INDEXER_INNER_SERVER_URL = configs.get('SEAQA_INDEXER_INNER_SERVER_URL', 'http://seaticket-indexer:8888')
 
 # SeaQA Web
-SEAQA_WEB_INNER_SERVER_URL = configs.get('SEAQA_WEB_INNER_SERVER_URL', 'http://seaqa-web:8000')
+SEAQA_WEB_INNER_SERVER_URL = configs.get('SEAQA_WEB_INNER_SERVER_URL', 'http://seaticket/')
 
 JWT_PRIVATE_KEY = configs.get('JWT_PRIVATE_KEY', '')
 
