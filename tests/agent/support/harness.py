@@ -21,6 +21,8 @@ from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.utils.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.record_identity import identity_key
 from seaqa_ai.config import DEFAULT_LLM_MODEL, LLM_MODEL_ID_MODELS_MAP
+from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils import get_tools_map
 from seaqa_ai.agent.utils.react import AgentFinalOutputSchemaError, AgentRetryExceededError
 from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
@@ -94,9 +96,31 @@ def validate_case(case, where='case'):
                 )
 
 
+def _suggestion_action_names():
+    return {
+        name for name, tool in get_tools_map().items()
+        if issubclass(tool, BasicAgentSuggestionTool)
+    } | {'no_op'}
+
+
+def _check_action_names(expected, where):
+    """Reject action names that are not suggestion tools, so a typo cannot drop a rule."""
+    allowed = _suggestion_action_names()
+    suggestions = expected.get('suggestions') or {}
+    for field in ('forbidden', 'exactly_one_of'):
+        for index, name in enumerate(suggestions.get(field) or []):
+            if name not in allowed:
+                raise ValueError(f'{where}: suggestions.{field}[{index}]: unknown action {name!r}')
+    for index, call in enumerate(suggestions.get('calls') or []):
+        name = call.get('tool')
+        if name not in allowed:
+            raise ValueError(f'{where}: suggestions.calls[{index}].tool: unknown action {name!r}')
+
+
 def validate_expectations(expected, where='expected'):
     _validate(expected, 'expected', where)
     validate_matchers(expected)
+    _check_action_names(expected, where)
 
 
 def load_case(path):
