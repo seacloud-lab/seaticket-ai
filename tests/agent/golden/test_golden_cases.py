@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from tests.agent.support.matchers import evaluate
-from tests.agent.support.harness import case_variables, load_case, run_case
+from tests.agent.support.harness import CaseRunError, case_variables, load_case, run_case
 
 
 CASES_DIR = Path(__file__).resolve().parent / 'cases'
@@ -43,6 +43,29 @@ def _write_run(case_name, index, payload):
     return path
 
 
+def _run_once(case, expected, variables, index, responses_client=None):
+    """One attempt. A model failure is recorded and counted as a failed attempt."""
+    try:
+        result = run_case(case, responses_client=responses_client)
+        failures = evaluate(result, expected, variables)
+    except CaseRunError as error:
+        result = error.result
+        failures = [result.error]
+    path = _write_run(case['name'], index, {
+        'model_id': result.model_id,
+        'error': result.error,
+        'failures': failures,
+        'phases': result.phases,
+        'suggestions': result.suggestions,
+        'search_calls': result.search_calls,
+        'token_usage': result.token_usage,
+        'tracer': result.tracer_rows,
+    })
+    return not failures, f'run {index} ({path.name}): ' + (
+        'passed' if not failures else '; '.join(failures)
+    )
+
+
 @pytest.mark.llm
 @pytest.mark.parametrize('case_dir', _case_dirs(), ids=lambda path: path.name)
 def test_golden_case(case_dir):
@@ -59,21 +82,9 @@ def test_golden_case(case_dir):
     passed = 0
     reports = []
     for index in range(1, runs + 1):
-        result = run_case(case)
-        failures = evaluate(result, expected, variables)
-        path = _write_run(case['name'], index, {
-            'model_id': result.model_id,
-            'failures': failures,
-            'phases': result.phases,
-            'suggestions': result.suggestions,
-            'search_calls': result.search_calls,
-            'token_usage': result.token_usage,
-            'tracer': result.tracer_rows,
-        })
-        reports.append(f'run {index} ({path.name}): ' + (
-            'passed' if not failures else '; '.join(failures)
-        ))
-        if not failures:
+        ok, report = _run_once(case, expected, variables, index)
+        reports.append(report)
+        if ok:
             passed += 1
 
     assert passed >= min_pass, (

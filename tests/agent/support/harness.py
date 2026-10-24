@@ -21,6 +21,7 @@ from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.utils.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.record_identity import identity_key
 from seaqa_ai.config import DEFAULT_LLM_MODEL, LLM_MODEL_ID_MODELS_MAP
+from seaqa_ai.agent.utils.react import AgentFinalOutputSchemaError, AgentRetryExceededError
 from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id
 
@@ -40,6 +41,7 @@ class AgentRunResult:
     search_calls: list
     model_id: str | None
     token_usage: dict = field(default_factory=dict)
+    error: str = ''
 
     @property
     def tool_names(self):
@@ -150,6 +152,36 @@ def resolve_model_id(case, model_id=None):
     return default_model
 
 
+class CaseRunError(Exception):
+    """The model failed after its retries. ``result`` is everything completed before that."""
+
+    def __init__(self, result):
+        self.result = result
+        super().__init__(result.error)
+
+
+def _assemble(promoter, prepared, ai_services, model_id, error=''):
+    suggestions = []
+    for row in prepared.tracer:
+        if row.get('action_type') != 'suggestion':
+            continue
+        copied = dict(row)
+        payload = copied.get('suggestion_payload')
+        if isinstance(payload, str):
+            copied['suggestion_payload'] = json.loads(payload or '{}')
+        suggestions.append(copied)
+    rows = list(prepared.tracer)
+    return AgentRunResult(
+        phases=dict(promoter.result),
+        suggestions=suggestions,
+        tracer_rows=rows,
+        search_calls=list(ai_services.calls),
+        model_id=model_id,
+        token_usage=_sum_tokens(rows),
+        error=error,
+    )
+
+
 # ---- running ------------------------------------------------------------------
 
 def _parse_time(value, fallback):
@@ -251,37 +283,25 @@ def run_case(case, *, responses_client=None, model_id=None, mode='start',
         ticket_rules=prepared.ticket_rules,
     )
 
-    if mode == 'start':
-        promoter.start()
-    else:
-        phase_actions = [
-            {'action_type': phase, 'status': 'completed', 'result': json.dumps(output)}
-            for phase, output in (prior_phases or {}).items()
-        ]
-        outputs = restore_phase_outputs(promoter, phase_actions)
-        promoter.result.update(outputs)
-        promoter.start_regeneration(
-            user_instruction,
-            previous_drafts,
-            resume_from=_resume_from(outputs),
-        )
-
-    suggestions = []
-    for row in prepared.tracer:
-        if row.get('action_type') != 'suggestion':
-            continue
-        copied = dict(row)
-        payload = copied.get('suggestion_payload')
-        if isinstance(payload, str):
-            copied['suggestion_payload'] = json.loads(payload or '{}')
-        suggestions.append(copied)
-
-    rows = list(prepared.tracer)
-    return AgentRunResult(
-        phases=dict(promoter.result),
-        suggestions=suggestions,
-        tracer_rows=rows,
-        search_calls=list(ai_services.calls),
-        model_id=resolved_model_id,
-        token_usage=_sum_tokens(rows),
-    )
+    try:
+        if mode == 'start':
+            promoter.start()
+        else:
+            phase_actions = [
+                {'action_type': phase, 'status': 'completed', 'result': json.dumps(output)}
+                for phase, output in (prior_phases or {}).items()
+            ]
+            outputs = restore_phase_outputs(promoter, phase_actions)
+            promoter.result.update(outputs)
+            promoter.start_regeneration(
+                user_instruction,
+                previous_drafts,
+                resume_from=_resume_from(outputs),
+            )
+    except (AgentRetryExceededError, AgentFinalOutputSchemaError) as error:
+        cause = error.__cause__ or error
+        message = f'{type(cause).__name__}: {error}'
+        raise CaseRunError(_assemble(
+            promoter, prepared, ai_services, resolved_model_id, message,
+        )) from error
+    return _assemble(promoter, prepared, ai_services, resolved_model_id)
