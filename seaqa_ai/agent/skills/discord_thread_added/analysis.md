@@ -24,7 +24,8 @@ additional_output:
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
 - The event opening message is `triggering_event.event.new_value`: its `message_id`, `author`, `content`, and `modified_time`. The thread title is `triggering_event.event.new_value.title`.
 - The current latest message is `get_record.content.latest_message`. Earlier messages, oldest first and excluding the latest, are in `get_record.content.history_messages`.
-- Treat the event opening message as the primary thread content. When it is unavailable, treat the earliest available message (the first of `get_record.content.history_messages`, or `get_record.content.latest_message` when that list is empty) as the primary thread content.
+- The earliest available message is the first `history_messages` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not a message. When no real earlier message remains, the earliest available message is `latest_message`.
+- Treat the event opening message as the primary thread content. When it is unavailable, treat the earliest available message as the primary thread content.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps

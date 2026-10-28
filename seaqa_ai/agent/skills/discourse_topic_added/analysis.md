@@ -25,7 +25,8 @@ additional_output:
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
 - The event opening post is `triggering_event.event.new_value`: its `post_number`, `author`, `content`, and `modified_time`. The topic title is `triggering_event.event.new_value.title`.
 - The current latest comment is `get_record.content.latest_comment`. Earlier comments, oldest first and excluding the latest, are in `get_record.content.history_comments`.
-- Treat the event opening post as the primary topic content. When it is unavailable, treat the earliest available comment (the first of `get_record.content.history_comments`, or `get_record.content.latest_comment` when that list is empty) as the primary topic content.
+- The earliest available comment is the first `history_comments` entry that has both a `post_number` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not a comment. When no real earlier comment remains, the earliest available comment is `latest_comment`.
+- Treat the event opening post as the primary topic content. When it is unavailable, treat the earliest available comment as the primary topic content.
 - Use the topic's resolved state as context, not as a shortcut to an action.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
 

@@ -25,7 +25,8 @@ additional_output:
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and search observations made in this phase.
 - The event opening email is `triggering_event.event.new_value`: its `message_id`, `email_date`, `is_sender`, `email_from`, and `content`. The thread title is `triggering_event.event.new_value.title`.
 - The current latest email is `get_record.content.latest_email`. Earlier emails, oldest first and excluding the latest, are in `get_record.content.history_emails`.
-- Treat the event opening email as the primary thread content. When it is unavailable, treat the earliest available email (the first of `get_record.content.history_emails`, or `get_record.content.latest_email` when that list is empty) as the primary thread content.
+- The earliest available email is the first `history_emails` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not an email. When no real earlier email remains, the earliest available email is `latest_email`.
+- Treat the event opening email as the primary thread content. When it is unavailable, treat the earliest available email as the primary thread content.
 - Use later thread messages only when they materially clarify the opening email.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestion tools.
 - Do not place full sensitive content into queries or reports.
