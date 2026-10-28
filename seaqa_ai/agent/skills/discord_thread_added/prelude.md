@@ -11,15 +11,15 @@ tools:
 
 ## Input Contract
 - Read `triggering_event` and `get_record` observations.
-- The event opening message is `triggering_event.event.new_value`. The current latest message is `get_record.content.latest_message`.
-- Thread data may include title, content messages, URL fields, and linked-ticket fields.
+- The event opening message is `triggering_event.event.new_value`: its `message_id`, `author`, `content`, and `modified_time`. The thread title is `triggering_event.event.new_value.title`.
+- The current latest message is `get_record.content.latest_message`. Earlier messages, oldest first and excluding the latest, are in `get_record.content.history_messages`.
 - The opening message remains primary even when later messages exist.
 - Do not infer tags, issue type, or related identities not explicitly supplied.
 
 ## Required Steps
 1. Confirm the triggering thread and opening message are usable.
-2. Use the event opening message only when it has a usable `message_id` and `content`. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_message.message_id` are both present and differ.
-3. If either message ID is unavailable, state that whether the event opening message is still current cannot be verified. Summarize the available event opening message and current latest message factually without calling the event opening message stale.
+2. Use the event opening message only when it has a usable `message_id` and `content`. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_message.message_id` are both present and differ. When stale, state that the thread has a later message and summarize both the opening message and the current latest message. When both message IDs match, summarize the opening message as the current request.
+3. If the event opening message is unavailable, or either message ID is unavailable, treat that only as an internal condition. Summarize the earliest available message (the first of `get_record.content.history_messages`, or `get_record.content.latest_message` when that list is empty) and the current latest message as the request itself. Do not call the opening message stale, and do not mention missing fields, message IDs, or that currency cannot be verified.
 4. Keep the triggering thread primary. Related context, when used, must be factual and material to this event.
 5. Set `event_related_records` to the successfully loaded triggering thread only.
 6. Write a neutral factual summary and leave subsequent workflow phases enabled for a usable event.
@@ -40,4 +40,5 @@ tools:
 
 ## Forbidden Behavior
 - Do not evaluate whether a response is complete or correct.
+- Do not explain in `event_summary` whether event fields are complete, whether a message ID is present, or whether the opening message's currency could be verified.
 - Do not expose contacts, credentials, tokens, or unnecessary quotations.

@@ -23,16 +23,17 @@ additional_output:
 
 ## Input Contract
 - Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
-- The event opening post is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
-- Treat first-post content as immutable primary evidence.
+- The event opening post is `triggering_event.event.new_value`: its `post_number`, `author`, `content`, and `modified_time`. The topic title is `triggering_event.event.new_value.title`.
+- The current latest comment is `get_record.content.latest_comment`. Earlier comments, oldest first and excluding the latest, are in `get_record.content.history_comments`.
+- Treat the event opening post as the primary topic content. When it is unavailable, treat the earliest available comment (the first of `get_record.content.history_comments`, or `get_record.content.latest_comment` when that list is empty) as the primary topic content.
 - Use the topic's resolved state as context, not as a shortcut to an action.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
 1. Confirm the topic is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
-2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable topic and opening post, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Read the title and the event opening post. Treat the event opening post as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ.
-4. If either post number is unavailable, do not infer that the event opening post is stale from the current latest comment, content, author, or timestamps. Analyze the event opening post under the normal rules.
+2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable topic with at least one usable comment, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening post alone does not make the topic unusable.
+3. Read the title and the event opening post. Treat the event opening post as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ. When stale, explain that the topic has a later comment.
+4. If the event opening post is unavailable, or either post number is unavailable, do not infer that the event opening post is stale from the current latest comment, content, author, or timestamps. Analyze the primary topic content under the normal rules. Do not state that currency cannot be verified or that a post number is missing.
 5. If the event opening post is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 6. If the event opening post is stale and the current latest comment still contains an unresolved request, analyze the current latest comment. Do not produce a reply to the event opening post.
 7. Choose the initial search tool from the applicable concrete request:
@@ -79,3 +80,4 @@ additional_output:
 - Do not use weak search matches as direct evidence.
 - Do not expose secrets, private contacts, or internal-only content in queries or output.
 - Do not claim that a reply or ticket has been created.
+- Do not explain in `analysis_report` whether event fields are complete, whether a post number is present, or whether the opening post's currency could be verified.

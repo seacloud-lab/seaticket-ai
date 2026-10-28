@@ -33,8 +33,8 @@ additional_output:
 ## Required Steps
 1. Confirm `event_summary` and successful `get_record` tool observations identify a usable new thread.
 2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable thread with at least one usable email, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening email alone does not make the thread unusable.
-3. Read the event opening email to identify its primary purpose. Treat the event opening email as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_email.message_id` are both present and differ.
-4. If the event opening email is unavailable, or either message ID is unavailable, do not infer that the event opening email is stale from the current latest email, content, sender, or timestamps. Analyze the primary thread content under the normal rules, and state in `analysis_report` that whether the opening email is still the latest in the thread cannot be verified.
+3. Read the event opening email to identify its primary purpose. Treat the event opening email as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_email.message_id` are both present and differ. When stale, explain that the thread has a later email.
+4. If the event opening email is unavailable, or either message ID is unavailable, do not infer that the event opening email is stale from the current latest email, content, sender, or timestamps. Analyze the primary thread content under the normal rules. Do not state that currency cannot be verified or that a message ID is missing.
 5. If the event opening email is stale and the current latest email gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 6. If the event opening email is stale and the current latest email still contains an unresolved request, analyze the current latest email. Do not produce a reply to the event opening email.
 7. Check Spam and Notification definitions before treating the applicable request as support content.
@@ -91,6 +91,7 @@ additional_output:
 - Do not expose secrets, contacts, account data, payment details, or full sensitive mail.
 - Do not use weak topical matches as a direct answer.
 - Do not produce more than one primary recommendation.
+- Do not explain in `analysis_report` whether event fields are complete, whether a message ID is present, or whether the opening email's currency could be verified.
 
 ## Examples
 - Notification: “Your license expires in 30 days.” Recommend `no_op` without searching.
