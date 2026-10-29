@@ -13,7 +13,7 @@ from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
-from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch
+from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch, GetRecords
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator, TicketCreator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
@@ -95,6 +95,7 @@ class BasicChat(object):
         tool_executor.clean()
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
+        GetRecords().register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
             for tool in self.content_generators:
                 tool.register(tool_executor, context=context)

@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import re
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -10,6 +11,7 @@ import yaml
 from seaqa_ai.skills.parser import split_skill_document
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.tools.search_tools import DocumentsSearch, IssuesSearch, TasksSearch
+from seaqa_ai.utils.tools.get_records import GetRecords
 
 
 
@@ -51,6 +53,7 @@ def get_tools_map():
         'documents_search': DocumentsSearch,
         'issues_search': IssuesSearch,
         'tasks_search': TasksSearch,
+        'get_records': GetRecords,
     })
     return tools
 
@@ -70,7 +73,7 @@ def get_skill_map() -> dict[str, dict[str, str]]:
                 or skill_file.suffix != '.md'
             ):
                 continue
-            skill = skill_file.read_text(encoding='utf-8')
+            skill = re.sub(r'\bget_record\b', 'get_records', skill_file.read_text(encoding='utf-8'))
             _validate_skill(skill, event_dir.name, skill_file.stem)
             phases[skill_file.stem] = skill
 
@@ -98,8 +101,8 @@ def _validate_skill(skill, event, phase):
     tool_names = metadata.get('tools')
     if not isinstance(tool_names, list) or not all(isinstance(name, str) for name in tool_names):
         raise ValueError(f'Skill {event}/{phase} tools must be a string array')
-    if phase not in ('prelude', 'analysis') and 'get_record' in tool_names:
-        raise ValueError(f'Only prelude and analysis skills may use get_record: {event}/{phase}')
+    if phase not in ('prelude', 'analysis') and 'get_records' in tool_names:
+        raise ValueError(f'Only prelude and analysis skills may use get_records: {event}/{phase}')
 
 def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compact related Ticket changes while retaining their first-seen order."""

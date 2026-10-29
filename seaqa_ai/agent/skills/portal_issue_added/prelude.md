@@ -2,7 +2,7 @@ event: portal_issue_added
 phase: prelude
 description: "Prepare factual context for a newly reported portal issue."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly reported Portal issue.

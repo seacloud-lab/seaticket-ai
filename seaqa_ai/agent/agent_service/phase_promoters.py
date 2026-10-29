@@ -8,7 +8,7 @@ from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
 from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
-from seaqa_ai.agent.utils.record_identity import identity_key, validate_record_identity
+from seaqa_ai.utils.record.identity import identity_key, validate_record_identity
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
 

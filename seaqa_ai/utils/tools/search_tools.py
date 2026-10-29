@@ -2,6 +2,7 @@ import logging
 from urllib.parse import quote
 
 from seaqa_ai import config
+from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
@@ -12,8 +13,10 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
     {
         "label": "<reference_0>",
         "type": "github_issue | discourse_forum | email | ticket | ...",
+        "connection_id": "Connection ID, or null for extra sources",
+        "record_id": 123,
         "title": "Title",
-        "content": "Search result's content",
+        "ai_summary": "Search result's summary",
         "url": "Record URL (if available)",
         "state": "open/closed (when available)",
         "state_reason": "state reason for GitHub issue (when available)",
@@ -24,8 +27,10 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
     }, {
         "label": "<reference_1>",
         "type": "github_issue | discourse_forum | email | ticket | ...",
+        "connection_id": "Connection ID, or null for extra sources",
+        "record_id": 456,
         "title": "Title",
-        "content": "Search result's content",
+        "ai_summary": "Search result's summary",
         "url": "Record URL (if available)"
         // ... Other useful information, e.g., snippets ...
     }
@@ -92,14 +97,10 @@ class BasicSearchTool(BasicTool):
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
         sources_results = tool_executor.cache.get('sources_results', [])
-        existed_search_records_num = len(sources_results)
-
-        if not connections and not extra_sources or existed_search_records_num >= self.MAX_SOURCES_COUNT:
+        if not connections and not extra_sources:
             return []
 
-        limit = self.MAX_SOURCES_COUNT - existed_search_records_num
-        if limit > self.SINGLE_TOOL_MAX_SOURCES_COUNT:
-            limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
+        limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
         current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
 
@@ -110,23 +111,41 @@ class BasicSearchTool(BasicTool):
             if context.get('skill_id') == 'issue-research' and not context.get('is_external_portal')
             else ''
         )
+        references = {
+            gen_record_hash(record['type'], record.get('connection_id'), record['_id']): f'<reference_{index}>'
+            for index, record in enumerate(sources_results)
+        }
         to_observation = []
-        for i, search_result in enumerate(current_search_results, existed_search_records_num):
+        for search_result in current_search_results:
+            source_type = search_result['type']
+            connection_id = source_type if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
+            record_hash = gen_record_hash(source_type, search_result.get('connection_id'), search_result['_id'])
+            if record_hash in references:
+                to_observation.append({
+                    'notice': 'Document was already provided.',
+                    'connection_id': connection_id,
+                    'record_id': search_result['_id'],
+                    'reference_id': references[record_hash],
+                })
+                continue
+            if len(sources_results) >= self.MAX_SOURCES_COUNT:
+                continue
+            reference_id = f'<reference_{len(sources_results)}>'
             doc = {
-                'label': f'<reference_{i}>',
+                'label': reference_id,
                 'type': search_result['type'],
+                'connection_id': None if ExtraSourceType.is_valid(search_result['type']) else search_result['connection_id'],
+                'record_id': search_result['_id'],
                 'title': search_result['title'],
-                'content': search_result['content'],
+                'ai_summary': search_result.get('ai_summary', ''),
                 'modified_time': search_result['modified_time'],
             }
             if 'url' in search_result:
                 doc['url'] = search_result['url']
-            content = search_result.get('content')
-            if isinstance(content, dict):
-                for field in self.STATUS_FIELDS:
-                    value = content.get(field)
-                    if value is not None:
-                        doc[field] = value
+            for field in self.STATUS_FIELDS:
+                value = search_result.get(field)
+                if value is not None:
+                    doc[field] = value
             inner_url = self._build_product_record_url(search_result, project_base_url)
             if inner_url:
                 doc['inner_url'] = inner_url
@@ -134,10 +153,10 @@ class BasicSearchTool(BasicTool):
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
+            references[record_hash] = reference_id
+            sources_results.append(search_result)
 
-        tool_executor.cache.update({
-            'sources_results': sources_results + current_search_results
-        })
+        tool_executor.cache['sources_results'] = sources_results
 
         return to_observation
 
@@ -145,7 +164,7 @@ class DocumentsSearch(BasicSearchTool):
     tool = {
         'type': 'function',
         'name': 'documents_search',
-        'description': f'This is a search tool for technical documents. You can use a query (a short sentence) to find relative documents. The relevance will decrease from the beginning to the end. {_SEARCH_TOOLS_RESULT_FORMAT}. **Note: Not every sentence can be searched for relevant results. Regardless of whether there are results or not, you should not make random searches.**',
+        'description': f'Search technical documents by a short natural-language query. Results are ordered by relevance and contain summaries and metadata, NOT full content. Select useful identities and call get_records if details are needed. {_SEARCH_TOOLS_RESULT_FORMAT}. Do not make random or redundant searches.',
         'parameters':{
             'type': 'object',
             'properties': {
@@ -173,6 +192,8 @@ class IssuesSearch(BasicSearchTool):
             f'This is a search tool for relative issues. You can use a query (a short sentence) '
             f'to find relative issues and past solutions. Relevance decreases from beginning to end. '
             f'Results may include structured status fields (e.g. state/resolved/linked_ticket_state) '
+            f'and summaries, but NOT full content. Read useful candidates with get_records '
+            f'before relying on detailed solutions or applicability. '
             f'when available. {_SEARCH_TOOLS_RESULT_FORMAT}. '
             '**Note: Not every sentence can be searched for relevant results. '
             'Regardless of whether there are results or not, you should not make random searches.**'
@@ -205,6 +226,7 @@ class TasksSearch(BasicSearchTool):
             f'This is a search tool for related task records (including but not limited to feature development handling tasks and requirement design tasks). Use it when the user explicitly asks '
             f'to find related tasks, matching tasks, task records, or corresponding tasks for a described problem. '
             f'Relevance decreases from beginning to end. {_SEARCH_TOOLS_RESULT_FORMAT}. '
+            'Results contain summaries and metadata, NOT full content. Use get_records for task details. '
             'Use this tool based only on the user instruction type; do not include it in the automatic '
             'documents_search/issues_search priority or fallback order. '
             '**Note: Not every sentence can be searched for relevant results. '

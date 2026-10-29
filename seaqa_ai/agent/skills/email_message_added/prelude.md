@@ -2,7 +2,7 @@ event: email_message_added
 phase: prelude
 description: "Prepare a new email message and material related context for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly added email message.

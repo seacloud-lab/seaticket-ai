@@ -2,7 +2,7 @@ event: ticket_due_soon
 phase: prelude
 description: "Prepare an approaching-due ticket for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual event context for one routed ticket whose due date may be approaching.
