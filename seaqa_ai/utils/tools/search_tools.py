@@ -115,22 +115,26 @@ class BasicSearchTool(BasicTool):
             gen_record_hash(record['type'], record.get('connection_id'), record['_id']): f'<reference_{index}>'
             for index, record in enumerate(sources_results)
         }
+        # References are task-wide, but each executor has its own model memory.
+        observed_records = tool_executor.cache.setdefault('observed_search_records', set())
         to_observation = []
         for search_result in current_search_results:
             source_type = search_result['type']
             connection_id = source_type if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
             record_hash = gen_record_hash(source_type, search_result.get('connection_id'), search_result['_id'])
-            if record_hash in references:
+            if record_hash in observed_records:
                 to_observation.append({
                     'notice': 'Document was already provided.',
+                    'source_type': source_type,
                     'connection_id': connection_id,
                     'record_id': search_result['_id'],
                     'reference_id': references[record_hash],
                 })
                 continue
-            if len(sources_results) >= self.MAX_SOURCES_COUNT:
+            is_new_source = record_hash not in references
+            if is_new_source and len(sources_results) >= self.MAX_SOURCES_COUNT:
                 continue
-            reference_id = f'<reference_{len(sources_results)}>'
+            reference_id = references.get(record_hash, f'<reference_{len(sources_results)}>')
             doc = {
                 'label': reference_id,
                 'type': search_result['type'],
@@ -153,8 +157,10 @@ class BasicSearchTool(BasicTool):
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
-            references[record_hash] = reference_id
-            sources_results.append(search_result)
+            observed_records.add(record_hash)
+            if is_new_source:
+                references[record_hash] = reference_id
+                sources_results.append(search_result)
 
         tool_executor.cache['sources_results'] = sources_results
 
