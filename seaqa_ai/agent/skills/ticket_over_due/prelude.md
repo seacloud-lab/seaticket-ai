@@ -2,7 +2,7 @@ event: ticket_over_due
 phase: prelude
 description: "Prepare an overdue ticket for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual event context for one ticket routed by an overdue scanner.

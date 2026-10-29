@@ -4,7 +4,7 @@ description: "Research a new portal issue comment and decide the justified follo
 tools:
   - issues_search
   - documents_search
-  - get_record
+  - get_records
 additional_output:
   recommended_actions:
     items:
@@ -32,8 +32,8 @@ additional_output:
 ## Tool Rules
 - Only the declared tools are permitted.
 - Use `documents_search` first for explanation or how-to evidence and `issues_search` first for product problems or tracked work.
-- Call `get_record` only to verify at most two candidate Tickets for `suggest_link_existing_ticket`.
-- The combined budget is eight tool calls. Never call suggestion tools during Analysis.
+- Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for `suggest_link_existing_ticket`.
+- The combined budget is 16 tool calls, including all searches and record reads. This is a ceiling, not a target; stop when evidence is sufficient and obey the framework's step limit if lower. Never call suggestion tools during Analysis.
 
 ## Required Output
 - Return every required Analysis field.

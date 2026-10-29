@@ -4,7 +4,7 @@ description: "Research a new Discord thread and recommend a reply or ticket."
 tools:
   - issues_search
   - documents_search
-  - get_record
+  - get_records
 additional_output:
   recommended_actions:
     items:
@@ -52,14 +52,14 @@ additional_output:
 
 ## Tool Rules
 - Only `issues_search`, `documents_search`, and `get_record` are permitted.
-- Call `get_record` only to verify a candidate internal ticket before recommending `suggest_link_existing_ticket`: load the ticket with source type `ticket` and the candidate ticket number, then confirm its content tracks the same concrete work. Verify at most two candidate tickets.
+- Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Start with the search tool selected from the concrete request.
 - Use the other search tool only when the first leaves material decision uncertainty that the other tool can resolve.
 - Use specific, non-redundant queries from symptoms, version, product area, or requested capability.
 - Refine a follow-up query only to resolve a stated gap by adding a distinctive symptom, version, affected component, exact error, or configuration term. Do not repeat the same semantic query with superficial wording changes.
-- **The combined budget is eight tool calls, including ticket-verification `get_record` calls.**
+- **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop on sufficient evidence, after two consecutive searches without material gain, at budget exhaustion, or when more results cannot change the recommendation.
-- **Never call suggestion tools or undeclared tools, and never call `get_record` outside candidate-ticket verification.**
+- **Never call suggestion tools or undeclared tools, or read records unrelated to the remaining evidence gap.**
 
 ## Required Output
 - Return all required Analysis JSON fields.
@@ -71,7 +71,7 @@ additional_output:
 - Explain why the available evidence does or does not support a reply.
 
 ## Forbidden Behavior
-- **Do not call a suggestion tool, and do not call `get_record` except to verify a candidate internal ticket for `suggest_link_existing_ticket`.**
+- **Do not call a suggestion tool or read unrelated records. Search summaries alone do not confirm a fix or duplicate Ticket.**
 - Do not set `related_ticket` from a `linked_ticket` number alone without verifying that ticket's content.
 - Do not treat an author's identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member), or thread popularity, as proof that no handling is required.
 - Do not use weak search matches as direct evidence.

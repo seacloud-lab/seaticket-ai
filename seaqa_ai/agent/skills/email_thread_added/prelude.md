@@ -2,7 +2,7 @@ event: email_thread_added
 phase: prelude
 description: "Prepare a new email thread for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual, privacy-safe context for one newly created email thread that has not yet been linked to a Ticket.

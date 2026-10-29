@@ -16,7 +16,7 @@ SEARCH_TOOL_NAMES = (
 )
 
 def filter_tool_calls_content(tool_name, results):
-    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in SEARCH_TOOL_NAMES:
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (*SEARCH_TOOL_NAMES, 'get_records'):
         return remove_sources_content_and_snippets(deepcopy(results))
     return results
 
@@ -70,6 +70,7 @@ class InvalidToolArgumentsException(InvalidToolException):
 
 from .search_tools import DocumentsSearch, IssuesSearch, TasksSearch
 from .test_tool import TestTool
+from .get_records import GetRecords
 
 class BasicToolExecutor(object):
     def __init__(self):
@@ -129,6 +130,11 @@ class OpenAIToolExecutor(BasicToolExecutor):
     def validate_arguments(self, name, params):
         """Validate model arguments against the complete registered JSON Schema."""
         parameters = self.tools[name]['tool_info'].get('parameters') or {}
+        if name == 'get_records':
+            # Per-target validation belongs to the tool so one malformed identity
+            # does not prevent valid targets in the same batch from being read.
+            parameters = deepcopy(parameters)
+            parameters['properties']['targets']['items'] = {}
         properties = parameters.get('properties')
         if isinstance(properties, dict):
             valid_fields = set(properties)

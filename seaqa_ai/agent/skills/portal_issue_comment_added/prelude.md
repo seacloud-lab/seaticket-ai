@@ -2,7 +2,7 @@ event: portal_issue_comment_added
 phase: prelude
 description: "Prepare a new portal issue comment and its verified context."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly added Portal issue comment.

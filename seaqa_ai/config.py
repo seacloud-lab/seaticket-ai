@@ -146,8 +146,11 @@ CONTEXT_WINDOW_LIMIT = configs.get('CONTEXT_WINDOW_LIMIT', 10)
 CONTEXT_HISTORY_VALID_TIME = configs.get('CONTEXT_HISTORY_VALID_TIME', 168)
 
 ## Max steps
-MAX_STEPS = configs.get('MAX_STEPS', 10)
+MAX_STEPS = configs.get('MAX_STEPS', 20)
 assert MAX_STEPS > 0, "MAX_STEPS must larger than 0"
+
+AGENT_MAX_STEPS = configs.get('AGENT_MAX_STEPS', 20)
+assert AGENT_MAX_STEPS > 0, "AGENT_MAX_STEPS must larger than 0"
 
 MAX_TOOL_CALLS_PER_RESPONSE = configs.get('MAX_TOOL_CALLS_PER_RESPONSE', 3)
 assert MAX_TOOL_CALLS_PER_RESPONSE > 0, "MAX_TOOL_CALLS_PER_RESPONSE must larger than 0"
@@ -184,6 +187,7 @@ ENABLE_TEST_TOOL = configs.get('ENABLE_TEST_TOOL', False)
 THOUGHT_PROCESS_RECORD_TOOL_DETAILS = THOUGHT_PROCESS_CONFIGS.get('tool_details', False)
 SEARCH_TOOL_CONTENT_MAX_SIZE = configs.get('SEARCH_TOOL_CONTENT_MAX_SIZE', 20000)
 SEARCH_TOOL_ISSUES_MAX_COMMENTS = configs.get('SEARCH_TOOL_ISSUES_MAX_COMMENTS', 50)
+GET_RECORDS_MAX_RECORDS = configs.get('GET_RECORDS_MAX_RECORDS', 10)
 
 # Redis
 REDIS_HOST = configs.get('REDIS_HOST', 'redis')
@@ -220,8 +224,6 @@ AGENT_CONFIG = configs.get('AGENT', {})
 ## Max records counter
 AGENT_MAX_TICKETS_PER_RUN = AGENT_CONFIG.get('max_tickets_per_run', 100)
 AGENT_MAX_GITHUB_ISSUES_PER_RUN = AGENT_CONFIG.get('max_github_issues_per_run', 100)
-AGENT_MAX_ANALYSIS_STEPS = AGENT_CONFIG.get('max_analysis_steps', 10)
-AGENT_MAX_HANDLING_STEPS = AGENT_CONFIG.get('max_handling_steps', 5)
 
 ## Agent manager timing (in unit of second)
 

@@ -2,13 +2,15 @@
 import inspect
 import json
 import logging
+import re
 import time
 import uuid
 
 from seaqa_ai import config
 from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
-from seaqa_ai.agent.utils.record_identity import validate_record_identity
-from seaqa_ai.agent.tools.get_record import GetRecord
+from seaqa_ai.utils.record.identity import validate_record_identity
+from seaqa_ai.utils.tools.get_records import GetRecords
+from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.utils import (
     get_answer_and_sources,
@@ -62,7 +64,14 @@ class AgentReACT:
         self.responses_client = responses_client
         self.phase_spec = phase_spec
         self.context = dict(phase_spec.context or {})
-        self.system_prompts = [phase_spec.get_system_prompt()]
+        self.system_prompts = [re.sub(r'\bget_record\b', 'get_records', phase_spec.get_system_prompt())]
+        self.system_prompts.append(
+            'get_records accepts {"targets": [record identities]}. Its observation is an array; '
+            'each item is a successful record, an error, or a notice. Only successful record '
+            'items are evidence. Read content/latest_comment/latest_message/latest_email from '
+            'the matching successful item, not from the array itself. A duplicate notice refers '
+            'to a record already provided in this phase. A source-limit notice provides no content.'
+        )
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
         if ticket_rules_prompt:
             self.system_prompts.append(ticket_rules_prompt)
@@ -108,6 +117,13 @@ class AgentReACT:
         )
 
         self.tool_executor = OpenAIToolExecutor()
+        loaded_records = self.context.get('loaded_records')
+        if loaded_records is None:
+            loaded_records = LoadedRecords()
+        self.tool_executor.cache['loaded_records'] = loaded_records
+        self.tool_executor.cache['sources_results'] = self.context.setdefault('sources_results', [])
+        self.tool_executor.cache['record_observation_scope'] = uuid.uuid4().hex
+        self.context['loaded_records'] = loaded_records
         self._tool_instances = {}
         self._register_tools(phase_spec.tools)
 
@@ -208,50 +224,32 @@ class AgentReACT:
         call_index = 0
         def __inject_records(records):
             nonlocal call_index
-            for record in records:
-                arguments = {
-                    'source_type': record['source_type'],
-                    'connection_id': record['connection_id'],
-                    'record_id': record['record_id'],
-                }
-                started_at = time.monotonic()
-                record_call = {
-                    'type': 'function_call',
-                    'call_id': f'records_input_{call_index}',
-                    'name': 'get_record',
-                    'arguments': json.dumps(arguments, ensure_ascii=False),
-                }
-                self.memory += record_call
-                try:
-                    result = GetRecord().execute(
-                        **arguments,
-                        project_uuid=self.context['project_uuid'],
-                        app=self.app,
-                        loaded_records=self.context.get('loaded_records'),
-                        context=self.context,
-                    )
-                except Exception as error:
-                    observation = self._tool_error_observation('get_record', error)
-                    self._trace(
-                        action_type='error', action_status='failed', step=0,
-                        tool_name=record_call['name'], tool_arguments=arguments,
-                        observation=observation, result=str(error),
-                        statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
-                        }, []),
-                    )
-                else:
-                    observation = self._format_observation(result)
-                    self._trace(
-                        action_type='tool_call', action_status='completed', step=0,
-                        tool_name=record_call['name'], tool_arguments=arguments,
-                        observation=observation, result=result,
-                        statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
-                        }, []),
-                    )
-                self._append_tool_output(record_call, observation)
-                call_index += 1
+            if not records:
+                return
+            arguments = {'targets': records}
+            started_at = time.monotonic()
+            record_call = {
+                'type': 'function_call',
+                'call_id': f'records_input_{call_index}',
+                'name': 'get_records',
+                'arguments': json.dumps(arguments, ensure_ascii=False),
+            }
+            self.memory += record_call
+            result = GetRecords().execute(
+                **arguments, app=self.app, context=self.context,
+                tool_executor=self.tool_executor,
+            )
+            observation = self._format_observation(result)
+            self._trace(
+                action_type='tool_call', action_status='completed', step=0,
+                tool_name=record_call['name'], tool_arguments=arguments,
+                observation=observation, result=result,
+                statistics=self._statistics(started_at, {
+                    'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                }, []),
+            )
+            self._append_tool_output(record_call, observation)
+            call_index += 1
 
         if isinstance(self.records_input, dict):
             for prompt, records in self.records_input.items():

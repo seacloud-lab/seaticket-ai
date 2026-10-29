@@ -12,8 +12,7 @@ from seaqa_ai.utils import gen_completion_format
 from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
 from seaqa_ai.utils.llm_api import get_completion_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
-from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results
-from seaqa_ai.services.ai_services.utils.search.content_retriever import ContentRetriever
+from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results, get_search_result_metadata
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
 from seaqa_ai.seadb_models.models import SchemaTables
 from seaqa_ai.skills.registry import SkillRegistry
@@ -566,17 +565,16 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         if not search_result_after_ranked:
             return {}, rerank_token_usage
         
-        # get content of reranked result
+        # Get lightweight metadata only; record content is read separately.
         time_begin = time.time()
-        content_retriever = ContentRetriever(
-            self.app.username_resolver, self.app.seadb_service, project_uuid,
+        search_result_after_ranked = get_search_result_metadata(
+            search_result_after_ranked, self.app.seadb_service, project_uuid, connection_id_type_map,
         )
-        search_result_with_whole_data = content_retriever.retrieve(search_result_after_ranked, connection_id_type_map)
         time_end = time.time()
         if isinstance(call_back, ChatCallBacker):
-            call_back('update_execution_detail', {'Requst whole data': f'time usage: {round(time_end - time_begin, 2)} s'})
+            call_back('update_execution_detail', {'Request search metadata': f'time usage: {round(time_end - time_begin, 2)} s'})
 
-        return search_result_with_whole_data, rerank_token_usage
+        return search_result_after_ranked, rerank_token_usage
     
     def search(self, query, connections, extra_sources, context, limit=100, call_back=None):
         if limit <= 0:

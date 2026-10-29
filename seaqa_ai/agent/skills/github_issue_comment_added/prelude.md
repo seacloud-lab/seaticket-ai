@@ -2,7 +2,7 @@ event: github_issue_comment_added
 phase: prelude
 description: "Prepare a new GitHub comment and material related context for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly added GitHub issue comment.
