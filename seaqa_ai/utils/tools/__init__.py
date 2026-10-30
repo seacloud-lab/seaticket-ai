@@ -13,6 +13,7 @@ SEARCH_TOOL_NAMES = (
     'documents_search',
     'issues_search',
     'tasks_search',
+    'read_documents',
 )
 
 def filter_tool_calls_content(tool_name, results):
