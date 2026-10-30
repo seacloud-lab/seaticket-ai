@@ -103,10 +103,14 @@ class GetRecords(BasicTool):
                     results[index] = {'notice': 'Document source limit reached.', **identity}
                 break
             groups = OrderedDict()
+            outcomes = {}
             for item in batch.values():
                 identity = item['identity']
+                cached_record = loaded.get(**identity)
+                if cached_record is not None:
+                    outcomes[loaded.key(**identity)] = (cached_record, None)
+                    continue
                 groups.setdefault((identity['source_type'], identity['connection_id']), []).append(item)
-            outcomes = {}
             for items in groups.values():
                 try:
                     records = retriever.retrieve([item['identity'] for item in items], allow_missing=True)
