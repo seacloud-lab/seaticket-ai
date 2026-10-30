@@ -20,8 +20,8 @@ class SuggestReply(BasicAgentSuggestionTool):
 
     def execute(self, reply, reason, context=None):
         reply = str(reply or '').strip()
-        if not reply:
-            raise ValueError('reply must not be empty')
+        if not reply or not str(reason or '').strip():
+            raise ValueError('reply and reason must not be empty')
         return self.suggestion_result(
             suggestion_content=reply,
             context=context,
