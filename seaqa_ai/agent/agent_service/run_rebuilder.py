@@ -8,9 +8,9 @@ from uuid import uuid4
 from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter, _RecordInputFormatter
 from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
-from seaqa_ai.agent.tools.get_record import GetRecord
-from seaqa_ai.agent.utils.loaded_records import LoadedRecords
-from seaqa_ai.agent.utils.record_identity import identity_key
+from seaqa_ai.utils.record import read_record
+from seaqa_ai.utils.record.loaded_records import LoadedRecords
+from seaqa_ai.utils.record.identity import identity_key
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.utils import parse_datetime, parse_json, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
@@ -43,8 +43,9 @@ def regenerate_agent_suggestions(
     context = agent_service._build_context(task)
     loaded_records = LoadedRecords()
     context['loaded_records'] = loaded_records
+    context['sources_results'] = []
 
-    trigger_record = GetRecord().execute(
+    trigger_record = read_record(
         source_type=task.trigger_event.source_type,
         connection_id=task.trigger_event.connection_id,
         record_id=task.trigger_event.record_id,
@@ -166,7 +167,7 @@ def _reload_selected_records(promoter, records):
             continue
         source_type, connection_id, record_id = record_key
         try:
-            GetRecord().execute(
+            read_record(
                 source_type=source_type,
                 connection_id=connection_id,
                 record_id=record_id,
@@ -240,7 +241,7 @@ def _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records):
     except (TypeError, ValueError):
         return
     try:
-        linked_ticket_record = GetRecord().execute(
+        linked_ticket_record = read_record(
             source_type='ticket',
             connection_id=None,
             record_id=ticket_id,

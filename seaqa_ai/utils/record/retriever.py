@@ -5,17 +5,15 @@ from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.seadb_models.utils import get_connection_table_name
 from seaqa_ai.utils import html_to_text
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
-from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
     github_issue_comments_query, discourse_replies_query, email_messages_query, \
     linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query
-from seaqa_ai.agent.utils.loaded_records import LoadedRecords
-from seaqa_ai.agent.utils.record_identity import (
-    record_identity_schema,
+from seaqa_ai.utils.record.loaded_records import LoadedRecords
+from seaqa_ai.utils.record.identity import (
     validate_record_identity,
 )
 
-AGENT_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
+RECORD_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
 MESSAGES_OMITTED_NOTICE = '[messages omitted due to content limit]'
 
 # The stored `content` of an email strips its quoted history. That is lossless
@@ -35,8 +33,8 @@ FORWARD_BODY_MARKER_RE = re.compile(
 )
 
 
-class _RecordRetriever:
-    """Batch-load records and their agent-specific content."""
+class RecordRetriever:
+    """Batch-load records and their bounded content."""
 
     _SELECT_FIELDS = {
         ExtraSourceType.TICKET.value: (
@@ -93,13 +91,13 @@ class _RecordRetriever:
         if not ExtraSourceType.is_valid(source_type)
     )
 
-    def __init__(self, app, project_uuid, context=None, loaded_records=None):
+    def __init__(self, app, project_uuid, loaded_records, context=None):
         self.app = app
         self.project_uuid = project_uuid
         self.context = context or {}
-        self.loaded_records = loaded_records if loaded_records is not None else LoadedRecords()
+        self.loaded_records = loaded_records
 
-    def retrieve(self, targets):
+    def retrieve(self, targets, allow_missing=False):
         """Load records for targets, preserving their input order."""
         if not isinstance(targets, list):
             raise ValueError('targets must be an array')
@@ -139,7 +137,7 @@ class _RecordRetriever:
         results = []
         for target in normalized_targets:
             record = records_by_key.get(LoadedRecords.key(**target))
-            if record is None:
+            if record is None and not allow_missing:
                 raise ValueError(
                     f"No active {target['source_type']!r} record found with record_id "
                     f"{target['record_id']}"
@@ -164,11 +162,57 @@ class _RecordRetriever:
         else:
             connection_id = target.get('connection_id')
         validate_record_identity(source_type, connection_id, record_id)
+        allowed_sources = self.context.get('extra_sources')
+        if ExtraSourceType.is_valid(source_type) and allowed_sources is not None and source_type not in allowed_sources:
+            raise ValueError(f'Source {source_type!r} is not allowed in this context')
         return {
             'source_type': source_type,
             'connection_id': connection_id,
             'record_id': record_id,
         }
+
+    def related_records(self, record):
+        """Expose explicit, authorized relationship identities without reading them."""
+        candidates = []
+        ticket_id = record.get('linked_ticket')
+        if ticket_id is not None and not isinstance(ticket_id, bool):
+            candidates.append({
+                'source_type': ExtraSourceType.TICKET.value,
+                'connection_id': None, 'record_id': ticket_id,
+            })
+        connections = {
+            connection['id']: connection['type']
+            for connection in (
+                self.context.get('document_connections', [])
+                + self.context.get('issue_connections', [])
+                + self.context.get('task_connections', [])
+            )
+            if isinstance(connection, dict) and 'id' in connection and 'type' in connection
+        }
+        for linked_record in record.get('linked_connection_records') or []:
+            if not isinstance(linked_record, str):
+                continue
+            try:
+                connection_id, record_id = map(int, linked_record.split('_', 1))
+            except (TypeError, ValueError):
+                continue
+            if connection_id in connections:
+                candidates.append({
+                    'source_type': connections[connection_id],
+                    'connection_id': connection_id, 'record_id': record_id,
+                })
+        results = []
+        seen = set()
+        for candidate in candidates:
+            try:
+                identity = self._normalize_target(candidate)
+            except ValueError:
+                continue
+            key = LoadedRecords.key(**identity)
+            if key not in seen:
+                seen.add(key)
+                results.append(identity)
+        return results
 
     def _load_primary_records(self, source_type, connection_id, targets):
         record_ids = [target['record_id'] for target in targets]
@@ -213,7 +257,7 @@ class _RecordRetriever:
             records_by_id.keys(),
             query=ticket_comments_query(SchemaTables.TICKET_COMMENTS.table_name(), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
             bodies_by_thread_id=bodies_by_ticket_id,
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
         resolver = getattr(self.app, 'username_resolver', None)
         for record_id, record in records_by_id.items():
@@ -242,7 +286,7 @@ class _RecordRetriever:
                 SEARCH_TOOL_ISSUES_MAX_COMMENTS,
             ),
             bodies_by_thread_id=bodies_by_issue_id,
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
         resolver = getattr(self.app, 'username_resolver', None)
         for record_id, record in records_by_id.items():
@@ -281,7 +325,7 @@ class _RecordRetriever:
             bodies_by_issue_id.keys(),
             query=github_issue_comments_query(SchemaTables.GITHUB_ISSUE_COMMENTS.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
             bodies_by_thread_id=bodies_by_issue_id,
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
         for record in records_by_id.values():
             issue_content = content_by_issue_id[record['issue_id']]
@@ -308,7 +352,7 @@ class _RecordRetriever:
             self.project_uuid,
             [record['topic_id'] for record in records_by_id.values()],
             query=discourse_replies_query(SchemaTables.DISCOURSE_REPLIES.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
         for record in records_by_id.values():
             topic_content = content_by_topic_id[record['topic_id']]
@@ -341,7 +385,7 @@ class _RecordRetriever:
             self.project_uuid,
             records_by_id.keys(),
             query=email_messages_query(SchemaTables.EMAIL.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
             extras_by_thread_id={
                 thread_id: {'text': original}
                 for thread_id, original in fwd_original_by_thread_id.items()
@@ -435,9 +479,9 @@ class _RecordRetriever:
             bodies_by_issue_id.keys(),
             query=linear_issue_comments_query(SchemaTables.LINEAR_ISSUE_COMMENTS.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
             bodies_by_thread_id=bodies_by_issue_id,
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
-        for record_id, record in records_by_id.items():
+        for record in records_by_id.values():
             issue_content = content_by_issue_id[record['issue_id']]
             history_comments = [
                 self._format_message(message, ('author', 'created_time', 'content'))
@@ -471,9 +515,9 @@ class _RecordRetriever:
                 SEARCH_TOOL_ISSUES_MAX_COMMENTS,
             ),
             bodies_by_thread_id=bodies_by_issue_id,
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
-        for record_id, record in records_by_id.items():
+        for record in records_by_id.values():
             issue_content = content_by_issue_id[record['issue_id']]
             history_comments = [
                 self._format_message(message, ('comment_id', 'author', 'created_time', 'modified_time', 'content'))
@@ -498,7 +542,7 @@ class _RecordRetriever:
             self.project_uuid,
             [record['thread_id'] for record in records_by_id.values()],
             query=discord_thread_messages_query(SchemaTables.DISCORD_THREAD_MESSAGES.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
-            budget=AGENT_CONTENT_BUDGET,
+            budget=RECORD_CONTENT_BUDGET,
         )
         for record in records_by_id.values():
             thread_content = content_by_thread_id[record['thread_id']]
@@ -637,32 +681,3 @@ class _RecordRetriever:
                     formatted_record[field], username_resolver,
                 )
         return formatted_record
-
-
-class GetRecord(BasicTool):
-    """Load one active record without following its relationship fields."""
-
-    tool = {
-        'type': 'function',
-        'name': 'get_record',
-        'description': (
-            'Load one current record by source type, connection ID, and record ID. '
-            'The returned record includes its stored link fields but does not load '
-            'linked records automatically.'
-        ),
-        'parameters': record_identity_schema(),
-        'strict': True,
-    }
-
-    def execute(self, source_type, connection_id, record_id, project_uuid, app,
-                loaded_records=None, context=None):
-        return _RecordRetriever(
-            app=app,
-            project_uuid=project_uuid,
-            context=context,
-            loaded_records=loaded_records,
-        ).retrieve([{
-            'source_type': source_type,
-            'connection_id': connection_id,
-            'record_id': record_id,
-        }])[0]

@@ -2,7 +2,7 @@ event: discourse_topic_added
 phase: prelude
 description: "Prepare factual context for a new Discourse topic."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly created Discourse topic that has not yet been linked to a Ticket.

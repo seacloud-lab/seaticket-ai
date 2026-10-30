@@ -2,7 +2,7 @@ event: linear_issue_updated
 phase: prelude
 description: "Prepare a completed Linear issue update and its Ticket-centered record context for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for an event reporting that a linked Linear issue changed to a completed state.

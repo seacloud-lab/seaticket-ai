@@ -9,6 +9,7 @@ from seaqa_ai.services.chat_service.system_prompts import (
     CHAT_OUTPUT_FORMAT_RULES,
     CHAT_SEARCH_TOOLS_EXAMPLES,
     CHAT_SEARCH_POLICY,
+    CHAT_RECORD_READING_POLICY,
     CHAT_SEARCH_REFERENCE_RULES,
 )
 from seaqa_ai.skills.registry import SkillRegistry
@@ -21,6 +22,7 @@ def build_chat_tool_prompt(is_external_portal=False, skip_tool_examples=False):
     tool_prompt_sections = [
         CHAT_GLOBAL_TOOL_RULES,
         CHAT_SEARCH_POLICY,
+        CHAT_RECORD_READING_POLICY,
         CHAT_SEARCH_REFERENCE_RULES,
     ]
 

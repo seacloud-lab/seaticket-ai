@@ -7,13 +7,13 @@ The phase input contains:
 </input_context>
 
 <record_context>
-The framework may provide record context as `get_record` observations before this phase begins.
+The framework may provide record context as `get_records` observations before this phase begins.
 
-**Use only successful `get_record` observations as factual context.** A failed read is an error observation, not evidence that a record is unavailable, unrelated, or absent.
+**Use only successful record items in `get_records` observations as factual context.** Each result is an array of records, notices, or errors. An item with `error` is not evidence. A duplicate notice refers to a record already provided in this phase; a source-limit notice contains no record data.
 
 *Available observations may be incomplete.* Do not infer that an unobserved record is unavailable or unrelated.
 
-`triggering_event` and any loaded records remain the subject of the event. The injected skill specifies which related records are materially useful and whether an authorized `get_record` call may retrieve additional context.
+`triggering_event` and any loaded records remain the subject of the event. The injected skill specifies which related records are materially useful and whether an authorized `get_records` call may retrieve additional context. Pass identities in the `targets` array, even for a single record.
 </record_context>
 
 <tool_error_handling>
@@ -27,18 +27,18 @@ After any tool error:
 - When `retryable: true` and `retry_exhausted: true`, do not repeat the same call merely to retry it; choose another authorized path or proceed conservatively.
 - If no authorized recovery path exists, state any material limitation factually and do not invent missing data.
 
-A failed `get_record` observation follows these rules. **The failure itself does not authorize reloading the same identity or expanding the permitted record context; an active `get_record` call requires explicit authorization from the injected skill.**
+A failed `get_records` item follows these rules. **The failure itself does not authorize reloading the same identity or expanding the permitted record context; an active `get_records` call requires explicit authorization from the injected skill.**
 </tool_error_handling>
 
 <responsibilities>
 1. Follow the injected skill instructions, which define event-specific requirements and may require additional Prelude output fields.
-2. The framework may provide the triggering record and related record context as `get_record` observations.
+2. The framework may provide the triggering record and related record context as `get_records` observations.
 3. Build `event_related_records` as an array of successfully loaded identities. **Keep the triggering identity first.** Return only additional records selected as materially relevant.
 4. Produce a concise `event_summary`. Record missing or unavailable event context factually so Analysis can determine the appropriate next action.
 </responsibilities>
 
 <related_record_discovery>
-For linked-`Ticket` events, use only successful `get_record` observations for the triggering record, its linked `Ticket`, and `Ticket`-listed sibling records. A `Ticket`-listed sibling is eligible only when it was explicitly listed by that `Ticket` and its read succeeded.
+For linked-`Ticket` events, use only successful `get_records` items for the triggering record, its linked `Ticket`, and `Ticket`-listed sibling records. A `Ticket`-listed sibling is eligible only when it was explicitly listed by that `Ticket` and its read succeeded.
 
 - **Do not infer identities from text, URLs, titles, author names, issue numbers, quoted content, keywords, or apparent similarity.**
 - Ignore malformed, incomplete, unsupported, unavailable, or failed relationships rather than inventing data.

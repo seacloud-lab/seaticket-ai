@@ -2,7 +2,7 @@ event: general_task_updated
 phase: prelude
 description: "Prepare a completed General Task update and its Ticket-centered record context for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for an event reporting that a linked General Task changed to `done`.

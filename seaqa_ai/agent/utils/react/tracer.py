@@ -11,6 +11,7 @@ from seaqa_ai.config import (
 )
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import (
+    convert_to_json_code_block,
     now_iso,
     parse_json,
     remove_sources_content_and_snippets,
@@ -231,9 +232,9 @@ class AgentReACTTracer(list):
             input = ''
 
         if not THOUGHT_PROCESS_ENABLED or not THOUGHT_PROCESS_RECORD_TOOL_DETAILS:
-            tool_arguments = {}
+            tool_arguments = ''
         else:
-            tool_arguments = deepcopy(tool_arguments) if tool_arguments is not None else {}
+            tool_arguments = convert_to_json_code_block(tool_arguments if tool_arguments is not None else {})
 
         normalized_observation = deepcopy(observation) or ''
         if not THOUGHT_PROCESS_ENABLED:

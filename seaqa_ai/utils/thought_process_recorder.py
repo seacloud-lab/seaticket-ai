@@ -113,7 +113,7 @@ class ThoughtProcessRecorder(object):
             return
         tool_call = {
             'name': tool_name,
-            'arguments': {key: object_to_json_str(value) for key, value in arguments.items()}
+            'arguments': object_to_json_str(arguments)
         }
 
         self.actions[-1]['tool_calls'].append(tool_call)
