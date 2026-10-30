@@ -120,7 +120,7 @@ class BasicSearchTool(BasicTool):
         to_observation = []
         for search_result in current_search_results:
             source_type = search_result['type']
-            connection_id = source_type if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
+            connection_id = None if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
             record_hash = gen_record_hash(source_type, search_result.get('connection_id'), search_result['_id'])
             if record_hash in observed_records:
                 to_observation.append({
