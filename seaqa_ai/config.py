@@ -111,13 +111,13 @@ def get_llm_models_maps(models):
 
 
 CONF_DIR = os.getenv('CONF_PATH', '/opt/seaqa/conf/')
-yaml_file_path = os.path.join(CONF_DIR, os.environ.get('SEAQA_CONFIG_NAME', 'seaqa_config.yaml'))
-configs = _ConfigParser(yaml_file_path, 'seaqa-ai')
+yaml_file_path = os.path.join(CONF_DIR, os.environ.get('SEATICKET_CONFIG_NAME', 'seaticket_config.yaml'))
+configs = _ConfigParser(yaml_file_path, 'seaticket-ai')
 
 TIME_ZONE = configs.get('TIME_ZONE', 'UTC')
 
 # Log
-LOG_FILE = os.path.join(configs.get('LOG_PATH', '/tmp'), 'seaqa-ai.log')
+LOG_FILE = os.path.join(configs.get('LOG_PATH', '/tmp'), 'seaticket-ai.log')
 LOG_LEVEL = configs.get('LOG_LEVEL', 'info')
 ENABLE_SYS_LOG = configs.get('ENABLE_SYS_LOG', False)
 

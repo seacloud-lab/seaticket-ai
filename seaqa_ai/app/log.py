@@ -47,6 +47,6 @@ class LogConfigurator(object):
     def add_syslog_handler(self):
         handler = handlers.SysLogHandler(address='/dev/log')
         handler.setLevel(self._level)
-        formatter = logging.Formatter('seafevents[%(process)d]: %(message)s')
+        formatter = logging.Formatter('seaticket-ai[%(process)d]: %(message)s')
         handler.setFormatter(formatter)
         logging.root.addHandler(handler)
