@@ -473,6 +473,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
                 'total_tokens': response.usage.total_tokens,
                 'cached_tokens': BasicLLMAPI._extract_cached_tokens_from_usage(response.usage)
             }
+            token_usage['credit_used'] = llm_client.get_credit_used(token_usage)
 
             response = response.choices[0].message.content
 

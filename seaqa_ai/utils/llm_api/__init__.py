@@ -3,6 +3,7 @@ import logging
 
 from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
 from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER, AIScenario
+from seaqa_ai.utils.llm_api.usage import calculate_credit_used
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,10 @@ class BasicLLMAPI:
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
+
+    def get_credit_used(self, token_usage):
+        model_config = LLM_MODEL_ID_MODELS_MAP.get(self.model_id, {})
+        return calculate_credit_used(token_usage, model_config.get('price'))
 
     @staticmethod
     def _extract_cached_tokens_from_usage(usage):

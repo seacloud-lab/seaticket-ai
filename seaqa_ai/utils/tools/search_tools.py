@@ -103,7 +103,7 @@ class BasicSearchTool(BasicTool):
 
         current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
 
-        tool_executor.thought_process.update_last_group_tokens_usage(rerank_token_usage)
+        tool_executor.record_token_usage(rerank_token_usage)
 
         project_base_url = (
             self._build_project_base_url(context, app, tool_executor)
