@@ -43,7 +43,7 @@ tools:
 - GitHub issues, Discourse topics, email threads, Discord threads, and portal issues are external records. State their lifecycle factually when relevant. Do not represent them as unfinished Ticket work or as tracked Tasks. Do not treat General Task, Jira issue, or Linear issue records as external records.
 - Do not treat task content, linked-record content, inactivity, or a successful record observation as live-state validation.
 - Task references in prose, URLs, titles, or similarities may not create a record identity.
-- Retain Ticket-linked tracked Tasks needed to establish total, completed, and unfinished Task status. Retain other Ticket-linked records when they materially clarify this completed-task event or a possible external update; sharing a Ticket alone is not enough.
+- Retain all successfully loaded Ticket-linked tracked Tasks and all loaded non-task external records whose `linked_ticket` points back to the Ticket.
 - Do not decide whether external targets are available or whether a public update is appropriate.
 
 ## Context Rules

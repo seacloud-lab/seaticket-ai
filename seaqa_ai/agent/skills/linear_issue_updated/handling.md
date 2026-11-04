@@ -32,7 +32,7 @@ tools:
    - Call once.
    - Use a concise, friendly, safe non-empty reply.
    - Provide an Analysis-grounded non-empty reason.
-   - Use intended non-task external record identities from successful `get_record` observations in `reply_targets`.
+   - Use intended non-task external record identities from successful `get_record` observations in `reply_targets`. When Analysis establishes that the complete tracked Task set is finished, include all valid external targets whose `linked_ticket` points back to the Ticket.
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
 5. Say work is complete or ready for verification only when Analysis explicitly supports that wording.
 6. Record pending-suggestion outcomes and stop after the selected attempts.
