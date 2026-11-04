@@ -20,6 +20,7 @@ from seaqa_ai.services.chat_service.utils import combine_attachments_to_message,
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
     extract_skill_command_from_message
 from seaqa_ai.services.chat_service.utils.callbacker import ChatCallBacker
+from seaqa_ai.services.chat_service.utils.portal_citations import prepare_portal_citations
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.skills.tool import LoadExtraSkill
 
@@ -101,6 +102,21 @@ class BasicChat(object):
         if config.ENABLE_TEST_TOOL:
             self.test_tool.register(tool_executor)
         self.load_extra_skill_tool.register(tool_executor, context=context, app=self.app)
+
+    def _apply_portal_citation_policy(self, answer, sources, context):
+        if not context.get('is_external_portal'):
+            return answer, sources
+        try:
+            return prepare_portal_citations(
+                answer,
+                sources,
+                self.app.seadb_service,
+                self.db_session_class,
+                context.get('project_uuid'),
+            )
+        except Exception as e:
+            logger.exception(f'Failure to prepare portal citations: {e}')
+            return remove_reference_markers(answer or ''), []
 
     def _load_selected_skill(self, tool_executor, memory, context):
         skill_id = context.get('selected_skill_id')
@@ -258,10 +274,7 @@ class SyncChat(BasicChat):
 
                 # filter invalid references
                 answer, sources = get_answer_and_sources(tool_executor, content)
-
-                if context.get('is_external_portal'):
-                    answer = remove_reference_markers(answer)
-                    sources = []
+                answer, sources = self._apply_portal_citation_policy(answer, sources, context)
 
                 return {
                     'answer': answer,
@@ -508,10 +521,7 @@ class StreamingChat(BasicChat):
 
                     # filter invalid references
                     answer, sources = get_answer_and_sources(tool_executor, content)
-
-                    if context.get('is_external_portal'):
-                        answer = remove_reference_markers(answer)
-                        sources = []
+                    answer, sources = self._apply_portal_citation_policy(answer, sources, context)
 
                     thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
                     yield SSE.results(answer, remove_sources_content_and_snippets(sources), thought_process)

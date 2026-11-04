@@ -325,6 +325,7 @@ class PortalChatMessages(Base):
     message_id = Column(String(length=4), nullable=True)
     role = Column(String(length=20), nullable=False)
     content = Column(Text, nullable=True)
+    sources = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
     as_context = Column(Boolean, nullable=False, default=True)
@@ -334,6 +335,12 @@ class PortalChatMessages(Base):
     )
 
     def to_dict(self):
+        try:
+            sources = json.loads(self.sources) if self.sources else []
+        except (TypeError, ValueError):
+            sources = []
+        if not isinstance(sources, list):
+            sources = []
         return {
             'id': self.id,
             'session_uuid': self.session_uuid,
@@ -341,7 +348,7 @@ class PortalChatMessages(Base):
             'role': self.role,
             'content': self.content,
             'attachments': [],
-            'sources': [],
+            'sources': sources,
             'created_at': localize_time(self.created_at).isoformat(),
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
             'as_context': self.as_context
