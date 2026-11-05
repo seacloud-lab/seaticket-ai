@@ -46,10 +46,10 @@ additional_output:
 - Do not treat a General Task, Jira issue, or Linear issue as an external record.
 - Treat external-record content as a closure blocker only when it explicitly establishes unfinished internal Ticket work; do not infer such work from the external record's lifecycle state.
 - An already closed ticket must never receive a close suggestion.
-- Recommend `suggest_reply_external_targets` only with non-task external targets identified by successful `get_record` observations and a supported need for a concise completion or ready-for-verification update.
+- Always recommend `suggest_reply_external_targets` when the complete discoverable tracked Task set is finished and valid non-task external targets are available; notify all such targets, even if the Ticket is already closed. Recommend closure alongside the reply when the closure rules are satisfied.
 - External reply can be appropriate without closure, including when this Task is complete but other discoverable Tasks remain unfinished. When all discoverable internal Task work is complete, it can coexist with closure as a notification that work was completed; it does not require or await external verification. It must not overstate what validation establishes.
 - Closure and reply can coexist only when each is independently justified; `no_op` is exclusive.
-- Recommend an external reply only when the task-finished event and supplied validation support that update itself. Target availability or unrelated external-discussion context is not a reason to reply. Do not recommend a reply whose only candidate target is the triggering tracked Task.
+- Completion of all discoverable Tasks, with none missing, is sufficient evidence for a concise completion notification; no separate validation is required. If explicit internal work remains, describe only the completed work. If any Task is unfinished or failed to load, recommend a progress reply only when the supplied context supports it. Tracked Tasks are never reply targets.
 
 ## Tool Rules
 - No tools are available in Analysis.
