@@ -1,8 +1,7 @@
 """Shared pending-suggestion action behavior for agent tools."""
 
 from seaqa_ai.utils.tools import BasicTool
-from seaqa_ai.agent.utils.loaded_records import LoadedRecords
-from seaqa_ai.agent.utils.record_identity import (
+from seaqa_ai.utils.record.identity import (
     ALL_SOURCES_TYPES,
     validate_record_identity,
 )
@@ -87,7 +86,9 @@ class BasicAgentSuggestionTool(BasicTool):
     @staticmethod
     def _loaded_records(context):
         loaded_records = (context or {}).get('loaded_records')
-        return loaded_records if loaded_records is not None else LoadedRecords()
+        if loaded_records is None:
+            raise ValueError('The request record cache is not initialized')
+        return loaded_records
 
     @staticmethod
     def _linked_source_ids(context):

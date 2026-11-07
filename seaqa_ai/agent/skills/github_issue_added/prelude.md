@@ -2,7 +2,7 @@ event: github_issue_added
 phase: prelude
 description: "Prepare factual context for a new GitHub issue."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual, privacy-safe context for a newly created GitHub issue that has not yet been linked to a Ticket.

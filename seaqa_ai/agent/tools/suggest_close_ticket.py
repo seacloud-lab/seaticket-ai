@@ -1,5 +1,5 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
-from seaqa_ai.agent.utils.record_identity import record_identity_schema
+from seaqa_ai.utils.record.identity import record_identity_schema
 
 
 class SuggestCloseTicket(BasicAgentSuggestionTool):

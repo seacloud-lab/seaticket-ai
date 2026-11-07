@@ -1,4 +1,4 @@
-"""Shared schemas and validation for agent record identities."""
+"""Shared schemas and validation for record identities."""
 
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 

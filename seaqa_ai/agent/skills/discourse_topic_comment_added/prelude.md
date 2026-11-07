@@ -2,7 +2,7 @@ event: discourse_topic_comment_added
 phase: prelude
 description: "Prepare a new Discourse comment and material related context for analysis."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly added Discourse comment.

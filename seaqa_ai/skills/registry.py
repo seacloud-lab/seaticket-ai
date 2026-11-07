@@ -219,6 +219,7 @@ class SkillRegistry:
     def available_tool_names(cls, context=None):
         context = context or {}
         tool_names = set(SEARCH_TOOL_NAMES)
+        tool_names.add('get_records')
         if not context.get('is_external_portal'):
             tool_names.update({
                 'generate_markdown',
