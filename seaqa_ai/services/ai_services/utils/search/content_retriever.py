@@ -95,6 +95,12 @@ class ContentRetriever:
         self.seadb_service = seadb_service
         self.project_uuid = project_uuid
 
+    @staticmethod
+    def _remove_missing_records(record_id_record_map, records_from_seadb):
+        for record_id in list(record_id_record_map):
+            if record_id not in records_from_seadb:
+                del record_id_record_map[record_id]
+
     def retrieve(self, search_results, connection_id_type_map):
         """
         func type: retrieve the search results contents from seadb
@@ -126,11 +132,12 @@ class ContentRetriever:
         results_from_seadb = self.seadb_service.get_records_by_pks(
             base_id=self.project_uuid,
             table_name=SchemaTables.KNOWLEDGE_BASE.table_name(),
-            pks=record_id_record_map.keys(),
+            pks=list(record_id_record_map),
             fields_str='content'
         )
+        self._remove_missing_records(record_id_record_map, results_from_seadb)
         for record_id, record in record_id_record_map.items():
-            full_content = results_from_seadb[record_id]['content']
+            full_content = results_from_seadb[record_id]['content'] or ''
             # set content from keywords search result (priority) or from seadb
             record['content'] = (record.get('content') or full_content)[:SEARCH_TOOL_CONTENT_MAX_SIZE]
             record['images'] = extract_image_urls(full_content)
@@ -145,9 +152,10 @@ class ContentRetriever:
             pks=record_id_record_map.keys(),
             fields_str='url, content'
         )
+        self._remove_missing_records(record_id_record_map, results_from_seadb)
         # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
-            site = results_from_seadb.get(record_id) or {}
+            site = results_from_seadb[record_id]
             record['url'] = site.get('url')
             record['content'] = (record.get('content') or site.get('content') or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         return record_id_record_map
@@ -161,9 +169,10 @@ class ContentRetriever:
             fields_str='content'
         )
 
+        self._remove_missing_records(record_id_record_map, results_from_seadb)
         # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
-            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'])[:SEARCH_TOOL_CONTENT_MAX_SIZE]
+            record['content'] = (record.get('content') or results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
         
         return record_id_record_map
 
@@ -181,6 +190,10 @@ class ContentRetriever:
             pks=record_ids,
             fields_str='creator, assignees, content, state, substate, type, tags, participants, priority'
         )
+        self._remove_missing_records(record_id_record_map, record_id_to_topics)
+        if not record_id_record_map:
+            return record_id_record_map
+        record_ids = list(record_id_record_map)
 
         content_by_ticket_id = self.seadb_service.get_thread_content(
             self.project_uuid,
@@ -261,6 +274,10 @@ class ContentRetriever:
             pks=record_ids,
             fields_str='creator, content, state, substate, type, tags, priority, linked_ticket',
         )
+        self._remove_missing_records(record_id_record_map, issues_by_id)
+        if not record_id_record_map:
+            return record_id_record_map
+        record_ids = list(record_id_record_map)
         content_by_issue_id = self.seadb_service.get_thread_content(
             self.project_uuid,
             record_ids,
@@ -328,6 +345,9 @@ class ContentRetriever:
             pks=record_id_record_map.keys(),
             fields_str='issue_id, content, issue_number, state, state_reason, labels, issue_type, author, assignees, url, linked_ticket'
         )
+        self._remove_missing_records(record_id_record_map, record_id_to_topics)
+        if not record_id_record_map:
+            return record_id_record_map
 
         bodies_by_issue_id = {
             record['issue_id']: record.get('content')
@@ -383,6 +403,9 @@ class ContentRetriever:
             pks=record_id_record_map.keys(),
             fields_str='topic_id, slug, resolved'
         )
+        self._remove_missing_records(record_id_record_map, record_id_to_topics)
+        if not record_id_record_map:
+            return record_id_record_map
 
         topic_ids = [record['topic_id'] for record in record_id_to_topics.values()]
         content_by_topic_id = self.seadb_service.get_thread_content(
@@ -431,6 +454,10 @@ class ContentRetriever:
             pks=record_ids,
             fields_str='tags'
         )
+        self._remove_missing_records(record_id_record_map, record_id_to_threads)
+        if not record_id_record_map:
+            return record_id_record_map
+        record_ids = list(record_id_record_map)
 
         content_by_thread_id = self.seadb_service.get_thread_content(
             self.project_uuid,
@@ -479,6 +506,7 @@ class ContentRetriever:
             fields_str='content'
         )
 
+        self._remove_missing_records(record_id_record_map, results_from_seadb)
         # set content from keywords search result (priority) or from seadb
         for record_id, record in record_id_record_map.items():
             record['content'] = (results_from_seadb[record_id]['content'] or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
@@ -496,6 +524,9 @@ class ContentRetriever:
             pks=record_id_record_map.keys(),
             fields_str='issue_id, identifier, content, state, labels, author, assignees, priority, due_date, linked_ticket'
         )
+        self._remove_missing_records(record_id_record_map, record_id_to_issues)
+        if not record_id_record_map:
+            return record_id_record_map
 
         bodies_by_issue_id = {
             record['issue_id']: record.get('content')
