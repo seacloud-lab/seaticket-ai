@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "matcher": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "enum": [
+          "equals", "one_of", "includes_all", "includes_any", "subset_of",
+          "length_between", "not_empty", "contains_any", "not_contains", "matches_regex"
+        ]
+      }
+    },
+    "matcher_map": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/matcher"}
+    },
+    "string_list": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer"},
+        "type": {"type": "string"}
+      },
+      "required": ["id", "type"],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "source_type": {"type": "string"},
+        "connection_id": {"type": ["integer", "null"]},
+        "record_id": {"type": "integer"}
+      },
+      "required": ["source_type", "connection_id", "record_id"],
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "source": {"type": "string"},
+        "synthetic": {"type": "boolean"},
+        "project": {
+          "type": "object",
+          "properties": {
+            "settings": {"type": "object"},
+            "issue_connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
+            "document_connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
+            "task_connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}}
+          },
+          "additionalProperties": false
+        },
+        "task": {
+          "type": "object",
+          "properties": {
+            "source_type": {"type": "string"},
+            "connection_id": {"type": ["integer", "null"]},
+            "record_id": {"type": "integer"},
+            "modified_time": {"type": ["string", "null"]},
+            "event": {
+              "type": "object",
+              "properties": {
+                "type": {"type": "string"},
+                "old_value": {"type": "object"},
+                "new_value": {"type": "object"}
+              },
+              "required": ["type"]
+            }
+          },
+          "required": ["source_type", "connection_id", "record_id", "event"],
+          "additionalProperties": false
+        },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "identity": {"$ref": "#/$defs/identity"},
+              "record": {"type": "object"}
+            },
+            "required": ["identity", "record"],
+            "additionalProperties": false
+          }
+        },
+        "available_issue_types": {"$ref": "#/$defs/string_list"},
+        "search_results": {
+          "type": "object",
+          "properties": {
+            "issues_search": {"$ref": "#/$defs/search_hits"},
+            "documents_search": {"$ref": "#/$defs/search_hits"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["project", "task", "records"],
+      "additionalProperties": false
+    },
+    "search_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {"type": "string"},
+          "connection_id": {"type": ["integer", "null"]},
+          "_id": {"type": "integer"},
+          "title": {"type": "string"},
+          "modified_time": {"type": "string"},
+          "url": {"type": "string"}
+        },
+        "required": ["type", "title", "content", "modified_time"]
+      }
+    },
+    "expected": {
+      "type": "object",
+      "properties": {
+        "analysis": {"$ref": "#/$defs/matcher_map"},
+        "suggestions": {
+          "type": "object",
+          "properties": {
+            "exactly_one_of": {"$ref": "#/$defs/string_list"},
+            "forbidden": {"$ref": "#/$defs/string_list"},
+            "calls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tool": {"type": "string"},
+                  "payload": {"$ref": "#/$defs/matcher_map"},
+                  "content": {"$ref": "#/$defs/matcher"},
+                  "reason": {"$ref": "#/$defs/matcher"},
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "type": {"$ref": "#/$defs/matcher"},
+                      "id": {"$ref": "#/$defs/matcher"}
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["tool"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "search": {
+          "type": "object",
+          "properties": {
+            "first_tool": {"$ref": "#/$defs/matcher"},
+            "max_calls": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "runs": {"type": "integer", "minimum": 1},
+        "min_pass": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,65 @@
+source: https://github.com/haiwen/seafile/issues/3050
+project:
+  settings:
+    lang: en
+    agent:
+      model: null
+  issue_connections:
+  - id: 1
+    type: github_issue
+  document_connections: []
+  task_connections: []
+task:
+  source_type: github_issue
+  connection_id: 1
+  record_id: 3050
+  modified_time: '2026-06-30T13:38:22Z'
+  event:
+    type: github_issue_added
+    old_value: {}
+    new_value:
+      title: Seafile Client on macOS 27
+      content: |-
+        The Seafile Client 9.0.19 seems to have a problem on macOS 27 (Beta 2). The client works in the background. The icon appears in the menu bar but when you click this icon in order to open the main window the app crashes.
+
+        Reading the backtrace bottom-up, the chain is:
+        -[NSStatusItem popUpStatusItemMenu:] → menu tracking begins → posts a notification → an observer installed by libqcocoa.dylib (Qt’s macOS platform plugin) handles it → throws an NSException → nothing catches it → objc_exception_throw → std::terminate → abort().
+
+        [seafile-crash-reports.zip](https://github.com/user-attachments/files/29508116/seafile-crash-reports.zip)
+records:
+- identity:
+    source_type: github_issue
+    connection_id: 1
+    record_id: 3050
+  record:
+    _pk: 3050
+    issue_number: 3050
+    title: Seafile Client on macOS 27
+    state: open
+    labels: []
+    issue_type: ''
+    author: ioanalytica
+    url: https://github.com/haiwen/seafile/issues/3050
+    created_time: '2026-06-30T13:38:22Z'
+    content:
+      content: |-
+        The Seafile Client 9.0.19 seems to have a problem on macOS 27 (Beta 2). The client works in the background. The icon appears in the menu bar but when you click this icon in order to open the main window the app crashes.
+
+        Reading the backtrace bottom-up, the chain is:
+        -[NSStatusItem popUpStatusItemMenu:] → menu tracking begins → posts a notification → an observer installed by libqcocoa.dylib (Qt’s macOS platform plugin) handles it → throws an NSException → nothing catches it → objc_exception_throw → std::terminate → abort().
+
+        [seafile-crash-reports.zip](https://github.com/user-attachments/files/29508116/seafile-crash-reports.zip)
+      latest_comment: null
+      history_comments: []
+    available_labels:
+    - priority-high
+    - priority-low
+    - priority-medium
+    - status-indev
+    - type-possiblyabug
+    - type-security
+    - wontfix
+available_issue_types: []
+search_results:
+  issues_search: []
+  documents_search: []

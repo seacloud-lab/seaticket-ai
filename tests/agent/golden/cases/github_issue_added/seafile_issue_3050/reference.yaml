@@ -1,0 +1,18 @@
+source: https://github.com/haiwen/seafile/issues/3050
+final_type: Bug
+final_labels:
+- type-possiblyabug
+- status-indev
+timeline:
+- at: '2026-07-01T02:30:20Z'
+  actor: seaticket-ai-dev[bot]
+  event: issue_type_added
+  detail: Bug
+- at: '2026-07-01T02:30:40Z'
+  actor: seaticket-ai-dev[bot]
+  event: labeled
+  detail: type-possiblyabug
+- at: '2026-07-01T02:30:40Z'
+  actor: seaticket-ai-dev[bot]
+  event: labeled
+  detail: status-indev

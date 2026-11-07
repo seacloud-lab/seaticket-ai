@@ -2,6 +2,7 @@
 import json
 import logging
 import threading
+from dataclasses import dataclass
 
 from seaqa_ai.agent.models import AgentTask
 from seaqa_ai.agent.agent_service.constants import (
@@ -25,6 +26,20 @@ class MissingRequiredLinkedTicket(Exception):
     """A trigger that requires a linked Ticket has none."""
 
 
+@dataclass
+class PreparedRun:
+    """Everything a run needs before the first phase starts."""
+
+    context: dict
+    loaded_records: LoadedRecords
+    trigger_record: dict
+    tracer: AgentReACTTracer
+    trace_context: dict
+    project_prompt: str
+    ticket_rules: str
+    model_id: str | None
+
+
 class AgentService:
     """Execute one task through the deterministic phase workflow."""
 
@@ -32,31 +47,75 @@ class AgentService:
         self.app = app
         self.project = project
 
+    ##### Agent preparation #####
+    def prepare(self, task: AgentTask, loaded_records: LoadedRecords | None = None) -> PreparedRun:
+        """Build the phase context shared by a run, a regeneration and tests.
+
+        Loads the triggering record, resolves the owner (the linked Ticket when
+        there is one) and reads the project settings used by every phase.
+        Raises MissingRequiredLinkedTicket when the trigger requires a linked
+        Ticket and has none.
+        """
+        context = self._build_context(task)
+
+        if loaded_records is None:
+            loaded_records = LoadedRecords()
+        context['loaded_records'] = loaded_records
+
+        trigger_record = GetRecord().execute(
+            source_type=task.trigger_event.source_type,
+            connection_id=task.trigger_event.connection_id,
+            record_id=task.trigger_event.record_id,
+            project_uuid=task.project_uuid,
+            app=self.app,
+            loaded_records=loaded_records,
+            context=context,
+        )
+
+        tracer, trace_context = self._build_trace_context(
+            task, context, loaded_records, trigger_record,
+        )
+        context.update(trace_context)
+
+        settings = self.project.get('settings') or {}
+        return PreparedRun(
+            context=context,
+            loaded_records=loaded_records,
+            trigger_record=trigger_record,
+            tracer=tracer,
+            trace_context=trace_context,
+            project_prompt=settings.get('prompt', ''),
+            ticket_rules=self.resolve_ticket_rules(context),
+            model_id=self._agent_settings().get('model'),
+        )
+
+    def _agent_settings(self):
+        settings = self.project.get('settings') or {}
+        agent_settings = settings.get('agent') or {}
+        return agent_settings if isinstance(agent_settings, dict) else {}
+
+    def resolve_ticket_rules(self, context) -> str:
+        """The project's ticket rules, only when a Ticket owns the run.
+
+        Call again after the owner of a rebuilt run is resolved, because the
+        owner can change what ``context['source_type']`` is.
+        """
+        ticket_rules = self._agent_settings().get('ticket_rules') or ''
+        if not isinstance(ticket_rules, str) or context.get('source_type') != 'ticket':
+            return ''
+        return ticket_rules
+
     ##### Agent running #####
     def run(self, task: AgentTask) -> dict:
         run_id = None
         tracer = None
         traces_flushed = False
         try:
-            context = self._build_context(task)
-
-            loaded_records = LoadedRecords()
-            context['loaded_records'] = loaded_records
-
-            trigger_record = GetRecord().execute(
-                source_type=task.trigger_event.source_type,
-                connection_id=task.trigger_event.connection_id,
-                record_id=task.trigger_event.record_id,
-                project_uuid=task.project_uuid,
-                app=self.app,
-                loaded_records=loaded_records,
-                context=context,
-            )
-
-            tracer, trace_context = self._build_trace_context(
-                task, context, loaded_records, trigger_record,
-            )
-            context.update(trace_context)
+            prepared = self.prepare(task)
+            context = prepared.context
+            loaded_records = prepared.loaded_records
+            tracer = prepared.tracer
+            trace_context = prepared.trace_context
 
             run_id = self._create_run_record(
                 task,
@@ -69,17 +128,9 @@ class AgentService:
             )
             context['run_id'] = run_id
 
-            settings = self.project.get('settings') or {}
-            agent_settings = settings.get('agent') or {}
-            if not isinstance(agent_settings, dict):
-                agent_settings = {}
-            ticket_rules = agent_settings.get('ticket_rules') or ''
-            if not isinstance(ticket_rules, str) or trace_context.get('source_type') != 'ticket':
-                ticket_rules = ''
-
             responses_client = get_responses_client_by_model_id(
                 self.app.data_logger,
-                agent_settings.get('model'),
+                prepared.model_id,
             )
 
             AgentPhasePromoter(
@@ -89,8 +140,8 @@ class AgentService:
                 tracer,
                 context,
                 loaded_records,
-                project_prompt=settings.get('prompt', ''),
-                ticket_rules=ticket_rules,
+                project_prompt=prepared.project_prompt,
+                ticket_rules=prepared.ticket_rules,
             ).start()
 
             flush_result = tracer.flush()

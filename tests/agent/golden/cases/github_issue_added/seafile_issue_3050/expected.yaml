@@ -1,0 +1,25 @@
+# The reference answer (what the agent set on GitHub at the time) is in reference.yaml.
+analysis:
+  classified_issue_type: {equals: Bug}
+  recommended_actions: {includes_all: [suggest_modify_type, suggest_assign_labels]}
+suggestions:
+  exactly_one_of: [suggest_reply, suggest_create_ticket, suggest_link_existing_ticket]
+  forbidden: [suggest_reply, suggest_link_existing_ticket]
+  calls:
+    - tool: suggest_modify_type
+      payload:
+        current_issue_type: {equals: ""}
+        suggested_type: {equals: Bug}
+    - tool: suggest_assign_labels
+      payload:
+        suggested_labels:
+          includes_any: [type-possiblyabug]
+          subset_of: $available_labels
+          length_between: [1, 3]
+    - tool: suggest_create_ticket
+      reason: {not_empty: true}
+search:
+  first_tool: {equals: issues_search}
+  max_calls: 8
+runs: 3
+min_pass: 2

@@ -1,0 +1,8 @@
+# Placeholder config so seaqa_ai.config can be imported in tests.
+# It holds no real model or key. The llm tests override LLM_MODELS from the
+# environment; everything else only needs these values to exist.
+global:
+  LLM_MODELS:
+    - {type: other, url: "http://127.0.0.1:9", model: placeholder-model}
+  EMBEDDING_MODEL: {type: other, url: "http://127.0.0.1:9", model: placeholder-embedding}
+seaqa-ai: {}

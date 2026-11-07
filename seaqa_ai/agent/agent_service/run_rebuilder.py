@@ -9,7 +9,6 @@ from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter, _Re
 from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
 from seaqa_ai.agent.tools.get_record import GetRecord
-from seaqa_ai.agent.utils.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.record_identity import identity_key
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.utils import parse_datetime, parse_json, uuid_str_to_32_chars
@@ -40,25 +39,13 @@ def regenerate_agent_suggestions(
 
     task = rebuild_agent_task(project_uuid, run)
     agent_service = AgentService(app, project)
-    context = agent_service._build_context(task)
-    loaded_records = LoadedRecords()
-    context['loaded_records'] = loaded_records
-
-    trigger_record = GetRecord().execute(
-        source_type=task.trigger_event.source_type,
-        connection_id=task.trigger_event.connection_id,
-        record_id=task.trigger_event.record_id,
-        project_uuid=task.project_uuid,
-        app=app,
-        loaded_records=loaded_records,
-        context=context,
-    )
-    tracer, trace_context = agent_service._build_trace_context(
-        task, context, loaded_records, trigger_record,
-    )
-    context.update(trace_context)
+    prepared = agent_service.prepare(task)
+    context = prepared.context
+    loaded_records = prepared.loaded_records
+    tracer = prepared.tracer
     _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records)
     context['run_id'] = run.get('_pk') or run.get('id')
+    ticket_rules = agent_service.resolve_ticket_rules(context)
 
     promoter = AgentPhasePromoter(
         app,
@@ -71,6 +58,7 @@ def regenerate_agent_suggestions(
         context,
         loaded_records,
         project_prompt=(project.get('settings') or {}).get('prompt', ''),
+        ticket_rules=ticket_rules,
     )
     phase_outputs = restore_phase_outputs(promoter, phase_actions)
     promoter.result.update(phase_outputs)
