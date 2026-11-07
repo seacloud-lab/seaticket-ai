@@ -261,7 +261,6 @@ class SyncChat(BasicChat):
 
                 if context.get('is_external_portal'):
                     answer = remove_reference_markers(answer)
-                    sources = []
 
                 return {
                     'answer': answer,
@@ -511,7 +510,6 @@ class StreamingChat(BasicChat):
 
                     if context.get('is_external_portal'):
                         answer = remove_reference_markers(answer)
-                        sources = []
 
                     thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details
                     yield SSE.results(answer, remove_sources_content_and_snippets(sources), thought_process)
