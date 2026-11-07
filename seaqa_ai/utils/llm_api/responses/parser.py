@@ -73,6 +73,8 @@ class ResponsesParser:
         if output_tokens is None:
             output_tokens = ResponsesParser.get(usage, 'completion_tokens')
         total_tokens = ResponsesParser.get(usage, 'total_tokens')
+        input_details = ResponsesParser.get(usage, 'input_tokens_details') or {}
+        cached_tokens = ResponsesParser.get(input_details, 'cached_tokens') or 0
 
         result = {}
         if input_tokens is not None:
@@ -83,6 +85,8 @@ class ResponsesParser:
             result['total_tokens'] = total_tokens
         elif input_tokens is not None and output_tokens is not None:
             result['total_tokens'] = input_tokens + output_tokens
+        if cached_tokens is not None:
+            result['cached_tokens'] = cached_tokens
         return result
 
     @staticmethod

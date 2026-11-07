@@ -16,6 +16,7 @@ from seaqa_ai.utils import (
     sanitize_project_prompt,
 )
 from seaqa_ai.utils.llm_api import ResponsesResult
+from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.memory import OpenAIMemory
 from seaqa_ai.utils.tools import (
     BasicTool,
@@ -237,7 +238,7 @@ class AgentReACT:
                         tool_name=record_call['name'], tool_arguments=arguments,
                         observation=observation, result=str(error),
                         statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                            'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                         }, []),
                     )
                 else:
@@ -247,7 +248,7 @@ class AgentReACT:
                         tool_name=record_call['name'], tool_arguments=arguments,
                         observation=observation, result=result,
                         statistics=self._statistics(started_at, {
-                            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                            'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                         }, []),
                     )
                 self._append_tool_output(record_call, observation)
@@ -282,7 +283,7 @@ class AgentReACT:
                 tool_name=skill_call['name'], tool_arguments=arguments,
                 observation=observation, result=self.skill,
                 statistics=self._statistics(started_at, {
-                    'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+                    'input_tokens': 0, 'cached_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
                 }, []),
             )
             self.memory += skill_call
@@ -329,7 +330,9 @@ class AgentReACT:
                 )
                 if not isinstance(result, ResponsesResult):
                     raise TypeError('responses_client must return ResponsesResult')
-                return result, result.usage or {}, retries
+                usage = dict(result.usage or {})
+                usage['credit_used'] = self.responses_client.get_credit_used(usage)
+                return result, usage, retries
             except Exception as error:
                 last_error = error
                 retries.append({
@@ -409,14 +412,13 @@ class AgentReACT:
                 started_at,
             )
 
-        self.tool_executor.thought_process.add_tool_calls_group()
         retries = []
         try:
             for retry in range(self.tool_call_max_retries + 1):
                 try:
                     raw_result = self.tool_executor.execute(tool_call)
                     observation = self._format_observation(raw_result)
-                    tool_token_usage = self._pop_tool_token_usage()
+                    tool_token_usage = self.tool_executor.pop_token_usage()
                     statistics = self._statistics(
                         started_at,
                         usage,
@@ -432,13 +434,17 @@ class AgentReACT:
                             statistics=statistics, trace_id=trace_id,
                         )
                     else:
-                        for target in suggestion_targets:
+                        for target_index, target in enumerate(suggestion_targets):
+                            target_statistics = dict(statistics)
+                            if target_index:
+                                # Multiple suggestion rows share the cost of one tool invocation.
+                                target_statistics['credit_used'] = 0
                             self._trace(
                                 action_type='suggestion', action_status='pending', step=step,
                                 tool_name=raw_result.get('trace_tool_name') or tool_name,
                                 tool_arguments=arguments,
                                 observation=observation, result=raw_result,
-                                statistics=statistics, trace_id=trace_id,
+                                statistics=target_statistics, trace_id=trace_id,
                                 target_item_type=target['source_type'],
                                 target_item_id=target['source_id'],
                                 target_item_title=target['source_title'],
@@ -462,16 +468,11 @@ class AgentReACT:
                         continue
                     raise
         except Exception as error:
-            tool_token_usage = self._pop_tool_token_usage()
+            tool_token_usage = self.tool_executor.pop_token_usage()
             return self._record_tool_error(
                 tool_call, arguments, error, step, usage, response_retries + retries,
                 started_at, tool_token_usage,
             )
-
-    def _pop_tool_token_usage(self):
-        if not self.tool_executor.thought_process.actions:
-            return {}
-        return self.tool_executor.thought_process.actions.pop().get('token_usage', {})
 
     def _get_suggestion_targets(self, result):
         if not isinstance(result, dict) or result.get('status') != 'pending':
@@ -715,7 +716,12 @@ class AgentReACT:
     @staticmethod
     def _statistics(started_at, usage, retries, tool_token_usage=None):
         statistics = dict(usage or {})
-        for key in ('input_tokens', 'output_tokens', 'total_tokens'):
+        statistics['credit_used'] = sum_credit_used(
+            usage or {},
+            tool_token_usage or {},
+            *(retry.get('token_usage') or {} for retry in retries or []),
+        )
+        for key in ('input_tokens', 'cached_tokens', 'output_tokens', 'total_tokens'):
             if tool_token_usage and tool_token_usage.get(key):
                 statistics[key] = statistics.get(key, 0) + tool_token_usage[key]
         if retries:

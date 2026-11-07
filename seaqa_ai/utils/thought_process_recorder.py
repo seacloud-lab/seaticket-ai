@@ -24,13 +24,15 @@ class ThoughtProcessRecorder(object):
             'input_tokens': total_usage.get('input_tokens', 0) + token_usage.get('input_tokens', 0),
             'output_tokens': total_usage.get('output_tokens', 0) + token_usage.get('output_tokens', 0),
             'total_tokens': total_usage.get('total_tokens', 0) + token_usage.get('total_tokens', 0),
+            'cached_tokens': total_usage.get('cached_tokens', 0) + token_usage.get('cached_tokens', 0),
         }
 
     def _sum_retry_tokens_usage(self, retries):
         retry_tokens_usage = {
             'input_tokens': 0,
             'output_tokens': 0,
-            'total_tokens': 0
+            'total_tokens': 0,
+            'cached_tokens': 0
         }
         for retry in retries or []:
             retry_tokens_usage = self._sum_token_usage(retry_tokens_usage, retry.get('token_usage', {}))
@@ -59,7 +61,8 @@ class ThoughtProcessRecorder(object):
             'token_usage': {
                 'input_tokens': 0,
                 'output_tokens': 0,
-                'total_tokens': 0
+                'total_tokens': 0,
+                'cached_tokens': 0
             },
             'time_usage': 0,
             'result': ''
@@ -79,10 +82,12 @@ class ThoughtProcessRecorder(object):
             self.actions[-1]['token_usage']['input_tokens'] = tokens_usage.get('input_tokens', 0)
             self.actions[-1]['token_usage']['output_tokens'] = tokens_usage.get('output_tokens', 0)
             self.actions[-1]['token_usage']['total_tokens'] = tokens_usage.get('total_tokens', 0)
+            self.actions[-1]['token_usage']['cached_tokens'] = tokens_usage.get('cached_tokens', 0)
         else:
             self.actions[-1]['token_usage']['input_tokens'] += tokens_usage.get('input_tokens', 0)
             self.actions[-1]['token_usage']['output_tokens'] += tokens_usage.get('output_tokens', 0)
             self.actions[-1]['token_usage']['total_tokens'] += tokens_usage.get('total_tokens', 0)
+            self.actions[-1]['token_usage']['cached_tokens'] += tokens_usage.get('cached_tokens', 0)
     
     @_enabled_required
     def set_last_group_error(self, error):
@@ -140,7 +145,8 @@ class ThoughtProcessRecorder(object):
                     new_action[-1]['token_usage'] = {
                         'input_tokens': new_action[-1]['token_usage'].get('input_tokens', 0) + action['token_usage'].get('input_tokens', 0),
                         'output_tokens': new_action[-1]['token_usage'].get('output_tokens', 0) + action['token_usage'].get('output_tokens', 0),
-                        'total_tokens': new_action[-1]['token_usage'].get('total_tokens', 0) + action['token_usage'].get('total_tokens', 0)
+                        'total_tokens': new_action[-1]['token_usage'].get('total_tokens', 0) + action['token_usage'].get('total_tokens', 0),
+                        'cached_tokens': new_action[-1]['token_usage'].get('cached_tokens', 0) + action['token_usage'].get('cached_tokens', 0)
                     }
                 continue
 
@@ -153,7 +159,8 @@ class ThoughtProcessRecorder(object):
         actions_total_tokens_usage = {
             'input_tokens': 0,
             'output_tokens': 0,
-            'total_tokens': 0
+            'total_tokens': 0,
+            'cached_tokens': 0
         }
         actions_total_time_usage = 0
 
@@ -186,6 +193,11 @@ class ThoughtProcessRecorder(object):
                         'action_steps': actions_total_tokens_usage.get('total_tokens', 0),
                         'answer_generation': final_answer_tokens_usage.get('total_tokens', 0),
                         'total': final_answer_tokens_usage.get('total_tokens', 0) + actions_total_tokens_usage.get('total_tokens', 0)
+                    },
+                    'cached_tokens': {
+                        'action_steps': actions_total_tokens_usage.get('cached_tokens', 0),
+                        'answer_generation': final_answer_tokens_usage.get('cached_tokens', 0),
+                        'total': final_answer_tokens_usage.get('cached_tokens', 0) + actions_total_tokens_usage.get('cached_tokens', 0)
                     }
                 },
                 'time_usage': {

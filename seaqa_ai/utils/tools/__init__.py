@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from seaqa_ai.config import THOUGHT_PROCESS_ENABLED, THOUGHT_PROCESS_RECORD_TOOL_DETAILS
 from seaqa_ai.utils import remove_sources_content_and_snippets
+from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
 SEARCH_TOOL_NAMES = (
@@ -74,8 +75,21 @@ from .test_tool import TestTool
 class BasicToolExecutor(object):
     def __init__(self):
         self.cache = {}
+        self._token_usage = {}
         self.thought_process = ThoughtProcessRecorder(enabled=THOUGHT_PROCESS_ENABLED)
         self.clean()
+
+    def record_token_usage(self, token_usage):
+        credit_used = sum_credit_used(self._token_usage, token_usage)
+        for key in ('input_tokens', 'cached_tokens', 'output_tokens', 'total_tokens'):
+            self._token_usage[key] = self._token_usage.get(key, 0) + token_usage.get(key, 0)
+        self._token_usage['credit_used'] = credit_used
+        self.thought_process.update_last_group_tokens_usage(token_usage)
+
+    def pop_token_usage(self):
+        token_usage = self._token_usage
+        self._token_usage = {}
+        return token_usage
 
     @abstractmethod
     def register(self, func, tool_info, **constant_kwargs):
