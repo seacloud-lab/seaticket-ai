@@ -9,7 +9,7 @@ from seaqa_ai.services.ai_services.prompts import AI_UTILS_PROMPTS_MAP, UserCont
 from seaqa_ai.services.ai_services.schemas import SCHEMAS_MAP
 from seaqa_ai.utils import convert_to_json_code_block, uuid_str_to_32_chars
 from seaqa_ai.utils import gen_completion_format
-from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE
+from seaqa_ai.utils.constants import ExtraSourceType, MODEL_REASONING_TIER, LANGUAGE, LLMCallPurpose
 from seaqa_ai.utils.llm_api import BasicLLMAPI, get_completion_client_by_model_tier
 from seaqa_ai.utils.seaqa_db import SeaqaDB
 from seaqa_ai.services.ai_services.utils.search import search_records_to_map, get_title_and_ai_summary_of_search_results, get_search_result_metadata
@@ -86,6 +86,7 @@ class AIServices:
             AI_UTILS_TIER.get('validate_chat_input', MODEL_REASONING_TIER.LOW.value),
         )
         response = llm_client.completion(
+            purpose=LLMCallPurpose.VALIDATE_CHAT_INPUT,
             messages=messages,
             context=context,
             response_format=gen_completion_format(
@@ -262,6 +263,7 @@ class AIServices:
             llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_ticket', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
+                purpose=LLMCallPurpose.GENERATE_TICKET,
                 messages=messages,
                 context=context,
                 response_format=gen_completion_format(SCHEMAS_MAP['generate_ticket'])
@@ -306,6 +308,7 @@ class AIServices:
             )
 
             response = llm_client.completion(
+                purpose=LLMCallPurpose.GENERATE_KB_RECORD,
                 messages=messages,
                 context=context,
                 response_format=gen_completion_format(SCHEMAS_MAP['generate_kb_record_from_ticket'])
@@ -350,6 +353,7 @@ class AIServices:
             )
 
             response = llm_client.completion(
+                purpose=LLMCallPurpose.GENERATE_CHAT_TITLE,
                 messages=messages,
                 context=context,
                 response_format=gen_completion_format(SCHEMAS_MAP['generate_chat_title'])
@@ -387,6 +391,8 @@ class AIServices:
             llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('generate_summary', MODEL_REASONING_TIER.LOW.value))
 
             response = llm_client.completion(
+                purpose=LLMCallPurpose.GENERATE_SUMMARY,
+                log_fields={'connection_type': connection_type},
                 messages=messages,
                 context=context or {},
             )
@@ -395,7 +401,7 @@ class AIServices:
             logger.error(f"Error generating summary: {e}")
             raise
 
-    def rank_records_by_relevance(self, query_record, candidate_records, context):
+    def rank_records_by_relevance(self, query_record, candidate_records, context, tool_name=None):
         try:
             if not candidate_records:
                 return [], {
@@ -461,6 +467,8 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             llm_client = get_completion_client_by_model_tier(self.app.data_logger, AI_UTILS_TIER.get('rerank_relevance', MODEL_REASONING_TIER.MEDIUM.value))
 
             response = llm_client.completion(
+                purpose=LLMCallPurpose.RERANK,
+                log_fields={'tool': tool_name, 'candidates': len(candidate_keys)},
                 messages=messages,
                 context=context,
                 response_format=gen_completion_format(SCHEMAS_MAP['rank_relevant_records'], 'rank_relevant_records')
@@ -502,7 +510,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             logger.error(f"Error ranking related records: {e}")
             raise
 
-    def _rank_search_results(self, query, search_result, context, limit, project_uuid, connection_id_type_map, call_back=None):
+    def _rank_search_results(self, query, search_result, context, limit, project_uuid, connection_id_type_map, call_back=None, tool_name=None):
         """
         search_results: a map of {
             'connection_id': {
@@ -542,7 +550,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             for record_id_record_map in search_result.values() 
             for record in record_id_record_map.values()
         ]
-        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_records_by_relevance(query, new_records, context)
+        ranked_record_id_connection_pairs, rerank_token_usage = self.rank_records_by_relevance(query, new_records, context, tool_name=tool_name)
         ranked_record_id_connection_pairs = ranked_record_id_connection_pairs[:limit]
         search_result_after_ranked = {}
         for pair in ranked_record_id_connection_pairs:
@@ -581,7 +589,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         return search_result_after_ranked, rerank_token_usage
     
-    def search(self, query, connections, extra_sources, context, limit=100, call_back=None):
+    def search(self, query, connections, extra_sources, context, limit=100, call_back=None, tool_name=None):
         if limit <= 0:
             return [], ''
 
@@ -614,7 +622,10 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
 
         # semantic search data
         time_begin = time.time()
-        query_vector = self.app.embedding_api.generate(query, context)
+        query_vector = self.app.embedding_api.generate(
+            query, context,
+            purpose=LLMCallPurpose.SEARCH_QUERY_EMBEDDING, log_fields={'tool': tool_name},
+        )
         records = self.app.seaqa_indexer_api.vector_search(query_vector, project_uuid, connection_ids, extra_sources)
         search_results = search_records_to_map(records, search_results, skip_search_record_hashes)
         time_end = time.time()
@@ -622,7 +633,7 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
             call_back('update_execution_detail', {'Vector search': f'time usage: {round(time_end - time_begin, 2)} s'})
 
         # rerank search data
-        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, uuid_str_to_32_chars(project_uuid), connection_id_type_map, call_back)
+        search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, uuid_str_to_32_chars(project_uuid), connection_id_type_map, call_back, tool_name=tool_name)
 
         # reformat to list
         sources_results = [

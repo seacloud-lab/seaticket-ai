@@ -1,8 +1,9 @@
 import json
 import logging
+import time
 
 from seaqa_ai.config import LLM_MODEL_ID_MODELS_MAP, LLM_MODEL_TIER_MODELS_MAP, DEFAULT_LLM_MODEL
-from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER, AIScenario
+from seaqa_ai.utils.constants import MODEL_USAGE_STATISTIC_CHANNEL_NAME, MODEL_REASONING_TIER, AIScenario, LLMCallPurpose
 from seaqa_ai.utils.llm_api.usage import calculate_credit_used
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,52 @@ class BasicLLMAPI:
         except (TypeError, ValueError):
             return 0
 
+    @staticmethod
+    def _usage_from_response(response):
+        """Normalize a completion / embedding response usage to input/output/cached tokens."""
+        usage = getattr(response, 'usage', None)
+        if usage is None:
+            return {}
+        return {
+            'input_tokens': getattr(usage, 'prompt_tokens', 0) or 0,
+            'output_tokens': getattr(usage, 'completion_tokens', 0) or 0,
+            'total_tokens': getattr(usage, 'total_tokens', 0) or 0,
+            'cached_tokens': BasicLLMAPI._extract_cached_tokens_from_usage(usage),
+        }
+
+    def _describe_call(self, api, purpose, context, log_fields=None):
+        context = context or {}
+        fields = {
+            'purpose': getattr(purpose, 'value', purpose) or LLMCallPurpose.UNKNOWN.value,
+            'model': self.model_id,
+            'api': api,
+            'scenario': context.get('scenario'),
+            'project_uuid': context.get('project_uuid'),
+            'session_uuid': context.get('session_uuid'),
+            'run_id': context.get('run_id'),
+            **(log_fields or {}),
+        }
+        return ' '.join(f'{key}={value}' for key, value in fields.items() if value is not None)
+
+    @staticmethod
+    def _log_call_done(description, started_at, usage):
+        usage = usage or {}
+        logger.info(
+            'LLM call done: %s input_tokens=%s cached_tokens=%s output_tokens=%s duration_ms=%d',
+            description,
+            usage.get('input_tokens', 0),
+            usage.get('cached_tokens', 0),
+            usage.get('output_tokens', 0),
+            (time.monotonic() - started_at) * 1000,
+        )
+
+    @staticmethod
+    def _log_call_failed(description, started_at, error):
+        logger.warning(
+            'LLM call failed: %s duration_ms=%d error=%r',
+            description, (time.monotonic() - started_at) * 1000, error,
+        )
+
     def logger_usage(self, token_usage, context, model=None):
         """
         logger token usage manually for compatible to stream response
@@ -59,12 +106,9 @@ class BasicLLMAPI:
     def _logger_usage_from_response(self, response, context, model=None):
         try:
             # try-except statement for compatible to stream response
-            return self.logger_usage({
-                'input_tokens': response.usage.prompt_tokens,
-                'output_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens,
-                'cached_tokens': self._extract_cached_tokens_from_usage(response.usage),
-            }, context, model)
+            usage = self._usage_from_response(response)
+            if usage:
+                return self.logger_usage(usage, context, model)
         except:
             pass
 

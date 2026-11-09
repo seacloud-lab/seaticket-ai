@@ -102,7 +102,9 @@ class BasicSearchTool(BasicTool):
 
         limit = self.SINGLE_TOOL_MAX_SOURCES_COUNT
 
-        current_search_results, rerank_token_usage = app.ai_services.search(query, connections, extra_sources, context, limit, call_back)
+        current_search_results, rerank_token_usage = app.ai_services.search(
+            query, connections, extra_sources, context, limit, call_back, tool_name=self.tool['name'],
+        )
 
         tool_executor.record_token_usage(rerank_token_usage)
 

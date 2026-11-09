@@ -17,6 +17,7 @@ from seaqa_ai.utils import (
     remove_sources_content_and_snippets,
     sanitize_project_prompt,
 )
+from seaqa_ai.utils.constants import LLMCallPurpose
 from seaqa_ai.utils.llm_api import ResponsesResult
 from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.memory import OpenAIMemory
@@ -320,6 +321,11 @@ class AgentReACT:
                         },
                     }
                 result = self.responses_client.responses(
+                    purpose=LLMCallPurpose.AGENT_STEP,
+                    log_fields={
+                        'event': self.phase_spec.event, 'phase': self.phase_spec.phase,
+                        'step': step, 'retry': retry or None,
+                    },
                     input=list(self.memory),
                     context=self.context,
                     tools=tools,

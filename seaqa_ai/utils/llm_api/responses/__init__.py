@@ -1,13 +1,11 @@
-import logging
 import re
+import time
 
 import litellm
 
 from seaqa_ai.utils.llm_api import BasicLLMAPI
 from seaqa_ai.utils.llm_api.responses.constants import STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.llm_api.responses.parser import ResponsesParser, ResponsesResult
-
-logger = logging.getLogger(__name__)
 
 
 class ResponsesAPI(BasicLLMAPI):
@@ -40,51 +38,58 @@ class ResponsesAPI(BasicLLMAPI):
             kwargs.pop('temperature', None)
         return request
 
-    def responses(self, **kwargs):
+    def responses(self, purpose=None, log_fields=None, **kwargs):
         """Run one non-streaming Responses turn."""
         context = kwargs.pop('context', {})
         request = self._build_responses_request(kwargs)
-        logger.info(
-            'responses LLM responses start. model=%s timeout=%s stream=False session_uuid=%s project_uuid=%s',
-            self.model,
-            self.timeout,
-            context.get('session_uuid'),
-            context.get('project_uuid'),
-        )
+        description = self._describe_call('responses', purpose, context, log_fields)
+        started_at = time.monotonic()
+        try:
+            raw = litellm.responses(
+                model=self.model,
+                **self._client_kwargs(),
+                timeout=self.timeout,
+                store=False,
+                **request,
+                **kwargs,
+            )
+            result = ResponsesParser.parse_output(raw)
+        except Exception as error:
+            self._log_call_failed(description, started_at, error)
+            raise
+        self._log_call_done(description, started_at, result.usage)
 
-        raw = litellm.responses(
-            model=self.model,
-            **self._client_kwargs(),
-            timeout=self.timeout,
-            store=False,
-            **request,
-            **kwargs,
-        )
-
-        result = ResponsesParser.parse_output(raw)
         if result.usage:
             self.logger_usage(result.usage, context)
         return result
 
-    def responses_stream(self, **kwargs):
+    def responses_stream(self, purpose=None, log_fields=None, **kwargs):
         """Stream one Responses turn."""
         context = kwargs.pop('context', {}) or {}
         request = self._build_responses_request(kwargs)
-        logger.info(
-            'responses LLM responses start. model=%s timeout=%s stream=True session_uuid=%s project_uuid=%s',
-            self.model,
-            self.timeout,
-            context.get('session_uuid'),
-            context.get('project_uuid'),
-        )
+        description = self._describe_call('responses_stream', purpose, context, log_fields)
+        started_at = time.monotonic()
+        try:
+            events = litellm.responses(
+                model=self.model,
+                **self._client_kwargs(),
+                timeout=self.timeout,
+                store=False,
+                stream=True,
+                **request,
+                **kwargs,
+            )
+        except Exception as error:
+            self._log_call_failed(description, started_at, error)
+            raise
+        return self._iter_stream_with_logging(events, description, started_at)
 
-        events = litellm.responses(
-            model=self.model,
-            **self._client_kwargs(),
-            timeout=self.timeout,
-            store=False,
-            stream=True,
-            **request,
-            **kwargs,
-        )
-        return ResponsesParser.iter_stream(events)
+    def _iter_stream_with_logging(self, events, description, started_at):
+        try:
+            for kind, payload in ResponsesParser.iter_stream(events):
+                if kind == STREAM_COMPLETED:
+                    self._log_call_done(description, started_at, payload.usage)
+                yield kind, payload
+        except Exception as error:
+            self._log_call_failed(description, started_at, error)
+            raise

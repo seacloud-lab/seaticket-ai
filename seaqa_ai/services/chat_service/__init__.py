@@ -7,7 +7,7 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
 from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, get_answer_and_sources
-from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils.constants import ConnectionType, LLMCallPurpose
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
@@ -178,6 +178,8 @@ class SyncChat(BasicChat):
                     )
 
                     result = llm_client.responses(
+                        purpose=LLMCallPurpose.CHAT_STEP,
+                        log_fields={'step': current_step, 'retry': current_retry or None},
                         **completion_kwargs
                     )
                     response_token_usage = result.usage
@@ -318,7 +320,11 @@ class StreamingChat(BasicChat):
                     completion_kwargs, has_inserter_max_step_prompt = StreamingChatUtils.build_completion_kwargs(
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
-                    response_stream = llm_client.responses_stream(**completion_kwargs)
+                    response_stream = llm_client.responses_stream(
+                        purpose=LLMCallPurpose.CHAT_STEP,
+                        log_fields={'step': current_step, 'retry': current_retry or None},
+                        **completion_kwargs
+                    )
                 except Exception as e:
                     time_usage = time.time() - time_begin
                     completion_retries.append(StreamingChatUtils.build_completion_retry_entry(
