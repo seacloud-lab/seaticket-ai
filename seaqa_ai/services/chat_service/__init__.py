@@ -241,10 +241,13 @@ class SyncChat(BasicChat):
                 for tool_call_id, tool_call in enumerate(llm_message.tool_calls):
                     if tool_call_id < config.MAX_TOOL_CALLS_PER_RESPONSE:
                         BasicChatUtils.execute_tool_with_retry(
-                            tool_executor, tool_call, ChatCallBacker, memory
+                            tool_executor, tool_call, ChatCallBacker, memory,
+                            log_fields={'step': current_step},
                         )
                     else:
-                        BasicChatUtils.record_skipped_tool_call(tool_executor, tool_call, memory)
+                        BasicChatUtils.record_skipped_tool_call(
+                            tool_executor, tool_call, memory, log_fields={'step': current_step},
+                        )
                 tool_executor.thought_process.update_last_group_tokens_usage(result.usage)
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
@@ -484,6 +487,7 @@ class StreamingChat(BasicChat):
                                 memory,
                                 tool_call_id,
                                 tool_calls_num,
+                                log_fields={'step': current_step},
                             )
                         else:
                             yield from StreamingChatUtils.record_skipped_tool_call(
@@ -492,6 +496,7 @@ class StreamingChat(BasicChat):
                                 memory,
                                 tool_call_id,
                                 tool_calls_num,
+                                log_fields={'step': current_step},
                             )
                     tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)

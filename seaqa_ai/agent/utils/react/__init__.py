@@ -25,6 +25,7 @@ from seaqa_ai.utils.tools import (
     BasicTool,
     InvalidToolArgumentsException,
     OpenAIToolExecutor,
+    log_tool_call_done,
 )
 
 
@@ -241,6 +242,10 @@ class AgentReACT:
                 **arguments, app=self.app, context=self.context,
                 tool_executor=self.tool_executor,
             )
+            log_tool_call_done(
+                record_call['name'], arguments, result, self.context, started_at,
+                {**self._tool_log_fields(0), 'source': 'records_input'},
+            )
             observation = self._format_observation(result)
             self._trace(
                 action_type='tool_call', action_status='completed', step=0,
@@ -396,6 +401,12 @@ class AgentReACT:
                 },
             )
 
+    def _tool_log_fields(self, step):
+        return {
+            'run_id': self.context.get('run_id'),
+            'event': self.phase_spec.event, 'phase': self.phase_spec.phase, 'step': step,
+        }
+
     def _execute_tool_calls(self, tool_calls, step, usage, retries):
         for index, tool_call in enumerate(tool_calls):
             self._execute_tool_call(
@@ -420,7 +431,9 @@ class AgentReACT:
         try:
             for retry in range(self.tool_call_max_retries + 1):
                 try:
-                    raw_result = self.tool_executor.execute(tool_call)
+                    raw_result = self.tool_executor.execute(
+                        tool_call, log_fields={**self._tool_log_fields(step), 'retry': retry or None},
+                    )
                     observation = self._format_observation(raw_result)
                     tool_token_usage = self.tool_executor.pop_token_usage()
                     statistics = self._statistics(
