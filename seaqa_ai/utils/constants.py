@@ -178,3 +178,19 @@ class AIScenario(Enum):
     @classmethod
     def is_valid(cls, value):
         return value in {item.value for item in cls}
+
+class LLMCallPurpose(Enum):
+    """Why a model is called; logged as `purpose=` on every LLM / embedding request."""
+    CHAT_STEP = 'chat_step'
+    AGENT_STEP = 'agent_step'
+    VALIDATE_CHAT_INPUT = 'validate_chat_input'
+    GENERATE_CHAT_TITLE = 'generate_chat_title'
+    GENERATE_TICKET = 'generate_ticket'
+    GENERATE_KB_RECORD = 'generate_kb_record'
+    GENERATE_SUMMARY = 'generate_summary'
+    RERANK = 'rerank'
+    SEARCH_QUERY_EMBEDDING = 'search_query_embedding'
+    TEXT_EMBEDDING = 'text_embedding'
+    CHUNK_EMBEDDING = 'chunk_embedding'
+    BATCH_EMBEDDING = 'batch_embedding'
+    UNKNOWN = 'unknown'

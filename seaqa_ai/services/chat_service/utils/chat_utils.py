@@ -10,8 +10,9 @@ logger = logging.getLogger(__name__)
 
 class BasicChatUtils:
     @classmethod
-    def record_skipped_tool_call(cls, tool_executor, tool_call, memory):
+    def record_skipped_tool_call(cls, tool_executor, tool_call, memory, log_fields=None):
         tool_name = tool_call['name']
+        tool_executor.log_skipped(tool_call, 'max_tool_calls_per_response', log_fields)
         arguments = tool_call.get('arguments')
         if isinstance(arguments, str):
             arguments = parse_json(arguments)
@@ -74,7 +75,7 @@ class BasicChatUtils:
         return entry
 
     @classmethod
-    def execute_tool_with_retry(cls, tool_executor, tool_call, call_backer_factory, memory):
+    def execute_tool_with_retry(cls, tool_executor, tool_call, call_backer_factory, memory, log_fields=None):
         tool_name = tool_call['name']
         arguments = tool_call.get('arguments')
         if isinstance(arguments, str):
@@ -84,7 +85,10 @@ class BasicChatUtils:
         call_backer = call_backer_factory()
         for current_retry in range(config.TOOL_CALL_MAX_RETRIES + 1):
             try:
-                tool_output = tool_executor.execute(tool_call, call_backer)
+                tool_output = tool_executor.execute(
+                    tool_call, call_backer,
+                    log_fields={**(log_fields or {}), 'retry': current_retry or None},
+                )
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
                 tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                 memory += {
@@ -117,7 +121,7 @@ class BasicChatUtils:
 
 class StreamingChatUtils(BasicChatUtils):
     @classmethod
-    def execute_tool_with_retry(cls, tool_executor, tool_call, call_backer_factory, memory, current_tool_call_id, total_tool_calls_num):
+    def execute_tool_with_retry(cls, tool_executor, tool_call, call_backer_factory, memory, current_tool_call_id, total_tool_calls_num, log_fields=None):
         tool_name = tool_call['name']
         arguments = tool_call.get('arguments')
         if isinstance(arguments, str):
@@ -133,7 +137,10 @@ class StreamingChatUtils(BasicChatUtils):
                 detail += f', retring {current_retry + 1}'
             yield SSE.status('Calling tools', detail)
             try:
-                tool_output = tool_executor.execute(tool_call, call_backer)
+                tool_output = tool_executor.execute(
+                    tool_call, call_backer,
+                    log_fields={**(log_fields or {}), 'retry': current_retry or None},
+                )
                 tool_executor.thought_process.append_last_group_tool_retry(retry_errors)
                 tool_executor.thought_process.add_tool_call(tool_name, arguments, call_backer.execution_detail, filter_tool_calls_content(tool_name, tool_output))
                 memory += {
@@ -165,11 +172,11 @@ class StreamingChatUtils(BasicChatUtils):
                 return
 
     @classmethod
-    def record_skipped_tool_call(cls, tool_executor, tool_call, memory, current_tool_call_id, total_tool_calls_num):
+    def record_skipped_tool_call(cls, tool_executor, tool_call, memory, current_tool_call_id, total_tool_calls_num, log_fields=None):
         detail = (
             f'{tool_call["name"]}, {current_tool_call_id + 1} of {total_tool_calls_num}, '
             f'skipped because the response exceeds the maximum of '
             f'{config.MAX_TOOL_CALLS_PER_RESPONSE} tool calls'
         )
         yield SSE.status('Calling tools', detail)
-        super().record_skipped_tool_call(tool_executor, tool_call, memory)
+        super().record_skipped_tool_call(tool_executor, tool_call, memory, log_fields)

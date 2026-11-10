@@ -2,7 +2,7 @@ event: discord_thread_added
 phase: prelude
 description: "Prepare factual context for a new Discord thread."
 tools:
-  - get_record
+  - get_records
 ====================
 ## Role And Scope
 - Prepare factual context for one newly created Discord thread that has not yet been linked to a Ticket.

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
-from seaqa_ai.agent.utils.record_identity import record_identity_schema
+from seaqa_ai.utils.record.identity import record_identity_schema
 
 
 class PreludePhaseSpec(AgentPhaseSpec):

@@ -4,7 +4,7 @@ description: "Research a new portal issue and recommend a reply or Ticket action
 tools:
   - issues_search
   - documents_search
-  - get_record
+  - get_records
 additional_output:
   recommended_actions:
     items:
@@ -31,8 +31,8 @@ additional_output:
 
 ## Tool Rules
 - Only the declared tools are permitted.
-- Call `get_record` only to verify at most two candidate internal Tickets before recommending `suggest_link_existing_ticket`.
-- The combined budget is eight tool calls. Stop after sufficient evidence or two searches without material gain.
+- Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate internal Tickets before recommending `suggest_link_existing_ticket`.
+- The combined budget is 16 tool calls, including all searches and record reads. This is a ceiling, not a target; obey the framework's step limit if lower. Stop after sufficient evidence or two searches without material gain.
 - Never call suggestion tools during Analysis.
 
 ## Required Output

@@ -1,5 +1,7 @@
 import inspect
 import json
+import logging
+import time
 from abc import abstractmethod
 from copy import deepcopy
 from difflib import get_close_matches
@@ -10,16 +12,99 @@ from seaqa_ai.utils import remove_sources_content_and_snippets
 from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.thought_process_recorder import ThoughtProcessRecorder
 
+logger = logging.getLogger(__name__)
+
 SEARCH_TOOL_NAMES = (
     'documents_search',
     'issues_search',
     'tasks_search',
 )
 
+TOOL_LOG_ARGUMENTS_MAX_CHARS = 300
+
 def filter_tool_calls_content(tool_name, results):
-    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in SEARCH_TOOL_NAMES:
+    if not THOUGHT_PROCESS_RECORD_TOOL_DETAILS and tool_name in (*SEARCH_TOOL_NAMES, 'get_records'):
         return remove_sources_content_and_snippets(deepcopy(results))
     return results
+
+def _record_key(source_type, connection_id, record_id):
+    return ':'.join(str(part) for part in (source_type, connection_id, record_id) if part is not None)
+
+def summarize_tool_result(tool_name, result):
+    """Tool-specific counters for the `Tool call done` log line."""
+    if not isinstance(result, list):
+        return {}
+    items = [item for item in result if isinstance(item, dict)]
+    if tool_name in SEARCH_TOOL_NAMES:
+        docs = [item for item in items if 'label' in item]
+        return {
+            'results': len(docs),
+            'duplicates': sum('notice' in item for item in items),
+            'snippets': sum(len(doc.get('snippets') or []) for doc in docs),
+            'records': ','.join(
+                _record_key(doc.get('type'), doc.get('connection_id'), doc.get('record_id')) for doc in docs
+            ) or None,
+        }
+    if tool_name == 'get_records':
+        read = [item for item in items if 'notice' not in item and 'error' not in item]
+        notices = [item for item in items if 'notice' in item]
+        return {
+            'targets': len(result),
+            'read': len(read),
+            'duplicates': sum('reference_id' in item for item in notices),
+            'limited': sum('reference_id' not in item for item in notices),
+            'errors': sum('error' in item for item in items),
+            'records': ','.join(
+                _record_key(item.get('source_type'), item.get('connection_id'), item.get('record_id')) for item in read
+            ) or None,
+        }
+    return {}
+
+def _tool_log_fields(tool_name, context, log_fields):
+    context = context or {}
+    return {
+        'tool': tool_name,
+        'scenario': context.get('scenario'),
+        'project_uuid': context.get('project_uuid'),
+        'session_uuid': context.get('session_uuid'),
+        'run_id': context.get('run_id'),
+        **(log_fields or {}),
+    }
+
+def _format_log_fields(fields):
+    return ' '.join(f'{key}={value}' for key, value in fields.items() if value is not None)
+
+def _format_tool_arguments(arguments):
+    if not isinstance(arguments, str):
+        arguments = json.dumps(arguments, ensure_ascii=False, default=str)
+    arguments = arguments.replace('\n', ' ')
+    if len(arguments) > TOOL_LOG_ARGUMENTS_MAX_CHARS:
+        return arguments[:TOOL_LOG_ARGUMENTS_MAX_CHARS] + '...'
+    return arguments
+
+def log_tool_call_done(tool_name, arguments, result, context, started_at, log_fields=None):
+    # Logging must never break a tool call whose result is already available.
+    try:
+        fields = _tool_log_fields(tool_name, context, log_fields)
+        fields.update(summarize_tool_result(tool_name, result))
+        fields['output_chars'] = len(json.dumps(result, ensure_ascii=False, default=str))
+        fields['duration_ms'] = int((time.monotonic() - started_at) * 1000)
+        logger.info('Tool call done: %s args=%s', _format_log_fields(fields), _format_tool_arguments(arguments))
+    except Exception as error:
+        logger.warning('Failure to log tool call %s: %r', tool_name, error)
+
+def log_tool_call_failed(tool_name, arguments, error, context, started_at, log_fields=None):
+    fields = _tool_log_fields(tool_name, context, log_fields)
+    fields['duration_ms'] = int((time.monotonic() - started_at) * 1000)
+    logger.warning(
+        'Tool call failed: %s error=%r args=%s',
+        _format_log_fields(fields), error, _format_tool_arguments(arguments),
+    )
+
+def log_tool_call_skipped(tool_name, arguments, reason, context, log_fields=None):
+    fields = _tool_log_fields(tool_name, context, log_fields)
+    fields['reason'] = reason
+    logger.warning('Tool call skipped: %s args=%s', _format_log_fields(fields), _format_tool_arguments(arguments))
 
 class BasicTool(object):
     tool = {}
@@ -71,6 +156,7 @@ class InvalidToolArgumentsException(InvalidToolException):
 
 from .search_tools import DocumentsSearch, IssuesSearch, TasksSearch
 from .test_tool import TestTool
+from .get_records import GetRecords
 
 class BasicToolExecutor(object):
     def __init__(self):
@@ -143,6 +229,11 @@ class OpenAIToolExecutor(BasicToolExecutor):
     def validate_arguments(self, name, params):
         """Validate model arguments against the complete registered JSON Schema."""
         parameters = self.tools[name]['tool_info'].get('parameters') or {}
+        if name == 'get_records':
+            # Per-target validation belongs to the tool so one malformed identity
+            # does not prevent valid targets in the same batch from being read.
+            parameters = deepcopy(parameters)
+            parameters['properties']['targets']['items'] = {}
         properties = parameters.get('properties')
         if isinstance(properties, dict):
             valid_fields = set(properties)
@@ -182,15 +273,34 @@ class OpenAIToolExecutor(BasicToolExecutor):
             schema_error=f'{path}: {error.message}',
         )
 
-    def execute(self, tool_call, call_back=lambda: None):
+    def tool_context(self, name):
+        return (self.tools.get(name) or {}).get('constant_kwargs', {}).get('context')
+
+    def log_skipped(self, tool_call, reason, log_fields=None):
+        name = tool_call.get('name', '')
+        log_tool_call_skipped(name, tool_call.get('arguments'), reason, self.tool_context(name), log_fields)
+
+    def execute(self, tool_call, call_back=lambda: None, log_fields=None):
         name = tool_call['name']
         raw_arguments = tool_call.get('arguments')
+        started_at = time.monotonic()
+        try:
+            result = self._execute(name, raw_arguments, call_back)
+        except Exception as error:
+            log_tool_call_failed(name, raw_arguments, error, self.tool_context(name), started_at, log_fields)
+            raise
+        log_tool_call_done(name, raw_arguments, result, self.tool_context(name), started_at, log_fields)
+        return result
+
+    def _execute(self, name, raw_arguments, call_back):
         if isinstance(raw_arguments, str):
             params = json.loads(raw_arguments or '{}')
         else:
             params = raw_arguments or {}
+            if isinstance(params, dict):
+                params = dict(params)
         if not isinstance(params, dict):
-            raise InvalidToolException(tool_call)
+            raise InvalidToolException({'name': name, 'arguments': raw_arguments})
         self.validate_arguments(name, params)
 
         constant_kwargs = self.tools[name]['constant_kwargs']

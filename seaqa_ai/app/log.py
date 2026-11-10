@@ -3,6 +3,9 @@ import sys
 import logging
 from logging import handlers
 
+# LiteLLM logs every request at INFO, duplicating seaqa_ai's own `LLM call done` lines.
+LITELLM_LOGGERS = ('LiteLLM', 'LiteLLM Router', 'LiteLLM Proxy')
+
 
 def _get_log_level(level):
     if level == 'debug':
@@ -22,6 +25,9 @@ class LogConfigurator(object):
             self._basic_config()
         else:
             self._rotating_config()
+
+        for name in LITELLM_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
 
     def _rotating_config(self):
         # Rotating log

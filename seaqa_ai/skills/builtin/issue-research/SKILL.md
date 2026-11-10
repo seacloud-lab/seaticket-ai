@@ -12,16 +12,17 @@ Workflow:
 2. Form 2-5 focused research questions before searching. Keep them specific to the issue, product behavior, likely causes, known fixes, and prior related cases.
 3. Search documentation first with `documents_search` for product documentation, manuals, known guidance, configuration notes, troubleshooting pages, or technical references.
 4. Search issue history with `issues_search` when documentation is insufficient, when the user asks about known/past cases, or when ticket/GitHub/Discourse/email history could provide evidence.
-5. Synthesize the findings before writing:
+5. Select useful candidates from search summaries, then use `get_records` for the details needed by the research questions. Order targets from most important to least important. If a successful read leaves a concrete gap, selectively read explicit `related_records` in the next step; do not automatically traverse all links. Searches and reads share the existing tool-call budget, and reads share the request's record budget.
+6. Synthesize the findings before writing:
    - facts directly supported by sources
    - likely causes inferred from the evidence
    - conflicting evidence, weak evidence, or gaps
    - practical next steps
-6. Finish by calling `generate_markdown`.
+7. Finish by calling `generate_markdown`.
 
 Tool policy:
 - Use only the available research/report tools.
-- Make at most 8 total tool calls.
+- Make at most 16 total tool calls, including searches, record reads, and the final report tool. This is a ceiling, not a target; stop as soon as evidence is sufficient and obey the framework's step limit if it is lower.
 - `generate_markdown` must be the final tool call.
 - Once you have enough evidence, stop searching and call `generate_markdown`.
 - Reserve enough steps to synthesize findings and call `generate_markdown` last.
@@ -31,7 +32,7 @@ Tool policy:
 - If search results are irrelevant or insufficient, say so in the report instead of forcing a conclusion.
 
 Evidence policy:
-- Cite only reference labels returned by search tools, such as <reference_0>.
+- Cite only reference labels returned by search tools or successful `get_records` items (reference_id), such as <reference_0>. Search summaries alone do not verify detailed fixes or applicability.
 - Cite source-supported factual claims near the sentence they support.
 - Do not invent references, URLs, files, records, or source content.
 - Separate evidence from inference. Make clear when a likely cause is inferred rather than directly proven.

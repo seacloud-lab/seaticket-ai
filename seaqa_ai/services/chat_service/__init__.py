@@ -7,13 +7,13 @@ from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
 from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remove_sources_content_and_snippets, get_answer_and_sources
-from seaqa_ai.utils.constants import ConnectionType
+from seaqa_ai.utils.constants import ConnectionType, LLMCallPurpose
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
-from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch
+from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch, GetRecords
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator, TicketCreator
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
@@ -95,6 +95,7 @@ class BasicChat(object):
         tool_executor.clean()
         for tool in self.search_tools:
             tool.register(tool_executor, context=context, app=self.app)
+        GetRecords().register(tool_executor, context=context, app=self.app)
         if not context.get('is_external_portal'):
             for tool in self.content_generators:
                 tool.register(tool_executor, context=context)
@@ -177,6 +178,8 @@ class SyncChat(BasicChat):
                     )
 
                     result = llm_client.responses(
+                        purpose=LLMCallPurpose.CHAT_STEP,
+                        log_fields={'step': current_step, 'retry': current_retry or None},
                         **completion_kwargs
                     )
                     response_token_usage = result.usage
@@ -238,10 +241,13 @@ class SyncChat(BasicChat):
                 for tool_call_id, tool_call in enumerate(llm_message.tool_calls):
                     if tool_call_id < config.MAX_TOOL_CALLS_PER_RESPONSE:
                         BasicChatUtils.execute_tool_with_retry(
-                            tool_executor, tool_call, ChatCallBacker, memory
+                            tool_executor, tool_call, ChatCallBacker, memory,
+                            log_fields={'step': current_step},
                         )
                     else:
-                        BasicChatUtils.record_skipped_tool_call(tool_executor, tool_call, memory)
+                        BasicChatUtils.record_skipped_tool_call(
+                            tool_executor, tool_call, memory, log_fields={'step': current_step},
+                        )
                 tool_executor.thought_process.update_last_group_tokens_usage(result.usage)
                 tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
 
@@ -317,7 +323,11 @@ class StreamingChat(BasicChat):
                     completion_kwargs, has_inserter_max_step_prompt = StreamingChatUtils.build_completion_kwargs(
                         memory, context, tool_executor, current_step, has_inserter_max_step_prompt, MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
                     )
-                    response_stream = llm_client.responses_stream(**completion_kwargs)
+                    response_stream = llm_client.responses_stream(
+                        purpose=LLMCallPurpose.CHAT_STEP,
+                        log_fields={'step': current_step, 'retry': current_retry or None},
+                        **completion_kwargs
+                    )
                 except Exception as e:
                     time_usage = time.time() - time_begin
                     completion_retries.append(StreamingChatUtils.build_completion_retry_entry(
@@ -477,6 +487,7 @@ class StreamingChat(BasicChat):
                                 memory,
                                 tool_call_id,
                                 tool_calls_num,
+                                log_fields={'step': current_step},
                             )
                         else:
                             yield from StreamingChatUtils.record_skipped_tool_call(
@@ -485,6 +496,7 @@ class StreamingChat(BasicChat):
                                 memory,
                                 tool_call_id,
                                 tool_calls_num,
+                                log_fields={'step': current_step},
                             )
                     tool_executor.thought_process.update_last_group_tokens_usage(token_usage)
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)

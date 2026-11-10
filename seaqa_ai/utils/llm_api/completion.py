@@ -1,4 +1,5 @@
 import re
+import time
 
 import litellm
 
@@ -6,7 +7,7 @@ from seaqa_ai.utils.llm_api import BasicLLMAPI
 
 
 class CompletionAPI(BasicLLMAPI):
-    def completion(self, **kwargs):
+    def completion(self, purpose=None, log_fields=None, **kwargs):
         if 'model' in kwargs:
             kwargs.pop('model')
 
@@ -29,13 +30,20 @@ class CompletionAPI(BasicLLMAPI):
         if re.search(r'\bclaude\b', self.model_id, re.IGNORECASE):
             kwargs.pop('temperature', None)
 
-        response = litellm.completion(
-            model=self.model,
-            base_url=self.base_url,
-            api_key=self.api_key,
-            timeout=self.timeout,
-            **kwargs
-        )
+        description = self._describe_call('completion', purpose, context, log_fields)
+        started_at = time.monotonic()
+        try:
+            response = litellm.completion(
+                model=self.model,
+                base_url=self.base_url,
+                api_key=self.api_key,
+                timeout=self.timeout,
+                **kwargs
+            )
+        except Exception as error:
+            self._log_call_failed(description, started_at, error)
+            raise
+        self._log_call_done(description, started_at, self._usage_from_response(response))
 
         self._logger_usage_from_response(response, context)
         return response

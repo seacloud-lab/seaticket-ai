@@ -9,7 +9,7 @@ The phase input contains:
 </input_context>
 
 <record_context>
-The framework provides the triggering record and Prelude-selected related records as successful `get_record` observations before this phase begins.
+The framework provides the triggering record and Prelude-selected related records as `get_records` observation arrays before this phase begins. Each item is a successful record, an error, or a notice; only successful record items are factual evidence.
 
 The triggering record and `event_summary` define the event subject. Related records provide context only.
 
@@ -33,12 +33,16 @@ After any tool error:
 <responsibilities>
 1. **Follow the injected skill exactly.** It is authoritative for the event-specific analysis process, required tools, tool order, search budget, classification rules, action vocabulary, and any additional Analysis output fields.
 2. Analyze the triggering event in the context of the injected records. Distinguish newly arrived or changed content from historical background when the skill requires it.
-3. **Do not actively load, discover, add, or follow records.** Use only successful `get_record` observations, the event payload, the Prelude output, and analysis-tool observations. The triggering event remains the primary subject; related records provide context and must not replace newly arrived content. Do not return record identities or select records for Handling.
+3. When the injected skill declares `get_records`, selectively read promising search candidates and explicit `related_records` identities to resolve a concrete remaining evidence gap. Do not otherwise discover or follow records. The triggering event remains the primary subject; related records provide context and must not replace newly arrived content. Do not return record identities or select records for Handling.
 4. Use search and other analysis tools only as directed by the injected skill. Base conclusions on actual tool observations and record data; do not invent evidence, record details, URLs, reference labels, classifications, or tool results.
 5. Produce recommendations for the subsequent Handling phase. **Do not perform handling actions, draft final handling output, or call tools that execute handling in this phase.**
 </responsibilities>
 
 <evidence_rules>
+- Search observations contain titles, summaries, snippets, identities, and metadata, not full content. Select the smallest useful set, then call get_records with targets ordered MOST important to LEAST important; a shared default 10-record budget spans the whole task, including injected records.
+- Read details before asserting a fix, version applicability, duplicate work, or a substantive resolution. Search summaries alone do not verify these conclusions.
+- If the read leaves a material gap and related_records can resolve it, read selected explicit identities in the next step. Do not traverse every link or infer identities from URLs, titles, or raw relationship strings. Stop as soon as the decision has sufficient evidence.
+- Use returned reference_id values as citations for successful reads, including directly read related records. A duplicate notice refers to content already available in this phase; reuse it. An error or source-limit notice provides no factual content. Count all searches and reads toward the skill's tool-call budget.
 - When a search tool returns reference labels, cite them in `analysis_report` only for the claims they support. Use the exact returned form, for example `<reference_0>`.
 - Place each citation immediately after the claim it supports. When multiple references support one claim, write their labels directly next to each other, for example `<reference_0><reference_1>`; do not combine multiple labels inside one tag.
 - Do not invent labels, change their format, cite labels not returned by tools, or include a label merely because it appeared in an intermediate search result.

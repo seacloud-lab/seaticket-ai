@@ -13,7 +13,7 @@ from seaqa_ai.skills.loader import (
     serialize_skill_spec,
 )
 from seaqa_ai.utils import chunk_text
-from seaqa_ai.utils.constants import AIScenario
+from seaqa_ai.utils.constants import AIScenario, LLMCallPurpose
 from seaqa_ai.services.chat_service import SyncChat, StreamingChat
 from seaqa_ai.agent.agent_service import MissingRequiredLinkedTicket
 from seaqa_ai.agent.agent_service.run_rebuilder import regenerate_agent_suggestions as regenerate
@@ -417,7 +417,9 @@ def generate_embedding():
     }
 
     try:
-        embedding = flask_app.app.embedding_api.generate(content, context)
+        embedding = flask_app.app.embedding_api.generate(
+            content, context, purpose=LLMCallPurpose.TEXT_EMBEDDING,
+        )
         return {'embedding': embedding}, 200
     except Exception as e:
         logger.exception(e)
@@ -450,7 +452,9 @@ def generate_chunks_embedding():
     try:
 
         chunks = chunk_text(content)
-        embeddings = flask_app.app.embedding_api.batch_generate(chunks, context)
+        embeddings = flask_app.app.embedding_api.batch_generate(
+            chunks, context, purpose=LLMCallPurpose.CHUNK_EMBEDDING,
+        )
         if embeddings and len(embeddings) > 0:
             return {'chunks': chunks, 'embeddings': embeddings}, 200
         return {'error_msg': 'No embedding generated.'}, 400
@@ -484,7 +488,9 @@ def batch_generate_embeddings():
     }
 
     try:
-        embeddings = flask_app.app.embedding_api.batch_generate(contents, context)
+        embeddings = flask_app.app.embedding_api.batch_generate(
+            contents, context, purpose=LLMCallPurpose.BATCH_EMBEDDING,
+        )
         return {'embeddings': embeddings}, 200
     except Exception as e:
         logger.exception(e)

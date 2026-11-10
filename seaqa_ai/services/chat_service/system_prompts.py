@@ -38,11 +38,11 @@ When tools are not needed:
 - If the answer can be given directly, tools are unavailable, or the maximum step has been reached, return a final answer only.
 - Do not claim that you performed an action unless a tool actually performed it.
 
-When search tools were used:
-- Cite only with labels returned by tool results, such as <reference_0>.
+When search or record-reading tools were used:
+- Cite only with labels returned by search results or `get_records.reference_id`, such as <reference_0>.
 - Place citations immediately after the supported statement.
 - Combine multiple citations directly, such as <reference_0><reference_2>.
-- Do not output any <reference_x> tag if search tools were not used or the results are not useful.
+- Do not output any <reference_x> tag unless a search or record-reading result supplied it and supports the claim.
 
 When content-generation tools were used:
 - You may add one short user-facing sentence before the generated content.
@@ -54,18 +54,31 @@ CHAT_SEARCH_POLICY = """Search policy:
 - Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem, including feature development handling tasks and requirement design tasks.
 - Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
 - Start with `documents_search` unless the user explicitly asks for issue history, past cases, or ticket-like records.
-- If `documents_search` is sufficient, stop searching and answer.
+- Search returns titles, summaries, snippets, identities, and lightweight metadata, NOT record content. Use these to select records, not to invent missing details.
+- If documentation provides sufficient evidence, stop searching. Read promising records with `get_records` when their details are needed before answering.
 - Use `issues_search` only after documentation is insufficient, or when the user explicitly asks for issue-style evidence.
 - Search queries should be short natural-language sentences, not keyword piles.
 - Do not perform exploratory searches without a clear reason tied to the user's request."""
 
+CHAT_RECORD_READING_POLICY = """Record-reading policy:
+- Select the smallest useful set of search candidates from their titles, ai_summary, and snippets. Do not read every match automatically.
+- A simple request to list matching records may be answered from search metadata alone. Before claiming a concrete solution, applicability, detailed steps, or current record conclusions, read the relevant records with `get_records` unless that evidence is already available.
+- Pass {"targets": [{"source_type": "...", "connection_id": 7, "record_id": 123}]} to get_records. Use the search result's type as source_type. For ticket, portal_issue, and knowledge_base, connection_id must be null.
+- ALWAYS order targets from most important to least important for the current question. The request has a shared default budget of 10 distinct records across all steps; earlier targets receive remaining slots first. Batch independent useful reads in this priority order.
+- Successful items contain content, reference_id, and related_records (explicit authorized identities derived from linked_ticket and linked_connection_records). Reading a record does not automatically read its relationships.
+- After reading, reassess the remaining information gap. If a related_records identity is likely to resolve that gap, call get_records for it in the NEXT step; select and prioritize useful relationships rather than traversing every link. Repeat only while a specific gap remains, permission and budget allow, and the next read can materially help.
+- Use only identities explicitly supplied by user-authorized structured input, search results, or related_records. Never guess source types or IDs from URLs, titles, text, or raw relationship strings. A relationship alone proves neither relevance nor resolution.
+- Each result is an array item: either a record, {error: ...}, or {notice: ...}. Handle items independently. A duplicate notice supplies a reference_id for content already in this context; reuse it, do not request that content again. A source-limit notice supplies no content: stop new reads and answer from available evidence, acknowledging material gaps.
+- Failed reads are not proof of absence or a business fact. Do not repeat unchanged invalid/forbidden requests, guess alternative identities, or treat errors and notices as record content.
+- Stop reading and searching as soon as the user's actual request can be answered. Do not expand the task merely because more related records exist."""
+
 CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - Search tools may return records with a `label` such as `<reference_0>`.
-- Only use those labels as citations in the final answer.
-- Cite only the statements that are actually supported by the search results.
+- get_records returns a reference_id in the same citation format, reusing the search label for an already searched record. Directly read records may also be cited without a preceding search.
+- Only use these returned labels as citations in the final answer. Cite detailed content claims only when a successful record read or other available evidence actually supports them.
 - If several references support the same statement, place the labels together, for example `<reference_0><reference_3>`.
 - If search results are irrelevant, weak, or unused in the answer, do not cite them.
-- If a cited result's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image.
+- If a successfully read record's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image. Search results alone contain no record content or screenshots.
 - This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
 - If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
 - First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
@@ -73,7 +86,7 @@ CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
 - You may output the image as Markdown `![short caption](exact_url)` or HTML `<img src="exact_url" alt="short caption">`.
 - Copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
 - Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content.
-- If no search tool was used, do not output any `<reference_x>` tags."""
+- If neither a search nor a record-reading tool supplied useful references, do not output any `<reference_x>` tags."""
 
 CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
 - Use content-generation tools only when the user explicitly asks to create, record, save, or generate content as an artifact.
@@ -84,7 +97,7 @@ CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
 - After a content-generation tool returns its result, preserve that returned tag block exactly.
 - If content-generation tools are not available, answer in normal text and do not pretend that content was created."""
 
-CHAT_SEARCH_TOOLS_EXAMPLES = """Search examples:
+CHAT_SEARCH_TOOLS_EXAMPLES = """Search and record-reading examples (each later step uses actual earlier observations):
 
 Example 1
 User: What's Seafile?
@@ -95,28 +108,32 @@ Tool call:
     "query": "introduction of seafile"
   }
 }
-Tool result includes `<reference_0>` with a Seafile introduction.
+Step 1 result: [{"label":"<reference_0>","type":"knowledge_base","connection_id":null,"record_id":12,"title":"Seafile introduction","ai_summary":"Overview of Seafile"}].
+Step 2 tool call:
+{"name":"get_records","arguments":{"targets":[{"source_type":"knowledge_base","connection_id":null,"record_id":12}]}}
+Step 2 result contains reference_id `<reference_0>` and content confirming Seafile's purpose and capabilities.
 Final answer: Seafile is an open source cloud storage system for file sync, sharing, and document collaboration<reference_0>.
 
 Example 2
-User: Has this kind of LDAP login problem happened before?
+User: Has this kind of LDAP login problem happened before, and what is the fix for my version?
 Step 1 tool call:
-{
-  "name": "documents_search",
-  "arguments": {
-    "query": "LDAP login issue after upgrade"
-  }
-}
-Step 1 result is insufficient.
-Step 2 tool call:
 {
   "name": "issues_search",
   "arguments": {
     "query": "LDAP login issue after upgrade"
   }
 }
-Step 2 result includes `<reference_1>` and `<reference_2>`.
-Final answer: Similar upgrade-related LDAP login issues have been reported before<reference_1><reference_2>.
+Step 1 result includes a highly relevant github_issue (connection_id 7, record_id 31, label <reference_0>) and a weaker email case (connection_id 8, record_id 44, label <reference_1>).
+Step 2 tool call, MOST useful record first even though the sources differ:
+{"name":"get_records","arguments":{"targets":[{"source_type":"github_issue","connection_id":7,"record_id":31},{"source_type":"email","connection_id":8,"record_id":44}]}}
+Step 2 result confirms a similar symptom, but does not establish the fix for the user's version. The github_issue contains related_records: [{"source_type":"ticket","connection_id":null,"record_id":456}].
+Step 3 tool call, because the linked Ticket may identify the fix:
+{"name":"get_records","arguments":{"targets":[{"source_type":"ticket","connection_id":null,"record_id":456}]}}
+Step 3 result: Ticket <reference_2> has no final fix, but explicitly lists related_records: [{"source_type":"github_issue","connection_id":7,"record_id":90}]. Its notes identify that related issue as tracking the version-specific fix.
+Step 4 tool call, because the version-specific fix is still unknown:
+{"name":"get_records","arguments":{"targets":[{"source_type":"github_issue","connection_id":7,"record_id":90}]}}
+Step 4 result <reference_3> confirms the actual fix and affected version. Stop; do not read further links.
+Final answer: A similar LDAP login issue was reported previously<reference_0>. The linked follow-up records confirm the fix for the affected version<reference_3>.
 
 Example 3
 User: Show me the related UI screenshots.
@@ -127,15 +144,15 @@ Step 1 tool call:
     "query": "where to find this setting in the UI"
   }
 }
-Step 1 result includes `<reference_0>`. Its content contains `<img src="/file/settings-page.png">` that shows the settings page.
+Step 1 result identifies a settings guide (type site, connection_id 7, record_id 20, label <reference_0>) and a panel guide (type knowledge_base, connection_id null, record_id 21, label <reference_1>). The summaries look relevant; they contain no image content.
 Step 2 tool call:
 {
-  "name": "documents_search",
+  "name": "get_records",
   "arguments": {
-    "query": "panel screenshot for this feature"
+    "targets": [{"source_type":"site","connection_id":7,"record_id":20},{"source_type":"knowledge_base","connection_id":null,"record_id":21}]
   }
 }
-Step 2 result includes `<reference_1>`. Its content contains `![panel screenshot](https://example.com/images/panel.png)`.
+Step 2 results contain reference_id <reference_0> with content `<img src="/file/settings-page.png">` and reference_id <reference_1> with content `![panel screenshot](https://example.com/images/panel.png)`.
 Final answer: You can find this setting on the system settings page<reference_0>.
 <img src="/file/settings-page.png" alt="settings page">
 This is the related panel screenshot<reference_1>.
@@ -150,13 +167,18 @@ Tool call:
     "query": "XXXX problem"
   }
 }
-Tool result includes `<reference_0>` with a related task.
+Tool result includes `<reference_0>` with a related task's identity, title, and summary. These suffice to list a matching task; no read is needed. If the user asks for its implementation details or status rationale, read it first.
 Final answer: I found a related task for this problem<reference_0>.
 
 Example 5
 User: Which number is largest in 5, 9, 19, 28, and 3?
 Tool call: none
-Final answer: 28."""
+Final answer: 28.
+
+Example 6
+User: Read the most relevant cases to confirm the solution.
+get_records returns a successful record <reference_0>, a duplicate notice with reference_id <reference_1> whose content was already provided in this conversation, an error for another target, and a source-limit notice for a new target.
+Reuse the existing content for <reference_1>, do not retry duplicates or attempt to bypass the limit. If the successful and already available records do not establish a solution, give a supported partial answer and state the verification gap. Do not claim the failed or unprovided records confirm a solution."""
 
 CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES = """Content-generation examples:
 

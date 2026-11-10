@@ -1,10 +1,11 @@
 import logging
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
-from seaqa_ai.seadb_models.utils import get_connection_table_name
+from seaqa_ai.seadb_models.utils import get_connection_table_name, SCHEMA_TABLE_CONNECTION, EXTRA_SOURCE_TABLE_MAP
 
 logger = logging.getLogger(__name__)
 
+SEARCH_METADATA_FIELDS = ('url', 'state', 'state_reason', 'substate', 'resolved', 'linked_ticket')
 
 
 def search_records_to_map(search_records, search_results, skip_search_record_hashes=[]):
@@ -49,14 +50,34 @@ def search_records_to_map(search_records, search_results, skip_search_record_has
             'modified_time': record['modified_time']
         })
 
-        # Check if the record contains a 'content' field
-        if 'content' in record:
-            record_dict['content'] = record['content']
-
         # Check if the record contains a 'snippet' field
         if 'snippet' in record:
             snippets = record_dict.setdefault('snippets', [])
             snippets.append(record['snippet'])
+
+    return search_results
+
+
+def get_search_result_metadata(search_results, seadb_service, project_uuid, connection_id_type_map):
+    """Read only lightweight fields available in each source's schema."""
+    for connection_id, record_id_record_map in search_results.items():
+        connection_type = connection_id_type_map[connection_id]
+        table = EXTRA_SOURCE_TABLE_MAP.get(connection_type) or SCHEMA_TABLE_CONNECTION.get(connection_type)
+        fields = [name for name in SEARCH_METADATA_FIELDS if name in table.column]
+        if not fields:
+            continue
+
+        records = seadb_service.get_records_by_pks(
+            base_id=project_uuid,
+            table_name=get_connection_table_name(connection_type, connection_id),
+            pks=record_id_record_map.keys(),
+            fields_str=', '.join(fields),
+        )
+        for record_id, record in record_id_record_map.items():
+            metadata = records.get(record_id) or {}
+            for name in fields:
+                if metadata.get(name) is not None:
+                    record[name] = metadata[name]
 
     return search_results
 
