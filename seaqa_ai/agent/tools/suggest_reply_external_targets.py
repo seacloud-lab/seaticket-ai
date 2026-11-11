@@ -3,6 +3,7 @@ from seaqa_ai.utils.record.identity import record_identity_schema
 
 
 class SuggestReplyExternalTargets(BasicAgentSuggestionTool):
+    persisted_tool_name = 'suggest_reply'
     tool = {
         'type': 'function',
         'name': 'suggest_reply_external_targets',

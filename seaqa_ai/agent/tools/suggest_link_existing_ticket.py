@@ -1,7 +1,9 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils.suggestion_validation import validate_related_ticket
 
 
 class SuggestLinkExistingTicket(BasicAgentSuggestionTool):
+    editable_payload_fields = frozenset({'related_ticket'})
     tool = {
         'type': 'function',
         'name': 'suggest_link_existing_ticket',
@@ -32,8 +34,7 @@ class SuggestLinkExistingTicket(BasicAgentSuggestionTool):
             related_ticket = int(related_ticket)
         except (TypeError, ValueError) as error:
             raise ValueError('related_ticket must be a positive integer') from error
-        if related_ticket <= 0:
-            raise ValueError('related_ticket must be a positive integer')
+        validate_related_ticket(related_ticket)
         self._loaded_target(
             {
                 'source_type': 'ticket',

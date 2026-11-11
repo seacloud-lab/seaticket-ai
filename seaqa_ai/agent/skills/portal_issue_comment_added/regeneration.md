@@ -8,6 +8,7 @@ tools:
   - suggest_notify_assignee
 ====================
 <!-- Derived from handling.md. Keep tools and event-specific constraints in sync. -->
+
 ## Role And Scope
 - Create only the pending suggestions requested by the user for the applicable Portal issue comment.
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
@@ -19,7 +20,7 @@ tools:
 4. A Ticket proposal must cover only the independent problem being requested.
 5. An existing-Ticket link must use a positive `related_ticket`.
 6. Call `suggest_notify_assignee` only when requested and a successful observation identifies the linked Ticket; use that Ticket as the explicit target.
-7. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
+7. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.
 8. Report each selected call, omission, or failure and stop.
 
 ## Decision Rules
