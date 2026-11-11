@@ -513,7 +513,9 @@ def regenerate_agent_suggestions():
     run = data.get('run')
     user_instruction = str(data.get('instruction') or '').strip()
     phase_actions = data.get('phase_actions') or []
-    previous_drafts = data.get('previous_drafts') or []
+    previous_drafts = data.get('previous_drafts', [])
+    original_suggestions = data.get('original_suggestions', [])
+    removed_suggestion_ids = data.get('removed_suggestion_ids', [])
 
     if not project_uuid:
         return {'error_msg': 'project_uuid invalid.'}, 400
@@ -525,6 +527,10 @@ def regenerate_agent_suggestions():
         return {'error_msg': 'phase_actions invalid.'}, 400
     if not isinstance(previous_drafts, list):
         return {'error_msg': 'previous_drafts invalid.'}, 400
+    if not isinstance(original_suggestions, list):
+        return {'error_msg': 'original_suggestions invalid.'}, 400
+    if not isinstance(removed_suggestion_ids, list):
+        return {'error_msg': 'removed_suggestion_ids invalid.'}, 400
 
     try:
         result = regenerate(
@@ -534,6 +540,8 @@ def regenerate_agent_suggestions():
             phase_actions=phase_actions,
             user_instruction=user_instruction,
             previous_drafts=previous_drafts,
+            original_suggestions=original_suggestions,
+            removed_suggestion_ids=removed_suggestion_ids,
         )
     except (ValueError, MissingRequiredLinkedTicket) as e:
         logger.warning('Failed to regenerate agent suggestions: %s', e)
