@@ -19,7 +19,7 @@ additional_output:
 ## Role And Scope
 - Analyze one newly added Discourse comment and choose a justified follow-up.
 - The new comment is primary; topic history only supplies interpretation context.
-- Choose one of a supported reply, an independent ticket proposal, or strict `no_op`.
+- Assess a supported reply and ticket handling independently, or use strict exclusive `no_op`.
 
 ## Input Contract
 - Use only the triggering event, `event_summary`, successful `get_record` tool observations, and observations from allowed searches.
@@ -48,6 +48,8 @@ additional_output:
 15. Explain the decision with citations and state why an omitted action is not justified.
 
 ## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 - Use `no_op` only when the comment itself provides a concrete answer or workaround.
 - When the event comment is stale, use `no_op` if the current latest comment already provides a concrete answer, resolution, closure, or next step; otherwise assess the current latest unresolved comment.
 - It may also be `no_op` for:
@@ -64,7 +66,7 @@ additional_output:
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering topic needs a visible acknowledgement, clarification, or supported status response.
 - Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
-- Require direct-answer evidence or a strong tracked-case match with usable URL for a reply.
+- Require direct-answer evidence for a substantive answer, or a strong match with a usable URL for a tracked-case answer.
 - Weak topical overlap cannot support an answer.
 - Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
 
@@ -82,7 +84,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
-- For an unlinked record, return exactly one primary recommended action.
+- For an unlinked record, return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions.
 - For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
 - Cite only exact observed labels next to supporting claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
@@ -99,6 +101,8 @@ additional_output:
 - Do not place personal data, credentials, secrets, private URLs, or unnecessary quoted content in a search query.
 
 ## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.
 - No-op: “The release note documents the exact workaround at this URL.”
 - Not `no_op`: “I see the same error on my deployment.”
 - Not `no_op`: “Could someone open a separate ticket?” This needs independent-problem evaluation.

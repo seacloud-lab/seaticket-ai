@@ -30,7 +30,7 @@ tools:
 5. Record each actual call result, omission, or failure in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
 - Call `suggest_notify_assignee` only when independently needed.
 - Do not convert the whole email thread into a response to one new message.
 - Do not reply to a stale message; address only the current unresolved request.
@@ -46,7 +46,7 @@ tools:
 - Do not use tools to send email, modify recipients, or change thread state.
 
 ## Required Output
-- State the requested action, attempted tool call, selected evidence use, and actual outcome.
+- State each requested action, attempted tool call, selected evidence use, and actual outcome.
 - Report failure accurately without claiming success.
 - After all selected attempts, immediately return the report and make no further tool call.
 

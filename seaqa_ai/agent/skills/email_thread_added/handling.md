@@ -8,7 +8,7 @@ tools:
   - suggest_move_to_spam
 ====================
 ## Role And Scope
-- Create exactly the Analysis-selected pending email-thread suggestion for the current unresolved request, or deliberately make none for a stale opening email.
+- Create exactly the Analysis-selected pending email-thread suggestions for the current unresolved request, or deliberately make none for a stale opening email.
 - Handling must preserve the Analysis distinction between Spam and Notification.
 - It creates proposals only and never sends, moves, or resolves mail directly.
 
@@ -19,8 +19,8 @@ tools:
 - Do not add, replace, or combine recommendations.
 
 ## Required Steps
-1. Inspect the Analysis triage, action, and skip flag.
-2. Create the one Analysis-selected suggestion, or deliberately make none:
+1. Inspect the Analysis triage, actions, and skip flag.
+2. Create each Analysis-selected suggestion, or deliberately make none:
     - For `no_op`, skipped handling, or `Notification`, make no tool call and state why.
     - When Analysis selects `Spam`, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its triage basis.
     - For an Analysis-selected reply, call `suggest_reply` with a non-empty courteous reply, Analysis-grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs.
@@ -29,7 +29,8 @@ tools:
 3. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `suggest_move_to_spam`.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
+- Keep `suggest_move_to_spam` exclusive; do not combine it with any other suggestion.
 - Never apply spam handling to legitimate transactional or system notices.
 - Receipts, invoices, payment notices, license expiry reminders, and security alerts remain Notifications when Analysis identifies them as such.
 - Do not promise unverified behavior, timelines, refunds, or outcomes in replies.
@@ -40,7 +41,7 @@ tools:
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
 - Never call `get_record`, search, or undeclared tools.
-- Invoke only the exact action selected by Analysis.
+- Invoke only the actions selected by Analysis.
 - Use move-to-spam only when Analysis selects `Spam`.
 - Do not use tools to send email, alter payment data, or modify account security state.
 

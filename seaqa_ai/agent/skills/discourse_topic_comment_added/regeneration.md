@@ -35,7 +35,7 @@ tools:
 5. Record each action, omission, or failure in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one. Call `suggest_notify_assignee` only when independently needed.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools. Call `suggest_notify_assignee` only when independently needed.
 - Do not treat a generic topic answer as a response to a new specific question.
 - Do not reply to a stale comment; address only the current unresolved comment.
 - Do not add a ticket for a problem already covered by the topic.
@@ -50,7 +50,7 @@ tools:
 - Do not modify topic category, status, tags, or author data.
 
 ## Required Output
-- State the requested action, actual call outcome, and selected evidence use.
+- State each requested action, actual call outcome, and selected evidence use.
 - Report failures accurately without claiming success.
 - After all selected attempts, immediately return the report and make no further tool call.
 - Do not include a new analysis recommendation.

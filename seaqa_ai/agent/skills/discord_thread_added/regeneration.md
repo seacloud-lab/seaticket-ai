@@ -1,6 +1,6 @@
 event: discord_thread_added
 phase: regeneration
-description: "Regenerate the reply or ticket suggestion for a new Discord thread from the user's instruction."
+description: "Regenerate suggestions for a new Discord thread from the user's instruction."
 tools:
   - suggest_reply
   - suggest_create_ticket
@@ -19,15 +19,15 @@ tools:
 
 ## Required Steps
 1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
-2. Create the primary suggestion requested by the user:
+2. Create suggestions requested by the user:
     - For an evidence-supported reply, call `suggest_reply` with a non-empty reply and reason that address the current unresolved request. Include only selected supporting URLs.
     - For an unresolved report or request, call `suggest_create_ticket` with a non-empty reason that preserves user facts and uncertainty.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
-4. Record the actual outcome in the report.
+4. Record each selected action and its actual outcome, omission, or failure in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
 - Do not fabricate a URL or present an internal ticket as public evidence.
 - Do not turn an uncertain report into a confirmed defect in a ticket.
 - Failure does not justify a retry, replacement action, or additional research.

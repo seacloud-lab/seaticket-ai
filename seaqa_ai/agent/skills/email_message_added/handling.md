@@ -10,7 +10,7 @@ tools:
 ## Role And Scope
 - Create pending suggestions only for independently selected actions on a newly added email message.
 - The response must address the Analysis-selected current unresolved request, not summarize the full thread or mechanically answer a stale trigger.
-- Analysis exclusively selects between a reply and an independent ticket proposal.
+- Analysis independently selects actions.
 
 ## Input Contract
 - Use only the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
@@ -21,15 +21,15 @@ tools:
 ## Required Steps
 1. Inspect the skip flag and Analysis-selected actions.
 2. If handling is skipped, make no tool call and record the omission.
-3. Create the one Analysis-selected primary suggestion:
-    - For an Analysis-selected reply, call only `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request identified by Analysis, with an Analysis-grounded reason, greeting, concise direct body, closing, and only Analysis-selected supporting URLs.
-    - For an independently selected issue, call only `suggest_create_ticket`. It targets the triggering email thread and uses a non-empty reason limited to that issue.
-    - For an Analysis-selected existing-ticket link, call only `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
+3. Create each Analysis-selected reply or ticket suggestion:
+    - For an Analysis-selected reply, call `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request identified by Analysis, with an Analysis-grounded reason, greeting, concise direct body, closing, and only Analysis-selected supporting URLs.
+    - For an independently selected issue, call `suggest_create_ticket`. It targets the triggering email thread and uses a non-empty reason limited to that issue.
+    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 4. For an Analysis-selected Ticket notification, call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
 5. Record each actual call result, omission, or failure in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
 - Call `suggest_notify_assignee` only when Analysis independently selects it.
 - Do not convert the whole email thread into a response to one new message.
 - When Analysis identifies a stale trigger, do not reply to the older message; address only the current unresolved request selected by Analysis.
@@ -42,12 +42,12 @@ tools:
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
 - Never call `get_record`, search, or any undeclared tool.
-- Call only the exact tool selected by Analysis.
+- Call only the tools selected by Analysis.
 - Do not create suggestions not selected by Analysis.
 - Do not use tools to send email, modify recipients, or change thread state.
 
 ## Required Output
-- State the Analysis-selected action, attempted tool call, selected evidence use, and actual outcome.
+- State each Analysis-selected action, attempted tool call, selected evidence use, and actual outcome.
 - State intentional omission when skipped.
 - Report failure accurately without claiming success.
 - After all selected attempts, immediately return the report and make no further tool call.
