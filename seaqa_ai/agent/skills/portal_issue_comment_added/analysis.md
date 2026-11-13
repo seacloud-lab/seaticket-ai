@@ -25,9 +25,13 @@ additional_output:
 3. If stale, analyze the current latest unresolved comment. If the latest comment already supplies a concrete answer, closure, or next step requiring no response, select `no_op` without searching.
 4. Apply the strict `no_op` boundary before searching.
 5. Search from the applicable comment's concrete terms only when evidence can change the decision.
-6. For an unlinked issue, choose one of a supported reply, verified existing-Ticket link, independent Ticket proposal, or `no_op`.
+6. For an unlinked issue, assess a supported reply independently from a verified existing-Ticket link or independent Ticket proposal, or use exclusive `no_op`.
 7. For a verified linked Ticket, assess `suggest_notify_assignee` and `suggest_reply` independently; never create or link another Ticket.
 8. Recommend notification only for a material technical detail, blocker, urgency, regression, or reopening risk requiring owner attention.
+
+## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 
 ## Tool Rules
 - Only the declared tools are permitted.
@@ -37,7 +41,7 @@ additional_output:
 
 ## Required Output
 - Return every required Analysis field.
-- For an unlinked issue return exactly one primary action.
+- For an unlinked record, return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions.
 - For a linked Ticket use only `suggest_notify_assignee`, `suggest_reply`, or exclusive `no_op`; notification and reply may coexist only with independent evidence.
 - Set `related_ticket` only for a verified existing-Ticket link; otherwise set it to 0.
 - Make `no_op` exclusive and set `skip_handling` to true exactly for it.
@@ -47,3 +51,7 @@ additional_output:
 - Do not infer no-op from author identity or role.
 - Do not create a Ticket for work already covered by the parent issue or verified linked Ticket.
 - Do not expose secrets, personal data, private URLs, or unnecessary quotations.
+
+## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.

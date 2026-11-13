@@ -21,10 +21,10 @@ tools:
 ## Required Steps
 1. Read `skip_handling` and the Analysis-selected actions.
 2. For `no_op` or skipped handling, call no tool.
-3. Create the one Analysis-selected primary suggestion:
-    - For an Analysis-selected reply, call only `suggest_reply`. It targets the triggering Discourse topic and uses a non-empty reply and reason directly addressing the current unresolved comment selected by Analysis, not a parent-topic recap. Include only Analysis-selected supporting URLs.
-    - For an independently selected problem, call only `suggest_create_ticket`. It targets the triggering Discourse topic and uses a non-empty reason limited to the independent problem stated in Analysis.
-    - For an Analysis-selected existing-ticket link, call only `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
+3. Create each Analysis-selected reply or ticket suggestion:
+    - For an Analysis-selected reply, call `suggest_reply`. It targets the triggering Discourse topic and uses a non-empty reply and reason directly addressing the current unresolved comment selected by Analysis, not a parent-topic recap. Include only Analysis-selected supporting URLs.
+    - For an independently selected problem, call `suggest_create_ticket`. It targets the triggering Discourse topic and uses a non-empty reason limited to the independent problem stated in Analysis.
+    - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 4. For an Analysis-selected Ticket notification:
    - Call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket.
    - Use that Ticket as `target` with:
@@ -34,7 +34,7 @@ tools:
 5. Record each action, omission, or failure in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one. Call `suggest_notify_assignee` only when Analysis independently selects it.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools. Call `suggest_notify_assignee` only when Analysis independently selects it.
 - Do not treat a generic topic answer as a response to a new specific question.
 - When Analysis identifies a stale trigger, do not reply to the older comment; address only the current unresolved comment selected by Analysis.
 - Do not add a ticket for a problem already covered by the topic.
@@ -45,12 +45,12 @@ tools:
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
 - Do not call `get_record`, search, or undeclared tools.
-- Call only the action selected by Analysis.
+- Call only the actions selected by Analysis.
 - Do not make suggestions not selected by Analysis.
 - Do not modify topic category, status, tags, or author data.
 
 ## Required Output
-- State the Analysis-selected action, actual call outcome, and selected evidence use.
+- State each Analysis-selected action, actual call outcome, and selected evidence use.
 - For `no_op`, document the intentional no-call result.
 - Report failures accurately without claiming success.
 - After all selected attempts, immediately return the report and make no further tool call.

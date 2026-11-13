@@ -1,6 +1,6 @@
 event: discord_thread_added
 phase: analysis
-description: "Research a new Discord thread and recommend a reply or ticket."
+description: "Research a new Discord thread and recommend suggestions."
 tools:
   - issues_search
   - documents_search
@@ -17,7 +17,7 @@ additional_output:
       set 0 for every other recommendation.
 ====================
 ## Role And Scope
-- Research one newly created Discord thread and recommend one safe primary action.
+- Research one newly created Discord thread and assess reply and ticket handling independently.
 - The opening message is primary; follow-up messages provide context only.
 
 ## Input Contract
@@ -40,10 +40,12 @@ additional_output:
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.
 8. Search only for evidence capable of supporting a concrete reply or tracked-case outcome.
 9. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-10. Recommend `suggest_reply` when evidence is direct; otherwise recommend `suggest_create_ticket`.
+10. Assess `suggest_reply` independently from ticket handling. Recommend `suggest_link_existing_ticket` for verified existing work or `suggest_create_ticket` for unresolved work needing a new ticket.
 11. Explain uncertainty clearly without claiming an unverified root cause.
 
 ## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 - A tracked-case reply requires strong matching symptoms, request, or root problem and a usable URL.
 - A direct answer must address the thread's concrete question; thematic similarity is insufficient.
 - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
@@ -64,7 +66,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
-- Return one primary recommendation: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `no_op`.
+- Return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions.
 - Place exact search-returned labels beside supported claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - **Make `no_op` exclusive** and set `skip_handling` to `true` exactly for it.
@@ -78,3 +80,7 @@ additional_output:
 - Do not expose secrets, private contacts, or internal-only content in queries or output.
 - **Do not claim that a reply or ticket has been created.**
 - Do not explain in `analysis_report` whether event fields are complete, whether a message ID is present, or whether the opening message's currency could be verified.
+
+## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.

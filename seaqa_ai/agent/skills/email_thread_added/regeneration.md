@@ -21,7 +21,7 @@ tools:
 
 ## Required Steps
 1. Read `user_instruction` first, then Analysis triage and any `previous_drafts`.
-2. Create the suggestion requested by the user, using only permitted tools:
+2. Create the suggestions requested by the user, using only permitted tools:
     - When the user wants no action, make no tool call and state why.
     - When the user selects spam handling, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its triage basis.
     - For a reply, call `suggest_reply` with a non-empty courteous reply, grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs.
@@ -31,7 +31,8 @@ tools:
 4. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, or `suggest_move_to_spam`.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
+- Keep `suggest_move_to_spam` exclusive; do not combine it with any other suggestion.
 - Never apply spam handling to legitimate transactional or system notices unless the user explicitly asks for it.
 - Receipts, invoices, payment notices, license expiry reminders, and security alerts remain Notifications unless the user explicitly reclassifies them.
 - Do not promise unverified behavior, timelines, refunds, or outcomes in replies.

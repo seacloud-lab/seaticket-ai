@@ -62,19 +62,21 @@ additional_output:
 5. Choose the first search tool from the classification and issue a focused query only when evidence can change the action.
 6. Evaluate each result for direct relevance and retain only decisive evidence.
 7. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-8. Make three separate decisions under the Decision Rules: one primary handling action, a type decision, and a label decision. Return the primary action plus every metadata action decided yes. Include the issue-type fields because this skill supports type-change suggestions.
+8. Make separate decisions under the Decision Rules for a reply, ticket handling, type, and labels. Return every justified action. Include the issue-type fields because this skill supports type-change suggestions.
 
 ## Decision Rules
-- For the primary action:
-  - Recommend `suggest_reply` only for a direct supported answer or a clearly tracked case with a usable URL.
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
+- For reply and ticket handling:
+  - Recommend `suggest_reply` for a direct supported answer, a clearly tracked case with a usable URL, or an acknowledgement, clarification, or supported next step accompanying a ticket action.
   - A known case requires strong overlap in symptom, requested capability, or root problem.
   - General topical similarity, a shared product area, or a matching keyword is insufficient.
   - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
   - A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
   - A related Ticket prevents `suggest_create_ticket` only when its successfully observed content clearly tracks the same concrete work.
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the issue.
-  - Otherwise recommend `suggest_create_ticket` for an unresolved issue.
-- For issue metadata (decide both for every actionable issue, independently of each other and of the primary action; neither is applied by creating or linking a ticket):
+  - Recommend `suggest_create_ticket` for an unresolved issue needing internal work when no verified ticket already tracks it; a useful reply does not remove that need.
+- For issue metadata (decide both for every actionable issue, independently of each other and of reply and ticket handling; neither is applied by creating or linking a ticket):
   - Type: treat `original_issue_type` as matching when it equals `classified_issue_type` case-insensitively or is an obvious synonym (for example `enhancement` for `Feature`).
     - If `original_issue_type` is empty, recommend `suggest_modify_type`.
     - If it matches, do not recommend it.
@@ -99,6 +101,7 @@ additional_output:
 - Set `original_issue_type` to the exact supplied value or an empty string if it is absent, and set `classified_issue_type` to `Bug`, `Feature`, or `Question`.
 - Set `suggested_labels` to one to three exact observed `available_labels` only when recommending `suggest_assign_labels`; otherwise set it to an empty array. Never include `suggest_assign_labels` unless `suggested_labels` lists the proposed labels.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
+- `suggest_reply` may stand alone or accompany either `suggest_create_ticket` or `suggest_link_existing_ticket`; never recommend both ticket actions. Include every independently justified metadata action.
 - Place exact returned labels adjacent to each supported claim, for example `<reference_0>`.
 - Never invent, alter, merge, or retain non-decisive reference labels.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
@@ -116,6 +119,8 @@ additional_output:
 - **Do not claim that any recommendation has already been applied.**
 
 ## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.
 - `Bug`: “Export fails after 3.2,” including when phrased as “Why does export fail?”
 - `Feature`: “Can I bulk archive projects?” when bulk archive is requested but unavailable.
 - `Question`: “How do I configure SSO?” when it requests documented configuration.

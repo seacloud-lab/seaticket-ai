@@ -20,7 +20,7 @@ tools:
 
 ## Required Steps
 1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
-2. Create the primary suggestion requested by the user:
+2. Create each reply or ticket suggestion requested by the user:
     - For a reply, call `suggest_reply`. It targets the triggering GitHub issue, not the selected Ticket or another related record, and uses a non-empty reply and reason that address the current unresolved comment. Include only evidence-supported URLs.
     - For an independent problem, call `suggest_create_ticket`. It targets the triggering GitHub issue and uses a non-empty reason covering only that independent problem.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
@@ -34,7 +34,7 @@ tools:
 5. Record each call or intentional omission in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one. Call `suggest_notify_assignee` only when independently needed.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools. Call `suggest_notify_assignee` only when independently needed.
 - Do not turn a parent-issue recap into a response to the new comment.
 - Do not reply to a stale comment; address only the current unresolved comment.
 - An omitted action remains omitted after a tool failure.
@@ -63,4 +63,4 @@ tools:
 ## Examples
 - Good: the user asks for a reply that directly answers “Does this apply to Windows?” with a selected URL.
 - Good: the user asks for a ticket proposal containing only the independently reported regression.
-- Bad: create both a reply and ticket because both might help.
+- Bad: propose both ticket creation and existing-ticket linking for the same request.

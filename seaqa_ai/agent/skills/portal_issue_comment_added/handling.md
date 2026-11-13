@@ -13,7 +13,7 @@ tools:
 ## Required Steps
 1. Treat `recommended_actions` and `skip_handling` as binding.
 2. For `no_op` or skipped handling, call no tool.
-3. Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket` for the selected primary action.
+3. Call each selected reply or ticket tool once; a reply may accompany creation or linking, but never call both ticket tools.
 4. A reply must directly address the Analysis-selected current unresolved comment.
 5. A Ticket proposal must cover only the independent problem identified by Analysis.
 6. An existing-Ticket link must use the positive Analysis-provided `related_ticket`.

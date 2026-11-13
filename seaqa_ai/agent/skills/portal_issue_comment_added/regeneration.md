@@ -14,7 +14,7 @@ tools:
 
 ## Required Steps
 1. Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
-2. Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket` for the selected primary action.
+2. Call each selected reply or ticket tool once; a reply may accompany creation or linking, but never call both ticket tools.
 3. A reply must directly address the current unresolved comment.
 4. A Ticket proposal must cover only the independent problem being requested.
 5. An existing-Ticket link must use a positive `related_ticket`.

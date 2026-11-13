@@ -42,11 +42,13 @@ additional_output:
 11. Retain only evidence that directly answers the applicable unresolved comment or strongly identifies a tracked case.
 12. Determine follow-up by linkage state:
    - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering issue independently.
-   - Otherwise recommend `suggest_reply`, `suggest_create_ticket`, or `no_op`.
+   - Otherwise assess a reply and either verified existing-ticket linking or independent ticket creation separately, or use exclusive `no_op`.
 13. Set `skip_handling: true` only for `no_op`.
 14. State why a ticket is independent or why no action is strictly justified.
 
 ## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 - Use `no_op` only when this new comment itself supplies a concrete answer or workaround.
 - When the event comment is stale, use `no_op` if the current latest comment already provides a concrete answer, resolution, closure, or next step; otherwise assess the current latest unresolved comment.
 - It may also be `no_op` for:
@@ -80,7 +82,7 @@ additional_output:
   - Two consecutive searches do not improve the evidence.
   - The budget is exhausted.
   - More results cannot change the decision.
-- A reply requires:
+- A substantive answer or tracked-case reply requires:
   - Direct-answer evidence; or
   - A strong tracked-case match with a usable URL.
 - Refine a follow-up query only to resolve a stated gap:
@@ -91,7 +93,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
-- For an unlinked record, include exactly one primary recommended action.
+- For an unlinked record, return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions.
 - For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op` in `recommended_actions`.
 - Use exact returned labels beside supported claims in `analysis_report`.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
@@ -109,6 +111,8 @@ additional_output:
 - Do not alter the parent issue's type or labels.
 
 ## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.
 - No-op: “The documented workaround is to set `X`; it fixes this exact error.”
 - Not `no_op`: “I can reproduce this on Windows.”
 - Not `no_op`: “Perhaps try X?” A tentative suggestion may need a supported response.

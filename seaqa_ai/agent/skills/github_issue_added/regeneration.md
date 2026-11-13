@@ -30,7 +30,7 @@ tools:
    - A non-empty reason grounded in Analysis or the user instruction is provided.
    - Neither value is inferred, normalized, or reclassified beyond the requested type.
 4. For labels, pass one to three exact observed `available_labels` and a non-empty reason; if no exact observed `available_labels` fit, omit the call and report the constraint.
-5. Create the one requested primary suggestion:
+5. Create each requested reply or ticket suggestion:
     - For `suggest_reply`, use a non-empty reply and reason that address the actual request with only selected supporting URLs.
     - For `suggest_create_ticket`, use a non-empty reason limited to reported facts that preserves uncertainty.
     - For `suggest_link_existing_ticket`, pass a positive integer `related_ticket` and a non-empty reason grounded in the same evidence; if `related_ticket` is missing or not positive, omit the call and report the constraint.
@@ -38,8 +38,8 @@ tools:
 7. Record each attempted action and its separate actual outcome in the report.
 
 ## Decision Rules
-- Call only one of `suggest_reply`, `suggest_create_ticket`, or `suggest_link_existing_ticket`, never more than one.
-- Metadata-tool results must not alter the requested primary action.
+- `suggest_reply` may be called alone or alongside either `suggest_create_ticket` or `suggest_link_existing_ticket`; never call both ticket tools.
+- Metadata-tool results must not alter the requested reply or ticket actions.
 - Type modification requires a non-empty classified type and a substantive reason.
 - If any required type value is unavailable:
   - Omit the type suggestion.

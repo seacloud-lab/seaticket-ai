@@ -49,6 +49,8 @@ additional_output:
 17. Explain why a ticket would not duplicate the existing thread.
 
 ## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 - A reply must directly address the new email or link a strongly matching tracked case with a usable URL.
 - If the event email is incoming and a current latest outgoing email materially addresses it, use `no_op`; if that outgoing email does not address the unresolved matter, assess the current latest email instead.
 - If a current latest incoming email makes the event email stale, assess that current latest incoming request rather than duplicate work for the event email.
@@ -84,7 +86,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
-- For an unlinked record, return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, or `no_op`. For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op`.
+- For an unlinked record, return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions. For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op`.
 - Put exact returned labels immediately beside supported claims in `analysis_report`.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - **Make `no_op` exclusive** and set `skip_handling` to `true` exactly for it.
@@ -98,3 +100,7 @@ additional_output:
 - Do not suppress action based solely on a sender's identity, role, permissions, recipients, urgency language, or perceived experience (e.g., employee, staff, support agent, administrator, or organization member).
 - Do not leak personal, financial, credential, token, or irrelevant quoted mail data.
 - **Do not claim an action was already performed.**
+
+## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.

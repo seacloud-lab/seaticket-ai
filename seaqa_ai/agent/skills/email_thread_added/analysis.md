@@ -17,7 +17,7 @@ additional_output:
       set 0 for every other recommendation.
 ====================
 ## Role And Scope
-- Triage one newly created email thread as Spam, Notification, or support content and select exactly one safe primary action.
+- Triage one newly created email thread as Spam, Notification, or support content and select justified handling actions.
 - The opening email is the original event subject; later mail establishes the current progress and may make that request stale.
 - This is a reasoning phase, not a live mailbox or ticket operation.
 
@@ -45,10 +45,12 @@ additional_output:
    - Start with `issues_search` for reported failures, regressions, requested capabilities, or tracked work.
    - Start with `documents_search` for product, setup, configuration, explanation, or how-to requests.
 11. Use related identities with successful passive observations to avoid creating a duplicate ticket when they already track the same concrete work.
-12. Evaluate directness of evidence and choose exactly one primary recommendation.
+12. Evaluate directness of evidence and assess reply and ticket handling independently.
 13. Explain Spam or Notification triage, current progress, evidence, and safety constraints in the report.
 
 ## Decision Rules
+- Decide reply and ticket handling independently. When recommending `suggest_create_ticket` or `suggest_link_existing_ticket`, also recommend `suggest_reply` when the external source needs an acknowledgement, clarification, or supported next step. Such a reply does not require a confirmed solution or public ticket URL.
+- Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 - Determine the opening email's primary purpose:
   - `Spam`: unsolicited advertising, promotional campaigns, sales-only newsletters, phishing, or unsolicited sales.
   - `Notification`: legitimate automated, transactional, or system-generated mail that is not a support request.
@@ -56,10 +58,10 @@ additional_output:
     - Automation alone does not make an email Spam.
   - Support content: a request, reported problem, or other message requiring product follow-up.
 - For support content:
-  - Recommend `suggest_reply` only for a direct answer or clear tracked case with a usable URL.
+  - Recommend `suggest_reply` for a direct answer, a clear tracked case with a usable URL, or an acknowledgement, clarification, or supported next step accompanying a ticket action.
   - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
   - A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
-  - Otherwise recommend `suggest_create_ticket`.
+  - Recommend `suggest_create_ticket` for unresolved support content needing internal work when no verified ticket already tracks it; a useful reply does not remove that need.
   - A related Ticket prevents `suggest_create_ticket` only when its successfully observed content clearly tracks the same concrete work.
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the opening email.
 
@@ -72,13 +74,13 @@ additional_output:
 - Refine a follow-up query only to resolve a stated gap by adding a distinctive symptom, version, affected component, exact error, or configuration term. Do not repeat the same semantic query with superficial wording changes.
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop on sufficient evidence, after two consecutive searches without material gain, at budget exhaustion, or when more search cannot affect the decision.
-- A reply needs a direct answer or strong tracked-case overlap with a usable URL.
+- A substantive answer needs direct evidence; a tracked-case answer needs strong overlap and a usable URL. An accompanying acknowledgement or clarification may use the observed request alone.
 - Never call suggestion tools or undeclared tools, or read records unrelated to the remaining evidence gap.
 
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
-- Return exactly one primary action: `suggest_reply`, `suggest_create_ticket`, `suggest_link_exisitng_ticket`, `suggest_move_to_spam`, or `no_op`.
+- Return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions. For Spam, return only `suggest_move_to_spam`.
 - Place exact search-returned labels next to supported claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.
 - Make `no_op` exclusive and set `skip_handling` to `true` only for it.
@@ -91,10 +93,12 @@ additional_output:
 - Do not call promotional content a notification merely because it has a system sender.
 - Do not expose secrets, contacts, account data, payment details, or full sensitive mail.
 - Do not use weak topical matches as a direct answer.
-- Do not produce more than one primary recommendation.
+- Keep `suggest_move_to_spam` exclusive; do not combine it with a reply or ticket action.
 - Do not explain in `analysis_report` whether event fields are complete, whether a message ID is present, or whether the opening email's currency could be verified.
 
 ## Examples
+- Unresolved defect eligible for a new ticket under this skill's duplicate and independent-problem rules, with an external acknowledgement needed: recommend `[suggest_create_ticket, suggest_reply]`. The reply may acknowledge the reported symptoms or ask for diagnostics.
+- Unlinked external record with a verified existing ticket tracking the same work and an external source needing a response: recommend `[suggest_link_existing_ticket, suggest_reply]` and set `related_ticket` to the verified number.
 - Notification: “Your license expires in 30 days.” Recommend `no_op` without searching.
 - Spam: “Save 50% on upgrades today.” Recommend only `suggest_move_to_spam` without searching.
-- Support request: “Export fails after upgrading to 3.2.” Search issues before choosing reply or ticket.
+- Support request: “Export fails after upgrading to 3.2.” Search issues, then assess reply and ticket handling independently.
