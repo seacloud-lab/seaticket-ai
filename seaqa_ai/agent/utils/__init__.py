@@ -103,6 +103,8 @@ def _validate_skill(skill, event, phase):
         raise ValueError(f'Skill {event}/{phase} tools must be a string array')
     if phase not in ('prelude', 'analysis') and 'get_records' in tool_names:
         raise ValueError(f'Only prelude and analysis skills may use get_records: {event}/{phase}')
+    if phase != 'regeneration' and {'modify_suggestion', 'remove_suggestion'} & set(tool_names):
+        raise ValueError(f'Only regeneration skills may edit or remove suggestions: {event}/{phase}')
 
 def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compact related Ticket changes while retaining their first-seen order."""

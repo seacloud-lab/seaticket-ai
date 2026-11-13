@@ -2,6 +2,7 @@ from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggesti
 
 
 class SuggestReply(BasicAgentSuggestionTool):
+    editable_content_mode = 'text'
     tool = {
         'type': 'function',
         'name': 'suggest_reply',

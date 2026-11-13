@@ -13,6 +13,10 @@ class BasicAgentSuggestionTool(BasicTool):
     action_type = 'suggestion'
     action_status = 'pending'
     suggestion_content = None
+    editable_content_mode = None
+    editable_payload_fields = frozenset()
+    readonly_payload_fields = frozenset()
+    persisted_tool_name = None
 
     @staticmethod
     def _target_from_context(context):

@@ -304,7 +304,6 @@ class AgentPhasePromoter:
     def start_regeneration(
         self,
         user_instruction,
-        previous_drafts=None,
         error_message=None,
         resume_from='regeneration',
     ):
@@ -313,7 +312,7 @@ class AgentPhasePromoter:
             self._start_analysis()
         elif resume_from == 'analysis':
             self._start_analysis()
-        self._start_regeneration(user_instruction, previous_drafts, error_message)
+        self._start_regeneration(user_instruction, error_message)
 
     def _start_prelude(self):
         trigger_identity = _RecordInputFormatter.trigger_record_identity(self.task)
@@ -388,7 +387,7 @@ class AgentPhasePromoter:
             'handling', message_input, records_input,
         )
 
-    def _start_regeneration(self, user_instruction, previous_drafts=None, error_message=None):
+    def _start_regeneration(self, user_instruction, error_message=None):
         analysis_output = self.result.get('analysis', {})
         regeneration_tools = AgentPhaseSpec.get_skill_metadata(
             self.event.event_type, 'regeneration',
@@ -400,15 +399,16 @@ class AgentPhasePromoter:
         message_input['recommended_actions'] = [
             tool_name
             for tool_name in regeneration_tools
-            if isinstance(tool_name, str) and tool_name
+            if isinstance(tool_name, str) and tool_name.startswith('suggest_')
         ]
         if 'skip_handling' in analysis_output:
             # Preserve the original decision as context, without skipping regeneration.
             message_input['skip_handling'] = analysis_output.get('skip_handling')
         message_input['user_instruction'] = str(user_instruction or '').strip()
-        compacted_drafts = self._compact_previous_drafts(previous_drafts)
-        if compacted_drafts:
-            message_input['previous_drafts'] = compacted_drafts
+        drafts = self.context.get('suggestion_drafts')
+        if drafts is None:
+            raise ValueError('Regeneration requires a suggestion draft store')
+        message_input['current_suggestions'] = drafts.snapshot()
         if error_message:
             message_input['error_message'] = str(error_message)
         if analysis_output:
@@ -452,31 +452,6 @@ class AgentPhasePromoter:
             records_input, analysis_output.get('reference_related_records', []),
         )
         return message_input, records_input
-
-    @staticmethod
-    def _compact_previous_drafts(previous_drafts):
-        if not isinstance(previous_drafts, list):
-            return []
-        compacted = []
-        for draft in previous_drafts:
-            if not isinstance(draft, dict):
-                continue
-            payload = draft.get('suggestion_payload')
-            if isinstance(payload, str):
-                try:
-                    payload = json.loads(payload)
-                except (TypeError, ValueError):
-                    payload = {}
-            compacted.append({
-                'tool_name': draft.get('tool_name') or '',
-                'suggestion_content': draft.get('suggestion_content') or '',
-                'suggestion_reason': draft.get('suggestion_reason') or '',
-                'suggestion_payload': payload if isinstance(payload, dict) else {},
-                'target_item_type': draft.get('target_item_type') or '',
-                'target_item_id': draft.get('target_item_id') or '',
-                'target_item_title': draft.get('target_item_title') or '',
-            })
-        return compacted
 
     def _build_default_message_input(self):
         return {

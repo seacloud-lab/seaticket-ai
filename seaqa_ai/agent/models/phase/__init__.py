@@ -69,6 +69,8 @@ class AgentPhaseSpec:
             raise ValueError(
                 f'Only prelude and analysis skills may use get_records: {self.event}/{self.phase}'
             )
+        if self.phase != 'regeneration' and {'modify_suggestion', 'remove_suggestion'} & set(tool_names):
+            raise ValueError('Only regeneration skills may edit or remove suggestions')
         tools_map = get_tools_map()
         unknown_tools = sorted(set(tool_names) - set(tools_map))
         if unknown_tools:
