@@ -25,15 +25,6 @@ _CITABLE_SOURCE_SPECS = {
         'fields': 'thread_id',
         'needs_config': True,
     },
-    'notion': {
-        'table': 'NOTION',
-        'fields': 'page_id',
-    },
-    'confluence': {
-        'table': 'CONFLUENCE',
-        'fields': 'page_id',
-        'needs_config': True,
-    },
 }
 
 _REFERENCE_PATTERN = r'\[Reference {number}\](?!\d)'
@@ -86,17 +77,6 @@ def public_url_for_source(source, record, config):
         if not guild_id or not thread_id:
             return ''
         return f'https://discord.com/channels/{guild_id}/{thread_id}'
-    if source_type == 'notion':
-        page_id = str(record.get('page_id') or '').replace('-', '')
-        if not page_id:
-            return ''
-        return f'https://www.notion.so/{page_id}'
-    if source_type == 'confluence':
-        workspace_url = str(config.get('workspace_url') or '').strip().rstrip('/')
-        page_id = record.get('page_id')
-        if not workspace_url or page_id in (None, ''):
-            return ''
-        return _http_url(f'{workspace_url}/wiki/pages/viewpage.action?pageId={page_id}')
     return ''
 
 
