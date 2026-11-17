@@ -325,6 +325,7 @@ class PortalChatMessages(Base):
     message_id = Column(String(length=4), nullable=True)
     role = Column(String(length=20), nullable=False)
     content = Column(Text, nullable=True)
+    sources = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=True)
     as_context = Column(Boolean, nullable=False, default=True)
@@ -346,3 +347,43 @@ class PortalChatMessages(Base):
             'updated_at': localize_time(self.updated_at).isoformat() if self.updated_at else None,
             'as_context': self.as_context
         }
+
+
+class PortalChatAnalysis(Base):
+    __tablename__ = 'portal_chat_analysis'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    session_uuid = Column(String(length=36), nullable=False)
+    message_id = Column(String(length=4), nullable=False)
+    evaluated_at = Column(DateTime, nullable=True)
+    evaluation = Column(String(length=20), nullable=True)
+    evaluation_reason = Column(Text, nullable=True)
+    normalized_question = Column(Text, nullable=True)
+    gap_suggestion = Column(Text, nullable=True)
+    gap_status = Column(String(length=16), nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('uniq_portal_chat_analysis_turn', 'session_uuid', 'message_id', unique=True),
+        Index('idx_portal_chat_analysis_evaluation', 'evaluation', 'gap_status'),
+    )
+
+    @classmethod
+    def upsert(cls, session, session_uuid, message_id, **fields):
+        analysis = session.query(cls).filter(
+            cls.session_uuid == session_uuid,
+            cls.message_id == message_id,
+        ).first()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if not analysis:
+            analysis = cls(
+                session_uuid=session_uuid,
+                message_id=message_id,
+                created_at=now,
+            )
+            session.add(analysis)
+        for key, value in fields.items():
+            setattr(analysis, key, value)
+        analysis.updated_at = now
+        return analysis
