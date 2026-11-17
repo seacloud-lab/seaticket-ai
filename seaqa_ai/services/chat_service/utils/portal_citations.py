@@ -207,6 +207,8 @@ def _load_connection_configs(db_session_class, project_uuid, connection_ids):
             rows = db_session.query(ProjectConnection.id, ProjectConnection.config).filter(
                 ProjectConnection.project_uuid == _project_uuid_32(project_uuid),
                 ProjectConnection.id.in_(list(connection_ids)),
+                ProjectConnection.deleted == 0,
+                ProjectConnection.is_active == 1,
             ).all()
     except Exception as e:
         logger.warning(f'Failed to load portal citation connection configs: {e}')
