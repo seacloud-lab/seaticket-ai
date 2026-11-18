@@ -47,7 +47,10 @@ class GetRecords(BasicTool):
         'strict': True,
     }
 
-    def execute(self, targets, context, app, tool_executor):
+    DUPLICATE_NOTICE = 'Document was already provided.'
+    SOURCE_LIMIT_NOTICE = 'Document source limit reached.'
+
+    def execute(self, targets, context, app, tool_executor, *, register_source=True):
         if not isinstance(targets, list) or not targets:
             raise ValueError('targets must be a non-empty array')
         cache = tool_executor.cache
@@ -83,13 +86,11 @@ class GetRecords(BasicTool):
             batch = OrderedDict()
             deferred = []
             for index, identity in pending:
-                reference_id = loaded.reference_id(identity, scope)
                 key = loaded.key(**identity)
-                if reference_id is not None:
-                    results[index] = {
-                        'notice': 'Document was already provided.', **identity,
-                        'reference_id': reference_id,
-                    }
+                if loaded.in_scope(identity, scope):
+                    results[index] = self._duplicate_notice(
+                        identity, loaded.reference_id(identity, scope),
+                    )
                 elif key in batch:
                     batch[key]['entries'].append((index, identity))
                 elif loaded.was_reported(identity) or capacity > 0:
@@ -100,7 +101,7 @@ class GetRecords(BasicTool):
                     deferred.append((index, identity))
             if not batch:
                 for index, identity in deferred:
-                    results[index] = {'notice': 'Document source limit reached.', **identity}
+                    results[index] = {'notice': self.SOURCE_LIMIT_NOTICE, **identity}
                 break
             groups = OrderedDict()
             outcomes = {}
@@ -126,19 +127,29 @@ class GetRecords(BasicTool):
                     if error or record is None:
                         results[index] = {'error': error or 'No active record found.', **identity}
                     elif offset:
-                        results[index] = {
-                            'notice': 'Document was already provided.', **identity,
-                            'reference_id': loaded.reference_id(identity, scope),
-                        }
+                        results[index] = self._duplicate_notice(
+                            identity, loaded.reference_id(identity, scope),
+                        )
                     else:
-                        reference_id = self._register_source(cache, identity, record)
+                        reference_id = (
+                            self._register_source(cache, identity, record)
+                            if register_source else None
+                        )
                         loaded.mark_reported(identity, scope, reference_id)
-                        results[index] = {
-                            **record, **identity, 'reference_id': reference_id,
-                            'related_records': retriever.related_records(record),
-                        }
+                        item_result = {**record, **identity}
+                        if reference_id is not None:
+                            item_result['reference_id'] = reference_id
+                        item_result['related_records'] = retriever.related_records(record)
+                        results[index] = item_result
             pending = deferred
         return results
+
+    @classmethod
+    def _duplicate_notice(cls, identity, reference_id=None):
+        notice = {'notice': cls.DUPLICATE_NOTICE, **identity}
+        if reference_id is not None:
+            notice['reference_id'] = reference_id
+        return notice
 
     @staticmethod
     def _register_source(cache, identity, record):

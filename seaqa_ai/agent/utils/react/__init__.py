@@ -240,7 +240,7 @@ class AgentReACT:
             self.memory += record_call
             result = GetRecords().execute(
                 **arguments, app=self.app, context=self.context,
-                tool_executor=self.tool_executor,
+                tool_executor=self.tool_executor, register_source=False,
             )
             log_tool_call_done(
                 record_call['name'], arguments, result, self.context, started_at,
