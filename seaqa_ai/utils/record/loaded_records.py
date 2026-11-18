@@ -37,22 +37,27 @@ class LoadedRecords:
         key = identity_key(identity)
         return key is not None and self.key(*key) in self._records
 
+    def in_scope(self, identity, scope):
+        entry = self._records.get(self.key(**identity))
+        return bool(entry and scope in entry['scopes'])
+
     def reference_id(self, identity, scope):
         entry = self._records.get(self.key(**identity))
         return entry['reference_id'] if entry and scope in entry['scopes'] else None
 
     def was_reported(self, identity):
         entry = self._records.get(self.key(**identity))
-        return entry is not None and entry['reference_id'] is not None
+        return bool(entry and entry['scopes'])
 
     @property
     def reported_count(self):
-        return sum(entry['reference_id'] is not None for entry in self._records.values())
+        return sum(bool(entry['scopes']) for entry in self._records.values())
 
     def mark_reported(self, identity, scope, reference_id=None):
         key = self.key(**identity)
         entry = self._records[key]
-        entry['reference_id'] = reference_id or entry['reference_id'] or key
+        if reference_id is not None:
+            entry['reference_id'] = reference_id
         entry['scopes'].add(scope)
         return entry['reference_id']
 
