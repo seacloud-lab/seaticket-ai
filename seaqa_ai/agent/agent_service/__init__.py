@@ -11,6 +11,8 @@ from seaqa_ai.agent.agent_service.constants import (
 from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter
 from seaqa_ai.utils.record import read_record
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
+from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
+from seaqa_ai.utils.record.reference_pool import ReferencePool
 from seaqa_ai.agent.utils.react.tracer import AgentReACTTracer
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import now_iso
@@ -42,7 +44,9 @@ class AgentService:
 
             loaded_records = LoadedRecords()
             context['loaded_records'] = loaded_records
-            context['sources_results'] = []
+            context['record_observations'] = RecordObservationTracker()
+            context['github_available_labels'] = {}
+            context['reference_pool'] = ReferencePool()
 
             trigger_record = read_record(
                 source_type=task.trigger_event.source_type,

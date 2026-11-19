@@ -265,8 +265,8 @@ def expand_grouped_reference_markers(content):
     return pattern.sub(replacer, content)
 
 def get_referenced_sources(tool_executor, content):
-    """Return only valid search sources cited by the final report."""
-    sources_results = tool_executor.cache.get('sources_results', [])
+    """Return only valid sources from the reference pool cited by the final text."""
+    reference_pool = tool_executor.cache.get('reference_pool') or ()
     content = expand_grouped_reference_markers(content)
     pattern = re.compile(r'\<reference_(\d+)\>')
     seen_indexes = set()
@@ -274,16 +274,16 @@ def get_referenced_sources(tool_executor, content):
 
     for match in pattern.finditer(content):
         source_index = int(match.group(1))
-        if source_index in seen_indexes or source_index >= len(sources_results):
+        if source_index in seen_indexes or source_index >= len(reference_pool):
             continue
-        source = sources_results[source_index]
+        source = reference_pool[source_index]
         if isinstance(source, dict):
             seen_indexes.add(source_index)
             sources.append(source)
     return sources
 
 def get_answer_and_sources(tool_executor, content):
-    sources_results = tool_executor.cache.get('sources_results', [])
+    reference_pool = tool_executor.cache.get('reference_pool') or ()
     content = expand_grouped_reference_markers(content)
 
     # remove redundent <reference_n> and [Reference n] (format error)
@@ -295,13 +295,13 @@ def get_answer_and_sources(tool_executor, content):
     )
     ## remove unexpect references
     pattern = re.compile(r'\<reference_(\d+)\>')
-    replacer = lambda match: match.group(0) if int(match.group(1)) in range(len(sources_results)) else ''
+    replacer = lambda match: match.group(0) if int(match.group(1)) in range(len(reference_pool)) else ''
     content = pattern.sub(replacer, content)
 
     # convert <reference_n> -> [Reference i]
     ## first_position_map -> {first_position: <reference>}
     first_position_map = {}
-    for i in range(len(sources_results)):
+    for i in range(len(reference_pool)):
         position = content.find(f'<reference_{i}>')
         if position != -1:
             first_position_map[position] = f'<reference_{i}>'

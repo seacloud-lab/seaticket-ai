@@ -94,7 +94,7 @@ class RecordRetriever:
     def __init__(self, app, project_uuid, loaded_records, context=None):
         self.app = app
         self.project_uuid = project_uuid
-        self.context = context or {}
+        self.context = context if isinstance(context, dict) else {}
         self.loaded_records = loaded_records
 
     def retrieve(self, targets, allow_missing=False):
@@ -599,7 +599,7 @@ class RecordRetriever:
         return formatted
 
     def _add_github_available_labels(self, connection_id, records_by_id):
-        labels_by_connection = self.loaded_records.github_available_labels
+        labels_by_connection = self.context.setdefault('github_available_labels', {})
         if connection_id in labels_by_connection:
             labels = labels_by_connection[connection_id]
         else:
