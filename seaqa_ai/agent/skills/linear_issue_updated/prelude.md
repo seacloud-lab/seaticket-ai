@@ -8,12 +8,12 @@ tools:
 - Prepare factual context for an event reporting that a linked Linear issue changed to a completed state.
 - **Tracked Tasks are internal Ticket work.** The tracked Task types are General Task, Jira issue, and Linear issue. They are not external reply targets.
 - **Task completion directly proves only the completion reported by the event.** The discoverable tracked Task set is the triggering Task plus every Ticket-linked tracked Task from that Ticket's `linked_connection_records` that was successfully loaded. That set is complete; do not assume additional Tasks exist outside it.
-- Use the available `get_record` observations as related-record context.
+- Use the available `get_records` observations as related-record context.
 - **Do not decide closure, public reply, `no_op`, or live-state validation sufficiency.**
 
 ## Input Contract
-- Read `triggering_event` and `get_record` observations.
-- The routed target is the completed Linear issue. Use only record context available in successful `get_record` observations.
+- Read `triggering_event` and `get_records` observations.
+- The routed target is the completed Linear issue. Use only record context available in successful `get_records` observations.
 - **Loaded records are current phase context, not authoritative live-state validation.**
 - For every successfully loaded Ticket-linked tracked Task, retain its identity and completion status so Analysis can determine:
   - The discoverable total tracked Task count.
@@ -47,7 +47,7 @@ tools:
 - Do not decide whether external targets are available or whether a public update is appropriate.
 
 ## Context Rules
-- **Do not infer or reverse-validate relationships, or make additional `get_record` calls.**
+- **Do not infer or reverse-validate relationships, or make additional `get_records` calls.**
 - Do not derive an identity from task text, URLs, titles, error details, or apparent similarity.
 - Do not infer unobserved Tasks or their statuses.
 - Do not include failed, malformed, unavailable, duplicate, identifier-only, or synthetic entries.

@@ -16,12 +16,12 @@ additional_output:
 - It cannot inspect tasks, linked records, or external discussions to decide those outcomes.
 
 ## Input Contract
-- Use only the successful passive ticket observation, task-finished event, `event_summary`, successful `get_record` observations, and system-provided facts.
+- Use only the successful passive ticket observation, task-finished event, `event_summary`, successful `get_records` observations, and system-provided facts.
 - The event proves its reported task completion.
 - The discoverable tracked Task set is the triggering Task plus every Ticket-linked tracked Task from that Ticket's `linked_connection_records` that was successfully loaded. Treat that set as complete. Do not assume additional Tasks exist outside it.
 - Treat a General Task as completed when its `status` is `done`. Treat a Jira issue as completed when its `status_category` is `done`. Treat a Linear issue as completed when its `state_type` is `completed` or `canceled`, or when its `closed_time` is set. The event's `status_category` / `state_type` fields are authoritative for the triggering record; sibling records carry the same fields in SeaDB.
 - Use successfully loaded Ticket and related-record observations as the available event context.
-- External reply targets are GitHub issues, Discourse topics, email threads, Discord threads, and portal issues whose successful `get_record` observations show `linked_ticket` pointing back to the Ticket. Do not select General Task, Jira issue, or Linear issue records in `reply_targets`.
+- External reply targets are GitHub issues, Discourse topics, email threads, Discord threads, and portal issues whose successful `get_records` observations show `linked_ticket` pointing back to the Ticket. Do not select General Task, Jira issue, or Linear issue records in `reply_targets`.
 - A listed Ticket-linked tracked Task that failed to load makes the Task set incomplete. An empty sibling list does not.
 
 ## Required Steps
@@ -32,7 +32,7 @@ additional_output:
    - One discoverable tracked Task that is done establishes that all discoverable Task work is complete.
    - Multiple Tasks require every discoverable Task to be done.
    - Do not treat an external record's lifecycle state as unfinished internal work.
-5. Independently determine which external targets identified by successful `get_record` observations should be selected in `reply_targets`, and whether a public completion or ready-for-verification update is appropriate. Exclude tracked Tasks from those targets.
+5. Independently determine which external targets identified by successful `get_records` observations should be selected in `reply_targets`, and whether a public completion or ready-for-verification update is appropriate. Exclude tracked Tasks from those targets.
 7. For an already closed ticket, prohibit closure and assess only independently justified reply or `no_op`.
 8. Select only allowed actions and explain closure and reply decisions separately.
 
@@ -64,7 +64,7 @@ additional_output:
 - Use only `suggest_close_ticket`, `suggest_reply_external_targets`, and `no_op` in `recommended_actions`.
 - Make `no_op` the sole action whenever selected.
 - In `analysis_report`, distinguish task-event evidence from Ticket-centered record context.
-- State ticket state, remaining-work conclusion, and the availability of non-task external targets identified by successful `get_record` observations.
+- State ticket state, remaining-work conclusion, and the availability of non-task external targets identified by successful `get_records` observations.
 - Explain why each closure or reply action is selected or withheld.
 - Set `skip_handling: true` exactly for `no_op`. Do not return record identities, `reference_related_records`, or a separate reference-label list.
 

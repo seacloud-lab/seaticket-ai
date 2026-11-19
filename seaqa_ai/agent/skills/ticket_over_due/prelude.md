@@ -16,11 +16,11 @@ tools:
 - The ticket may contain state, substate, title, priority, due date, assignees, and link identities.
 - Treat missing fields as unknown rather than proof of resolution or ownership.
 - Do not treat a stored link as permission to inspect its source content.
-- If the successful passive `get_record` observation for the supplied target ticket is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
+- If the successful passive `get_records` observation for the supplied target ticket is unavailable and its record data is materially needed, use `get_records` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Verify the event and routed ticket identity are present and usable.
-2. Use the successful passive `get_record` observation for the routed ticket:
+2. Use the successful passive `get_records` observation for the routed ticket:
    - If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve the supplied overdue trigger separately from the ticket due-date field without repeating scanner timing or the event trigger time in `event_summary`.
 4. Capture factual title, state, substate, priority, due date, and assignee presence.
@@ -38,7 +38,7 @@ tools:
 - Use the ticket observation only as context for this phase; do not represent it as a live-state validation.
 
 ## Tool Rules
-- Use the successful passive observation of the routed ticket when available. If it is unavailable and target data is materially needed, `get_record` may load only the same supplied target identity.
+- Use the successful passive observation of the routed ticket when available. If it is unavailable and target data is materially needed, `get_records` may load only the same supplied target identity.
 - Never read linked tasks, issues, messages, discussions, or external records.
 - Never use a link identity to make a second read.
 - Do not search for owners, activity, notification history, or related work.

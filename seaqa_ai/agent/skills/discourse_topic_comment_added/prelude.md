@@ -10,14 +10,14 @@ tools:
 - **No research or action selection is permitted.**
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and `get_record` observations.
-- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
-- **Use only record context available in successful `get_record` observations.**
+- Read `triggering_event.event.new_value` and `get_records` observations.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_records.content.latest_comment`.
+- **Use only record context available in successful `get_records` observations.**
 - Missing new-comment content or parent identity is a material gap.
 
 ## Required Steps
 1. Confirm the parent topic and new comment are usable.
-2. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ. State that the topic has a later comment and summarize both the event comment and the current latest comment.
+2. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `get_records.content.latest_comment.post_number` are both present and differ. State that the topic has a later comment and summarize both the event comment and the current latest comment.
 3. If either post number is unavailable, state that whether the event comment is still current cannot be verified. Summarize the available event comment and current latest comment factually without calling the event comment stale.
 4. Keep the event comment primary as the original trigger. When it is stale, do not present it as the current latest request.
 5. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent topic first.
@@ -29,7 +29,7 @@ tools:
 - Markdown links, prose, URLs, and authors cannot identify a related record.
 
 ## Context Rules
-- **Do not infer or reverse-validate relationships, or make additional `get_record` calls.**
+- **Do not infer or reverse-validate relationships, or make additional `get_records` calls.**
 - Do not derive an identity from prose, URLs, authors, titles, error details, or apparent similarity.
 
 ## Required Output

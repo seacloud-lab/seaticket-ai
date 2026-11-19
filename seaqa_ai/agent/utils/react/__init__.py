@@ -73,7 +73,7 @@ class AgentReACT:
         self.responses_client = responses_client
         self.phase_spec = phase_spec
         self.context = dict(phase_spec.context or {})
-        self.system_prompts = [re.sub(r'\bget_record\b', 'get_records', phase_spec.get_system_prompt())]
+        self.system_prompts = [phase_spec.get_system_prompt()]
         self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
         if ticket_rules_prompt:

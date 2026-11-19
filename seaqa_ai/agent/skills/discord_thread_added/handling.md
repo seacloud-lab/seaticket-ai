@@ -12,7 +12,7 @@ tools:
 - Handling turns each action selected by Analysis into a pending proposal.
 
 ## Input Contract
-- Use only the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
+- Use only the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - `recommended_actions` limits every allowed tool call.
 - The current unresolved request selected by Analysis remains the reply or ticket subject.
 
@@ -35,7 +35,7 @@ tools:
 
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket` are permitted.
-- Do not call `get_record`, search, or undeclared tools.
+- Do not call `get_records`, search, or undeclared tools.
 - Use only an action explicitly present in `recommended_actions`.
 
 ## Required Output

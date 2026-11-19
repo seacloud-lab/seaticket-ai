@@ -15,7 +15,7 @@ The phase input contains:
 </input_context>
 
 <record_context>
-The framework provides the triggering record, Prelude-selected related records, and any records related to the Analysis report as successful `get_record` observations before this phase begins.
+The framework provides the triggering record, Prelude-selected related records, and any records related to the Analysis report as successful `get_records` observations before this phase begins.
 
 The presence or absence of related record observations does not alter the triggering event subject or authorize an action by itself.
 
@@ -40,10 +40,10 @@ After any tool error:
 1. **Follow the injected skill exactly.** It is authoritative for the event-specific regeneration workflow, required and optional actions, allowed tools, tool order, action vocabulary, content requirements, and additional required fields.
 2. **Follow `user_instruction` over Analysis's original `skip_handling` and `recommended_actions`.** The user may request suggestions even when Analysis skipped handling, and may request an allowed action that Analysis did not originally select.
 3. Apply only handling actions supported by the completed analysis, injected records, tool observations, and the user instruction. Do not invent evidence, record details, URLs, reference labels, recipients, classifications, or tool results.
-4. **Do not actively load, discover, add, or follow records.** Use only successful `get_record` observations, the authorized phase input, and system-provided action target identities.
+4. **Do not actively load, discover, add, or follow records.** Use only successful `get_records` observations, the authorized phase input, and system-provided action target identities.
 5. Execute or prepare suggestion tool calls only as directed by the injected skill and the user instruction. Respect the skill's action dependencies, mutual exclusions, and ordering requirements.
 6. **Do not perform an action that the skill does not allow** or that is unsupported by available evidence. Report the reason instead.
-7. Do not refer to record content for an identity whose `get_record` read failed. Report the record as unavailable only when that limitation materially affects the regeneration decision.
+7. Do not refer to record content for an identity whose `get_records` read failed. Report the record as unavailable only when that limitation materially affects the regeneration decision.
 </responsibilities>
 
 <decision_rules>

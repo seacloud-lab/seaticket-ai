@@ -15,16 +15,16 @@ tools:
 ## Input Contract
 - Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - Use task-event and passive-observation facts only to phrase a requested action; do not reassess completion from live data.
-- Use only external record identities from successful `get_record` observations when selecting `reply_targets` for the declared external-reply suggestion tool.
+- Use only external record identities from successful `get_records` observations when selecting `reply_targets` for the declared external-reply suggestion tool.
 - External reply targets are GitHub issues, Discourse topics, email threads, Discord threads, and portal issues. Do not select General Task, Jira issue, or Linear issue records in `reply_targets`.
-- Do not inspect, invent, add, or replace target identities beyond successful `get_record` observations. Any Ticket target must have a successful `get_record` observation.
+- Do not inspect, invent, add, or replace target identities beyond successful `get_records` observations. Any Ticket target must have a successful `get_records` observation.
 
 ## Required Steps
 1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
 2. When the user wants no action, make no tool call and report the intentional omission.
 3. For requested `suggest_close_ticket`:
    - Call once.
-   - Use the Ticket identity from a successful `get_record` observation.
+   - Use the Ticket identity from a successful `get_records` observation.
    - Provide a non-empty resolution reason.
    - Include a rule only when Analysis or the user instruction supplied it.
    - Use only a Ticket successfully loaded into the framework record cache.
@@ -32,9 +32,9 @@ tools:
    - Call once.
    - Use a concise, friendly, safe non-empty reply.
    - Provide a non-empty reason.
-   - Use intended non-task external record identities from successful `get_record` observations in `reply_targets`.
+   - Use intended non-task external record identities from successful `get_records` observations in `reply_targets`.
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
-   - When `user_instruction` explicitly asks for a link, include a public link that already appears in a successful `get_record` observation of the task (for example, a pull request URL in a public repository). Copy it verbatim; never construct, guess, or complete a URL. If no such link is present, omit it and state that in the report.
+   - When `user_instruction` explicitly asks for a link, include a public link that already appears in a successful `get_records` observation of the task (for example, a pull request URL in a public repository). Copy it verbatim; never construct, guess, or complete a URL. If no such link is present, omit it and state that in the report.
 5. Say work is complete or ready for verification only when Analysis or the user instruction explicitly supports that wording.
 6. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
 7. Record pending-suggestion outcomes and stop after the selected attempts.
@@ -50,7 +50,7 @@ tools:
   - Report that failed attempt.
   - Stop.
   - Do not discover targets.
-  - Do not infer a recipient beyond successful `get_record` observations.
+  - Do not infer a recipient beyond successful `get_records` observations.
   - Do not retry.
   - Do not substitute closure.
 - Do not retry a failure, request revalidation, or create a new action.
@@ -67,7 +67,7 @@ tools:
 ## Required Output
 - Identify requested actions, pending suggestions actually created, and intentional omissions.
 - For closure, identify it only as a pending suggestion.
-- For reply, note that successful `get_record` observations constrain the pending suggestion targets, and that tracked Tasks are not valid reply targets.
+- For reply, note that successful `get_records` observations constrain the pending suggestion targets, and that tracked Tasks are not valid reply targets.
 - For a failure, report only the selected attempt and concise returned result.
 - After all selected attempts, immediately return the report and make no further tool call.
 - Do not claim a ticket closed, an external reply was sent, or a recipient was contacted.

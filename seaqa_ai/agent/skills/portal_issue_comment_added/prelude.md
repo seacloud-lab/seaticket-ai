@@ -9,9 +9,9 @@ tools:
 - The new external comment is the event subject; the parent issue and a verified linked Ticket are context only.
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and successful `get_record` observations.
+- Read `triggering_event.event.new_value` and successful `get_records` observations.
 - The event comment is authoritative for the trigger.
-- The current latest comment is `get_record.content.latest_comment`.
+- The current latest comment is `get_records.content.latest_comment`.
 
 ## Required Steps
 1. Confirm the event identifies a usable parent issue and comment.

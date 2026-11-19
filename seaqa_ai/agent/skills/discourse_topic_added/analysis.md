@@ -22,18 +22,18 @@ additional_output:
 - Discourse topics have no GitHub issue-type field.
 
 ## Input Contract
-- Use only `triggering_event`, `event_summary`, successful `get_record` tool observations, and this phase's search observations.
+- Use only `triggering_event`, `event_summary`, successful `get_records` tool observations, and this phase's search observations.
 - The event opening post is `triggering_event.event.new_value`: its `post_number`, `author`, `content`, and `modified_time`. The topic title is `triggering_event.event.new_value.title`.
-- The current latest comment is `get_record.content.latest_comment`. Earlier comments, oldest first and excluding the latest, are in `get_record.content.history_comments`.
+- The current latest comment is `get_records.content.latest_comment`. Earlier comments, oldest first and excluding the latest, are in `get_records.content.history_comments`.
 - The earliest available comment is the first `history_comments` entry that has both a `post_number` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not a comment. When no real earlier comment remains, the earliest available comment is `latest_comment`.
 - Treat the event opening post as the primary topic content. When it is unavailable, treat the earliest available comment as the primary topic content.
 - Use the topic's resolved state as context, not as a shortcut to an action.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
-1. Confirm the topic is usable from `triggering_event`, `event_summary`, and successful `get_record` tool observations.
-2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable topic with at least one usable comment, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening post alone does not make the topic unusable.
-3. Read the title and the event opening post. Treat the event opening post as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ. When stale, explain that the topic has a later comment.
+1. Confirm the topic is usable from `triggering_event`, `event_summary`, and successful `get_records` tool observations.
+2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable topic with at least one usable comment, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening post alone does not make the topic unusable.
+3. Read the title and the event opening post. Treat the event opening post as stale only when `triggering_event.event.new_value.post_number` and `get_records.content.latest_comment.post_number` are both present and differ. When stale, explain that the topic has a later comment.
 4. If the event opening post is unavailable, or either post number is unavailable, do not infer that the event opening post is stale from the current latest comment, content, author, or timestamps. Analyze the primary topic content under the normal rules. Do not state that currency cannot be verified or that a post number is missing.
 5. If the event opening post is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 6. If the event opening post is stale and the current latest comment still contains an unresolved request, analyze the current latest comment. Do not produce a reply to the event opening post.
@@ -51,12 +51,12 @@ additional_output:
 - **A resolved Discourse topic is not automatically `no_op`** and does not remove the need to analyze the opening post.
 - A tracked-case reply requires strong matching symptoms, request, or root problem and a usable URL.
 - A direct answer must address the topic's concrete question; thematic similarity is insufficient.
-- Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
-- A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
+- Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_records` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
+- A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_records`; it is never sufficient evidence by itself.
 - An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers the topic.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_record` are permitted.
+- Only `issues_search`, `documents_search`, and `get_records` are permitted.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Start with the search tool selected from the concrete request.
 - Use the other search tool only when the first leaves material decision uncertainty that the other tool can resolve.
