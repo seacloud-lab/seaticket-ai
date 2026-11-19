@@ -7,23 +7,24 @@ tools:
   - suggest_link_existing_ticket
 ====================
 <!-- Derived from handling.md. Keep tools and event-specific constraints in sync. -->
+
 ## Role And Scope
 - Create the pending suggestion requested by the user for the current unresolved request in a Discord thread.
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 - Regeneration turns the requested action into a proposal and nothing more.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `current_suggestions`, and declared Analysis fields.
 - `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - The current unresolved request remains the reply or ticket subject.
 
 ## Required Steps
-1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
+1. Read `user_instruction` first, then Analysis context and any `current_suggestions`.
 2. Create suggestions requested by the user:
     - For an evidence-supported reply, call `suggest_reply` with a non-empty reply and reason that address the current unresolved request. Include only selected supporting URLs.
     - For an unresolved report or request, call `suggest_create_ticket` with a non-empty reason that preserves user facts and uncertainty.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
-3. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
+3. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.
 4. Record each selected action and its actual outcome, omission, or failure in the report.
 
 ## Decision Rules
@@ -34,7 +35,7 @@ tools:
 - Suggestion creation is pending work, not publication or resolution.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket` are permitted.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
 - Do not call `get_record`, search, or undeclared tools.
 - Use only an action allowed by this skill and requested by the user instruction.
 

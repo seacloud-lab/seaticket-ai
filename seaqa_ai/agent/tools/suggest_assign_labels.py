@@ -1,7 +1,9 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils.suggestion_validation import validate_labels
 
 
 class SuggestAssignLabels(BasicAgentSuggestionTool):
+    editable_payload_fields = frozenset({'suggested_labels'})
     tool = {
         'type': 'function',
         'name': 'suggest_assign_labels',
@@ -19,15 +21,10 @@ class SuggestAssignLabels(BasicAgentSuggestionTool):
     }
 
     def execute(self, suggested_labels, reason, context=None):
-        labels = [str(label).strip() for label in suggested_labels if str(label).strip()]
-        if not labels or not str(reason or '').strip():
+        if not str(reason or '').strip():
             raise ValueError('suggested_labels and reason must not be empty')
         available = (context or {}).get('trigger_record', {}).get('available_labels')
-        if not isinstance(available, list) or not available:
-            raise ValueError('available_labels must be available to suggest labels')
-        available_normalized = {str(label).casefold() for label in available}
-        if any(label.casefold() not in available_normalized for label in labels):
-            raise ValueError('suggested_labels must be selected from available_labels')
+        labels = validate_labels(suggested_labels, available)
         return self.suggestion_result(
             context=context,
             targets=[self._target_from_trigger_context(context)],

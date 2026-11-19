@@ -8,19 +8,20 @@ tools:
   - suggest_notify_assignee
 ====================
 <!-- Derived from handling.md. Keep tools and event-specific constraints in sync. -->
+
 ## Role And Scope
 - Create pending suggestions for a Discourse comment according to the user's instruction.
 - The reply or ticket must concern the current unresolved comment, not a generic topic summary or a stale trigger.
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, `user_instruction`, `current_suggestions`, and declared Analysis fields.
 - Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - Use parent-topic content only to preserve the selected context.
 - The user may request suggestions even when Analysis selected `no_op` or skipped handling.
 
 ## Required Steps
-1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
+1. Read `user_instruction` first, then Analysis context and any `current_suggestions`.
 2. Create suggestions needed to satisfy the user instruction, using only permitted tools:
     - For a reply, call `suggest_reply`. It targets the triggering Discourse topic and uses a non-empty reply and reason directly addressing the current unresolved comment, not a parent-topic recap. Include only evidence-supported URLs.
     - For an independent problem, call `suggest_create_ticket`. It targets the triggering Discourse topic and uses a non-empty reason limited to that problem.
@@ -31,7 +32,7 @@ tools:
      - `source_type: "ticket"`
      - `connection_id: null`
      - Its `record_id`
-4. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
+4. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.
 5. Record each action, omission, or failure in the report.
 
 ## Decision Rules
@@ -44,7 +45,7 @@ tools:
 - A pending suggestion is not a posted comment or created ticket.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
 - Do not call `get_record`, search, or undeclared tools.
 - Call only tools allowed by this skill and requested by the user instruction.
 - Do not modify topic category, status, tags, or author data.

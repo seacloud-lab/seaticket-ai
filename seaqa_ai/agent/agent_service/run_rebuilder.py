@@ -7,10 +7,12 @@ from uuid import uuid4
 
 from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter, _RecordInputFormatter
 from seaqa_ai.agent.models import AgentEvent, AgentTask
+from seaqa_ai.agent.models.phase import AgentPhaseSpec
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
 from seaqa_ai.utils.record import read_record
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.identity import identity_key
+from seaqa_ai.agent.utils.suggestion_drafts import SuggestionDraftStore
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.utils import parse_datetime, parse_json, uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ConnectionType
@@ -29,6 +31,8 @@ def regenerate_agent_suggestions(
     phase_actions,
     user_instruction,
     previous_drafts=None,
+    original_suggestions=None,
+    removed_suggestion_ids=None,
 ):
     """Rebuild context from a persisted run and generate suggestion drafts."""
     from seaqa_ai.agent.agent_service import AgentService
@@ -60,6 +64,16 @@ def regenerate_agent_suggestions(
     context.update(trace_context)
     _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records)
     context['run_id'] = run.get('_pk') or run.get('id')
+    regeneration_tools = AgentPhaseSpec.get_skill_metadata(
+        task.trigger_event.event_type, 'regeneration',
+    ).get('tools', [])
+    drafts = SuggestionDraftStore(
+        original_suggestions,
+        previous_drafts,
+        removed_suggestion_ids,
+        allowed_tools=regeneration_tools,
+    )
+    context['suggestion_drafts'] = drafts
 
     promoter = AgentPhasePromoter(
         app,
@@ -77,16 +91,13 @@ def regenerate_agent_suggestions(
     promoter.result.update(phase_outputs)
     promoter.start_regeneration(
         user_instruction,
-        previous_drafts,
         error_message=run.get('error_message') or None,
         resume_from=_resume_from(phase_outputs),
     )
     return {
-        'suggestions': [
-            _serialize_draft_suggestion(row)
-            for row in tracer
-            if row.get('action_type') == 'suggestion'
-        ],
+        'suggestions': drafts.snapshot(),
+        'removed_suggestion_ids': drafts.removed_ids(),
+        'regeneration_report': promoter.result.get('regeneration') or '',
     }
 
 
@@ -285,22 +296,3 @@ def _build_agent_project_context(app, project):
                 if types else []
             )
     return project
-
-
-def _serialize_draft_suggestion(row):
-    payload = row.get('suggestion_payload')
-    parsed_payload = parse_json(payload)
-    if not isinstance(parsed_payload, dict):
-        parsed_payload = {}
-    return {
-        'tool_name': row.get('tool_name') or '',
-        'status': row.get('status') or 'pending',
-        'suggestion_reason': row.get('suggestion_reason') or '',
-        'suggestion_content': row.get('suggestion_content') or '',
-        'suggestion_payload': parsed_payload,
-        'target_item_type': row.get('target_item_type') or '',
-        'target_item_id': row.get('target_item_id') or '',
-        'target_item_title': row.get('target_item_title') or '',
-        'action_type': 'suggestion',
-        'phase': row.get('phase') or 'regeneration',
-    }

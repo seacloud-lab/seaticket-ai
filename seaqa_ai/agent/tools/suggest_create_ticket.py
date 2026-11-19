@@ -5,6 +5,7 @@ from seaqa_ai.utils.constants import AIScenario
 
 
 class SuggestCreateTicket(BasicAgentSuggestionTool):
+    editable_content_mode = 'ticket_json'
     tool = {
         'type': 'function',
         'name': 'suggest_create_ticket',

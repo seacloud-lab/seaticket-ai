@@ -1,7 +1,10 @@
 from seaqa_ai.agent.tools._basic_agent_suggestion_tool import BasicAgentSuggestionTool
+from seaqa_ai.agent.utils.suggestion_validation import validate_issue_type
 
 
 class SuggestModifyType(BasicAgentSuggestionTool):
+    editable_payload_fields = frozenset({'suggested_type'})
+    readonly_payload_fields = frozenset({'current_issue_type'})
     tool = {
         'type': 'function',
         'name': 'suggest_modify_type',
@@ -23,12 +26,14 @@ class SuggestModifyType(BasicAgentSuggestionTool):
         if not str(reason or '').strip():
             raise ValueError('reason must not be empty')
         current = str(current_issue_type or '').strip()
+        suggested_type = str(suggested_type or '').strip()
+        validate_issue_type(suggested_type)
         return self.suggestion_result(
             context=context,
             targets=[self._target_from_trigger_context(context)],
             suggestion_reason=reason,
             suggestion_payload={
                 'current_issue_type': current,
-                'suggested_type': str(suggested_type or '').strip(),
+                'suggested_type': suggested_type,
             },
         )

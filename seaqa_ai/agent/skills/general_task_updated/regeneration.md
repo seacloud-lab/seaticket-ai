@@ -6,6 +6,7 @@ tools:
   - suggest_reply_external_targets
 ====================
 <!-- Derived from handling.md. Keep tools and event-specific constraints in sync. -->
+
 ## Role And Scope
 - Create only pending closure and external-reply suggestions requested by the user.
 - Regeneration must never independently decide that task completion resolves the ticket without user or Analysis support.
@@ -20,7 +21,7 @@ tools:
 - Do not inspect, invent, add, or replace target identities beyond successful `get_record` observations. Any Ticket target must have a successful `get_record` observation.
 
 ## Required Steps
-1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
+1. Read `user_instruction` first, then Analysis context and any `current_suggestions`.
 2. When the user wants no action, make no tool call and report the intentional omission.
 3. For requested `suggest_close_ticket`:
    - Call once.
@@ -36,7 +37,7 @@ tools:
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
    - When `user_instruction` explicitly asks for a link, include a public link that already appears in a successful `get_record` observation of the task (for example, a pull request URL in a public repository). Copy it verbatim; never construct, guess, or complete a URL. If no such link is present, omit it and state that in the report.
 5. Say work is complete or ready for verification only when Analysis or the user instruction explicitly supports that wording.
-6. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
+6. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.
 7. Record pending-suggestion outcomes and stop after the selected attempts.
 
 ## Decision Rules
@@ -57,7 +58,7 @@ tools:
 - An external reply may notify users that work is complete or ready for verification alongside a close suggestion; it does not make external verification or closure a prerequisite for the Ticket-close suggestion.
 
 ## Tool Rules
-- Only `suggest_close_ticket` and `suggest_reply_external_targets` may be used.
+- Permitted tools: `suggest_close_ticket` and `suggest_reply_external_targets`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
 - Do not read, search, browse, refresh, validate, or inspect any record or task.
 - Do not use a system live-state validation tool.
 - Do not call undeclared communication, recipient-discovery, or status tools.

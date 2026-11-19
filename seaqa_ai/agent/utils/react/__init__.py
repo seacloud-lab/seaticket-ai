@@ -140,6 +140,14 @@ class AgentReACT:
 
         self._inject_records_input()
 
+        if self.phase_spec.phase == 'regeneration':
+            drafts = self.context.get('suggestion_drafts')
+            if drafts is None:
+                raise ValueError('Regeneration requires a suggestion draft store')
+            # Related records are loaded by _inject_records_input above; validate
+            # client-supplied drafts from earlier turns against them now.
+            drafts.validate_previous_drafts(self.context)
+
         self._inject_skill_input()
 
         self._inject_extra_skills_prompt()
@@ -434,6 +442,15 @@ class AgentReACT:
                     raw_result = self.tool_executor.execute(
                         tool_call, log_fields={**self._tool_log_fields(step), 'retry': retry or None},
                     )
+                    suggestion_targets = self._get_suggestion_targets(raw_result)
+                    if suggestion_targets is not None and self.phase_spec.phase == 'regeneration':
+                        drafts = self.context.get('suggestion_drafts')
+                        if drafts is None:
+                            raise ValueError('Regeneration requires a suggestion draft store')
+                        raw_result = dict(raw_result)
+                        raw_result['suggestions'] = drafts.add_result(
+                            tool_name, raw_result, suggestion_targets,
+                        )
                     observation = self._format_observation(raw_result)
                     tool_token_usage = self.tool_executor.pop_token_usage()
                     statistics = self._statistics(
@@ -442,7 +459,6 @@ class AgentReACT:
                         response_retries + retries,
                         tool_token_usage,
                     )
-                    suggestion_targets = self._get_suggestion_targets(raw_result)
                     if suggestion_targets is None:
                         self._trace(
                             action_type='tool_call', action_status='completed', step=step,

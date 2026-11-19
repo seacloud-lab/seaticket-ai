@@ -8,6 +8,7 @@ tools:
   - suggest_move_to_spam
 ====================
 <!-- Derived from handling.md. Keep tools and event-specific constraints in sync. -->
+
 ## Role And Scope
 - Create pending email-thread suggestions for the current unresolved request according to the user's instruction.
 - Preserve the distinction between Spam and Notification unless the user explicitly asks to change that triage.
@@ -15,19 +16,19 @@ tools:
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `current_suggestions`, and declared Analysis fields.
 - Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - Do not invent sender intent, transactional status, or support content.
 
 ## Required Steps
-1. Read `user_instruction` first, then Analysis triage and any `previous_drafts`.
+1. Read `user_instruction` first, then Analysis triage and any `current_suggestions`.
 2. Create the suggestions requested by the user, using only permitted tools:
     - When the user wants no action, make no tool call and state why.
     - When the user selects spam handling, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its triage basis.
     - For a reply, call `suggest_reply` with a non-empty courteous reply, grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs.
     - For a ticket, call `suggest_create_ticket` with a non-empty reason that preserves unresolved reported facts and uncertainty.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
-3. When `previous_drafts` is present, adjust those drafts unless the instruction asks for a full rewrite.
+3. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.
 4. Record each attempted call and actual outcome in the report.
 
 ## Decision Rules
@@ -41,7 +42,7 @@ tools:
 - Successful suggestion creation is not delivery, a mailbox move, or a sent email.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
 - Never call `get_record`, search, or undeclared tools.
 - Invoke only a tool allowed by this skill and requested by the user instruction.
 - Do not use tools to send email, alter payment data, or modify account security state.
