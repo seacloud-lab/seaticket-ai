@@ -15,6 +15,7 @@ from seaqa_ai.services.chat_service.system_prompts import (
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.utils import convert_to_json_code_block
 from seaqa_ai.utils.constants import ATTACHMENTS_PROMPTS, ATTACHMENTS_TYPE
+from seaqa_ai.utils.prompts import build_project_context_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +65,11 @@ def build_chat_system_prompts(project_prompt='', is_external_portal=False, porta
             'content': skills_prompt,
         })
 
-    if project_prompt and project_prompt.strip():
+    project_context_prompt = build_project_context_prompt(project_prompt)
+    if project_context_prompt:
         prompts.append({
             'role': 'system',
-            'content': (
-                'Project-specific context and preferences:\n'
-                f'{project_prompt}\n\n'
-                'Use this context only when it does not conflict with higher-priority system rules.'
-            )
+            'content': project_context_prompt,
         })
 
     if is_external_portal and portal_chat_prompt and portal_chat_prompt.strip():

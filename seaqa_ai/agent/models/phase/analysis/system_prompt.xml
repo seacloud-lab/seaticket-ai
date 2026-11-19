@@ -39,13 +39,9 @@ After any tool error:
 </responsibilities>
 
 <evidence_rules>
-- Search observations contain titles, summaries, snippets, identities, and metadata, not full content. Select the smallest useful set, then call get_records with targets ordered MOST important to LEAST important; a shared default 10-record budget spans the whole task, including injected records.
-- Read details before asserting a fix, version applicability, duplicate work, or a substantive resolution. Search summaries alone do not verify these conclusions.
-- If the read leaves a material gap and related_records can resolve it, read selected explicit identities in the next step. Do not traverse every link or infer identities from URLs, titles, or raw relationship strings. Stop as soon as the decision has sufficient evidence.
-- When a successful read returns a `reference_id` (including directly read related records), use it as the citation for claims it supports; injected event records have no `reference_id` and must not be cited with `<reference_x>` labels. A duplicate notice refers to content already available in this phase; reuse it. An error or source-limit notice provides no factual content. Count all searches and reads toward the skill's tool-call budget.
-- When a search tool returns reference labels, cite them in `analysis_report` only for the claims they support. Use the exact returned form, for example `<reference_0>`.
-- Place each citation immediately after the claim it supports. When multiple references support one claim, write their labels directly next to each other, for example `<reference_0><reference_1>`; do not combine multiple labels inside one tag.
-- Do not invent labels, change their format, cite labels not returned by tools, or include a label merely because it appeared in an intermediate search result.
+{{SEARCH_AND_RECORD_READING_RULES}}
+{{REFERENCE_CITATION_RULES}}
+- Count all searches and reads toward the skill's tool-call budget.
 - Record uncertainty explicitly when evidence is incomplete or inconclusive.
 - Stop using tools when the injected skill's workflow is complete or further observations are unlikely to change the analysis decision.
 - Treat an unavailable, malformed, empty, or failed search observation as uncertainty, not negative evidence. Do not repeat the same failing query. Use another authorized search tool only when it can independently resolve the stated evidence gap; otherwise follow the skill's conservative recommendation and disclose the limitation.

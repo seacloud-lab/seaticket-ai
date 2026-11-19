@@ -2,6 +2,10 @@ from pathlib import Path
 from typing import ClassVar
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
+from seaqa_ai.utils.prompts import (
+    REFERENCE_CITATION_RULES,
+    SEARCH_AND_RECORD_READING_RULES,
+)
 
 
 class AnalysisPhaseSpec(AgentPhaseSpec):
@@ -57,4 +61,9 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
 
     @classmethod
     def get_system_prompt(cls) -> str:
-        return (Path(__file__).with_name('system_prompt.xml')).read_text(encoding='utf-8')
+        template = (Path(__file__).with_name('system_prompt.xml')).read_text(encoding='utf-8')
+        return (
+            template
+            .replace('{{SEARCH_AND_RECORD_READING_RULES}}', SEARCH_AND_RECORD_READING_RULES)
+            .replace('{{REFERENCE_CITATION_RULES}}', REFERENCE_CITATION_RULES)
+        )

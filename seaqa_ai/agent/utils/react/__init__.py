@@ -23,6 +23,10 @@ from seaqa_ai.utils.constants import LLMCallPurpose
 from seaqa_ai.utils.llm_api import ResponsesResult
 from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.memory import OpenAIMemory
+from seaqa_ai.utils.prompts import (
+    GET_RECORDS_OBSERVATION_CONTRACT,
+    build_project_context_prompt,
+)
 from seaqa_ai.utils.tools import (
     BasicTool,
     InvalidToolArgumentsException,
@@ -70,22 +74,13 @@ class AgentReACT:
         self.phase_spec = phase_spec
         self.context = dict(phase_spec.context or {})
         self.system_prompts = [re.sub(r'\bget_record\b', 'get_records', phase_spec.get_system_prompt())]
-        self.system_prompts.append(
-            'get_records accepts {"targets": [record identities]}. Its observation is an array; '
-            'each item is a successful record, an error, or a notice. Only successful record '
-            'items are evidence. Read content/latest_comment/latest_message/latest_email from '
-            'the matching successful item, not from the array itself. A duplicate notice refers '
-            'to a record already provided in this phase. A source-limit notice provides no content.'
-        )
+        self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
         if ticket_rules_prompt:
             self.system_prompts.append(ticket_rules_prompt)
-        if project_prompt and project_prompt.strip():
-            self.system_prompts.append(
-                '<project_context>\n'
-                f'{sanitize_project_prompt(project_prompt)}\n'
-                '</project_context>'
-            )
+        project_context_prompt = build_project_context_prompt(project_prompt)
+        if project_context_prompt:
+            self.system_prompts.append(project_context_prompt)
         language_instruction = self._build_language_instruction(self.context.get('target_language'))
         if language_instruction:
             self.system_prompts.append(language_instruction)
