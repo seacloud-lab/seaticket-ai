@@ -55,7 +55,7 @@ class SkillRegistry:
         )
         try:
             rows = seadb_service.query_rows(
-                project_uuid, sql, convert_keys=False,
+                project_uuid, sql, convert_keys=True,
             ).get('results', [])
         except Exception as e:
             logger.warning('Failed to load custom skills for project %s: %s', project_uuid, e)
@@ -93,7 +93,7 @@ class SkillRegistry:
         )
         try:
             rows = seadb_service.query_rows(
-                project_uuid, sql, convert_keys=False,
+                project_uuid, sql, convert_keys=True,
             ).get('results', [])
             if not rows:
                 return None
