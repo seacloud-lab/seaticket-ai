@@ -22,16 +22,18 @@ additional_output:
 - Assess a supported reply, ticket handling, and ticket-assignee notification independently, or use strict exclusive `no_op`.
 
 ## Input Contract
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
 - Use only the triggering event, `event_summary`, successful `get_records` tool observations, and observations from allowed searches.
 - Read `event.new_value` as the authoritative message.
-- The event message is `triggering_event.event.new_value`. The current latest message is `get_records.content.latest_message`.
+- The event message is `triggering_event.event.new_value`. The current latest message is `current_record.content.latest_message`.
 - Use parent-thread content and a linked Ticket identified by successful `get_records` observations only to determine whether the message raises an independent problem and whether owner follow-up is needed.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
 1. Verify `event_summary` and successful `get_records` tool observations identify a usable message and parent thread.
 2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Treat the event message as stale only when `triggering_event.event.new_value.message_id` and `get_records.content.latest_message.message_id` are both present and differ.
+3. Treat the event message as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_message.message_id` are both present and differ.
 4. If the event message is stale and the current latest message gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 5. If the event message is stale and the current latest message still asks, reports, or confirms an unresolved matter, analyze the current latest message. Do not produce a reply to the event message.
 6. If either message ID is unavailable, do not infer whether the event message is stale from content, author, or timestamps; analyze the event message under the normal rules.

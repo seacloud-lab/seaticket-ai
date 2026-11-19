@@ -22,9 +22,11 @@ additional_output:
 - This is a reasoning phase, not a live mailbox or ticket operation.
 
 ## Input Contract
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
 - Use only `triggering_event`, `event_summary`, successful `get_records` tool observations, and search observations made in this phase.
 - The event opening email is `triggering_event.event.new_value`: its `message_id`, `email_date`, `is_sender`, `email_from`, and `content`. The thread title is `triggering_event.event.new_value.title`.
-- The current latest email is `get_records.content.latest_email`. Earlier emails, oldest first and excluding the latest, are in `get_records.content.history_emails`.
+- The current latest email is `current_record.content.latest_email`. Earlier emails, oldest first and excluding the latest, are in `current_record.content.history_emails`.
 - The earliest available email is the first `history_emails` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not an email. When no real earlier email remains, the earliest available email is `latest_email`.
 - Treat the event opening email as the primary thread content. When it is unavailable, treat the earliest available email as the primary thread content.
 - Use later thread messages only when they materially clarify the opening email.
@@ -34,7 +36,7 @@ additional_output:
 ## Required Steps
 1. Confirm `event_summary` and successful `get_records` tool observations identify a usable new thread.
 2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable thread with at least one usable email, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening email alone does not make the thread unusable.
-3. Read the event opening email to identify its primary purpose. Treat the event opening email as stale only when `triggering_event.event.new_value.message_id` and `get_records.content.latest_email.message_id` are both present and differ. When stale, explain that the thread has a later email.
+3. Read the event opening email to identify its primary purpose. Treat the event opening email as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_email.message_id` are both present and differ. When stale, explain that the thread has a later email.
 4. If the event opening email is unavailable, or either message ID is unavailable, do not infer that the event opening email is stale from the current latest email, content, sender, or timestamps. Analyze the primary thread content under the normal rules. Do not state that currency cannot be verified or that a message ID is missing.
 5. If the event opening email is stale and the current latest email gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 6. If the event opening email is stale and the current latest email still contains an unresolved request, analyze the current latest email. Do not produce a reply to the event opening email.

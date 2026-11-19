@@ -22,9 +22,11 @@ additional_output:
 - Do not use a sender's identity, role, permissions, or recipient list (e.g., employee, staff, support agent, administrator, or organization member) to select or suppress an action.
 
 ## Input Contract
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
 - Use only the triggering event, `event_summary`, successful `get_records` tool observations, and allowed search observations.
 - Read `event.new_value` as the authoritative new message.
-- The event email is `triggering_event.event.new_value`. The current latest email is `get_records.content.latest_email`.
+- The event email is `triggering_event.event.new_value`. The current latest email is `current_record.content.latest_email`.
 - Use the existing thread and a linked Ticket identified by successful `get_records` observations only to determine whether the reported problem is already covered and whether owner follow-up is needed.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestions.
 - Keep financial data, personal contacts, credentials, and needless mail text out of output.
@@ -32,7 +34,7 @@ additional_output:
 ## Required Steps
 1. Confirm the new message and parent thread are usable.
 2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable message and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Treat the event email as stale only when `triggering_event.event.new_value.message_id` and `get_records.content.latest_email.message_id` are both present and differ.
+3. Treat the event email as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_email.message_id` are both present and differ.
 4. If the event email is stale and the current latest email gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 5. If the event email is stale and the current latest email still asks, reports, or confirms an unresolved matter, analyze the current latest email. Do not produce a reply to the event email.
 6. If either message ID is unavailable, do not infer whether the event email is stale from content, sender, or timestamps; analyze the event email under the normal rules.

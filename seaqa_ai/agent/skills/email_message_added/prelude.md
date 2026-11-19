@@ -10,15 +10,17 @@ tools:
 - Do not research or recommend a reply, ticket, or mailbox action.
 
 ## Input Contract
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
 - Read `triggering_event.event.new_value` and `get_records` observations.
-- The event email is `triggering_event.event.new_value`. The current latest email is `get_records.content.latest_email`.
+- The event email is `triggering_event.event.new_value`. The current latest email is `current_record.content.latest_email`.
 - **Use only record context available in successful `get_records` observations.**
 - Recipient information is normally unnecessary and sensitive content must remain minimized.
 - Missing message content or thread identity is a material data gap.
 
 ## Required Steps
 1. Confirm the parent thread and new message are usable.
-2. Treat the event email as stale only when `triggering_event.event.new_value.message_id` and `get_records.content.latest_email.message_id` are both present and differ. State that the thread has a later email and summarize both the event email and the current latest email.
+2. Treat the event email as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_email.message_id` are both present and differ. State that the thread has a later email and summarize both the event email and the current latest email.
 3. If either message ID is unavailable, state that whether the event email is still current cannot be verified. Summarize the available event email and current latest email factually without calling the event email stale.
 4. Keep the event email primary as the original trigger. When it is stale, do not present it as the current latest request.
 5. Set `event_related_records` to successfully loaded, materially relevant identities, with the thread first.

@@ -21,9 +21,11 @@ additional_output:
 - The opening message is primary; follow-up messages provide context only.
 
 ## Input Contract
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
 - Use only `triggering_event`, `event_summary`, successful `get_records` tool observations, and this phase's search observations.
 - The event opening message is `triggering_event.event.new_value`: its `message_id`, `author`, `content`, and `modified_time`. The thread title is `triggering_event.event.new_value.title`.
-- The current latest message is `get_records.content.latest_message`. Earlier messages, oldest first and excluding the latest, are in `get_records.content.history_messages`.
+- The current latest message is `current_record.content.latest_message`. Earlier messages, oldest first and excluding the latest, are in `current_record.content.history_messages`.
 - The earliest available message is the first `history_messages` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not a message. When no real earlier message remains, the earliest available message is `latest_message`.
 - Treat the event opening message as the primary thread content. When it is unavailable, treat the earliest available message as the primary thread content.
 - Do not retrieve any record except a candidate internal ticket for link verification, and do not invoke suggestions.
@@ -31,7 +33,7 @@ additional_output:
 ## Required Steps
 1. Confirm the thread is usable from `triggering_event`, `event_summary`, and successful `get_records` tool observations.
 2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable thread with at least one usable message, recommend only `no_op`, set `skip_handling` to `true`, and make no search call. A missing event opening message alone does not make the thread unusable.
-3. Read the title and the event opening message. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `get_records.content.latest_message.message_id` are both present and differ. When stale, explain that the thread has a later message.
+3. Read the title and the event opening message. Treat the event opening message as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_message.message_id` are both present and differ. When stale, explain that the thread has a later message.
 4. If the event opening message is unavailable, or either message ID is unavailable, do not infer that the event opening message is stale from the current latest message, content, author, or timestamps. Analyze the primary thread content under the normal rules. Do not state that currency cannot be verified or that a message ID is missing.
 5. If the event opening message is stale and the current latest message gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 6. If the event opening message is stale and the current latest message still contains an unresolved request, analyze the current latest message. Do not produce a reply to the event opening message.
