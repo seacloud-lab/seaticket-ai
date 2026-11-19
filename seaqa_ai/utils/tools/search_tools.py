@@ -2,9 +2,9 @@ import logging
 from urllib.parse import quote
 
 from seaqa_ai import config
-from seaqa_ai.utils import gen_record_hash
-from seaqa_ai.utils.tools import BasicTool
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
+from seaqa_ai.utils.record.reference_pool import ReferencePool
+from seaqa_ai.utils.tools import BasicTool
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class BasicSearchTool(BasicTool):
 
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
-        sources_results = tool_executor.cache.get('sources_results', [])
+        reference_pool = ReferencePool.from_cache(tool_executor.cache)
         if not connections and not extra_sources:
             return []
 
@@ -113,35 +113,38 @@ class BasicSearchTool(BasicTool):
             if context.get('skill_id') == 'issue-research' and not context.get('is_external_portal')
             else ''
         )
-        references = {
-            gen_record_hash(record['type'], record.get('connection_id'), record['_id']): f'<reference_{index}>'
-            for index, record in enumerate(sources_results)
-        }
         # References are task-wide, but each executor has its own model memory.
         observed_records = tool_executor.cache.setdefault('observed_search_records', set())
         to_observation = []
         for search_result in current_search_results:
             source_type = search_result['type']
             connection_id = None if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
-            record_hash = gen_record_hash(source_type, search_result.get('connection_id'), search_result['_id'])
+            record_id = search_result['_id']
+            record_hash = reference_pool.key(source_type, connection_id, record_id)
             if record_hash in observed_records:
                 to_observation.append({
                     'notice': 'Document was already provided.',
                     'source_type': source_type,
                     'connection_id': connection_id,
-                    'record_id': search_result['_id'],
-                    'reference_id': references[record_hash],
+                    'record_id': record_id,
+                    'reference_id': reference_pool.get_label(source_type, connection_id, record_id),
                 })
                 continue
-            is_new_source = record_hash not in references
-            if is_new_source and len(sources_results) >= self.MAX_SOURCES_COUNT:
+
+            inner_url = self._build_product_record_url(search_result, project_base_url)
+            reference_id = reference_pool.register_search_result(
+                search_result,
+                max_sources=self.MAX_SOURCES_COUNT,
+                inner_url=inner_url,
+            )
+            if reference_id is None:
                 continue
-            reference_id = references.get(record_hash, f'<reference_{len(sources_results)}>')
+
             doc = {
                 'label': reference_id,
-                'type': search_result['type'],
-                'connection_id': None if ExtraSourceType.is_valid(search_result['type']) else search_result['connection_id'],
-                'record_id': search_result['_id'],
+                'type': source_type,
+                'connection_id': connection_id,
+                'record_id': record_id,
                 'title': search_result['title'],
                 'ai_summary': search_result.get('ai_summary', ''),
                 'modified_time': search_result['modified_time'],
@@ -152,19 +155,12 @@ class BasicSearchTool(BasicTool):
                 value = search_result.get(field)
                 if value is not None:
                     doc[field] = value
-            inner_url = self._build_product_record_url(search_result, project_base_url)
             if inner_url:
                 doc['inner_url'] = inner_url
-                search_result['inner_url'] = inner_url
             if 'snippets' in search_result:
                 doc['snippets'] = search_result['snippets']
             to_observation.append(doc)
             observed_records.add(record_hash)
-            if is_new_source:
-                references[record_hash] = reference_id
-                sources_results.append(search_result)
-
-        tool_executor.cache['sources_results'] = sources_results
 
         return to_observation
 

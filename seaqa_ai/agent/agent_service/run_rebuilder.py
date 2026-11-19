@@ -10,6 +10,8 @@ from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
 from seaqa_ai.utils.record import read_record
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
+from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
+from seaqa_ai.utils.record.reference_pool import ReferencePool
 from seaqa_ai.utils.record.identity import identity_key
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.utils import parse_datetime, parse_json, uuid_str_to_32_chars
@@ -43,7 +45,9 @@ def regenerate_agent_suggestions(
     context = agent_service._build_context(task)
     loaded_records = LoadedRecords()
     context['loaded_records'] = loaded_records
-    context['sources_results'] = []
+    context['record_observations'] = RecordObservationTracker()
+    context['github_available_labels'] = {}
+    context['reference_pool'] = ReferencePool()
 
     trigger_record = read_record(
         source_type=task.trigger_event.source_type,

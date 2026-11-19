@@ -502,7 +502,7 @@ class StreamingChat(BasicChat):
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
                     completion_retries = []
 
-                    found_records = len(tool_executor.cache.get('sources_results', []))
+                    found_records = len(tool_executor.cache.get('reference_pool') or ())
                     if has_search_tool and found_records:
                         yield SSE.search_found(found_records)
 
