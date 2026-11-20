@@ -9,7 +9,7 @@ from seaqa_ai.utils import (
     extract_markdown_image_url, normalize_image_url,
 )
 from seaqa_ai.utils.record import ensure_record_context
-from seaqa_ai.utils.record.identity import record_identity_schema
+from seaqa_ai.utils.record.identity import record_identity_schema, record_key
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
 from seaqa_ai.utils.record.retriever import RecordRetriever
@@ -139,7 +139,7 @@ class GetRecords(BasicTool):
         waitlisted_targets: list[tuple[int, dict]] = [] # (index, identity)
 
         for index, identity in candidate_targets:
-            record_key = observations.key(**identity)
+            key = record_key(**identity)
 
             # if the record is already in the scope, return the duplicate notice
             if observations.in_scope(identity, observation_scope):
@@ -148,8 +148,8 @@ class GetRecords(BasicTool):
                 continue
 
             # if the record is already scheduled, add the index to the target indices
-            if record_key in scheduled_reads:
-                scheduled_reads[record_key].target_indices.append(index)
+            if key in scheduled_reads:
+                scheduled_reads[key].target_indices.append(index)
                 continue
 
             needs_new_slot = not observations.was_reported(identity)
@@ -162,8 +162,8 @@ class GetRecords(BasicTool):
             # if the record is not reported, and there are remaining slots, schedule the record
             if needs_new_slot:
                 remaining_slots -= 1
-            scheduled_reads[record_key] = _ScheduledRead(
-                record_key=record_key,
+            scheduled_reads[key] = _ScheduledRead(
+                record_key=key,
                 identity=identity,
                 target_indices=[index],
             )
@@ -203,9 +203,9 @@ class GetRecords(BasicTool):
         cls, scheduled_reads: dict[str, _ScheduledRead], fetched_by_key: dict[str, tuple[dict | None, str | None]], *,
         observations: RecordObservationTracker, observation_scope: str, retriever: RecordRetriever, context: dict, register_source: bool, results: list[dict],
     ):
-        for record_key, read_task in scheduled_reads.items():
+        for key, read_task in scheduled_reads.items():
             identity = read_task.identity
-            record, error_message = fetched_by_key[record_key]
+            record, error_message = fetched_by_key[key]
 
             # if there is an error, return the error notice
             if error_message or record is None:

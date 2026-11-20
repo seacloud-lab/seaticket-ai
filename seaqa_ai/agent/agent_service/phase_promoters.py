@@ -9,8 +9,11 @@ from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
 from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
 from seaqa_ai.utils.record import ensure_record_context
-from seaqa_ai.utils.record.identity import identity_key, validate_record_identity
-from seaqa_ai.utils import gen_record_hash
+from seaqa_ai.utils.record.identity import (
+    identity_key,
+    record_key,
+    validate_record_identity,
+)
 from seaqa_ai.utils.constants import ExtraSourceType
 
 
@@ -45,10 +48,10 @@ class _RecordInputFormatter:
 
     @staticmethod
     def _linked_connection_record_key(record):
-        record_key = identity_key(record)
-        if record_key is None:
+        key = identity_key(record)
+        if key is None:
             return None
-        _, connection_id, record_id = record_key
+        _, connection_id, record_id = key
         if connection_id is None:
             return None
         return f'{connection_id}_{record_id}'
@@ -118,10 +121,10 @@ class _RecordInputFormatter:
                 'connection_id': connection_id,
                 'record_id': record_id,
             }
-            record_key = identity_key(record)
-            if record_key in seen_records or record_key == linked_ticket_key:
+            key = identity_key(record)
+            if key in seen_records or key == linked_ticket_key:
                 continue
-            seen_records.add(record_key)
+            seen_records.add(key)
             records.append(record)
         return records
 
@@ -163,13 +166,13 @@ class _RecordInputFormatter:
             records = [trigger_identity]
             seen_records = {trigger_key}
             for record in selected_records:
-                record_key = identity_key(record)
-                if record_key in seen_records:
+                key = identity_key(record)
+                if key in seen_records:
                     continue
                 if not loaded_records.contains(record):
                     _log_dropped_record(record, 'it was not loaded in this run')
                     continue
-                seen_records.add(record_key)
+                seen_records.add(key)
                 records.append(record)
             return records
 
@@ -200,8 +203,8 @@ class _RecordInputFormatter:
         records = [trigger_identity, linked_ticket_identity]
         seen_records = {trigger_key, linked_ticket_key}
         for record in selected_records:
-            record_key = identity_key(record)
-            if record_key in seen_records:
+            key = identity_key(record)
+            if key in seen_records:
                 continue
             if _RecordInputFormatter._linked_connection_record_key(record) not in allowed_records:
                 _log_dropped_record(record, 'it is not linked to the ticket')
@@ -209,7 +212,7 @@ class _RecordInputFormatter:
             if not loaded_records.contains(record):
                 _log_dropped_record(record, 'it was not loaded in this run')
                 continue
-            seen_records.add(record_key)
+            seen_records.add(key)
             records.append(record)
         return records
 
@@ -341,7 +344,7 @@ class AgentPhasePromoter:
         event_related_records = prelude_output.get('event_related_records', [])
         # These records are already injected, so searches should exclude them.
         self.context['skip_search_record_hashes'] = [
-            gen_record_hash(
+            record_key(
                 record['source_type'], record['connection_id'], record['record_id'],
             )
             for record in event_related_records

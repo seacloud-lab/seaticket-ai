@@ -1,5 +1,6 @@
 """Shared schemas and validation for record identities."""
 
+from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 
 
@@ -78,6 +79,11 @@ def identity_key(identity):
     ):
         return None
     return source_type, connection_id, record_id
+
+
+def record_key(source_type, connection_id, record_id) -> str:
+    """Build the canonical hash key for a record identity."""
+    return gen_record_hash(source_type, connection_id, record_id)
 
 
 def validate_record_identity(source_type, connection_id, record_id):

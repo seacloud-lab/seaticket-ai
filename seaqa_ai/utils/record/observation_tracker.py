@@ -1,6 +1,6 @@
 """Per-request observation tracking, scope deduplication, and reporting budget."""
 
-from seaqa_ai.utils import gen_record_hash
+from seaqa_ai.utils.record.identity import record_key
 
 
 class RecordObservationTracker:
@@ -49,24 +49,19 @@ class RecordObservationTracker:
         # e.g. {'ticket-ticket-100': {'scope_prelude': None, 'scope_analysis': '<reference_2>'}}
         self._scopes_by_record: dict[str, dict[str, str | None]] = {}
 
-    @staticmethod
-    def key(source_type, connection_id, record_id) -> str:
-        """Build the canonical hash key for a record identity."""
-        return gen_record_hash(source_type, connection_id, record_id)
-
     def in_scope(self, identity: dict, scope: str) -> bool:
         """Return True if this record's content was already provided in ``scope``."""
-        scope_refs = self._scopes_by_record.get(self.key(**identity))
+        scope_refs = self._scopes_by_record.get(record_key(**identity))
         return bool(scope_refs and scope in scope_refs)
 
     def reference_id(self, identity: dict, scope: str) -> str | None:
         """Return the citation label (e.g. ``'<reference_0>'``) bound in ``scope``, or None."""
-        scope_refs = self._scopes_by_record.get(self.key(**identity))
+        scope_refs = self._scopes_by_record.get(record_key(**identity))
         return scope_refs.get(scope) if scope_refs else None
 
     def was_reported(self, identity: dict) -> bool:
         """Return True if this record was already provided in ANY scope of the current run."""
-        return self.key(**identity) in self._scopes_by_record
+        return record_key(**identity) in self._scopes_by_record
 
     @property
     def reported_count(self) -> int:
@@ -79,8 +74,8 @@ class RecordObservationTracker:
         If ``scope`` already holds a non-None citation label and ``reference_id`` is None,
         the existing citation label for that scope is preserved.
         """
-        record_key = self.key(**identity)
-        scope_refs = self._scopes_by_record.setdefault(record_key, {})
+        key = record_key(**identity)
+        scope_refs = self._scopes_by_record.setdefault(key, {})
         if reference_id is not None or scope not in scope_refs:
             scope_refs[scope] = reference_id
         return scope_refs[scope]

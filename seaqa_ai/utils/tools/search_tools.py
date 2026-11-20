@@ -4,6 +4,7 @@ from urllib.parse import quote
 from seaqa_ai import config
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
 from seaqa_ai.utils.record import ensure_record_context
+from seaqa_ai.utils.record.identity import record_key
 from seaqa_ai.utils.tools import BasicTool
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ class BasicSearchTool(BasicTool):
             source_type = search_result['type']
             connection_id = None if ExtraSourceType.is_valid(source_type) else search_result['connection_id']
             record_id = search_result['_id']
-            record_hash = reference_pool.key(source_type, connection_id, record_id)
+            record_hash = record_key(source_type, connection_id, record_id)
             if record_hash in observed_records:
                 to_observation.append({
                     'notice': 'Document was already provided.',

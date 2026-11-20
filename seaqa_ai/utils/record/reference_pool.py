@@ -1,7 +1,7 @@
 """Indexed pool of citable record sources shared by Search and GetRecords."""
 
-from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
+from seaqa_ai.utils.record.identity import record_key
 
 
 _RECORD_SOURCE_METADATA_FIELDS = (
@@ -49,14 +49,9 @@ class ReferencePool:
         self._excluded_keys: set[str] = set()
 
     @staticmethod
-    def key(source_type, connection_id, record_id) -> str:
-        """Build the canonical hash key for a record identity."""
-        return gen_record_hash(source_type, connection_id, record_id)
-
-    @classmethod
-    def source_key(cls, source: dict) -> str:
+    def source_key(source: dict) -> str:
         """Build the canonical hash key from a stored source dict."""
-        return cls.key(source['type'], source.get('connection_id'), source['_id'])
+        return record_key(source['type'], source.get('connection_id'), source['_id'])
 
     @staticmethod
     def _format_label(index: int) -> str:
@@ -65,12 +60,12 @@ class ReferencePool:
     def exclude(self, identity: dict) -> None:
         """Prevent ``identity`` from being registered as a citable source."""
         self._excluded_keys.add(
-            self.key(identity['source_type'], identity['connection_id'], identity['record_id'])
+            record_key(identity['source_type'], identity['connection_id'], identity['record_id'])
         )
 
     def get_label(self, source_type, connection_id, record_id) -> str | None:
         """Return the ``<reference_i>`` label if already registered, else None."""
-        index = self._index_by_key.get(self.key(source_type, connection_id, record_id))
+        index = self._index_by_key.get(record_key(source_type, connection_id, record_id))
         return self._format_label(index) if index is not None else None
 
     def register_search_result(
@@ -81,10 +76,10 @@ class ReferencePool:
         inner_url: str = '',
     ) -> str | None:
         """Register a search hit or return its existing label; return None if excluded or ``max_sources`` is full."""
-        record_key = self.source_key(search_result)
-        if record_key in self._excluded_keys:
+        key = self.source_key(search_result)
+        if key in self._excluded_keys:
             return None
-        existing_index = self._index_by_key.get(record_key)
+        existing_index = self._index_by_key.get(key)
         if existing_index is not None:
             if inner_url:
                 self._sources[existing_index]['inner_url'] = inner_url
@@ -95,7 +90,7 @@ class ReferencePool:
 
         if inner_url:
             search_result['inner_url'] = inner_url
-        return self._append(record_key, search_result)
+        return self._append(key, search_result)
 
     def register_record(
         self,
@@ -108,11 +103,11 @@ class ReferencePool:
         source_type = identity['source_type']
         connection_id = identity['connection_id']
         record_id = identity['record_id']
-        record_key = self.key(source_type, connection_id, record_id)
-        if record_key in self._excluded_keys:
+        key = record_key(source_type, connection_id, record_id)
+        if key in self._excluded_keys:
             return None
 
-        existing_index = self._index_by_key.get(record_key)
+        existing_index = self._index_by_key.get(key)
         if existing_index is not None:
             existing_source = self._sources[existing_index]
             for field_name in ('url', 'modified_time'):
@@ -137,12 +132,12 @@ class ReferencePool:
         })
         if image_urls:
             source['images'] = image_urls
-        return self._append(record_key, source)
+        return self._append(key, source)
 
-    def _append(self, record_key: str, source: dict) -> str:
+    def _append(self, key: str, source: dict) -> str:
         index = len(self._sources)
         self._sources.append(source)
-        self._index_by_key[record_key] = index
+        self._index_by_key[key] = index
         return self._format_label(index)
 
     def __len__(self) -> int:

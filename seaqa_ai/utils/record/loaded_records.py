@@ -1,7 +1,6 @@
 """One request's shared record data cache and authorization membership."""
 
-from seaqa_ai.utils.record.identity import identity_key
-from seaqa_ai.utils import gen_record_hash
+from seaqa_ai.utils.record.identity import identity_key, record_key
 
 
 class LoadedRecords:
@@ -16,12 +15,8 @@ class LoadedRecords:
         # record_key -> {'identity': dict, 'record': dict}
         self._records: dict[str, dict] = {}
 
-    @staticmethod
-    def key(source_type, connection_id, record_id):
-        return gen_record_hash(source_type, connection_id, record_id)
-
     def add(self, source_type, connection_id, record_id, record):
-        key = self.key(source_type, connection_id, record_id)
+        key = record_key(source_type, connection_id, record_id)
         self._records[key] = {
             'identity': {
                 'source_type': source_type, 'connection_id': connection_id, 'record_id': record_id,
@@ -30,12 +25,12 @@ class LoadedRecords:
         }
 
     def get(self, source_type, connection_id, record_id):
-        entry = self._records.get(self.key(source_type, connection_id, record_id))
+        entry = self._records.get(record_key(source_type, connection_id, record_id))
         return entry['record'] if entry else None
 
     def contains(self, identity):
         key = identity_key(identity)
-        return key is not None and self.key(*key) in self._records
+        return key is not None and record_key(*key) in self._records
 
     def find_by_source_id(self, source_type, source_id):
         """Resolve a trace-style source_id: '<connection_id>_<record_id>' or '<record_id>'."""
