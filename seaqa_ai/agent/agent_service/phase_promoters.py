@@ -347,6 +347,13 @@ class AgentPhasePromoter:
             for record in event_related_records
         ]
 
+        # Exclude primary self-identities (triggering record and owner ticket)
+        # from citations while leaving sibling records in PreStep 3 citable.
+        reference_pool = self.context['reference_pool']
+        reference_pool.exclude(_RecordInputFormatter.trigger_record_identity(self.task))
+        if _RecordInputFormatter._has_valid_linked_ticket_identity(self.context):
+            reference_pool.exclude(self.context['linked_ticket_identity'])
+
         message_input, records_input = self._build_event_inputs()
         message_input.update(self._declared_additional_output('prelude', prelude_output))
 

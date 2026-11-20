@@ -46,6 +46,7 @@ class ReferencePool:
     def __init__(self):
         self._sources: list[dict] = []
         self._index_by_key: dict[str, int] = {}
+        self._excluded_keys: set[str] = set()
 
     @staticmethod
     def key(source_type, connection_id, record_id) -> str:
@@ -61,6 +62,12 @@ class ReferencePool:
     def _format_label(index: int) -> str:
         return f'<reference_{index}>'
 
+    def exclude(self, identity: dict) -> None:
+        """Prevent ``identity`` from being registered as a citable source."""
+        self._excluded_keys.add(
+            self.key(identity['source_type'], identity['connection_id'], identity['record_id'])
+        )
+
     def get_label(self, source_type, connection_id, record_id) -> str | None:
         """Return the ``<reference_i>`` label if already registered, else None."""
         index = self._index_by_key.get(self.key(source_type, connection_id, record_id))
@@ -73,8 +80,10 @@ class ReferencePool:
         max_sources: int | None = None,
         inner_url: str = '',
     ) -> str | None:
-        """Register a search hit or return its existing label; return None if ``max_sources`` is full."""
+        """Register a search hit or return its existing label; return None if excluded or ``max_sources`` is full."""
         record_key = self.source_key(search_result)
+        if record_key in self._excluded_keys:
+            return None
         existing_index = self._index_by_key.get(record_key)
         if existing_index is not None:
             if inner_url:
@@ -94,12 +103,14 @@ class ReferencePool:
         record: dict,
         *,
         image_urls: list[str] | None = None,
-    ) -> str:
-        """Register or enrich a full record read by ``get_records`` and return its ``<reference_i>`` label."""
+    ) -> str | None:
+        """Register or enrich a full record read by ``get_records`` and return its ``<reference_i>`` label, or None if excluded."""
         source_type = identity['source_type']
         connection_id = identity['connection_id']
         record_id = identity['record_id']
         record_key = self.key(source_type, connection_id, record_id)
+        if record_key in self._excluded_keys:
+            return None
 
         existing_index = self._index_by_key.get(record_key)
         if existing_index is not None:

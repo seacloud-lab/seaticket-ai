@@ -212,6 +212,7 @@ class AgentReACT:
         if self.records_input and not self.context.get('project_uuid'):
             raise ValueError('context.project_uuid is required when records_input is provided')
 
+        register_source = self.phase_spec.phase == 'analysis'
         call_index = 0
         def __inject_records(records):
             nonlocal call_index
@@ -227,7 +228,8 @@ class AgentReACT:
             }
             self.memory += record_call
             result = GetRecords().execute(
-                **arguments, app=self.app, context=self.context, register_source=False,
+                **arguments, app=self.app, context=self.context,
+                register_source=register_source,
             )
             log_tool_call_done(
                 record_call['name'], arguments, result, self.context, started_at,
@@ -247,6 +249,8 @@ class AgentReACT:
 
         if isinstance(self.records_input, dict):
             for prompt, records in self.records_input.items():
+                if not records:
+                    continue
                 self.memory += {
                     'role': 'system',
                     'content': prompt,

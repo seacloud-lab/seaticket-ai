@@ -20,7 +20,7 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                 'description': (
                     'Detailed analysis of the issue: what it is about, whether it resembles '
                     'a known problem, why this conclusion was reached, and the recommended '
-                    'next action. Cite search evidence with exact returned labels such as '
+                    'next action. Cite supporting evidence with exact returned labels such as '
                     '<reference_0>. Place multiple citations directly next to each other, '
                     'for example <reference_0><reference_1>; do not combine labels or '
                     'invent labels. Write a concise, natural analysis for the user using '

@@ -62,7 +62,7 @@ After any tool error:
 
 <output_rules>
 **Return exactly one JSON object and no Markdown or explanatory text.** It must include:
-- `analysis_report`: a concise, natural analysis for the user covering the issue, known-problem assessment, evidence, conclusion, and recommendation rationale; use short paragraphs separated by blank lines so distinct ideas are readable rather than one dense paragraph. Do not require headings, a fixed section order, or lists. Cite search evidence with exact `<reference_x>` labels when applicable. Wrap UI labels and feature names in Markdown backticks, such as `Open`, instead of straight double quotes
+- `analysis_report`: a concise, natural analysis for the user covering the issue, known-problem assessment, evidence, conclusion, and recommendation rationale; use short paragraphs separated by blank lines so distinct ideas are readable rather than one dense paragraph. Do not require headings, a fixed section order, or lists. Cite supporting evidence with exact `<reference_x>` labels when applicable. Wrap UI labels and feature names in Markdown backticks, such as `Open`, instead of straight double quotes
 - `recommended_actions`: an array of default or skill-defined action names
 - `skip_handling`: a boolean
 
