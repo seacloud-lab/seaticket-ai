@@ -9,7 +9,6 @@ from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter, _Re
 from seaqa_ai.agent.models import AgentEvent, AgentTask
 from seaqa_ai.agent.tasks_manager.constants import AGENT_TASK_SCHEMA_VERSION
 from seaqa_ai.utils.record import read_record
-from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.identity import identity_key
 from seaqa_ai.db.models import ProjectConnection
 from seaqa_ai.utils import parse_datetime, parse_json, uuid_str_to_32_chars
@@ -41,9 +40,6 @@ def regenerate_agent_suggestions(
     task = rebuild_agent_task(project_uuid, run)
     agent_service = AgentService(app, project)
     context = agent_service._build_context(task)
-    loaded_records = LoadedRecords()
-    context['loaded_records'] = loaded_records
-    context['sources_results'] = []
 
     trigger_record = read_record(
         source_type=task.trigger_event.source_type,
@@ -51,14 +47,13 @@ def regenerate_agent_suggestions(
         record_id=task.trigger_event.record_id,
         project_uuid=task.project_uuid,
         app=app,
-        loaded_records=loaded_records,
         context=context,
     )
     tracer, trace_context = agent_service._build_trace_context(
-        task, context, loaded_records, trigger_record,
+        task, context, trigger_record,
     )
     context.update(trace_context)
-    _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records)
+    _ensure_linked_ticket_from_owner(app, task, run, context)
     context['run_id'] = run.get('_pk') or run.get('id')
 
     promoter = AgentPhasePromoter(
@@ -70,7 +65,6 @@ def regenerate_agent_suggestions(
         ),
         tracer,
         context,
-        loaded_records,
         project_prompt=(project.get('settings') or {}).get('prompt', ''),
     )
     phase_outputs = restore_phase_outputs(promoter, phase_actions)
@@ -140,7 +134,6 @@ def restore_phase_outputs(promoter, phase_actions) -> dict:
                 linked_ticket_identity,
                 selected_records,
                 promoter.context,
-                promoter.loaded_records,
             )
         )
         outputs['prelude'] = prelude_output
@@ -161,9 +154,10 @@ def _reload_selected_records(promoter, records):
     """Reload persisted Prelude selections; filtering accepts only loaded records."""
     if not isinstance(records, list):
         return
+    loaded_records = promoter.context['loaded_records']
     for record in records:
         record_key = identity_key(record)
-        if record_key is None or promoter.loaded_records.contains(record):
+        if record_key is None or loaded_records.contains(record):
             continue
         source_type, connection_id, record_id = record_key
         try:
@@ -173,7 +167,6 @@ def _reload_selected_records(promoter, records):
                 record_id=record_id,
                 project_uuid=promoter.task.project_uuid,
                 app=promoter.app,
-                loaded_records=promoter.loaded_records,
                 context=promoter.context,
             )
         except Exception:
@@ -229,7 +222,7 @@ def _parse_source_id(source_id):
     return None, int(source_id)
 
 
-def _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records):
+def _ensure_linked_ticket_from_owner(app, task, run, context):
     if task.trigger_event.event_type not in LINKED_TICKET_TRACE_EVENT_TYPES:
         return
     if context.get('linked_ticket_identity'):
@@ -247,7 +240,6 @@ def _ensure_linked_ticket_from_owner(app, task, run, context, loaded_records):
             record_id=ticket_id,
             project_uuid=task.project_uuid,
             app=app,
-            loaded_records=loaded_records,
             context=context,
         )
     except Exception:

@@ -10,7 +10,6 @@ from seaqa_ai.agent.agent_service.constants import (
 )
 from seaqa_ai.agent.agent_service.phase_promoters import AgentPhasePromoter
 from seaqa_ai.utils.record import read_record
-from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.agent.utils.react.tracer import AgentReACTTracer
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import now_iso
@@ -40,22 +39,17 @@ class AgentService:
         try:
             context = self._build_context(task)
 
-            loaded_records = LoadedRecords()
-            context['loaded_records'] = loaded_records
-            context['sources_results'] = []
-
             trigger_record = read_record(
                 source_type=task.trigger_event.source_type,
                 connection_id=task.trigger_event.connection_id,
                 record_id=task.trigger_event.record_id,
                 project_uuid=task.project_uuid,
                 app=self.app,
-                loaded_records=loaded_records,
                 context=context,
             )
 
             tracer, trace_context = self._build_trace_context(
-                task, context, loaded_records, trigger_record,
+                task, context, trigger_record,
             )
             context.update(trace_context)
 
@@ -89,7 +83,6 @@ class AgentService:
                 responses_client,
                 tracer,
                 context,
-                loaded_records,
                 project_prompt=settings.get('prompt', ''),
                 ticket_rules=ticket_rules,
             ).start()
@@ -185,7 +178,7 @@ class AgentService:
     def _source_id(connection_id, record_id):
         return record_id if connection_id is None else f'{connection_id}_{record_id}'
 
-    def _build_trace_context(self, task, context, loaded_records, trigger_record):
+    def _build_trace_context(self, task, context, trigger_record):
         if task.trigger_event.event_type in LINKED_TICKET_TRACE_EVENT_TYPES:
             linked_ticket_id = trigger_record.get('linked_ticket')
             if linked_ticket_id:
@@ -196,7 +189,6 @@ class AgentService:
                         record_id=linked_ticket_id,
                         project_uuid=task.project_uuid,
                         app=self.app,
-                        loaded_records=loaded_records,
                         context=context,
                     )
                 except Exception:

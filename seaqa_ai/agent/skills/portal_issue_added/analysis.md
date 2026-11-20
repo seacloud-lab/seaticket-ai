@@ -25,7 +25,7 @@ additional_output:
 3. Start with `issues_search` for failures, regressions, feature requests, or tracked work; start with `documents_search` for setup, configuration, explanation, or how-to questions.
 4. Retain only directly applicable evidence and stop when it is sufficient.
 5. Recommend `suggest_reply` when evidence supports a concrete useful answer.
-6. Recommend `suggest_link_existing_ticket` only after a successful `get_record` observation confirms a candidate Ticket tracks the same concrete work.
+6. Recommend `suggest_link_existing_ticket` only after a successful `get_records` observation confirms a candidate Ticket tracks the same concrete work.
 7. Recommend `suggest_create_ticket` for an unresolved product problem or request needing internal work when no verified ticket already tracks it; a useful reply does not remove that need.
 8. Use `no_op` only for a clear duplicate, closure, redirect, or already supplied concrete answer needing no follow-up.
 

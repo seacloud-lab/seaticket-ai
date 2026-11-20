@@ -9,9 +9,11 @@ tools:
 - The new external comment is the event subject; the parent issue and a verified linked Ticket are context only.
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and successful `get_record` observations.
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
+- Read `triggering_event.event.new_value` and successful `get_records` observations.
 - The event comment is authoritative for the trigger.
-- The current latest comment is `get_record.content.latest_comment`.
+- The current latest comment is `current_record.content.latest_comment`.
 
 ## Required Steps
 1. Confirm the event identifies a usable parent issue and comment.

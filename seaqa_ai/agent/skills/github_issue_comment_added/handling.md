@@ -13,7 +13,7 @@ tools:
 - Analysis alone selects the actions.
 
 ## Input Contract
-- Use only the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
+- Use only the triggering event, successful `get_records` observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - Read `recommended_actions` and `skip_handling` as the binding Analysis decision.
 - Do not revisit `no_op`, independence, or search relevance decisions.
 - Do not use content outside the new comment and Analysis-selected context.
@@ -25,7 +25,7 @@ tools:
     - For an independently selected problem, call `suggest_create_ticket`. It targets the triggering GitHub issue and uses a non-empty reason covering only the independent problem identified by Analysis.
     - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. For an Analysis-selected Ticket notification:
-   - Call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket.
+   - Call `suggest_notify_assignee` only when a successful `get_records` observation identifies the selected Ticket.
    - Use that Ticket as `target` with:
      - `source_type: "ticket"`
      - `connection_id: null`
@@ -42,7 +42,7 @@ tools:
 
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
-- Do not call `get_record`, search, or undeclared tools.
+- Do not call `get_records`, search, or undeclared tools.
 - Invoke only the exact suggestion tool selected by Analysis.
 - Do not retry, substitute an action, or seek new evidence.
 - Keep tool content within the Analysis-selected target and evidence scope.

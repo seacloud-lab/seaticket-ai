@@ -2,15 +2,14 @@
 import inspect
 import json
 import logging
-import re
 import time
 import uuid
 
 from seaqa_ai import config
 from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import validate_record_identity
 from seaqa_ai.utils.tools.get_records import GetRecords
-from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.utils import (
     get_answer_and_sources,
@@ -21,6 +20,10 @@ from seaqa_ai.utils.constants import LLMCallPurpose
 from seaqa_ai.utils.llm_api import ResponsesResult
 from seaqa_ai.utils.llm_api.usage import sum_credit_used
 from seaqa_ai.utils.memory import OpenAIMemory
+from seaqa_ai.utils.prompts import (
+    GET_RECORDS_OBSERVATION_CONTRACT,
+    build_project_context_prompt,
+)
 from seaqa_ai.utils.tools import (
     BasicTool,
     InvalidToolArgumentsException,
@@ -66,24 +69,16 @@ class AgentReACT:
         self.app = app
         self.responses_client = responses_client
         self.phase_spec = phase_spec
-        self.context = dict(phase_spec.context or {})
-        self.system_prompts = [re.sub(r'\bget_record\b', 'get_records', phase_spec.get_system_prompt())]
-        self.system_prompts.append(
-            'get_records accepts {"targets": [record identities]}. Its observation is an array; '
-            'each item is a successful record, an error, or a notice. Only successful record '
-            'items are evidence. Read content/latest_comment/latest_message/latest_email from '
-            'the matching successful item, not from the array itself. A duplicate notice refers '
-            'to a record already provided in this phase. A source-limit notice provides no content.'
-        )
+        self.context = ensure_record_context(dict(phase_spec.context or {}))
+        self.context['record_observation_scope'] = uuid.uuid4().hex
+        self.system_prompts = [phase_spec.get_system_prompt()]
+        self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
         if ticket_rules_prompt:
             self.system_prompts.append(ticket_rules_prompt)
-        if project_prompt and project_prompt.strip():
-            self.system_prompts.append(
-                '<project_context>\n'
-                f'{sanitize_project_prompt(project_prompt)}\n'
-                '</project_context>'
-            )
+        project_context_prompt = build_project_context_prompt(project_prompt)
+        if project_context_prompt:
+            self.system_prompts.append(project_context_prompt)
         language_instruction = self._build_language_instruction(self.context.get('target_language'))
         if language_instruction:
             self.system_prompts.append(language_instruction)
@@ -120,13 +115,6 @@ class AgentReACT:
         )
 
         self.tool_executor = OpenAIToolExecutor()
-        loaded_records = self.context.get('loaded_records')
-        if loaded_records is None:
-            loaded_records = LoadedRecords()
-        self.tool_executor.cache['loaded_records'] = loaded_records
-        self.tool_executor.cache['sources_results'] = self.context.setdefault('sources_results', [])
-        self.tool_executor.cache['record_observation_scope'] = uuid.uuid4().hex
-        self.context['loaded_records'] = loaded_records
         self._tool_instances = {}
         self._register_tools(phase_spec.tools)
 
@@ -224,6 +212,7 @@ class AgentReACT:
         if self.records_input and not self.context.get('project_uuid'):
             raise ValueError('context.project_uuid is required when records_input is provided')
 
+        register_source = self.phase_spec.phase == 'analysis'
         call_index = 0
         def __inject_records(records):
             nonlocal call_index
@@ -240,7 +229,7 @@ class AgentReACT:
             self.memory += record_call
             result = GetRecords().execute(
                 **arguments, app=self.app, context=self.context,
-                tool_executor=self.tool_executor,
+                register_source=register_source,
             )
             log_tool_call_done(
                 record_call['name'], arguments, result, self.context, started_at,
@@ -260,6 +249,8 @@ class AgentReACT:
 
         if isinstance(self.records_input, dict):
             for prompt, records in self.records_input.items():
+                if not records:
+                    continue
                 self.memory += {
                     'role': 'system',
                     'content': prompt,
@@ -676,7 +667,7 @@ class AgentReACT:
             analysis_report = result.get('analysis_report')
             if isinstance(analysis_report, str):
                 analysis_report, sources = get_answer_and_sources(
-                    self.tool_executor, analysis_report,
+                    self.context.get('reference_pool'), analysis_report,
                 )
                 result = dict(result)
                 result['analysis_report'] = analysis_report

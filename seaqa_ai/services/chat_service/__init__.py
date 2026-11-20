@@ -10,6 +10,7 @@ from seaqa_ai.utils import uuid_str_to_32_chars, remove_reference_markers, remov
 from seaqa_ai.utils.constants import ConnectionType, LLMCallPurpose
 from seaqa_ai.utils.llm_api import get_responses_client_by_model_id, STREAM_TEXT_DELTA, STREAM_REASONING_DELTA, STREAM_COMPLETED
 from seaqa_ai.utils.sse import SSE
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.tools import OpenAIToolExecutor, SEARCH_TOOL_NAMES
 from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, StreamingChatUtils
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
@@ -136,6 +137,7 @@ class BasicChat(object):
 
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
+        ensure_record_context(context)
         available_skill_ids = [skill.name for skill in SkillRegistry.available_skills(self.app.seadb_service, context)]
         skill_id, message = extract_skill_command_from_message(message, available_skill_ids)
         context['selected_skill_id'] = skill_id
@@ -279,7 +281,7 @@ class SyncChat(BasicChat):
                 )
 
                 # filter invalid references
-                answer, sources = get_answer_and_sources(tool_executor, content)
+                answer, sources = get_answer_and_sources(context.get('reference_pool'), content)
                 answer, sources = self._apply_portal_citation_policy(answer, sources, context)
 
                 return {
@@ -515,7 +517,7 @@ class StreamingChat(BasicChat):
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
                     completion_retries = []
 
-                    found_records = len(tool_executor.cache.get('sources_results', []))
+                    found_records = len(context.get('reference_pool') or ())
                     if has_search_tool and found_records:
                         yield SSE.search_found(found_records)
 
@@ -532,7 +534,7 @@ class StreamingChat(BasicChat):
                     completion_retries = []
 
                     # filter invalid references
-                    answer, sources = get_answer_and_sources(tool_executor, content)
+                    answer, sources = get_answer_and_sources(context.get('reference_pool'), content)
                     answer, sources = self._apply_portal_citation_policy(answer, sources, context)
 
                     thought_process = {} if context.get('is_external_portal') else tool_executor.thought_process.details

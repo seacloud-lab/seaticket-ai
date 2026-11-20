@@ -15,7 +15,7 @@ tools:
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
 - Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - Do not invent sender intent, transactional status, or support content.
 
@@ -42,7 +42,7 @@ tools:
 
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
-- Never call `get_record`, search, or undeclared tools.
+- Never call `get_records`, search, or undeclared tools.
 - Invoke only a tool allowed by this skill and requested by the user instruction.
 - Do not use tools to send email, alter payment data, or modify account security state.
 

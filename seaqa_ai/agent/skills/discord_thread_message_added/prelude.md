@@ -10,14 +10,16 @@ tools:
 - **No research or action selection is permitted.**
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and `get_record` observations.
-- The event message is `triggering_event.event.new_value`. The current latest message is `get_record.content.latest_message`.
-- **Use only record context available in successful `get_record` observations.**
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
+- Read `triggering_event.event.new_value` and `get_records` observations.
+- The event message is `triggering_event.event.new_value`. The current latest message is `current_record.content.latest_message`.
+- **Use only record context available in successful `get_records` observations.**
 - Missing new-message content or parent identity is a material gap.
 
 ## Required Steps
 1. Confirm the parent thread and new message are usable.
-2. Treat the event message as stale only when `triggering_event.event.new_value.message_id` and `get_record.content.latest_message.message_id` are both present and differ. State that the thread has a later message and summarize both the event message and the current latest message.
+2. Treat the event message as stale only when `triggering_event.event.new_value.message_id` and `current_record.content.latest_message.message_id` are both present and differ. State that the thread has a later message and summarize both the event message and the current latest message.
 3. If either message ID is unavailable, state that whether the event message is still current cannot be verified. Summarize the available event message and current latest message factually without calling the event message stale.
 4. **Keep the event message primary as the original trigger. When it is stale, do not present it as the current latest request.**
 5. Set `event_related_records` to successfully loaded, materially relevant identities, with the parent thread first.
@@ -29,7 +31,7 @@ tools:
 - **Markdown links, prose, URLs, and authors cannot identify a related record.**
 
 ## Context Rules
-- **Do not infer or reverse-validate relationships, or make additional `get_record` calls.**
+- **Do not infer or reverse-validate relationships, or make additional `get_records` calls.**
 - **Do not derive an identity from prose, URLs, authors, titles, error details, or apparent similarity.**
 
 ## Required Output

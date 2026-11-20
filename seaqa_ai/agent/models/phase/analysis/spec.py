@@ -2,6 +2,10 @@ from pathlib import Path
 from typing import ClassVar
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
+from seaqa_ai.utils.prompts import (
+    REFERENCE_CITATION_RULES,
+    SEARCH_AND_RECORD_READING_RULES,
+)
 
 
 class AnalysisPhaseSpec(AgentPhaseSpec):
@@ -16,7 +20,7 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
                 'description': (
                     'Detailed analysis of the issue: what it is about, whether it resembles '
                     'a known problem, why this conclusion was reached, and the recommended '
-                    'next action. Cite search evidence with exact returned labels such as '
+                    'next action. Cite supporting evidence with exact returned labels such as '
                     '<reference_0>. Place multiple citations directly next to each other, '
                     'for example <reference_0><reference_1>; do not combine labels or '
                     'invent labels. Write a concise, natural analysis for the user using '
@@ -57,4 +61,9 @@ class AnalysisPhaseSpec(AgentPhaseSpec):
 
     @classmethod
     def get_system_prompt(cls) -> str:
-        return (Path(__file__).with_name('system_prompt.xml')).read_text(encoding='utf-8')
+        template = (Path(__file__).with_name('system_prompt.xml')).read_text(encoding='utf-8')
+        return (
+            template
+            .replace('{{SEARCH_AND_RECORD_READING_RULES}}', SEARCH_AND_RECORD_READING_RULES)
+            .replace('{{REFERENCE_CITATION_RULES}}', REFERENCE_CITATION_RULES)
+        )

@@ -8,8 +8,12 @@ from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
 from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
-from seaqa_ai.utils.record.identity import identity_key, validate_record_identity
-from seaqa_ai.utils import gen_record_hash
+from seaqa_ai.utils.record import ensure_record_context
+from seaqa_ai.utils.record.identity import (
+    identity_key,
+    record_key,
+    validate_record_identity,
+)
 from seaqa_ai.utils.constants import ExtraSourceType
 
 
@@ -44,10 +48,10 @@ class _RecordInputFormatter:
 
     @staticmethod
     def _linked_connection_record_key(record):
-        record_key = identity_key(record)
-        if record_key is None:
+        key = identity_key(record)
+        if key is None:
             return None
-        _, connection_id, record_id = record_key
+        _, connection_id, record_id = key
         if connection_id is None:
             return None
         return f'{connection_id}_{record_id}'
@@ -117,10 +121,10 @@ class _RecordInputFormatter:
                 'connection_id': connection_id,
                 'record_id': record_id,
             }
-            record_key = identity_key(record)
-            if record_key in seen_records or record_key == linked_ticket_key:
+            key = identity_key(record)
+            if key in seen_records or key == linked_ticket_key:
                 continue
-            seen_records.add(record_key)
+            seen_records.add(key)
             records.append(record)
         return records
 
@@ -151,8 +155,9 @@ class _RecordInputFormatter:
 
     @staticmethod
     def build_event_related_records(
-        trigger_identity, linked_ticket_identity, selected_records, context, loaded_records,
+        trigger_identity, linked_ticket_identity, selected_records, context,
     ):
+        loaded_records = context['loaded_records']
         trigger_key = identity_key(trigger_identity)
         linked_ticket_key = identity_key(linked_ticket_identity)
         selected_records = selected_records if isinstance(selected_records, list) else []
@@ -161,13 +166,13 @@ class _RecordInputFormatter:
             records = [trigger_identity]
             seen_records = {trigger_key}
             for record in selected_records:
-                record_key = identity_key(record)
-                if record_key in seen_records:
+                key = identity_key(record)
+                if key in seen_records:
                     continue
                 if not loaded_records.contains(record):
                     _log_dropped_record(record, 'it was not loaded in this run')
                     continue
-                seen_records.add(record_key)
+                seen_records.add(key)
                 records.append(record)
             return records
 
@@ -198,8 +203,8 @@ class _RecordInputFormatter:
         records = [trigger_identity, linked_ticket_identity]
         seen_records = {trigger_key, linked_ticket_key}
         for record in selected_records:
-            record_key = identity_key(record)
-            if record_key in seen_records:
+            key = identity_key(record)
+            if key in seen_records:
                 continue
             if _RecordInputFormatter._linked_connection_record_key(record) not in allowed_records:
                 _log_dropped_record(record, 'it is not linked to the ticket')
@@ -207,7 +212,7 @@ class _RecordInputFormatter:
             if not loaded_records.contains(record):
                 _log_dropped_record(record, 'it was not loaded in this run')
                 continue
-            seen_records.add(record_key)
+            seen_records.add(key)
             records.append(record)
         return records
 
@@ -283,15 +288,14 @@ class _RecordInputFormatter:
 
 
 class AgentPhasePromoter:
-    def __init__(self, app, task, responses_client, react_tracer, context, loaded_records,
+    def __init__(self, app, task, responses_client, react_tracer, context,
                  project_prompt='', ticket_rules=''):
         self.app = app
         self.task = task
         self.event = task.trigger_event
         self.responses_client = responses_client
         self.react_tracer = react_tracer
-        self.context = context
-        self.loaded_records = loaded_records
+        self.context = ensure_record_context(context)
         self.project_prompt = project_prompt
         self.ticket_rules = ticket_rules
         self.result = {}
@@ -331,7 +335,6 @@ class AgentPhasePromoter:
                 linked_ticket_identity,
                 prelude_output.get('event_related_records', []),
                 self.context,
-                self.loaded_records,
             )
         )
         self.result['prelude'] = prelude_output
@@ -341,11 +344,18 @@ class AgentPhasePromoter:
         event_related_records = prelude_output.get('event_related_records', [])
         # These records are already injected, so searches should exclude them.
         self.context['skip_search_record_hashes'] = [
-            gen_record_hash(
+            record_key(
                 record['source_type'], record['connection_id'], record['record_id'],
             )
             for record in event_related_records
         ]
+
+        # Exclude primary self-identities (triggering record and owner ticket)
+        # from citations while leaving sibling records in PreStep 3 citable.
+        reference_pool = self.context['reference_pool']
+        reference_pool.exclude(_RecordInputFormatter.trigger_record_identity(self.task))
+        if _RecordInputFormatter._has_valid_linked_ticket_identity(self.context):
+            reference_pool.exclude(self.context['linked_ticket_identity'])
 
         message_input, records_input = self._build_event_inputs()
         message_input.update(self._declared_additional_output('prelude', prelude_output))

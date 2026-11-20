@@ -1,18 +1,30 @@
 """Bounded, deduplicated record observations shared by Chat and Agent."""
-from collections import OrderedDict
+from dataclasses import dataclass, field
 
 from jsonschema import Draft202012Validator
 
 from seaqa_ai import config
-from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils import (
-    gen_record_hash, MARKDOWN_IMAGE_RE, HTML_IMAGE_RE,
+    HTML_IMAGE_RE, MARKDOWN_IMAGE_RE,
     extract_markdown_image_url, normalize_image_url,
 )
-from seaqa_ai.utils.constants import ExtraSourceType
-from seaqa_ai.utils.record.identity import record_identity_schema
+from seaqa_ai.utils.record import ensure_record_context
+from seaqa_ai.utils.record.identity import record_identity_schema, record_key
+from seaqa_ai.utils.record.loaded_records import LoadedRecords
+from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
 from seaqa_ai.utils.record.retriever import RecordRetriever
 from seaqa_ai.utils.tools import BasicTool
+
+
+_IDENTITY_FIELDS = ('source_type', 'connection_id', 'record_id')
+
+
+@dataclass
+class _ScheduledRead:
+    """One distinct record scheduled to be read in the current reservation pass."""
+    record_key: str
+    identity: dict
+    target_indices: list = field(default_factory=list)
 
 
 class GetRecords(BasicTool):
@@ -47,135 +59,211 @@ class GetRecords(BasicTool):
         'strict': True,
     }
 
-    def execute(self, targets, context, app, tool_executor):
+    DUPLICATE_NOTICE = 'Document was already provided.'
+    SOURCE_LIMIT_NOTICE = 'Document source limit reached.'
+    _TARGET_VALIDATOR = Draft202012Validator(record_identity_schema(nested=True))
+
+    def execute(self, targets, context, app, *, register_source=True):
         if not isinstance(targets, list) or not targets:
             raise ValueError('targets must be a non-empty array')
-        cache = tool_executor.cache
-        if 'loaded_records' not in cache:
-            cache['loaded_records'] = LoadedRecords()
-        loaded = cache['loaded_records']
-        scope = cache.setdefault('record_observation_scope', 'chat')
+
+        ensure_record_context(context)
+        loaded_records = context['loaded_records']
+        observations = context['record_observations']
+        observation_scope = context.setdefault('record_observation_scope', 'chat')
         retriever = RecordRetriever(
-            app, context['project_uuid'].replace('-', ''), context=context, loaded_records=loaded,
+            app, context['project_uuid'].replace('-', ''), context=context,
         )
-        validator = Draft202012Validator(record_identity_schema(nested=True))
+
         results = [None] * len(targets)
-        pending = []
-        for index, target in enumerate(targets):
-            entry = {
-                field: target.get(field) if isinstance(target, dict) else None
-                for field in ('source_type', 'connection_id', 'record_id')
-            }
-            try:
-                error = next(validator.iter_errors(target), None)
-                if error:
-                    raise ValueError(error.message)
-                identity = retriever._normalize_target(target)
-            except Exception as error:
-                results[index] = {'error': str(error), **entry}
-                continue
-            pending.append((index, identity))
+        remaining_targets = self._validate_targets(targets, retriever, results)
 
         # Reserve slots in global priority order BEFORE grouping database reads.
-        # Failed reads release slots for the next candidates, again in input order.
-        while pending:
-            capacity = max(0, config.GET_RECORDS_MAX_RECORDS - loaded.reported_count)
-            batch = OrderedDict()
-            deferred = []
-            for index, identity in pending:
-                reference_id = loaded.reference_id(identity, scope)
-                key = loaded.key(**identity)
-                if reference_id is not None:
-                    results[index] = {
-                        'notice': 'Document was already provided.', **identity,
-                        'reference_id': reference_id,
-                    }
-                elif key in batch:
-                    batch[key]['entries'].append((index, identity))
-                elif loaded.was_reported(identity) or capacity > 0:
-                    batch[key] = {'identity': identity, 'entries': [(index, identity)]}
-                    if not loaded.was_reported(identity):
-                        capacity -= 1
-                else:
-                    deferred.append((index, identity))
-            if not batch:
-                for index, identity in deferred:
-                    results[index] = {'notice': 'Document source limit reached.', **identity}
+        # Failed reads do not mark records as reported, releasing their slots
+        # to waitlisted_targets in the next pass.
+        while remaining_targets:
+            scheduled_reads, waitlisted_targets = self._schedule_next_pass(
+                remaining_targets, observations, observation_scope, results,
+            )
+            if not scheduled_reads:
+                # if there are no scheduled records, and there are waitlisted targets, return the source limit notice
+                for index, identity in waitlisted_targets:
+                    results[index] = {'notice': self.SOURCE_LIMIT_NOTICE, **identity}
                 break
-            groups = OrderedDict()
-            outcomes = {}
-            for item in batch.values():
-                identity = item['identity']
-                cached_record = loaded.get(**identity)
-                if cached_record is not None:
-                    outcomes[loaded.key(**identity)] = (cached_record, None)
-                    continue
-                groups.setdefault((identity['source_type'], identity['connection_id']), []).append(item)
-            for items in groups.values():
-                try:
-                    records = retriever.retrieve([item['identity'] for item in items], allow_missing=True)
-                except Exception as error:
-                    for item in items:
-                        outcomes[loaded.key(**item['identity'])] = (None, str(error))
-                else:
-                    for item, record in zip(items, records):
-                        outcomes[loaded.key(**item['identity'])] = (record, None)
-            for key, item in batch.items():
-                record, error = outcomes[key]
-                for offset, (index, identity) in enumerate(item['entries']):
-                    if error or record is None:
-                        results[index] = {'error': error or 'No active record found.', **identity}
-                    elif offset:
-                        results[index] = {
-                            'notice': 'Document was already provided.', **identity,
-                            'reference_id': loaded.reference_id(identity, scope),
-                        }
-                    else:
-                        reference_id = self._register_source(cache, identity, record)
-                        loaded.mark_reported(identity, scope, reference_id)
-                        results[index] = {
-                            **record, **identity, 'reference_id': reference_id,
-                            'related_records': retriever.related_records(record),
-                        }
-            pending = deferred
+
+            fetched_by_key = self._fetch_scheduled_records(scheduled_reads, loaded_records, retriever)
+
+            self._fill_pass_results(
+                scheduled_reads,
+                fetched_by_key,
+                observations=observations,
+                observation_scope=observation_scope,
+                retriever=retriever,
+                context=context,
+                register_source=register_source,
+                results=results,
+            )
+            remaining_targets = waitlisted_targets
+
         return results
 
-    @staticmethod
-    def _register_source(cache, identity, record):
-        sources = cache.setdefault('sources_results', [])
-        record_hash = gen_record_hash(**identity)
-        images = GetRecords._image_urls(record.get('content'))
-        for index, source in enumerate(sources):
-            if gen_record_hash(source['type'], source.get('connection_id'), source['_id']) == record_hash:
-                for key in ('url', 'modified_time'):
-                    if record.get(key) is not None:
-                        source[key] = record[key]
-                if images:
-                    source['images'] = images
-                return f'<reference_{index}>'
-        source = {
-            key: value for key, value in record.items()
-            if key in ('title', 'url', 'modified_time', 'state', 'resolved', 'linked_ticket')
-        }
-        source.update({
-            'type': identity['source_type'], '_id': identity['record_id'],
-            'connection_id': identity['source_type'] if ExtraSourceType.is_valid(identity['source_type']) else identity['connection_id'],
-        })
-        if images:
-            source['images'] = images
-        sources.append(source)
-        return f'<reference_{len(sources) - 1}>'
+    @classmethod
+    def _validate_targets(cls, targets, retriever, results):
+        valid_targets = []
+        for index, target in enumerate(targets):
+            raw_identity = {
+                field: target.get(field) if isinstance(target, dict) else None
+                for field in _IDENTITY_FIELDS
+            }
+            try:
+                schema_error = next(cls._TARGET_VALIDATOR.iter_errors(target), None)
+                if schema_error:
+                    raise ValueError(schema_error.message)
+                identity = retriever._normalize_target(target)
+            except Exception as error:
+                results[index] = {'error': str(error), **raw_identity}
+                continue
+            valid_targets.append((index, identity))
+        return valid_targets
+
+    @classmethod
+    def _schedule_next_pass(
+        cls,
+        candidate_targets: list[tuple[int, dict]],
+        observations: RecordObservationTracker,
+        observation_scope: str,
+        results: list[dict],
+    ):
+        remaining_slots = max(0, config.GET_RECORDS_MAX_RECORDS - observations.reported_count)
+        scheduled_reads: dict[str, _ScheduledRead] = {} # record_key -> _ScheduledRead
+        waitlisted_targets: list[tuple[int, dict]] = [] # (index, identity)
+
+        for index, identity in candidate_targets:
+            key = record_key(**identity)
+
+            # if the record is already in the scope, return the duplicate notice
+            if observations.in_scope(identity, observation_scope):
+                reference_id = observations.reference_id(identity, observation_scope)
+                results[index] = cls._duplicate_notice(identity, reference_id)
+                continue
+
+            # if the record is already scheduled, add the index to the target indices
+            if key in scheduled_reads:
+                scheduled_reads[key].target_indices.append(index)
+                continue
+
+            needs_new_slot = not observations.was_reported(identity)
+
+            # if the record is not reported, and there are no remaining slots, add the target to the waitlisted targets
+            if needs_new_slot and remaining_slots == 0:
+                waitlisted_targets.append((index, identity))
+                continue
+
+            # if the record is not reported, and there are remaining slots, schedule the record
+            if needs_new_slot:
+                remaining_slots -= 1
+            scheduled_reads[key] = _ScheduledRead(
+                record_key=key,
+                identity=identity,
+                target_indices=[index],
+            )
+
+        return scheduled_reads, waitlisted_targets
 
     @staticmethod
-    def _image_urls(value):
-        if isinstance(value, dict):
-            contents = value.values()
-        elif isinstance(value, list):
-            contents = value
-        elif isinstance(value, str):
-            urls = [extract_markdown_image_url(url) for url in MARKDOWN_IMAGE_RE.findall(value)]
-            urls.extend(HTML_IMAGE_RE.findall(value))
-            return list(dict.fromkeys(url for raw in urls if (url := normalize_image_url(raw))))
+    def _fetch_scheduled_records(scheduled_reads: dict[str, _ScheduledRead], loaded_records: LoadedRecords, retriever: RecordRetriever):
+        fetched_by_key: dict[str, tuple[dict | None, str | None]] = {} # record_key -> (record, error_message)  
+        reads_by_connection: dict[tuple[str, str], list[_ScheduledRead]] = {} # (source_type, connection_id) -> [_ScheduledRead]
+
+        for read_task in scheduled_reads.values():
+            identity = read_task.identity
+            cached_record = loaded_records.get(**identity)
+            if cached_record is not None:
+                fetched_by_key[read_task.record_key] = (cached_record, None)
+                continue
+            source_group_key = (identity['source_type'], identity['connection_id'])
+            reads_by_connection.setdefault(source_group_key, []).append(read_task)
+
+        for connection_reads in reads_by_connection.values():
+            identities = [read_task.identity for read_task in connection_reads]
+            try:
+                records = retriever.retrieve(identities, allow_missing=True)
+            except Exception as error:
+                error_message = str(error)
+                for read_task in connection_reads:
+                    fetched_by_key[read_task.record_key] = (None, error_message)
+            else:
+                for read_task, record in zip(connection_reads, records):
+                    fetched_by_key[read_task.record_key] = (record, None)
+
+        return fetched_by_key
+
+    @classmethod
+    def _fill_pass_results(
+        cls, scheduled_reads: dict[str, _ScheduledRead], fetched_by_key: dict[str, tuple[dict | None, str | None]], *,
+        observations: RecordObservationTracker, observation_scope: str, retriever: RecordRetriever, context: dict, register_source: bool, results: list[dict],
+    ):
+        for key, read_task in scheduled_reads.items():
+            identity = read_task.identity
+            record, error_message = fetched_by_key[key]
+
+            # if there is an error, return the error notice
+            if error_message or record is None:
+                for index in read_task.target_indices:
+                    results[index] = cls._error_notice(identity, error_message or 'No active record found.')
+                continue
+
+            primary_index, *duplicate_indices = read_task.target_indices
+            reference_id = (
+                cls._register_source(context, identity, record)
+                if register_source else None
+            )
+            observations.mark_reported(identity, observation_scope, reference_id)
+
+            primary_result = {**record, **identity}
+            if reference_id is not None:
+                primary_result['reference_id'] = reference_id
+            primary_result['related_records'] = retriever.related_records(record)
+            results[primary_index] = primary_result
+
+            for duplicate_index in duplicate_indices:
+                results[duplicate_index] = cls._duplicate_notice(identity, reference_id)
+
+    @classmethod
+    def _duplicate_notice(cls, identity, reference_id=None):
+        notice = {'notice': cls.DUPLICATE_NOTICE, **identity}
+        if reference_id is not None:
+            notice['reference_id'] = reference_id
+        return notice
+    
+    @classmethod
+    def _error_notice(cls, identity: dict, error_message: str):
+        return {
+            'error': error_message,
+            **identity,
+        }
+
+    @classmethod
+    def _register_source(cls, context, identity, record):
+        ensure_record_context(context)
+        reference_pool = context['reference_pool']
+        image_urls = cls._extract_image_urls(record.get('content'))
+        return reference_pool.register_record(identity, record, image_urls=image_urls)
+
+    @classmethod
+    def _extract_image_urls(cls, content):
+        if isinstance(content, dict):
+            nested_items = content.values()
+        elif isinstance(content, list):
+            nested_items = content
+        elif isinstance(content, str):
+            raw_urls = [extract_markdown_image_url(url) for url in MARKDOWN_IMAGE_RE.findall(content)]
+            raw_urls.extend(HTML_IMAGE_RE.findall(content))
+            return list(dict.fromkeys(
+                normalized for raw in raw_urls if (normalized := normalize_image_url(raw))
+            ))
         else:
             return []
-        return list(dict.fromkeys(url for content in contents for url in GetRecords._image_urls(content)))
+        return list(dict.fromkeys(
+            url for item in nested_items for url in cls._extract_image_urls(item)
+        ))

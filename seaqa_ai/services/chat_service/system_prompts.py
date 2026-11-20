@@ -1,4 +1,10 @@
 from seaqa_ai.config import MAX_STEPS
+from seaqa_ai.utils.prompts import (
+    ACTIVE_RECORD_READING_RULES,
+    GET_RECORDS_OBSERVATION_CONTRACT,
+    REFERENCE_CITATION_RULES,
+    SEARCH_OBSERVATION_CONTRACT,
+)
 
 CHAT_CORE_PROMPT = f"""You are a task-focused assistant that can either call tools or answer directly.
 
@@ -38,55 +44,40 @@ When tools are not needed:
 - If the answer can be given directly, tools are unavailable, or the maximum step has been reached, return a final answer only.
 - Do not claim that you performed an action unless a tool actually performed it.
 
-When search or record-reading tools were used:
-- Cite only with labels returned by search results or `get_records.reference_id`, such as <reference_0>.
-- Place citations immediately after the supported statement.
-- Combine multiple citations directly, such as <reference_0><reference_2>.
-- Do not output any <reference_x> tag unless a search or record-reading result supplied it and supports the claim.
-
 When content-generation tools were used:
 - You may add one short user-facing sentence before the generated content.
 - Then output the returned tag block exactly as the tool returned it.
 - Do not rewrite, wrap, or handcraft tool output tags such as <seaqa-markdown>, <seaqa-kb-entry>, or <seaqa-ticket>."""
 
-CHAT_SEARCH_POLICY = """Search policy:
+CHAT_SEARCH_POLICY = f"""Search policy:
 - Use search tools only when the answer needs external reference material.
 - Use `tasks_search` when the user explicitly asks to find related tasks, corresponding tasks, task records, or matching tasks for a described problem, including feature development handling tasks and requirement design tasks.
 - Decide whether to use `tasks_search` only from the user's instruction type; do not include it in the automatic priority or fallback order below.
 - Start with `documents_search` unless the user explicitly asks for issue history, past cases, or ticket-like records.
-- Search returns titles, summaries, snippets, identities, and lightweight metadata, NOT record content. Use these to select records, not to invent missing details.
-- If documentation provides sufficient evidence, stop searching. Read promising records with `get_records` when their details are needed before answering.
+{SEARCH_OBSERVATION_CONTRACT}
+- If documentation provides sufficient evidence, stop searching.
 - Use `issues_search` only after documentation is insufficient, or when the user explicitly asks for issue-style evidence.
 - Search queries should be short natural-language sentences, not keyword piles.
 - Do not perform exploratory searches without a clear reason tied to the user's request."""
 
-CHAT_RECORD_READING_POLICY = """Record-reading policy:
-- Select the smallest useful set of search candidates from their titles, ai_summary, and snippets. Do not read every match automatically.
-- A simple request to list matching records may be answered from search metadata alone. Before claiming a concrete solution, applicability, detailed steps, or current record conclusions, read the relevant records with `get_records` unless that evidence is already available.
-- Pass {"targets": [{"source_type": "...", "connection_id": 7, "record_id": 123}]} to get_records. Use the search result's type as source_type. For ticket, portal_issue, and knowledge_base, connection_id must be null.
-- ALWAYS order targets from most important to least important for the current question. The request has a shared default budget of 10 distinct records across all steps; earlier targets receive remaining slots first. Batch independent useful reads in this priority order.
-- Successful items contain content, reference_id, and related_records (explicit authorized identities derived from linked_ticket and linked_connection_records). Reading a record does not automatically read its relationships.
-- After reading, reassess the remaining information gap. If a related_records identity is likely to resolve that gap, call get_records for it in the NEXT step; select and prioritize useful relationships rather than traversing every link. Repeat only while a specific gap remains, permission and budget allow, and the next read can materially help.
-- Use only identities explicitly supplied by user-authorized structured input, search results, or related_records. Never guess source types or IDs from URLs, titles, text, or raw relationship strings. A relationship alone proves neither relevance nor resolution.
-- Each result is an array item: either a record, {error: ...}, or {notice: ...}. Handle items independently. A duplicate notice supplies a reference_id for content already in this context; reuse it, do not request that content again. A source-limit notice supplies no content: stop new reads and answer from available evidence, acknowledging material gaps.
-- Failed reads are not proof of absence or a business fact. Do not repeat unchanged invalid/forbidden requests, guess alternative identities, or treat errors and notices as record content.
+CHAT_RECORD_READING_POLICY = f"""Record-reading policy:
+- A simple request to list matching records may be answered from search metadata alone.
+{GET_RECORDS_OBSERVATION_CONTRACT}
+{ACTIVE_RECORD_READING_RULES}
 - Stop reading and searching as soon as the user's actual request can be answered. Do not expand the task merely because more related records exist."""
 
-CHAT_SEARCH_REFERENCE_RULES = """Search reference rules:
-- Search tools may return records with a `label` such as `<reference_0>`.
-- get_records returns a reference_id in the same citation format, reusing the search label for an already searched record. Directly read records may also be cited without a preceding search.
-- Only use these returned labels as citations in the final answer. Cite detailed content claims only when a successful record read or other available evidence actually supports them.
-- If several references support the same statement, place the labels together, for example `<reference_0><reference_3>`.
-- If search results are irrelevant, weak, or unused in the answer, do not cite them.
-- If a successfully read record's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image. Search results alone contain no record content or screenshots.
+CHAT_REFERENCE_IMAGE_RULES = """- If a successfully read record's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image. Search results alone contain no record content or screenshots.
 - This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
 - If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
 - First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
 - If the cited content contains an HTML tag like `<img src="...">`, you may extract that exact `src` value and use it as the image URL.
 - You may output the image as Markdown `![short caption](exact_url)` or HTML `<img src="exact_url" alt="short caption">`.
 - Copy the URL exactly from that cited result's content. The URL may be an internal path such as `/file/...` or a full external URL. Do not invent, transform, or complete image URLs.
-- Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content.
-- If neither a search nor a record-reading tool supplied useful references, do not output any `<reference_x>` tags."""
+- Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content."""
+
+CHAT_SEARCH_REFERENCE_RULES = f"""Search reference rules:
+{REFERENCE_CITATION_RULES}
+{CHAT_REFERENCE_IMAGE_RULES}"""
 
 CHAT_CONTENT_GENERATION_RULES = """Content-generation rules:
 - Use content-generation tools only when the user explicitly asks to create, record, save, or generate content as an artifact.

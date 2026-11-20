@@ -73,7 +73,7 @@ def get_skill_map() -> dict[str, dict[str, str]]:
                 or skill_file.suffix != '.md'
             ):
                 continue
-            skill = re.sub(r'\bget_record\b', 'get_records', skill_file.read_text(encoding='utf-8'))
+            skill = skill_file.read_text(encoding='utf-8')
             _validate_skill(skill, event_dir.name, skill_file.stem)
             phases[skill_file.stem] = skill
 
