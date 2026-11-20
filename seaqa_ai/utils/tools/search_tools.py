@@ -3,7 +3,7 @@ from urllib.parse import quote
 
 from seaqa_ai import config
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
-from seaqa_ai.utils.record.reference_pool import ReferencePool
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.tools import BasicTool
 
 logger = logging.getLogger(__name__)
@@ -49,10 +49,10 @@ class BasicSearchTool(BasicTool):
     )
 
     @staticmethod
-    def _build_project_base_url(context, app, tool_executor):
+    def _build_project_base_url(context, app):
         cache_key = 'project_base_url'
-        if cache_key in tool_executor.cache:
-            return tool_executor.cache[cache_key]
+        if cache_key in context:
+            return context[cache_key]
 
         seaqa_web_service_url = (config.SEAQA_WEB_SERVICE_URL or '').strip().rstrip('/')
         project_uuid = context.get('project_uuid')
@@ -67,7 +67,7 @@ class BasicSearchTool(BasicTool):
 
         project_name = quote(str(project_name), safe='')
         project_base_url = f'{seaqa_web_service_url}/workspace/{workspace_id}/project/{project_name}'
-        tool_executor.cache[cache_key] = project_base_url
+        context[cache_key] = project_base_url
         return project_base_url
 
     @staticmethod
@@ -96,7 +96,8 @@ class BasicSearchTool(BasicTool):
 
     def _search(self, query, connections, extra_sources, context, app, tool_executor, call_back):
         assert isinstance(query, str), "Your search query must be a string"
-        reference_pool = ReferencePool.from_cache(tool_executor.cache)
+        ensure_record_context(context)
+        reference_pool = context['reference_pool']
         if not connections and not extra_sources:
             return []
 
@@ -109,7 +110,7 @@ class BasicSearchTool(BasicTool):
         tool_executor.record_token_usage(rerank_token_usage)
 
         project_base_url = (
-            self._build_project_base_url(context, app, tool_executor)
+            self._build_project_base_url(context, app)
             if context.get('skill_id') == 'issue-research' and not context.get('is_external_portal')
             else ''
         )

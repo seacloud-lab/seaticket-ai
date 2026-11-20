@@ -43,24 +43,9 @@ class ReferencePool:
         '<reference_1>'
     """
 
-    CACHE_KEY = 'reference_pool'
-
-    def __init__(self, initial_sources: list[dict] | None = None):
+    def __init__(self):
         self._sources: list[dict] = []
         self._index_by_key: dict[str, int] = {}
-        for source in initial_sources or ():
-            if isinstance(source, dict):
-                self.register_search_result(source)
-
-    @classmethod
-    def from_cache(cls, cache: dict) -> 'ReferencePool':
-        """Return the ``ReferencePool`` stored in ``cache``, initializing or upgrading if needed."""
-        pool = cache.get(cls.CACHE_KEY)
-        if isinstance(pool, cls):
-            return pool
-        pool = cls(pool if isinstance(pool, list) else None)
-        cache[cls.CACHE_KEY] = pool
-        return pool
 
     @staticmethod
     def key(source_type, connection_id, record_id) -> str:

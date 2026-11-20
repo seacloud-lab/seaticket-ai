@@ -8,6 +8,7 @@ from seaqa_ai.agent.models.phase.handling.spec import HandlingPhaseSpec
 from seaqa_ai.agent.models.phase.prelude.spec import PreludePhaseSpec
 from seaqa_ai.agent.models.phase.regeneration.spec import RegenerationPhaseSpec
 from seaqa_ai.agent.utils.react import AgentReACT
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import identity_key, validate_record_identity
 from seaqa_ai.utils import gen_record_hash
 from seaqa_ai.utils.constants import ExtraSourceType
@@ -151,8 +152,9 @@ class _RecordInputFormatter:
 
     @staticmethod
     def build_event_related_records(
-        trigger_identity, linked_ticket_identity, selected_records, context, loaded_records,
+        trigger_identity, linked_ticket_identity, selected_records, context,
     ):
+        loaded_records = context['loaded_records']
         trigger_key = identity_key(trigger_identity)
         linked_ticket_key = identity_key(linked_ticket_identity)
         selected_records = selected_records if isinstance(selected_records, list) else []
@@ -283,15 +285,14 @@ class _RecordInputFormatter:
 
 
 class AgentPhasePromoter:
-    def __init__(self, app, task, responses_client, react_tracer, context, loaded_records,
+    def __init__(self, app, task, responses_client, react_tracer, context,
                  project_prompt='', ticket_rules=''):
         self.app = app
         self.task = task
         self.event = task.trigger_event
         self.responses_client = responses_client
         self.react_tracer = react_tracer
-        self.context = context
-        self.loaded_records = loaded_records
+        self.context = ensure_record_context(context)
         self.project_prompt = project_prompt
         self.ticket_rules = ticket_rules
         self.result = {}
@@ -331,7 +332,6 @@ class AgentPhasePromoter:
                 linked_ticket_identity,
                 prelude_output.get('event_related_records', []),
                 self.context,
-                self.loaded_records,
             )
         )
         self.result['prelude'] = prelude_output

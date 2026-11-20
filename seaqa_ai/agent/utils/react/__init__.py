@@ -2,17 +2,14 @@
 import inspect
 import json
 import logging
-import re
 import time
 import uuid
 
 from seaqa_ai import config
 from seaqa_ai.agent.utils.final_output_schema_utils import FinalOutputSchemaUtils
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import validate_record_identity
 from seaqa_ai.utils.tools.get_records import GetRecords
-from seaqa_ai.utils.record.loaded_records import LoadedRecords
-from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
-from seaqa_ai.utils.record.reference_pool import ReferencePool
 from seaqa_ai.skills.registry import SkillRegistry
 from seaqa_ai.utils import (
     get_answer_and_sources,
@@ -72,7 +69,8 @@ class AgentReACT:
         self.app = app
         self.responses_client = responses_client
         self.phase_spec = phase_spec
-        self.context = dict(phase_spec.context or {})
+        self.context = ensure_record_context(dict(phase_spec.context or {}))
+        self.context['record_observation_scope'] = uuid.uuid4().hex
         self.system_prompts = [phase_spec.get_system_prompt()]
         self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
@@ -117,26 +115,6 @@ class AgentReACT:
         )
 
         self.tool_executor = OpenAIToolExecutor()
-        shared_context = phase_spec.context if isinstance(phase_spec.context, dict) else self.context
-        loaded_records = shared_context.get('loaded_records')
-        if loaded_records is None:
-            loaded_records = LoadedRecords()
-            shared_context['loaded_records'] = loaded_records
-        record_observations = shared_context.get('record_observations')
-        if record_observations is None:
-            record_observations = RecordObservationTracker()
-            shared_context['record_observations'] = record_observations
-        reference_pool = ReferencePool.from_cache(shared_context)
-        github_available_labels = shared_context.setdefault('github_available_labels', {})
-
-        self.context['loaded_records'] = loaded_records
-        self.context['record_observations'] = record_observations
-        self.context['reference_pool'] = reference_pool
-        self.context['github_available_labels'] = github_available_labels
-        self.tool_executor.cache['loaded_records'] = loaded_records
-        self.tool_executor.cache['record_observations'] = record_observations
-        self.tool_executor.cache['reference_pool'] = reference_pool
-        self.tool_executor.cache['record_observation_scope'] = uuid.uuid4().hex
         self._tool_instances = {}
         self._register_tools(phase_spec.tools)
 
@@ -249,8 +227,7 @@ class AgentReACT:
             }
             self.memory += record_call
             result = GetRecords().execute(
-                **arguments, app=self.app, context=self.context,
-                tool_executor=self.tool_executor, register_source=False,
+                **arguments, app=self.app, context=self.context, register_source=False,
             )
             log_tool_call_done(
                 record_call['name'], arguments, result, self.context, started_at,
@@ -686,7 +663,7 @@ class AgentReACT:
             analysis_report = result.get('analysis_report')
             if isinstance(analysis_report, str):
                 analysis_report, sources = get_answer_and_sources(
-                    self.tool_executor, analysis_report,
+                    self.context.get('reference_pool'), analysis_report,
                 )
                 result = dict(result)
                 result['analysis_report'] = analysis_report

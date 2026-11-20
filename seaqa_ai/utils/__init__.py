@@ -264,9 +264,9 @@ def expand_grouped_reference_markers(content):
 
     return pattern.sub(replacer, content)
 
-def get_referenced_sources(tool_executor, content):
+def get_referenced_sources(reference_pool, content):
     """Return only valid sources from the reference pool cited by the final text."""
-    reference_pool = tool_executor.cache.get('reference_pool') or ()
+    reference_pool = reference_pool or ()
     content = expand_grouped_reference_markers(content)
     pattern = re.compile(r'\<reference_(\d+)\>')
     seen_indexes = set()
@@ -282,8 +282,8 @@ def get_referenced_sources(tool_executor, content):
             sources.append(source)
     return sources
 
-def get_answer_and_sources(tool_executor, content):
-    reference_pool = tool_executor.cache.get('reference_pool') or ()
+def get_answer_and_sources(reference_pool, content):
+    reference_pool = reference_pool or ()
     content = expand_grouped_reference_markers(content)
 
     # remove redundent <reference_n> and [Reference n] (format error)
@@ -312,7 +312,7 @@ def get_answer_and_sources(tool_executor, content):
         for i, position in enumerate(sorted(first_position_map))
     }
 
-    sources = get_referenced_sources(tool_executor, content)
+    sources = get_referenced_sources(reference_pool, content)
     for origin, target in replaces_map.items():
         content = content.replace(origin, target)
 

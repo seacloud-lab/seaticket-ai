@@ -8,10 +8,10 @@ from seaqa_ai.utils import (
     HTML_IMAGE_RE, MARKDOWN_IMAGE_RE,
     extract_markdown_image_url, normalize_image_url,
 )
+from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import record_identity_schema
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.observation_tracker import RecordObservationTracker
-from seaqa_ai.utils.record.reference_pool import ReferencePool
 from seaqa_ai.utils.record.retriever import RecordRetriever
 from seaqa_ai.utils.tools import BasicTool
 
@@ -63,20 +63,16 @@ class GetRecords(BasicTool):
     SOURCE_LIMIT_NOTICE = 'Document source limit reached.'
     _TARGET_VALIDATOR = Draft202012Validator(record_identity_schema(nested=True))
 
-    def execute(self, targets, context, app, tool_executor, *, register_source=True):
+    def execute(self, targets, context, app, *, register_source=True):
         if not isinstance(targets, list) or not targets:
             raise ValueError('targets must be a non-empty array')
 
-        cache = tool_executor.cache
-        if 'loaded_records' not in cache:
-            cache['loaded_records'] = LoadedRecords()
-        if 'record_observations' not in cache:
-            cache['record_observations'] = RecordObservationTracker()
-        loaded_records = cache['loaded_records']
-        observations = cache['record_observations']
-        observation_scope = cache.setdefault('record_observation_scope', 'chat')
+        ensure_record_context(context)
+        loaded_records = context['loaded_records']
+        observations = context['record_observations']
+        observation_scope = context.setdefault('record_observation_scope', 'chat')
         retriever = RecordRetriever(
-            app, context['project_uuid'].replace('-', ''), context=context, loaded_records=loaded_records,
+            app, context['project_uuid'].replace('-', ''), context=context,
         )
 
         results = [None] * len(targets)
@@ -103,7 +99,7 @@ class GetRecords(BasicTool):
                 observations=observations,
                 observation_scope=observation_scope,
                 retriever=retriever,
-                cache=cache,
+                context=context,
                 register_source=register_source,
                 results=results,
             )
@@ -205,7 +201,7 @@ class GetRecords(BasicTool):
     @classmethod
     def _fill_pass_results(
         cls, scheduled_reads: dict[str, _ScheduledRead], fetched_by_key: dict[str, tuple[dict | None, str | None]], *,
-        observations: RecordObservationTracker, observation_scope: str, retriever: RecordRetriever, cache: dict, register_source: bool, results: list[dict],
+        observations: RecordObservationTracker, observation_scope: str, retriever: RecordRetriever, context: dict, register_source: bool, results: list[dict],
     ):
         for record_key, read_task in scheduled_reads.items():
             identity = read_task.identity
@@ -219,7 +215,7 @@ class GetRecords(BasicTool):
 
             primary_index, *duplicate_indices = read_task.target_indices
             reference_id = (
-                cls._register_source(cache, identity, record)
+                cls._register_source(context, identity, record)
                 if register_source else None
             )
             observations.mark_reported(identity, observation_scope, reference_id)
@@ -248,8 +244,9 @@ class GetRecords(BasicTool):
         }
 
     @classmethod
-    def _register_source(cls, cache, identity, record):
-        reference_pool = ReferencePool.from_cache(cache)
+    def _register_source(cls, context, identity, record):
+        ensure_record_context(context)
+        reference_pool = context['reference_pool']
         image_urls = cls._extract_image_urls(record.get('content'))
         return reference_pool.register_record(identity, record, image_urls=image_urls)
 

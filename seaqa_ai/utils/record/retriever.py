@@ -91,11 +91,13 @@ class RecordRetriever:
         if not ExtraSourceType.is_valid(source_type)
     )
 
-    def __init__(self, app, project_uuid, loaded_records, context=None):
+    def __init__(self, app, project_uuid, context=None):
         self.app = app
         self.project_uuid = project_uuid
         self.context = context if isinstance(context, dict) else {}
-        self.loaded_records = loaded_records
+        if self.context.get('loaded_records') is None:
+            self.context['loaded_records'] = LoadedRecords()
+        self.loaded_records = self.context['loaded_records']
 
     def retrieve(self, targets, allow_missing=False):
         """Load records for targets, preserving their input order."""
@@ -599,7 +601,7 @@ class RecordRetriever:
         return formatted
 
     def _add_github_available_labels(self, connection_id, records_by_id):
-        labels_by_connection = self.context.setdefault('github_available_labels', {})
+        labels_by_connection = self.context.setdefault('_github_available_labels', {})
         if connection_id in labels_by_connection:
             labels = labels_by_connection[connection_id]
         else:
