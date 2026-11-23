@@ -1,4 +1,3 @@
-import dataclasses
 from dataclasses import dataclass
 
 
@@ -11,13 +10,6 @@ class ThreadMessagesQuery:
     select_fields: str = '*'
     limit_per_thread: int = 20
     has_deleted_field: bool = True
-
-    def with_select_fields(self, extra_fields):
-        """Return a copy selecting extra columns, for a narrower fetch."""
-        return dataclasses.replace(
-            self,
-            select_fields=f'{self.select_fields}, {extra_fields}',
-        )
 
 
 # Predefined queries for the known thread-message tables.
@@ -68,7 +60,7 @@ def email_messages_query(table_name, limit_per_thread):
         table_name=table_name,
         thread_id_field='thread_id',
         order_by=('modified_time', 'message_id'),
-        select_fields='title, email_from, email_to, cc, content, message_id, modified_time, is_sender',
+        select_fields='_pk, title, email_from, email_to, cc, content, message_id, modified_time, is_sender',
         limit_per_thread=limit_per_thread,
     )
 
@@ -149,42 +141,6 @@ class SeaDBQueryService:
             )
             for thread_id in thread_ids
         }
-
-    def get_first_messages(self, base_id, thread_ids, *, query):
-        """Return {thread_id: the single oldest message}, or {} if missing.
-
-        The first message of a thread is the one with the smallest _pk, since
-        rows are appended in arrival order. Done in two plain queries because
-        the SQL engine does not support a subquery inside IN (...).
-        """
-        thread_ids = list(thread_ids or [])
-        if not thread_ids:
-            return {}
-
-        pk_by_thread_id = self._first_pk_by_thread_id(base_id, thread_ids, query)
-        if not pk_by_thread_id:
-            return {}
-
-        select_fields = self._normalize_select_fields(
-            query.select_fields, [query.thread_id_field, '_pk'],
-        )
-        rows = self._api.query_rows(
-            base_id,
-            f'SELECT {select_fields} FROM {query.table_name} '
-            f'WHERE _pk IN ({self._build_in_condition(pk_by_thread_id.values())})',
-        ).get('results', [])
-        return {row[query.thread_id_field]: row for row in rows}
-
-    def _first_pk_by_thread_id(self, base_id, thread_ids, query):
-        sql = (
-            f'SELECT `{query.thread_id_field}`, MIN(_pk) AS _pk FROM {query.table_name} '
-            f'WHERE {query.thread_id_field} IN ({self._build_in_condition(thread_ids)})'
-        )
-        if query.has_deleted_field:
-            sql += ' AND (`deleted` = False OR `deleted` IS NULL)'
-        sql += f' GROUP BY `{query.thread_id_field}`'
-        rows = self._api.query_rows(base_id, sql).get('results', [])
-        return {row[query.thread_id_field]: row['_pk'] for row in rows}
 
     @staticmethod
     def _first_plus_recent(messages, limit_per_thread):

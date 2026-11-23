@@ -3,9 +3,12 @@ from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.seadb_models.utils import get_connection_table_name
 from seaqa_ai.utils import html_to_text
 from seaqa_ai.utils.constants import ConnectionType, ExtraSourceType
-from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments_query, portal_issue_comments_query, \
-    github_issue_comments_query, discourse_replies_query, email_messages_query, \
-    linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query
+from seaqa_ai.utils.seadb import (
+    ContentBudget, ContentPriority, fit_thread_content_to_budget,
+    ticket_comments_query, portal_issue_comments_query,
+    github_issue_comments_query, discourse_replies_query, email_messages_query,
+    linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query,
+)
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.identity import (
     record_key,
@@ -362,18 +365,30 @@ class RecordRetriever:
             'message_id', 'modified_time', 'is_sender', 'title', 'email_from',
             'email_to', 'cc', 'content',
         )
-        first_raw_by_thread_id = self._load_first_email_raw_contents(
-            connection_id, records_by_id.keys(),
-        )
-        content_by_thread_id = self.app.seadb_service.get_thread_content(
+        table_name = SchemaTables.EMAIL.table_name(connection_id)
+        messages_by_thread_id = self.app.seadb_service.get_thread_messages(
             self.project_uuid,
             records_by_id.keys(),
-            query=email_messages_query(SchemaTables.EMAIL.table_name(connection_id), SEARCH_TOOL_ISSUES_MAX_COMMENTS),
-            budget=RECORD_CONTENT_BUDGET,
-            first_message_contents_by_thread_id=first_raw_by_thread_id,
+            query=email_messages_query(table_name, max(2, SEARCH_TOOL_ISSUES_MAX_COMMENTS)),
         )
+        first_pks = [
+            messages[0]['_pk']
+            for messages in messages_by_thread_id.values()
+            if messages and messages[0].get('_pk') is not None
+        ]
+        raw_by_pk = self._load_raw_email_contents_by_pk(table_name, first_pks)
+
         for record_id, record in records_by_id.items():
-            thread_content = content_by_thread_id[record_id]
+            messages = messages_by_thread_id.get(record_id, [])
+            if messages and messages[0].get('_pk') in raw_by_pk:
+                opening_pk = messages[0]['_pk']
+                messages = [
+                    {**msg, 'content': raw_by_pk[opening_pk]} if msg.get('_pk') == opening_pk else msg
+                    for msg in messages
+                ]
+            thread_content = fit_thread_content_to_budget(
+                body=None, messages=messages, budget=RECORD_CONTENT_BUDGET,
+            )
             history_emails = [
                 self._format_message(message, email_fields)
                 for message in thread_content.history_messages
@@ -389,30 +404,19 @@ class RecordRetriever:
                 'history_emails': history_emails,
             }
 
-    def _load_first_email_raw_contents(self, connection_id, thread_ids):
-        """Load the full unstripped body for each thread's opening email.
-
-        The stored `content` strips quoted history, which is lossless for
-        in-thread replies but drops forwarded originals and original headers
-        on the opening email (even when the subject has no Fwd prefix).
-        """
-        thread_ids = list(thread_ids or [])
-        if not thread_ids:
-            return {}
-
-        first_message_query = email_messages_query(
-            SchemaTables.EMAIL.table_name(connection_id), 1,
-        ).with_select_fields('text_content, html_content')
-        first_message_by_thread_id = self.app.seadb_service.get_first_thread_messages(
-            self.project_uuid,
-            thread_ids,
-            query=first_message_query,
+    def _load_raw_email_contents_by_pk(self, table_name, pks):
+        """Load full unstripped bodies by email row _pk for opening emails."""
+        rows_by_pk = self.app.seadb_service.get_records_by_pks(
+            base_id=self.project_uuid,
+            table_name=table_name,
+            pks=pks,
+            fields_str='text_content, html_content',
         )
         result = {}
-        for thread_id, message in first_message_by_thread_id.items():
+        for pk, message in rows_by_pk.items():
             raw = (message.get('text_content') or '').strip() or html_to_text(message.get('html_content'))
             if raw:
-                result[thread_id] = raw
+                result[pk] = raw
         return result
 
     def _load_linear_content(self, connection_id, records_by_id):

@@ -23,7 +23,7 @@ class ThreadContent:
     has_omitted_messages: bool
 
 
-def fit_thread_content_to_budget(*, body, messages, budget):
+def fit_thread_content_to_budget(*, body, messages, budget: ContentBudget):
     """Fit one thread's body and messages into the shared budget.
 
     The budget is spent as a greedy waterfall, in decreasing order of
