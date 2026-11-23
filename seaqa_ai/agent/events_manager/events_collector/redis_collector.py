@@ -52,6 +52,8 @@ class RedisEventsCollector:
                 logger.error('Redis event listener failure: %s', error)
             except Exception:
                 logger.exception('Redis event listener failed')
+            else:
+                continue
             if self._should_stop.wait(REDIS_RETRY_INTERVAL_SECONDS):
                 return
 
