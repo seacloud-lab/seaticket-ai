@@ -32,7 +32,7 @@ Tool policy:
 - If search results are irrelevant or insufficient, say so in the report instead of forcing a conclusion.
 
 Evidence policy:
-- Cite only reference labels returned by search tools or successful `get_records` items (reference_id), such as <reference_0>. Search summaries alone do not verify detailed fixes or applicability.
+- Cite only `reference_label` values returned by search tools or successful `get_records` items, such as <reference_0>. Search summaries alone do not verify detailed fixes or applicability.
 - Cite source-supported factual claims near the sentence they support.
 - Do not invent references, URLs, files, records, or source content.
 - Separate evidence from inference. Make clear when a likely cause is inferred rather than directly proven.

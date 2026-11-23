@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 _SEARCH_TOOLS_RESULT_FORMAT = """
 [
     {
-        "label": "<reference_0>",
+        "reference_label": "<reference_0>",
         "type": "github_issue | discourse_forum | email | ticket | ...",
         "connection_id": "Connection ID, or null for extra sources",
         "record_id": 123,
@@ -26,7 +26,7 @@ _SEARCH_TOOLS_RESULT_FORMAT = """
         "linked_ticket_state": "open/closed"
         // ... Other useful information, e.g., snippets ...
     }, {
-        "label": "<reference_1>",
+        "reference_label": "<reference_1>",
         "type": "github_issue | discourse_forum | email | ticket | ...",
         "connection_id": "Connection ID, or null for extra sources",
         "record_id": 456,
@@ -129,21 +129,21 @@ class BasicSearchTool(BasicTool):
                     'source_type': source_type,
                     'connection_id': connection_id,
                     'record_id': record_id,
-                    'reference_id': reference_pool.get_label(source_type, connection_id, record_id),
+                    'reference_label': reference_pool.get_label(source_type, connection_id, record_id),
                 })
                 continue
 
             inner_url = self._build_product_record_url(search_result, project_base_url)
-            reference_id = reference_pool.register_search_result(
+            reference_label = reference_pool.register_search_result(
                 search_result,
                 max_sources=self.MAX_SOURCES_COUNT,
                 inner_url=inner_url,
             )
-            if reference_id is None:
+            if reference_label is None:
                 continue
 
             doc = {
-                'label': reference_id,
+                'reference_label': reference_label,
                 'type': source_type,
                 'connection_id': connection_id,
                 'record_id': record_id,

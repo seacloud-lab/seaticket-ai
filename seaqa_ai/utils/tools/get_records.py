@@ -34,7 +34,7 @@ class GetRecords(BasicTool):
         'description': (
             'Read current records by their identities without following linked records. '
             'Use targets to batch related reads. At most 10 distinct records are provided '
-            'per request by default. Already provided records return a notice and reference_id. '
+            'per request by default. Already provided records return a notice and reference_label. '
             'Each target returns its record, notice, or error independently. '
             'Order targets from most important to least important: remaining record slots '
             'are allocated in input order. Successful records include related_records identities; '
@@ -143,8 +143,8 @@ class GetRecords(BasicTool):
 
             # if the record is already in the scope, return the duplicate notice
             if observations.in_scope(identity, observation_scope):
-                reference_id = observations.reference_id(identity, observation_scope)
-                results[index] = cls._duplicate_notice(identity, reference_id)
+                reference_label = observations.reference_label(identity, observation_scope)
+                results[index] = cls._duplicate_notice(identity, reference_label)
                 continue
 
             # if the record is already scheduled, add the index to the target indices
@@ -214,26 +214,26 @@ class GetRecords(BasicTool):
                 continue
 
             primary_index, *duplicate_indices = read_task.target_indices
-            reference_id = (
+            reference_label = (
                 cls._register_source(context, identity, record)
                 if register_source else None
             )
-            observations.mark_reported(identity, observation_scope, reference_id)
+            observations.mark_reported(identity, observation_scope, reference_label)
 
             primary_result = {**record, **identity}
-            if reference_id is not None:
-                primary_result['reference_id'] = reference_id
+            if reference_label is not None:
+                primary_result['reference_label'] = reference_label
             primary_result['related_records'] = retriever.related_records(record)
             results[primary_index] = primary_result
 
             for duplicate_index in duplicate_indices:
-                results[duplicate_index] = cls._duplicate_notice(identity, reference_id)
+                results[duplicate_index] = cls._duplicate_notice(identity, reference_label)
 
     @classmethod
-    def _duplicate_notice(cls, identity, reference_id=None):
+    def _duplicate_notice(cls, identity, reference_label=None):
         notice = {'notice': cls.DUPLICATE_NOTICE, **identity}
-        if reference_id is not None:
-            notice['reference_id'] = reference_id
+        if reference_label is not None:
+            notice['reference_label'] = reference_label
         return notice
     
     @classmethod

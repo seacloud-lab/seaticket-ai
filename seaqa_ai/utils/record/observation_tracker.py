@@ -19,8 +19,8 @@ class RecordObservationTracker:
         >>> tracker = RecordObservationTracker()
         >>> ticket = {'source_type': 'ticket', 'connection_id': None, 'record_id': 100}
         >>>
-        >>> # 1. Prelude pre-injects Ticket #100 without registering a citation (reference_id=None).
-        >>> tracker.mark_reported(ticket, scope='scope_prelude', reference_id=None)
+        >>> # 1. Prelude pre-injects Ticket #100 without registering a citation (reference_label=None).
+        >>> tracker.mark_reported(ticket, scope='scope_prelude', reference_label=None)
         >>> tracker.reported_count
         1
         >>> tracker.in_scope(ticket, 'scope_prelude')
@@ -35,17 +35,17 @@ class RecordObservationTracker:
         True
         >>>
         >>> # 3. Model actively reads Ticket #100 in Analysis with citation '<reference_2>'.
-        >>> tracker.mark_reported(ticket, scope='scope_analysis', reference_id='<reference_2>')
+        >>> tracker.mark_reported(ticket, scope='scope_analysis', reference_label='<reference_2>')
         '<reference_2>'
         >>> tracker.reported_count  # Still 1 distinct record across the whole run!
         1
-        >>> tracker.reference_id(ticket, 'scope_prelude')   # Prelude remains None
-        >>> tracker.reference_id(ticket, 'scope_analysis')  # Analysis gets '<reference_2>'
+        >>> tracker.reference_label(ticket, 'scope_prelude')   # Prelude remains None
+        >>> tracker.reference_label(ticket, 'scope_analysis')  # Analysis gets '<reference_2>'
         '<reference_2>'
     """
 
     def __init__(self):
-        # Maps record_key -> {observation_scope: reference_id | None}
+        # Maps record_key -> {observation_scope: reference_label | None}
         # e.g. {'ticket-ticket-100': {'scope_prelude': None, 'scope_analysis': '<reference_2>'}}
         self._scopes_by_record: dict[str, dict[str, str | None]] = {}
 
@@ -54,7 +54,7 @@ class RecordObservationTracker:
         scope_refs = self._scopes_by_record.get(record_key(**identity))
         return bool(scope_refs and scope in scope_refs)
 
-    def reference_id(self, identity: dict, scope: str) -> str | None:
+    def reference_label(self, identity: dict, scope: str) -> str | None:
         """Return the citation label (e.g. ``'<reference_0>'``) bound in ``scope``, or None."""
         scope_refs = self._scopes_by_record.get(record_key(**identity))
         return scope_refs.get(scope) if scope_refs else None
@@ -68,14 +68,14 @@ class RecordObservationTracker:
         """Total number of distinct records reported across all scopes (used for slot budget)."""
         return len(self._scopes_by_record)
 
-    def mark_reported(self, identity: dict, scope: str, reference_id: str | None = None) -> str | None:
+    def mark_reported(self, identity: dict, scope: str, reference_label: str | None = None) -> str | None:
         """Record that ``identity`` was provided in ``scope`` and commit its budget slot.
 
-        If ``scope`` already holds a non-None citation label and ``reference_id`` is None,
+        If ``scope`` already holds a non-None citation label and ``reference_label`` is None,
         the existing citation label for that scope is preserved.
         """
         key = record_key(**identity)
         scope_refs = self._scopes_by_record.setdefault(key, {})
-        if reference_id is not None or scope not in scope_refs:
-            scope_refs[scope] = reference_id
+        if reference_label is not None or scope not in scope_refs:
+            scope_refs[scope] = reference_label
         return scope_refs[scope]

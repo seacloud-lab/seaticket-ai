@@ -68,7 +68,7 @@ CHAT_RECORD_READING_POLICY = f"""Record-reading policy:
 
 CHAT_REFERENCE_IMAGE_RULES = """- If a successfully read record's content directly includes a helpful image URL and showing it would make the answer easier to understand, you may include that same image. Search results alone contain no record content or screenshots.
 - This is especially useful for screenshots, settings pages, UI examples, or step-by-step guidance.
-- If you use any text or image from a search result, the nearby sentence MUST cite that same result label.
+- If you use any text or image from a search result, the nearby sentence MUST cite that same result's `reference_label`.
 - First write the supporting sentence with its `<reference_x>` label(s). Put the image on the next line by itself.
 - If the cited content contains an HTML tag like `<img src="...">`, you may extract that exact `src` value and use it as the image URL.
 - You may output the image as Markdown `![short caption](exact_url)` or HTML `<img src="exact_url" alt="short caption">`.
@@ -99,10 +99,10 @@ Tool call:
     "query": "introduction of seafile"
   }
 }
-Step 1 result: [{"label":"<reference_0>","type":"knowledge_base","connection_id":null,"record_id":12,"title":"Seafile introduction","ai_summary":"Overview of Seafile"}].
+Step 1 result: [{"reference_label":"<reference_0>","type":"knowledge_base","connection_id":null,"record_id":12,"title":"Seafile introduction","ai_summary":"Overview of Seafile"}].
 Step 2 tool call:
 {"name":"get_records","arguments":{"targets":[{"source_type":"knowledge_base","connection_id":null,"record_id":12}]}}
-Step 2 result contains reference_id `<reference_0>` and content confirming Seafile's purpose and capabilities.
+Step 2 result contains reference_label `<reference_0>` and content confirming Seafile's purpose and capabilities.
 Final answer: Seafile is an open source cloud storage system for file sync, sharing, and document collaboration<reference_0>.
 
 Example 2
@@ -114,7 +114,7 @@ Step 1 tool call:
     "query": "LDAP login issue after upgrade"
   }
 }
-Step 1 result includes a highly relevant github_issue (connection_id 7, record_id 31, label <reference_0>) and a weaker email case (connection_id 8, record_id 44, label <reference_1>).
+Step 1 result includes a highly relevant github_issue (connection_id 7, record_id 31, reference_label <reference_0>) and a weaker email case (connection_id 8, record_id 44, reference_label <reference_1>).
 Step 2 tool call, MOST useful record first even though the sources differ:
 {"name":"get_records","arguments":{"targets":[{"source_type":"github_issue","connection_id":7,"record_id":31},{"source_type":"email","connection_id":8,"record_id":44}]}}
 Step 2 result confirms a similar symptom, but does not establish the fix for the user's version. The github_issue contains related_records: [{"source_type":"ticket","connection_id":null,"record_id":456}].
@@ -135,7 +135,7 @@ Step 1 tool call:
     "query": "where to find this setting in the UI"
   }
 }
-Step 1 result identifies a settings guide (type site, connection_id 7, record_id 20, label <reference_0>) and a panel guide (type knowledge_base, connection_id null, record_id 21, label <reference_1>). The summaries look relevant; they contain no image content.
+Step 1 result identifies a settings guide (type site, connection_id 7, record_id 20, reference_label <reference_0>) and a panel guide (type knowledge_base, connection_id null, record_id 21, reference_label <reference_1>). The summaries look relevant; they contain no image content.
 Step 2 tool call:
 {
   "name": "get_records",
@@ -143,7 +143,7 @@ Step 2 tool call:
     "targets": [{"source_type":"site","connection_id":7,"record_id":20},{"source_type":"knowledge_base","connection_id":null,"record_id":21}]
   }
 }
-Step 2 results contain reference_id <reference_0> with content `<img src="/file/settings-page.png">` and reference_id <reference_1> with content `![panel screenshot](https://example.com/images/panel.png)`.
+Step 2 results contain reference_label <reference_0> with content `<img src="/file/settings-page.png">` and reference_label <reference_1> with content `![panel screenshot](https://example.com/images/panel.png)`.
 Final answer: You can find this setting on the system settings page<reference_0>.
 <img src="/file/settings-page.png" alt="settings page">
 This is the related panel screenshot<reference_1>.
@@ -158,7 +158,7 @@ Tool call:
     "query": "XXXX problem"
   }
 }
-Tool result includes `<reference_0>` with a related task's identity, title, and summary. These suffice to list a matching task; no read is needed. If the user asks for its implementation details or status rationale, read it first.
+Tool result includes reference_label `<reference_0>` with a related task's identity, title, and summary. These suffice to list a matching task; no read is needed. If the user asks for its implementation details or status rationale, read it first.
 Final answer: I found a related task for this problem<reference_0>.
 
 Example 5
@@ -168,7 +168,7 @@ Final answer: 28.
 
 Example 6
 User: Read the most relevant cases to confirm the solution.
-get_records returns a successful record <reference_0>, a duplicate notice with reference_id <reference_1> whose content was already provided in this conversation, an error for another target, and a source-limit notice for a new target.
+get_records returns a successful record <reference_0>, a duplicate notice with reference_label <reference_1> whose content was already provided in this conversation, an error for another target, and a source-limit notice for a new target.
 Reuse the existing content for <reference_1>, do not retry duplicates or attempt to bypass the limit. If the successful and already available records do not establish a solution, give a supported partial answer and state the verification gap. Do not claim the failed or unprovided records confirm a solution."""
 
 CHAT_CONTENT_GENERATOR_TOOLS_EXAMPLES = """Content-generation examples:

@@ -36,7 +36,7 @@ def summarize_tool_result(tool_name, result):
         return {}
     items = [item for item in result if isinstance(item, dict)]
     if tool_name in SEARCH_TOOL_NAMES:
-        docs = [item for item in items if 'label' in item]
+        docs = [item for item in items if 'reference_label' in item and 'notice' not in item]
         return {
             'results': len(docs),
             'duplicates': sum('notice' in item for item in items),
