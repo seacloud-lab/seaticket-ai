@@ -14,9 +14,9 @@ tools:
 - Suggestions are pending proposals, never completed issue changes.
 
 ## Input Contract
-- Use only the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
+- Use only the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - `recommended_actions` is the complete Analysis decision boundary.
-- Use `available_labels` only as the triggering event and successful `get_record` tool observations for an Analysis-selected label proposal.
+- Use `available_labels` only as the triggering event and successful `get_records` tool observations for an Analysis-selected label proposal.
 - Do not add actions because they seem helpful.
 
 ## Required Steps
@@ -42,7 +42,7 @@ tools:
 
 ## Tool Rules
 - Only metadata-declared suggestion tools may be used.
-- Never call `get_record` or search.
+- Never call `get_records` or search.
 - Never invoke a suggestion absent from `recommended_actions`.
 - Never use a suggestion tool more than needed for its one Analysis-selected action.
 - Do not treat a successful tool call as a published reply or applied change.
@@ -55,7 +55,7 @@ tools:
 - Do not add classification, research, or unsupported claims.
 
 ## Forbidden Behavior
-- Do not call `get_record` or search tools.
+- Do not call `get_records` or search tools.
 - Do not reinterpret evidence or expand the Analysis-selected action set.
 - Do not invent labels, URLs, issue types, or ticket facts.
 - Do not reveal secrets, contacts, credentials, or internal ticket information.

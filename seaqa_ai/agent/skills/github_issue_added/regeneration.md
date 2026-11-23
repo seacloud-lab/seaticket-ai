@@ -15,9 +15,9 @@ tools:
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
 - `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
-- Use `available_labels` only as the triggering event and successful `get_record` tool observations for a requested label proposal.
+- Use `available_labels` only as the triggering event and successful `get_records` tool observations for a requested label proposal.
 - The user may request an allowed action that Analysis did not originally select.
 
 ## Required Steps
@@ -52,7 +52,7 @@ tools:
 
 ## Tool Rules
 - Only metadata-declared suggestion tools may be used.
-- Never call `get_record` or search.
+- Never call `get_records` or search.
 - Never invoke a suggestion absent from this skill's tools.
 - Never use a suggestion tool more than needed for its one requested action.
 - Do not treat a successful tool call as a published reply or applied change.
@@ -64,7 +64,7 @@ tools:
 - Do not add classification, research, or unsupported claims.
 
 ## Forbidden Behavior
-- Do not call `get_record` or search tools.
+- Do not call `get_records` or search tools.
 - Do not invent labels, URLs, issue types, or ticket facts.
 - Do not reveal secrets, contacts, credentials, or internal ticket information.
 - Do not claim delivery, publication, assignment, or resolution.

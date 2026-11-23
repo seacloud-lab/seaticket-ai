@@ -10,7 +10,7 @@ tools:
 - Do not research, select an action, or infer relationships in this phase.
 
 ## Input Contract
-- Read `triggering_event.event.new_value` and the successful `get_record` observation.
+- Read `triggering_event.event.new_value` and the successful `get_records` observation.
 - Use the event title and content as the authoritative original report.
 - The current record may also contain `content.latest_comment` and `content.history_comments`.
 

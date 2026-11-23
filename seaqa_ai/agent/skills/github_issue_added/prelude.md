@@ -10,8 +10,8 @@ tools:
 - This phase does not perform research or choose an action.
 
 ## Input Contract
-- Read `triggering_event` and `get_record` observations.
-- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_record`.
+- Read `triggering_event` and `get_records` observations.
+- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_records`.
 - Issue fields may include title, issue number, state, content, labels, issue type, and URL.
 - Recent comments are background only and do not replace the new issue body.
 - Missing fields remain unknown; never infer identities from names, URLs, or text.
@@ -29,7 +29,7 @@ tools:
 
 ## Context Rules
 - Do not treat an inferred identity as factual context.
-- Do not make additional `get_record` calls or derive an identity from names, URLs, text, error details, or apparent similarity.
+- Do not make additional `get_records` calls or derive an identity from names, URLs, text, error details, or apparent similarity.
 
 ## Required Output
 - **Return the required Prelude JSON output only.**

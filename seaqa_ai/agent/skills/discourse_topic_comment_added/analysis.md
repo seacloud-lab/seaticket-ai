@@ -22,16 +22,18 @@ additional_output:
 - Assess a supported reply and ticket handling independently, or use strict exclusive `no_op`.
 
 ## Input Contract
-- Use only the triggering event, `event_summary`, successful `get_record` tool observations, and observations from allowed searches.
+- Each `get_records` observation is an array. Select the successful item whose `source_type`, `connection_id`, and `record_id` match the triggering record's identity supplied in the framework's `get_records` targets; call it `current_record`. It must contain `content` and have neither `error` nor `notice`. Do not select by array position or use a related record as the triggering record.
+- A duplicate notice supplies no content; use an already supplied successful item for the same identity. If none is available, the current content is unavailable: do not infer that the event is current or stale, and apply the missing-ID rules below.
+- Use only the triggering event, `event_summary`, successful `get_records` tool observations, and observations from allowed searches.
 - Read `event.new_value` as the authoritative comment.
-- The event comment is `triggering_event.event.new_value`. The current latest comment is `get_record.content.latest_comment`.
-- Use parent-topic content and a linked Ticket identified by successful `get_record` observations only to determine whether the comment raises an independent problem and whether owner follow-up is needed.
+- The event comment is `triggering_event.event.new_value`. The current latest comment is `current_record.content.latest_comment`.
+- Use parent-topic content and a linked Ticket identified by successful `get_records` observations only to determine whether the comment raises an independent problem and whether owner follow-up is needed.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestions.
 
 ## Required Steps
-1. Verify `event_summary` and successful `get_record` tool observations identify a usable comment and parent topic.
-2. If `event_summary`, `triggering_event`, or successful `get_record` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
-3. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `get_record.content.latest_comment.post_number` are both present and differ.
+1. Verify `event_summary` and successful `get_records` tool observations identify a usable comment and parent topic.
+2. If `event_summary`, `triggering_event`, or successful `get_records` tool observations do not identify a usable comment and target, recommend only `no_op`, set `skip_handling` to `true`, and make no search call.
+3. Treat the event comment as stale only when `triggering_event.event.new_value.post_number` and `current_record.content.latest_comment.post_number` are both present and differ.
 4. If the event comment is stale and the current latest comment gives a concrete answer, resolution, closure, or next step that needs no agent-written follow-up, recommend only `no_op`, set `skip_handling` to `true`, and do not search.
 5. If the event comment is stale and the current latest comment still asks, reports, or confirms an unresolved matter, analyze the current latest comment. Do not produce a reply to the event comment.
 6. If either post number is unavailable, do not infer whether the event comment is stale from content, author, or timestamps; analyze the event comment under the normal rules.
@@ -41,7 +43,7 @@ additional_output:
 10. Search from the applicable unresolved comment's concrete terms and retain only direct evidence.
 11. Stop under the defined budget and diminishing-return limits.
 12. Determine follow-up by linkage state:
-   - When successful `get_record` observations identify a linked Ticket, assess owner notification and a reply to the triggering topic independently.
+   - When successful `get_records` observations identify a linked Ticket, assess owner notification and a reply to the triggering topic independently.
    - Otherwise recommend `suggest_reply` for a supported direct or useful partial answer.
 13. Recommend `suggest_create_ticket` only for a clearly independent unresolved problem absent from the topic.
 14. Otherwise recommend `no_op` only under its strict boundary.
@@ -60,9 +62,9 @@ additional_output:
 - Do not infer `no_op` from author identity, role, permissions, or perceived experience (e.g., staff, maintainer, administrator, moderator, or organization member), or from a topic's resolution marker.
 - Reproduction reports, tentative advice, partial answers, new questions, tracking requests, and requests for another ticket are not `no_op`.
 - When uncertain, prefer a supported suggestion.
-- When successful `get_record` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
-- When the topic is not linked and evidence shows the same concrete work is already tracked by another internal ticket, recommend `suggest_link_existing_ticket` instead of `suggest_create_ticket`, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
-- A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
+- When successful `get_records` observations identify a linked Ticket, do not recommend `suggest_create_ticket`.
+- When the topic is not linked and evidence shows the same concrete work is already tracked by another internal ticket, recommend `suggest_link_existing_ticket` instead of `suggest_create_ticket`, and only after a successful `get_records` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
+- A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_records`; it is never sufficient evidence by itself.
 - For a verified linked Ticket, recommend `suggest_notify_assignee` only for a material technical detail, regression, blocker, urgency, or reopening risk requiring owner attention.
 - For a verified linked Ticket, recommend `suggest_reply` only when the triggering topic needs a visible acknowledgement, clarification, or supported status response.
 - Notification and a reply may coexist only when each has independent evidence; `no_op` is exclusive.
@@ -71,7 +73,7 @@ additional_output:
 - Frozen related entries may establish that work is already tracked, but cannot replace the new comment as the decision subject or become a direct answer without a usable public URL and direct applicability.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_record` are permitted.
+- Only `issues_search`, `documents_search`, and `get_records` are permitted.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Use `documents_search` first for documentation, explanation, configuration, or how-to content.
 - Use `issues_search` first for bug, feature, or product-problem content.
@@ -95,7 +97,7 @@ additional_output:
 - Do not call suggestion tools or read unrelated records. Search summaries alone do not confirm a fix or duplicate Ticket.
 - Do not set `related_ticket` from a `linked_ticket` number alone without verifying that ticket's content.
 - Do not use an author's identity, role, or permissions (e.g., staff, maintainer, administrator, moderator, or organization member) to select or suppress an action.
-- Do not create a ticket for a matter already covered by the parent topic or when successful `get_record` observations identify a linked Ticket.
+- Do not create a ticket for a matter already covered by the parent topic or when successful `get_records` observations identify a linked Ticket.
 - Do not represent a vague search match as a direct answer.
 - Do not expose personal data, credentials, secrets, or unneeded quotations.
 - Do not place personal data, credentials, secrets, private URLs, or unnecessary quoted content in a search query.

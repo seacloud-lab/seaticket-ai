@@ -636,10 +636,10 @@ Summary: {query_record.get('ai_summary', 'N/A')}"""
         search_results, rerank_token_usage = self._rank_search_results(query, search_results, context, limit, uuid_str_to_32_chars(project_uuid), connection_id_type_map, call_back, tool_name=tool_name)
 
         # reformat to list
-        sources_results = [
-            record 
+        ranked_records = [
+            record
             for sublist in search_results.values()
             for record in sublist.values()
         ]
-        
-        return sources_results, rerank_token_usage
+
+        return ranked_records, rerank_token_usage

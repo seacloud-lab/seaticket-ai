@@ -14,7 +14,7 @@ tools:
 - `user_instruction` is the highest-priority input. Analysis is supporting context.
 
 ## Input Contract
-- Use the triggering event, successful `get_record` observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
+- Use the triggering event, successful `get_records` observations, `analysis_report`, `recommended_actions`, `user_instruction`, `previous_drafts`, and declared Analysis fields.
 - Treat `user_instruction` as binding. `recommended_actions` is the allowed tool range. `skip_handling` is not binding.
 - Use parent-topic content only to preserve the selected context.
 - The user may request suggestions even when Analysis selected `no_op` or skipped handling.
@@ -26,7 +26,7 @@ tools:
     - For an independent problem, call `suggest_create_ticket`. It targets the triggering Discourse topic and uses a non-empty reason limited to that problem.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. For a Ticket notification:
-   - Call `suggest_notify_assignee` only when a successful `get_record` observation identifies the selected Ticket.
+   - Call `suggest_notify_assignee` only when a successful `get_records` observation identifies the selected Ticket.
    - Use that Ticket as `target` with:
      - `source_type: "ticket"`
      - `connection_id: null`
@@ -45,7 +45,7 @@ tools:
 
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
-- Do not call `get_record`, search, or undeclared tools.
+- Do not call `get_records`, search, or undeclared tools.
 - Call only tools allowed by this skill and requested by the user instruction.
 - Do not modify topic category, status, tags, or author data.
 

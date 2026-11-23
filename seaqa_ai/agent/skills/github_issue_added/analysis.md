@@ -43,15 +43,15 @@ additional_output:
 
 ## Input Contract
 - Use only records returned by successful passive observations, `triggering_event`, `event_summary`, and search observations made in this phase.
-- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_record`.
+- The event issue body is `triggering_event.event.new_value.content`. Current issue context is the issue fields and comments returned by `get_records`.
 - Treat the successful passive issue observation as immutable input.
-- Use `event_summary` and successful `get_record` tool observations for target identity and factual context, not as a substitute for source facts.
+- Use `event_summary` and successful `get_records` tool observations for target identity and factual context, not as a substitute for source facts.
 - Use supplied `issue_type`, `labels`, and `available_labels` without inventing values.
 - Do not refresh records, inspect external records directly, or invoke suggestions; retrieving a candidate internal ticket for link verification is the only permitted record retrieval.
 - Never use information from a search result unless its returned label is available for citation.
 
 ## Required Steps
-1. Confirm `event_summary`, `triggering_event`, and successful `get_record` tool observations identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` to `true`.
+1. Confirm `event_summary`, `triggering_event`, and successful `get_records` tool observations identify a usable issue and opening content; otherwise recommend `no_op` and set `skip_handling` to `true`.
 2. Read the title and event issue body, then assess current issue context for later progress.
 3. This event has no opening-comment identity. Current issue context alone cannot establish that the event issue body is stale. Use current issue context only as supporting evidence; recommend `no_op` without searching only when concrete current comments or state establish an answer, resolution, closure, or next step requiring no agent-written follow-up.
 4. Record the supplied `issue_type` exactly as `original_issue_type`, then set `classified_issue_type` from the applicable unresolved request:
@@ -71,8 +71,8 @@ additional_output:
   - Recommend `suggest_reply` for a direct supported answer, a clearly tracked case with a usable URL, or an acknowledgement, clarification, or supported next step accompanying a ticket action.
   - A known case requires strong overlap in symptom, requested capability, or root problem.
   - General topical similarity, a shared product area, or a matching keyword is insufficient.
-  - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_record` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
-  - A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_record`; it is never sufficient evidence by itself.
+  - Recommend `suggest_link_existing_ticket` only when strong evidence shows the same concrete work is already tracked by an existing internal ticket, and only after a successful `get_records` observation of that ticket confirms its content tracks the same concrete work; a directly searched ticket whose returned content already shows this needs no extra verification.
+  - A `linked_ticket` number on a similar search result only identifies a candidate ticket to verify with `get_records`; it is never sufficient evidence by itself.
   - A related Ticket prevents `suggest_create_ticket` only when its successfully observed content clearly tracks the same concrete work.
   - A related Ticket is context, not search evidence or a direct answer, unless it provides a usable public URL and directly answers the issue.
   - Recommend `suggest_create_ticket` for an unresolved issue needing internal work when no verified ticket already tracks it; a useful reply does not remove that need.
@@ -84,7 +84,7 @@ additional_output:
   - Labels: `suggest_assign_labels` only adds labels. Recommend one to three exact `available_labels` that are not already in `labels` when they clearly describe the issue, preferring a label that mirrors `classified_issue_type` (for example `bug`, `enhancement`, `question`) and then a clearly named product area or component. If `available_labels` is absent or empty, skip labels and say so.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_record` are permitted.
+- Only `issues_search`, `documents_search`, and `get_records` are permitted.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - For `Bug` or `Feature`, call `issues_search` first.
 - For `Question`, call `documents_search` first.

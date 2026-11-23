@@ -13,7 +13,7 @@ tools:
 - It creates proposals only and never sends, moves, or resolves mail directly.
 
 ## Input Contract
-- Use only the triggering event, successful `get_record` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
+- Use only the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
 - Treat Spam or Notification triage, `recommended_actions`, and `skip_handling` as binding.
 - Do not reinterpret sender intent, transactional status, or support content.
 - Do not add, replace, or combine recommendations.
@@ -40,7 +40,7 @@ tools:
 
 ## Tool Rules
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
-- Never call `get_record`, search, or undeclared tools.
+- Never call `get_records`, search, or undeclared tools.
 - Invoke only the actions selected by Analysis.
 - Use move-to-spam only when Analysis selects `Spam`.
 - Do not use tools to send email, alter payment data, or modify account security state.

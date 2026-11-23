@@ -10,6 +10,7 @@ from seaqa_ai.utils.seadb import ContentBudget, ContentPriority, ticket_comments
     linear_issue_comments_query, jira_issue_comments_query, discord_thread_messages_query
 from seaqa_ai.utils.record.loaded_records import LoadedRecords
 from seaqa_ai.utils.record.identity import (
+    record_key,
     validate_record_identity,
 )
 
@@ -91,11 +92,13 @@ class RecordRetriever:
         if not ExtraSourceType.is_valid(source_type)
     )
 
-    def __init__(self, app, project_uuid, loaded_records, context=None):
+    def __init__(self, app, project_uuid, context=None):
         self.app = app
         self.project_uuid = project_uuid
-        self.context = context or {}
-        self.loaded_records = loaded_records
+        self.context = context if isinstance(context, dict) else {}
+        if self.context.get('loaded_records') is None:
+            self.context['loaded_records'] = LoadedRecords()
+        self.loaded_records = self.context['loaded_records']
 
     def retrieve(self, targets, allow_missing=False):
         """Load records for targets, preserving their input order."""
@@ -108,7 +111,7 @@ class RecordRetriever:
         for target in normalized_targets:
             record = self.loaded_records.get(**target)
             if record is not None:
-                records_by_key[LoadedRecords.key(**target)] = record
+                records_by_key[record_key(**target)] = record
                 continue
             targets_by_source.setdefault(
                 (target['source_type'], target['connection_id']), [],
@@ -131,12 +134,12 @@ class RecordRetriever:
                 self._add_github_available_labels(connection_id, loaded_records)
 
             for record_id, record in loaded_records.items():
-                records_by_key[LoadedRecords.key(source_type, connection_id, record_id)] = record
+                records_by_key[record_key(source_type, connection_id, record_id)] = record
                 self.loaded_records.add(source_type, connection_id, record_id, record)
 
         results = []
         for target in normalized_targets:
-            record = records_by_key.get(LoadedRecords.key(**target))
+            record = records_by_key.get(record_key(**target))
             if record is None and not allow_missing:
                 raise ValueError(
                     f"No active {target['source_type']!r} record found with record_id "
@@ -208,7 +211,7 @@ class RecordRetriever:
                 identity = self._normalize_target(candidate)
             except ValueError:
                 continue
-            key = LoadedRecords.key(**identity)
+            key = record_key(**identity)
             if key not in seen:
                 seen.add(key)
                 results.append(identity)
@@ -599,7 +602,7 @@ class RecordRetriever:
         return formatted
 
     def _add_github_available_labels(self, connection_id, records_by_id):
-        labels_by_connection = self.loaded_records.github_available_labels
+        labels_by_connection = self.context.setdefault('_github_available_labels', {})
         if connection_id in labels_by_connection:
             labels = labels_by_connection[connection_id]
         else:

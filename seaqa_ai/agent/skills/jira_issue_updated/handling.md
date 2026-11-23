@@ -14,9 +14,9 @@ tools:
 ## Input Contract
 - The analysis action set and its stated validation evidence are the complete Analysis decision.
 - Use task-event and passive-observation facts only to phrase an approved action; do not reassess completion.
-- Use only external record identities from successful `get_record` observations when selecting `reply_targets` for the declared external-reply suggestion tool.
+- Use only external record identities from successful `get_records` observations when selecting `reply_targets` for the declared external-reply suggestion tool.
 - External reply targets are GitHub issues, Discourse topics, email threads, Discord threads, and portal issues. Do not select General Task, Jira issue, or Linear issue records in `reply_targets`.
-- Do not inspect, invent, add, or replace target identities beyond successful `get_record` observations. Any Ticket target must have a successful `get_record` observation.
+- Do not inspect, invent, add, or replace target identities beyond successful `get_records` observations. Any Ticket target must have a successful `get_records` observation.
 - No live data, task data, or tool result may justify further action.
 
 ## Required Steps
@@ -24,7 +24,7 @@ tools:
 2. For `no_op`, make no tool call and report the intentional omission.
 3. For Analysis-selected `suggest_close_ticket`:
    - Call once.
-   - Use the Ticket identity from a successful `get_record` observation.
+   - Use the Ticket identity from a successful `get_records` observation.
    - Provide a non-empty Analysis-supported resolution reason.
    - Include a rule only when Analysis supplied it.
    - Use only a Ticket successfully loaded into the framework record cache.
@@ -32,7 +32,7 @@ tools:
    - Call once.
    - Use a concise, friendly, safe non-empty reply.
    - Provide an Analysis-grounded non-empty reason.
-   - Use intended non-task external record identities from successful `get_record` observations in `reply_targets`. When Analysis establishes that the complete tracked Task set is finished, include all valid external targets whose `linked_ticket` points back to the Ticket.
+   - Use intended non-task external record identities from successful `get_records` observations in `reply_targets`. When Analysis establishes that the complete tracked Task set is finished, include all valid external targets whose `linked_ticket` points back to the Ticket.
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
 5. Say work is complete or ready for verification only when Analysis explicitly supports that wording.
 6. Record pending-suggestion outcomes and stop after the selected attempts.
@@ -50,7 +50,7 @@ tools:
   - Report that failed attempt.
   - Stop.
   - Do not discover targets.
-  - Do not infer a recipient beyond successful `get_record` observations.
+  - Do not infer a recipient beyond successful `get_records` observations.
   - Do not retry.
   - Do not substitute closure.
 - Do not retry a failure, request revalidation, or create a new action.
@@ -68,7 +68,7 @@ tools:
 ## Required Output
 - Identify approved actions, pending suggestions actually created, and intentional `no_op` handling.
 - For closure, identify it only as a pending suggestion supported by Analysis.
-- For reply, note that successful `get_record` observations constrain the pending suggestion targets, and that tracked Tasks are not valid reply targets.
+- For reply, note that successful `get_records` observations constrain the pending suggestion targets, and that tracked Tasks are not valid reply targets.
 - For a failure, report only the selected attempt and concise returned result.
 - After all selected attempts, immediately return the report and make no further tool call.
 - Do not claim a ticket closed, an external reply was sent, or a recipient was contacted.

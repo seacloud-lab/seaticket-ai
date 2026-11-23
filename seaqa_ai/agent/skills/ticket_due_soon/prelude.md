@@ -16,11 +16,11 @@ tools:
 - The ticket may provide title, state, substate, due date, priority, assignees, and link identities.
 - Absent fields remain absent; do not derive a due date, owner, or ticket status.
 - Links in the event or ticket are identifiers, not readable context.
-- If the successful passive `get_record` observation for the supplied target ticket is unavailable and its record data is materially needed, use `get_record` only for that same supplied target identity. No prior tool call or error is required.
+- If the successful passive `get_records` observation for the supplied target ticket is unavailable and its record data is materially needed, use `get_records` only for that same supplied target identity. No prior tool call or error is required.
 
 ## Required Steps
 1. Validate that the routed target identifies a ticket and that the event is available.
-2. Use the successful passive `get_record` observation for that target:
+2. Use the successful passive `get_records` observation for that target:
    - If it is unavailable and target data is materially needed, actively load only that same supplied target identity.
 3. Preserve factual title, state, substate, priority, assignee presence, and due-date values when supplied.
 4. Preserve the supplied due-soon trigger as evidence without interpreting it. Do not repeat scanner timing or the event trigger time in `event_summary`.
@@ -38,7 +38,7 @@ tools:
 - Use the ticket observation only as context for this phase; do not represent it as a live-state validation.
 
 ## Tool Rules
-- Use the successful passive observation of the routed ticket when available. If it is unavailable and target data is materially needed, `get_record` may load only the same supplied target identity.
+- Use the successful passive observation of the routed ticket when available. If it is unavailable and target data is materially needed, `get_records` may load only the same supplied target identity.
 - Do not read a task, issue, email, discussion, external record, or another ticket.
 - Do not expand `linked_connection_records` or follow identifiers from the event.
 - Do not search, browse, request history, or invoke a suggestion tool.

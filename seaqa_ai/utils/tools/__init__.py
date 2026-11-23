@@ -36,7 +36,7 @@ def summarize_tool_result(tool_name, result):
         return {}
     items = [item for item in result if isinstance(item, dict)]
     if tool_name in SEARCH_TOOL_NAMES:
-        docs = [item for item in items if 'label' in item]
+        docs = [item for item in items if 'reference_label' in item and 'notice' not in item]
         return {
             'results': len(docs),
             'duplicates': sum('notice' in item for item in items),
@@ -51,8 +51,8 @@ def summarize_tool_result(tool_name, result):
         return {
             'targets': len(result),
             'read': len(read),
-            'duplicates': sum('reference_id' in item for item in notices),
-            'limited': sum('reference_id' not in item for item in notices),
+            'duplicates': sum(item.get('notice') == GetRecords.DUPLICATE_NOTICE for item in notices),
+            'limited': sum(item.get('notice') == GetRecords.SOURCE_LIMIT_NOTICE for item in notices),
             'errors': sum('error' in item for item in items),
             'records': ','.join(
                 _record_key(item.get('source_type'), item.get('connection_id'), item.get('record_id')) for item in read
