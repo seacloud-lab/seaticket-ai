@@ -447,6 +447,9 @@ class AgentReACT:
                             if target_index:
                                 # Multiple suggestion rows share the cost of one tool invocation.
                                 target_statistics['credit_used'] = 0
+                            target_payload = target.get('suggestion_payload')
+                            if not isinstance(target_payload, dict):
+                                target_payload = raw_result.get('suggestion_payload')
                             self._trace(
                                 action_type='suggestion', action_status='pending', step=step,
                                 tool_name=raw_result.get('trace_tool_name') or tool_name,
@@ -458,7 +461,7 @@ class AgentReACT:
                                 target_item_title=target['source_title'],
                                 suggestion_reason=str(raw_result.get('suggestion_reason', '') or '').strip(),
                                 suggestion_content=str(raw_result.get('suggestion_content', '') or ''),
-                                suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
+                                suggestion_payload=target_payload if isinstance(target_payload, dict) else {},
                             )
                     self._append_tool_output(tool_call, observation)
                     return True

@@ -15,6 +15,17 @@ additional_output:
       The internal ticket number this record should be linked to. Set a
       positive ticket number only when recommending suggest_link_existing_ticket;
       set 0 for every other recommendation.
+  reply_to:
+    type: array
+    items:
+      type: string
+    description: >
+      Optional email reply recipients when recommending suggest_reply for a
+      forwarded email thread where someone forwarded another person's request
+      and the reply should go directly to the original requester found in the
+      forwarded body. Return [] for normal direct emails, when a customer
+      forwards an automated/system notice (such as no-reply@...) to ask about
+      their own issue, or when suggest_reply is not recommended.
 ====================
 ## Role And Scope
 - Assess one newly added email message and select a reply, linked-ticket follow-up, or an independent ticket proposal.
@@ -88,6 +99,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
+- Set `reply_to` to the original requester's email address(es) observed in the forwarded body only when recommending `suggest_reply` for an email thread forwarded on behalf of another person (so the reply should go to the original requester rather than the forwarder). Otherwise set `reply_to` to `[]` (including normal direct emails and cases where a customer forwards an automated or system email such as `no-reply@...`).
 - For an unlinked record, return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions. For a linked Ticket, use only `suggest_notify_assignee`, `suggest_reply`, and `no_op`.
 - Put exact returned labels immediately beside supported claims in `analysis_report`.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.

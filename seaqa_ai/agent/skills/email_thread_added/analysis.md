@@ -15,6 +15,17 @@ additional_output:
       The internal ticket number this record should be linked to. Set a
       positive ticket number only when recommending suggest_link_existing_ticket;
       set 0 for every other recommendation.
+  reply_to:
+    type: array
+    items:
+      type: string
+    description: >
+      Optional email reply recipients when recommending suggest_reply for a
+      forwarded email where someone forwarded another person's request and the
+      reply should go directly to the original requester found in the forwarded
+      body. Return [] for normal direct emails, when a customer forwards an
+      automated/system notice (such as no-reply@...) to ask about their own
+      issue, or when suggest_reply is not recommended.
 ====================
 ## Role And Scope
 - Triage one newly created email thread as Spam, Notification, or support content and select justified handling actions.
@@ -28,7 +39,7 @@ additional_output:
 - The event opening email is `triggering_event.event.new_value`: its `message_id`, `email_date`, `is_sender`, `email_from`, and `content`. The thread title is `triggering_event.event.new_value.title`.
 - The current latest email is `current_record.content.latest_email`. Earlier emails, oldest first and excluding the latest, are in `current_record.content.history_emails`.
 - The earliest available email is the first `history_emails` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not an email. When no real earlier email remains, the earliest available email is `latest_email`.
-- Treat the event opening email as the primary thread content. When it is unavailable, treat the earliest available email as the primary thread content.
+- Treat the event opening email as the primary thread content, using the matching email in `get_record.content` (the earliest available email) as the authoritative opening body because it preserves full unstripped forwarded content. When the event opening email is unavailable, treat the earliest available email as the primary thread content.
 - Use later thread messages only when they materially clarify the opening email.
 - Do not retrieve records except a candidate internal ticket for link verification, and do not invoke suggestion tools.
 - Do not place full sensitive content into queries or reports.
@@ -82,6 +93,7 @@ additional_output:
 ## Required Output
 - Return all required Analysis JSON fields.
 - Set `related_ticket` to the cited internal ticket number only when recommending `suggest_link_existing_ticket`; otherwise set it to 0.
+- Set `reply_to` to the original requester's email address(es) observed in the forwarded body only when recommending `suggest_reply` for an email forwarded on behalf of another person (so the reply should go to the original requester rather than the forwarder). Otherwise set `reply_to` to `[]` (including normal direct emails and cases where a customer forwards an automated or system email such as `no-reply@...`).
 - Return every justified action from `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, or exclusive `no_op`. A reply may stand alone or accompany one ticket action; never recommend both ticket actions. For Spam, return only `suggest_move_to_spam`.
 - Place exact search-returned labels next to supported claims.
 - Do not return record identities, `reference_related_records`, or a separate reference-label list; the framework validates report citations and resolves applicable Handling records.

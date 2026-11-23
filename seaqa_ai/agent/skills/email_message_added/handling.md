@@ -22,7 +22,7 @@ tools:
 1. Inspect the skip flag and Analysis-selected actions.
 2. If handling is skipped, make no tool call and record the omission.
 3. Create each Analysis-selected reply or ticket suggestion:
-    - For an Analysis-selected reply, call `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request identified by Analysis, with an Analysis-grounded reason, greeting, concise direct body, closing, and only Analysis-selected supporting URLs.
+    - For an Analysis-selected reply, call `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request identified by Analysis, with an Analysis-grounded reason, greeting, concise direct body, closing, and only Analysis-selected supporting URLs. When Analysis supplied a non-empty `reply_to`, pass it verbatim in the `reply_to` tool argument (do not place raw email addresses in the reply body or reason).
     - For an independently selected issue, call `suggest_create_ticket`. It targets the triggering email thread and uses a non-empty reason limited to that issue.
     - For an Analysis-selected existing-ticket link, call `suggest_link_existing_ticket` with the Analysis-provided positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 4. For an Analysis-selected Ticket notification, call `suggest_notify_assignee` only when a successful `get_records` observation identifies the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
@@ -44,7 +44,7 @@ tools:
 - Never call `get_records`, search, or any undeclared tool.
 - Call only the tools selected by Analysis.
 - Do not create suggestions not selected by Analysis.
-- Do not use tools to send email, modify recipients, or change thread state.
+- Do not use tools to send email or change thread state (passing Analysis-supplied `reply_to` to `suggest_reply` only sets the pending draft's default recipient).
 
 ## Required Output
 - State each Analysis-selected action, attempted tool call, selected evidence use, and actual outcome.

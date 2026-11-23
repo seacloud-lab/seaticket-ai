@@ -16,6 +16,7 @@ tools:
 - The event opening email is `triggering_event.event.new_value`: its `message_id`, `email_date`, `is_sender`, `email_from`, and `content`. The thread title is `triggering_event.event.new_value.title`.
 - The current latest email is `current_record.content.latest_email`. Earlier emails, oldest first and excluding the latest, are in `current_record.content.history_emails`.
 - The earliest available email is the first `history_emails` entry that has both a `message_id` and `content`. Skip an entry whose content is `[messages omitted due to content limit]`; it is an internal notice, not an email. When no real earlier email remains, the earliest available email is `latest_email`.
+- When reading the opening email's body, prefer the matching email in `get_record.content` (the earliest available email) over `triggering_event.event.new_value.content`, because `get_record` preserves the full unstripped body (including forwarded content).
 - The opening email remains primary; recipient lists are normally unnecessary.
 - Do not infer a relationship from sender identity, text, URLs, or apparent similarity.
 

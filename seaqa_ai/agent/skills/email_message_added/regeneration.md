@@ -22,7 +22,7 @@ tools:
 ## Required Steps
 1. Read `user_instruction` first, then Analysis context and any `previous_drafts`.
 2. Create suggestions needed to satisfy the user instruction, using only permitted tools:
-    - For a reply, call `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request, with a grounded reason, greeting, concise direct body, closing, and only evidence-supported URLs.
+    - For a reply, call `suggest_reply`. It targets the triggering email thread and uses a non-empty courteous direct reply to the current unresolved request, with a grounded reason, greeting, concise direct body, closing, and only evidence-supported URLs. Preserve `reply_to` from `previous_drafts` (its `suggestion_payload.reply_to`) or Analysis unless `user_instruction` explicitly asks to change or clear the recipient; pass any selected recipients in the `reply_to` tool argument rather than the reply body.
     - For an independent issue, call `suggest_create_ticket`. It targets the triggering email thread and uses a non-empty reason limited to that issue.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. For a Ticket notification, call `suggest_notify_assignee` only when a successful `get_records` observation identifies the selected Ticket, using that Ticket as `target` with `source_type: "ticket"`, `connection_id: null`, and its `record_id`.
@@ -43,7 +43,7 @@ tools:
 - Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
 - Never call `get_records`, search, or any undeclared tool.
 - Call only tools allowed by this skill and requested by the user instruction.
-- Do not use tools to send email, modify recipients, or change thread state.
+- Do not use tools to send email or change thread state (passing `reply_to` to `suggest_reply` only sets the pending draft's default recipient).
 
 ## Required Output
 - State each requested action, attempted tool call, selected evidence use, and actual outcome.
