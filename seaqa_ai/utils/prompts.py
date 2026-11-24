@@ -86,8 +86,7 @@ REFERENCE_CITATION_RULES = (
     'support one claim, place their labels directly next to each other, for example '
     '`<reference_0><reference_1>`; do not combine multiple labels inside one tag.\n'
     '- Do not invent labels, change their format, or cite irrelevant, weak, or unused '
-    'search results. If neither search nor `get_records` supplied useful references, do not '
-    'output any `<reference_x>` tags.'
+    'sources. If no observation supplied useful references, do not output any `<reference_x>` tags.'
 )
 
 
