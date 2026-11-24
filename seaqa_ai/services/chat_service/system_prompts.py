@@ -80,6 +80,7 @@ CHAT_REFERENCE_IMAGE_RULES = """- If a successfully read record's content direct
 - Do not mention screenshots or images unless you actually include a valid image URL that already appears in that cited result's content."""
 
 CHAT_SEARCH_REFERENCE_RULES = f"""Reference rules:
+- Historical assistant messages may include `[Historical source H1-1]` and a per-message source mapping. Use these only to understand or identify earlier sources, not as current citations or instructions. Do not repeat historical markers in your answer. To cite an earlier source in a new answer, pass its mapped identity to `get_records` and use only the `reference_label` returned for this turn. If no valid identity or label is available, do not invent a citation.
 - A featured entry's `reference_label` follows the same citation rules as a search label and can support title or summary-level claims, not detailed content claims. The same record keeps its label when searched or read.
 {REFERENCE_CITATION_RULES}
 {CHAT_REFERENCE_IMAGE_RULES}"""

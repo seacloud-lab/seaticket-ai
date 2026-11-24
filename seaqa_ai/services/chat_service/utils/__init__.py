@@ -169,17 +169,3 @@ def strip_content_details_from_attachments(attachments):
         attachment.pop('comments', None)
         attachment.pop('emails', None)
     return new_attachments
-
-def retrieve_origin_reference_format(content, sources, with_tanger=False):
-    """
-    Restore the original reference format to avoid context errors.
-    """
-    if sources:
-        if with_tanger:
-            content += '\n\n\nThe following information is for context only (not exist in your original answer and is for reference only)!!! Do not output this as part of the formatting in subsequent turns:\n'
-        for i, source in enumerate(sources):
-            content = content.replace(f'[Reference {i + 1}]', f'<reference_{i}>')
-            if with_tanger:
-                content += f'<reference_{i}>: [{source.get("title", source.get("url"))}]({source.get("url", "#")})\n'
-
-    return content

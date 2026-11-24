@@ -1,9 +1,7 @@
-from seaqa_ai.config import SEARCH_TOOL_CONTENT_MAX_SIZE
 from seaqa_ai.seadb_models import SchemaTables
 from seaqa_ai.utils import uuid_str_to_32_chars
 from seaqa_ai.utils.constants import ExtraSourceType
 from seaqa_ai.utils.record import ensure_record_context
-from seaqa_ai.utils.record.retriever import KNOWLEDGE_BASE_RECORD_FIELDS
 from seaqa_ai.utils.tools import BasicTool
 
 
@@ -30,10 +28,9 @@ class GetFeaturedKnowledgeBase(BasicTool):
             return []
 
         table_name = SchemaTables.KNOWLEDGE_BASE.table_name()
-        fields = ', '.join(f'`{field}`' for field in (*KNOWLEDGE_BASE_RECORD_FIELDS, 'content', 'ai_summary'))
         rows = app.seadb_service.query_rows(
             uuid_str_to_32_chars(context['project_uuid']),
-            f'SELECT {fields} FROM `{table_name}` '
+            f'SELECT `_pk`, `title`, `ai_summary`, `tags`, `modified_time` FROM `{table_name}` '
             'WHERE `featured` = True AND (`deleted` = False OR `deleted` IS NULL) '
             'ORDER BY `modified_time` DESC, `created_time` DESC, `_pk` ASC '
             f'LIMIT {FEATURED_KNOWLEDGE_BASE_LIMIT}',
@@ -43,7 +40,6 @@ class GetFeaturedKnowledgeBase(BasicTool):
             return []
 
         ensure_record_context(context)
-        loaded_records = context['loaded_records']
         reference_pool = context['reference_pool']
         featured = []
         for row in rows:
@@ -59,16 +55,6 @@ class GetFeaturedKnowledgeBase(BasicTool):
             reference_label = reference_pool.register_featured_record(
                 identity, {**metadata, 'modified_time': row.get('modified_time')},
             )
-            body = row.get('content')
-            if (
-                'content' in row and (body is None or isinstance(body, str))
-                and all(field in row for field in KNOWLEDGE_BASE_RECORD_FIELDS)
-                and not loaded_records.contains(identity)
-            ):
-                record = {field: row[field] for field in KNOWLEDGE_BASE_RECORD_FIELDS}
-                record['content'] = (body or '')[:SEARCH_TOOL_CONTENT_MAX_SIZE]
-                loaded_records.add(**identity, record=record)
-
             item = {**identity, **metadata}
             if reference_label is not None:
                 item['reference_label'] = reference_label
