@@ -15,6 +15,9 @@ from seaqa_ai.utils.record.identity import (
 )
 
 RECORD_CONTENT_BUDGET = ContentBudget(max_chars=SEARCH_TOOL_CONTENT_MAX_SIZE, priority=ContentPriority.LATEST_MESSAGE_FIRST)
+KNOWLEDGE_BASE_RECORD_FIELDS = (
+    '_pk', 'title', 'tags', 'creator', 'created_time', 'last_modifier', 'modified_time',
+)
 MESSAGES_OMITTED_NOTICE = '[messages omitted due to content limit]'
 
 # The stored `content` of an email strips its quoted history. That is lossless
@@ -49,10 +52,7 @@ class RecordRetriever:
             'creator', 'comment_count', 'linked_ticket', 'created_time',
             'modified_time', 'closed_time',
         ),
-        ExtraSourceType.KNOWLEDGE_BASE.value: (
-            '_pk', 'title', 'tags', 'creator', 'created_time', 'last_modifier',
-            'modified_time',
-        ),
+        ExtraSourceType.KNOWLEDGE_BASE.value: KNOWLEDGE_BASE_RECORD_FIELDS,
         ConnectionType.SITE.value: ('_pk', 'url', 'title', 'modified_time'),
         ConnectionType.SEAFILE.value: ('_pk', 'file_id', 'path', 'title', 'modified_time'),
         ConnectionType.GITHUB_ISSUE.value: (

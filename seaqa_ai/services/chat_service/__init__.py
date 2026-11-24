@@ -3,6 +3,7 @@ import json
 import time
 from abc import abstractmethod
 from collections import deque
+from uuid import uuid4
 from seaqa_ai import config
 from seaqa_ai.db import init_db_session_class
 from seaqa_ai.db.models import ProjectConnection, PortalChatMessages, ChatMessages
@@ -16,6 +17,7 @@ from seaqa_ai.services.chat_service.utils.chat_utils import BasicChatUtils, Stre
 from seaqa_ai.services.chat_service.utils.memory import build_memory_from_db, ChatMemory
 from seaqa_ai.utils.tools import TestTool, DocumentsSearch, IssuesSearch, TasksSearch, GetRecords
 from seaqa_ai.services.chat_service.tools.content_generators import KnowledgeBaseEntryCreator, MarkdownGenerator, TicketCreator
+from seaqa_ai.services.chat_service.tools.featured_knowledge_base import GetFeaturedKnowledgeBase
 from seaqa_ai.services.chat_service.system_prompts import MAX_STEPS_DISABLE_TOOL_CALLS_PROMPT
 from seaqa_ai.services.chat_service.utils import combine_attachments_to_message, \
     strip_content_details_from_attachments, build_chat_system_prompts, build_user_message_content, \
@@ -120,20 +122,49 @@ class BasicChat(object):
             logger.exception(f'Failure to prepare portal citations: {e}')
             return remove_reference_markers(answer or ''), []
 
+    @staticmethod
+    def _append_manual_tool_call(memory, name, arguments, *, output=None, run_registered=None):
+        call_id = f'call_{uuid4().hex}'
+        tool_call = {
+            'type': 'function_call', 'call_id': call_id,
+            'name': name, 'arguments': json.dumps(arguments),
+        }
+        if run_registered is not None:
+            memory += tool_call
+            run_registered(tool_call)
+        else:
+            memory += [tool_call, {
+                'type': 'function_call_output', 'call_id': call_id,
+                'output': json.dumps(output, ensure_ascii=False),
+            }]
+
+    def _load_featured_knowledge_base(self, memory, context):
+        tool = GetFeaturedKnowledgeBase()
+        try:
+            featured = tool.execute(context=context, app=self.app)
+        except Exception:
+            logger.exception('Failed to load featured knowledge base for project %s', context.get('project_uuid'))
+            return
+        if featured:
+            self._append_manual_tool_call(memory, tool.tool['name'], {}, output=featured)
+
     def _load_selected_skill(self, tool_executor, memory, context):
         skill_id = context.get('selected_skill_id')
         if not skill_id:
             return
 
         self.load_extra_skill_tool.register(tool_executor, context=context, app=self.app)
-        tool_call = {
-            'type': 'function_call',
-            'call_id': f'selected_skill_{skill_id}',
-            'name': 'load_extra_skill',
-            'arguments': json.dumps({'name': skill_id}),
-        }
-        memory += tool_call
-        BasicChatUtils.execute_tool_with_retry(tool_executor, tool_call, ChatCallBacker, memory)
+        self._append_manual_tool_call(
+            memory, 'load_extra_skill', {'name': skill_id},
+            run_registered=lambda tool_call: BasicChatUtils.execute_tool_with_retry(
+                tool_executor, tool_call, ChatCallBacker, memory,
+            ),
+        )
+
+    def _prepare_turn_input(self, tool_executor, memory, context, user_message_content):
+        memory += {'role': 'user', 'content': user_message_content}
+        self._load_featured_knowledge_base(memory, context)
+        self._load_selected_skill(tool_executor, memory, context)
 
     def __call__(self, message, attachments, context, model):
         tool_executor = OpenAIToolExecutor()
@@ -171,11 +202,7 @@ class SyncChat(BasicChat):
         tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
         tool_executor.thought_process.context = memory.context_thought_process
 
-        memory += {
-            'role': 'user',
-            'content': user_message_content
-        }
-        self._load_selected_skill(tool_executor, memory, context)
+        self._prepare_turn_input(tool_executor, memory, context, user_message_content)
 
         current_step = 0
         has_inserter_max_step_prompt = False
@@ -315,11 +342,7 @@ class StreamingChat(BasicChat):
             tool_executor.thought_process.set_task(system_prompts, user_raw_message, message, strip_content_details_from_attachments(attachments))
             tool_executor.thought_process.context = memory.context_thought_process
 
-            memory += {
-                'role': 'user',
-                'content': user_message_content
-            }
-            self._load_selected_skill(tool_executor, memory, context)
+            self._prepare_turn_input(tool_executor, memory, context, user_message_content)
 
             current_step = 0
             current_retry = 0
@@ -517,7 +540,7 @@ class StreamingChat(BasicChat):
                     tool_executor.thought_process.set_last_group_time_usage(time.time() - time_begin)
                     completion_retries = []
 
-                    found_records = len(context.get('reference_pool') or ())
+                    found_records = len(tool_executor.cache.get('observed_search_records', ()))
                     if has_search_tool and found_records:
                         yield SSE.search_found(found_records)
 

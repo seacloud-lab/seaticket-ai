@@ -7,6 +7,7 @@ from seaqa_ai.utils.record.identity import record_key
 _RECORD_SOURCE_METADATA_FIELDS = (
     'title', 'url', 'modified_time', 'state', 'resolved', 'linked_ticket',
 )
+_FEATURED_SOURCE_METADATA_FIELDS = ('title', 'ai_summary', 'tags', 'modified_time')
 
 
 class ReferencePool:
@@ -47,6 +48,7 @@ class ReferencePool:
         self._sources: list[dict] = []
         self._index_by_key: dict[str, int] = {}
         self._excluded_keys: set[str] = set()
+        self._featured_only_keys: set[str] = set()
 
     @staticmethod
     def source_key(source: dict) -> str:
@@ -80,17 +82,45 @@ class ReferencePool:
         if key in self._excluded_keys:
             return None
         existing_index = self._index_by_key.get(key)
-        if existing_index is not None:
+        featured_only = key in self._featured_only_keys
+        if existing_index is not None and not featured_only:
             if inner_url:
                 self._sources[existing_index]['inner_url'] = inner_url
             return self._format_label(existing_index)
 
-        if max_sources is not None and len(self._sources) >= max_sources:
+        if max_sources is not None and len(self._sources) - len(self._featured_only_keys) >= max_sources:
             return None
+
+        if featured_only:
+            source = self._sources[existing_index]
+            source.update(search_result)
+            if inner_url:
+                source['inner_url'] = inner_url
+            self._featured_only_keys.remove(key)
+            return self._format_label(existing_index)
 
         if inner_url:
             search_result['inner_url'] = inner_url
         return self._append(key, search_result)
+
+    def register_featured_record(self, identity: dict, metadata: dict) -> str | None:
+        """Register a citable summary without consuming a search source slot."""
+        key = record_key(**identity)
+        if key in self._excluded_keys:
+            return None
+        existing_index = self._index_by_key.get(key)
+        if existing_index is not None:
+            return self._format_label(existing_index)
+
+        source_type = identity['source_type']
+        source = {field: metadata[field] for field in _FEATURED_SOURCE_METADATA_FIELDS if field in metadata}
+        source.update({
+            'type': source_type,
+            '_id': identity['record_id'],
+            'connection_id': source_type if ExtraSourceType.is_valid(source_type) else identity['connection_id'],
+        })
+        self._featured_only_keys.add(key)
+        return self._append(key, source)
 
     def register_record(
         self,
@@ -109,6 +139,7 @@ class ReferencePool:
 
         existing_index = self._index_by_key.get(key)
         if existing_index is not None:
+            self._featured_only_keys.discard(key)
             existing_source = self._sources[existing_index]
             for field_name in ('url', 'modified_time'):
                 if record.get(field_name) is not None:
