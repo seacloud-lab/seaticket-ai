@@ -1,4 +1,4 @@
-event: email_message_added
+event: email_message_received
 phase: analysis
 description: "Research a new email message and recommend follow-up."
 tools:

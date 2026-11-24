@@ -1,4 +1,4 @@
-event: email_message_added
+event: email_message_received
 phase: regeneration
 description: "Regenerate follow-up suggestions for a new email message from the user's instruction."
 tools:
