@@ -1,4 +1,4 @@
-event: email_message_added
+event: email_message_received
 phase: handling
 description: "Create Analysis-selected follow-up suggestions for a new email message."
 tools:

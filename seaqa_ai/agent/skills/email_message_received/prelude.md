@@ -1,4 +1,4 @@
-event: email_message_added
+event: email_message_received
 phase: prelude
 description: "Prepare a new email message and material related context for analysis."
 tools:
