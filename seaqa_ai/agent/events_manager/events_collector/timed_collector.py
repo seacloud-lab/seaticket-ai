@@ -96,11 +96,7 @@ class TimedEventsCollector:
                 source_type=SOURCE_TYPE_TICKET,
                 record_id=int(ticket_id),
                 event_type=event_type,
-                event={
-                    'type': event_type,
-                    'old_value': {},
-                    'new_value': {},
-                },
+                event={'type': event_type},
                 connection_id=None,
                 modified_time=now,
                 received_at=now,
