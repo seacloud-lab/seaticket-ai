@@ -3,6 +3,7 @@ from seaqa_ai.utils.record.identity import record_identity_schema
 
 
 class SuggestNotifyAssignee(BasicAgentSuggestionTool):
+    editable_content_mode = 'text'
     tool = {
         'type': 'function',
         'name': 'suggest_notify_assignee',
