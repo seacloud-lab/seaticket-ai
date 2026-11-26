@@ -84,7 +84,7 @@ additional_output:
   - Labels: `suggest_assign_labels` only adds labels. Recommend one to three exact `available_labels` that are not already in `labels` when they clearly describe the issue, preferring a label that mirrors `classified_issue_type` (for example `bug`, `enhancement`, `question`) and then a clearly named product area or component. If `available_labels` is absent or empty, skip labels and say so.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_records` are permitted.
+- Permitted tools: `issues_search`, `documents_search`, and `get_records`, plus `load_extra_skill` when an available extra skill matches.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - For `Bug` or `Feature`, call `issues_search` first.
 - For `Question`, call `documents_search` first.
@@ -94,7 +94,7 @@ additional_output:
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop immediately when evidence supports a concrete outcome.
 - Also stop after two consecutive searches with no material evidence gain, at budget exhaustion, or when further search cannot change the choice.
-- **Never call suggestion tools or any undeclared tool, or read records unrelated to the remaining evidence gap.**
+- **Never call suggestion tools or any other undeclared tool, or read records unrelated to the remaining evidence gap.**
 
 ## Required Output
 - Return the required Analysis JSON: `analysis_report`, `recommended_actions`, `original_issue_type`, `classified_issue_type`, `suggested_labels`, `related_ticket`, and `skip_handling`.

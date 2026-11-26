@@ -42,9 +42,9 @@ tools:
 - Pending suggestion creation is not evidence of public delivery or completion.
 
 ## Tool Rules
-- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
-- Do not call `get_records`, search, or undeclared tools.
-- Invoke only a suggestion tool allowed by this skill and requested by the user instruction.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+- Do not call `get_records`, search, or other undeclared tools.
+- Invoke only suggestion and draft-editing tools allowed by this skill and requested by the user instruction (plus `load_extra_skill` when needed).
 - Do not retry, substitute an action, or seek new evidence.
 - Keep tool content within the requested target and evidence scope.
 

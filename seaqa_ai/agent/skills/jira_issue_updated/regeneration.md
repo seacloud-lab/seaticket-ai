@@ -58,10 +58,10 @@ tools:
 - An external reply may notify users that work is complete or ready for verification alongside a close suggestion; it does not make external verification or closure a prerequisite for the Ticket-close suggestion.
 
 ## Tool Rules
-- Permitted tools: `suggest_close_ticket` and `suggest_reply_external_targets`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
+- Permitted tools: `suggest_close_ticket` and `suggest_reply_external_targets`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
 - Do not read, search, browse, refresh, validate, or inspect any record or task.
 - Do not use a system live-state validation tool.
-- Do not call undeclared communication, recipient-discovery, or status tools.
+- Do not call other undeclared communication, recipient-discovery, or status tools.
 - Call each requested suggestion tool at most once.
 - Do not retry, poll, or make compensating calls after a result.
 

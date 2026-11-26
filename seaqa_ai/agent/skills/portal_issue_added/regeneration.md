@@ -26,5 +26,8 @@ tools:
 - Do not substitute another action after a failure.
 - A successful tool call creates a pending suggestion; it does not post a reply or create/link a Ticket yet.
 
+## Tool Rules
+- Permitted tools: the declared suggestion tools, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+
 ## Forbidden Behavior
 - Do not search, retrieve records, expose private data, invent facts, or claim public delivery.

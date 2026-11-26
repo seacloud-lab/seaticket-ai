@@ -39,9 +39,9 @@ tools:
 - Successful suggestion creation is not delivery, a mailbox move, or a sent email.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam` are permitted.
-- Never call `get_records`, search, or undeclared tools.
-- Invoke only the actions selected by Analysis.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
+- Never call `get_records`, search, or other undeclared tools.
+- Invoke only the suggestion actions selected by Analysis.
 - Use move-to-spam only when Analysis selects `Spam`.
 - Do not use tools to send email, alter payment data, or modify account security state.
 

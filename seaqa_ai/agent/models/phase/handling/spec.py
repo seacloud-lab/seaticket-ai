@@ -1,10 +1,12 @@
 from pathlib import Path
+from typing import ClassVar
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
 
 
 class HandlingPhaseSpec(AgentPhaseSpec):
     """Specification for the action recommendation and execution phase."""
+    enable_extra_skills: ClassVar[bool] = True
 
     @classmethod
     def get_system_prompt(cls) -> str:

@@ -41,7 +41,7 @@ tools:
 - Tool failure does not justify substitution, retry, or additional suggestions.
 
 ## Tool Rules
-- Only metadata-declared suggestion tools may be used.
+- Permitted tools: metadata-declared suggestion tools, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
 - Never call `get_records` or search.
 - Never invoke a suggestion absent from `recommended_actions`.
 - Never use a suggestion tool more than needed for its one Analysis-selected action.

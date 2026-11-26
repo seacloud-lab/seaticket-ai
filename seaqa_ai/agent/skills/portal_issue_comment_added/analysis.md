@@ -34,7 +34,7 @@ additional_output:
 - Ground an accompanying reply in observed facts and preserve uncertainty. Do not expose internal ticket details.
 
 ## Tool Rules
-- Only the declared tools are permitted.
+- Permitted tools: the declared tools, plus `load_extra_skill` when an available extra skill matches.
 - Use `documents_search` first for explanation or how-to evidence and `issues_search` first for product problems or tracked work.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for `suggest_link_existing_ticket`.
 - The combined budget is 16 tool calls, including all searches and record reads. This is a ceiling, not a target; stop when evidence is sufficient and obey the framework's step limit if lower. Never call suggestion tools during Analysis.

@@ -52,7 +52,7 @@ additional_output:
 - Completion of all discoverable Tasks, with none missing, is sufficient evidence for a concise completion notification; no separate validation is required. If explicit internal work remains, describe only the completed work. If any Task is unfinished or failed to load, recommend a progress reply only when the supplied context supports it. Tracked Tasks are never reply targets.
 
 ## Tool Rules
-- No tools are available in Analysis.
+- No record, search, or suggestion tools are available in Analysis; only `load_extra_skill` may be used when an available extra skill matches.
 - Do not read, search, browse, inspect, or expand tasks, ticket links, or external records.
 - Do not perform, request, or simulate additional validation.
 - Do not invoke or pre-create a closure or external-reply suggestion.
@@ -60,7 +60,7 @@ additional_output:
 - Do not treat unavailable or partial observations as resolution evidence.
 
 ## Required Output
-- Return the required analysis JSON without tool calls.
+- Return the required analysis JSON without calling any record, search, or suggestion tools.
 - Use only `suggest_close_ticket`, `suggest_reply_external_targets`, and `no_op` in `recommended_actions`.
 - Make `no_op` the sole action whenever selected.
 - In `analysis_report`, distinguish task-event evidence from Ticket-centered record context.

@@ -58,10 +58,10 @@ tools:
 - An Analysis-selected external reply may notify users that work is complete or ready for verification alongside an Analysis-selected close suggestion; it does not make external verification or closure a prerequisite for the Ticket-close suggestion.
 
 ## Tool Rules
-- Only `suggest_close_ticket` and `suggest_reply_external_targets` may be used.
+- Permitted tools: `suggest_close_ticket` and `suggest_reply_external_targets`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not `no_op`.
 - Do not read, search, browse, refresh, validate, or inspect any record or task.
 - Do not use a system live-state validation tool in Handling.
-- Do not call undeclared communication, recipient-discovery, or status tools.
+- Do not call other undeclared communication, recipient-discovery, or status tools.
 - Call each approved suggestion tool at most once.
 - Do not retry, poll, or make compensating calls after a result.
 

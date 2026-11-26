@@ -45,9 +45,9 @@ tools:
 - A pending suggestion is not a posted message or created ticket.
 
 ## Tool Rules
-- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
-- Do not call `get_records`, search, or undeclared tools.
-- Call only tools allowed by this skill and requested by the user instruction.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+- Do not call `get_records`, search, or other undeclared tools.
+- Call only suggestion and draft-editing tools allowed by this skill and requested by the user instruction (plus `load_extra_skill` when needed).
 
 ## Required Output
 - State each requested action, actual call outcome, and selected evidence use.

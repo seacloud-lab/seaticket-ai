@@ -11,6 +11,7 @@ from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import validate_record_identity
 from seaqa_ai.utils.tools.get_records import GetRecords
 from seaqa_ai.skills.registry import SkillRegistry
+from seaqa_ai.skills.tool import LoadExtraSkill
 from seaqa_ai.utils import (
     get_answer_and_sources,
     remove_sources_content_and_snippets,
@@ -71,6 +72,12 @@ class AgentReACT:
         self.phase_spec = phase_spec
         self.context = ensure_record_context(dict(phase_spec.context or {}))
         self.context['record_observation_scope'] = uuid.uuid4().hex
+        self.context['skill_id'] = None
+        self._extra_skills_prompt = (
+            SkillRegistry.engage_agent_skills(self.app.seadb_service, self.context)
+            if self.phase_spec.enable_extra_skills and self.app is not None
+            else ''
+        )
         self.system_prompts = [phase_spec.get_system_prompt()]
         self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
@@ -116,7 +123,13 @@ class AgentReACT:
 
         self.tool_executor = OpenAIToolExecutor()
         self._tool_instances = {}
-        self._register_tools(phase_spec.tools)
+        phase_tools = list(phase_spec.tools or [])
+        if not self._extra_skills_prompt:
+            phase_tools = [
+                tool for tool in phase_tools
+                if tool is not LoadExtraSkill and not isinstance(tool, LoadExtraSkill)
+            ]
+        self._register_tools(phase_tools)
 
         memory_system_prompts = [
             {'role': 'system', 'content': system_prompt}
@@ -293,14 +306,11 @@ class AgentReACT:
             self._append_tool_output(skill_call, observation)
 
     def _inject_extra_skills_prompt(self):
-        if not self.phase_spec.enable_extra_skills:
-            return
-        skills_prompt = SkillRegistry.engage_agent_skills(self.app.seadb_service, self.context)
-        if not skills_prompt:
+        if not self._extra_skills_prompt:
             return
 
-        self.system_prompts.append(skills_prompt)
-        self.memory += {'role': 'system', 'content': skills_prompt}
+        self.system_prompts.append(self._extra_skills_prompt)
+        self.memory += {'role': 'system', 'content': self._extra_skills_prompt}
 
 
     ############# memory operations
@@ -477,6 +487,8 @@ class AgentReACT:
                                 suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
                             )
                     self._append_tool_output(tool_call, observation)
+                    if tool_name == 'load_extra_skill':
+                        self._append_skill_activation_prompt(raw_result)
                     return True
                 except InvalidToolArgumentsException:
                     raise
@@ -605,6 +617,18 @@ class AgentReACT:
             'type': 'function_call_output',
             'call_id': tool_call.get('call_id', ''),
             'output': observation,
+        }
+
+    def _append_skill_activation_prompt(self, raw_result):
+        if not isinstance(raw_result, dict):
+            return
+        self.memory += {
+            'role': 'system',
+            'content': (
+                f'The extra skill "{raw_result.get("name", "")}" is now active for this {self.phase_spec.phase} phase. '
+                'Apply its relevant instructions using only the tools and output format permitted in this phase, '
+                'then continue the phase workflow.'
+            ),
         }
 
     ############# final answer operations

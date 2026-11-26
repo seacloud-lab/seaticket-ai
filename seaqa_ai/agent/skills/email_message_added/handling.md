@@ -40,9 +40,9 @@ tools:
 - Suggestion creation is pending, not a sent email or created ticket.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
-- Never call `get_records`, search, or any undeclared tool.
-- Call only the tools selected by Analysis.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
+- Never call `get_records`, search, or any other undeclared tool.
+- Call only the suggestion tools selected by Analysis.
 - Do not create suggestions not selected by Analysis.
 - Do not use tools to send email, modify recipients, or change thread state.
 

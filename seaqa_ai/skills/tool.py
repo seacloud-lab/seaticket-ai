@@ -25,7 +25,7 @@ class LoadExtraSkill(BasicTool):
         seadb_service = app.seadb_service if app else None
         skill = SkillRegistry.get_available(seadb_service, name, context)
         if skill is None:
-            raise AssertionError(f'Skill "{name}" is not available for this request')
+            raise ValueError(f'Skill "{name}" is not available for this request')
 
         context['skill_id'] = skill.name
         lines = [

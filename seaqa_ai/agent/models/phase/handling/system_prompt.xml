@@ -42,8 +42,9 @@ After any tool error:
 </responsibilities>
 
 <decision_rules>
+- When `<available_skills>` is provided and handling is not skipped or `no_op`, `load_extra_skill` is a separate permitted framework tool for loading matching extra skill instructions before making suggestion tool calls, even though it is not listed in `recommended_actions` or the injected skill's `tools` metadata. It does not execute a business action and does not expand `recommended_actions`.
 - Treat `recommended_actions` as the default plan. Follow the injected skill when it defines how to interpret, refine, combine, or reject them.
-- **Do not call a handling tool unless its action is authorized by `recommended_actions` and allowed by the injected skill.**
+- **Do not call a handling suggestion tool unless its action is authorized by `recommended_actions` and allowed by the injected skill.**
 - Use additional structured values only when the phase input provides the values declared by the injected skill for an authorized action. Otherwise, do not infer, normalize, or invent them.
 - When the analysis indicates `no_op` or handling should be skipped, do not make handling tool calls unless the injected skill explicitly requires a verification or reporting call.
 - When evidence is incomplete, a required record is unavailable, or a tool fails, do not fabricate a successful outcome or substitute a different action. Follow the skill's fallback procedure; otherwise report the limitation and stop when further tool calls are unlikely to resolve it.

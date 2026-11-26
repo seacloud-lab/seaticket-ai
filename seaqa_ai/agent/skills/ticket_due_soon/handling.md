@@ -42,10 +42,10 @@ tools:
 - Use the cited custom rule only if Analysis supplied it; never manufacture policy justification.
 
 ## Tool Rules
-- Only `suggest_notify_assignee` and `suggest_close_ticket` may be used.
+- Permitted tools: `suggest_notify_assignee` and `suggest_close_ticket`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not `no_op`.
 - Do not read, refresh, search, browse, inspect links, or inspect notification history.
-- Do not use any undeclared tool, even to validate the ticket or recipients.
-- Call each Analysis-selected tool at most once.
+- Do not use any other undeclared tool, even to validate the ticket or recipients.
+- Call each Analysis-selected suggestion tool at most once.
 - **Do not retry failures or make compensating calls.**
 - Do not interpret a tool result as a reason to add an action.
 
