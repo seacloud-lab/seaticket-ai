@@ -163,7 +163,7 @@ class AgentReACT:
                 max_steps_prompt_added = True
 
             result, usage, retries = self._request_response(
-                tools=[] if self.max_steps and step >= self.max_steps else self.tool_executor.get(),
+                tools=[] if self.max_steps and step >= self.max_steps else self._available_tools(),
                 step=step,
             )
             self._append_assistant_result(result)
@@ -410,6 +410,12 @@ class AgentReACT:
                 },
             )
 
+    def _available_tools(self):
+        tools = self.tool_executor.get()
+        if self.context.get('skill_id'):
+            return [tool for tool in tools if tool.get('name') != 'load_extra_skill']
+        return tools
+
     def _tool_log_fields(self, step):
         return {
             'run_id': self.context.get('run_id'),
@@ -417,13 +423,17 @@ class AgentReACT:
         }
 
     def _execute_tool_calls(self, tool_calls, step, usage, retries):
-        skill_call_index = next(
-            (
-                index
-                for index, tool_call in enumerate(tool_calls)
-                if tool_call.get('name') == 'load_extra_skill'
-            ),
-            None,
+        skill_call_index = (
+            None
+            if self.context.get('skill_id')
+            else next(
+                (
+                    index
+                    for index, tool_call in enumerate(tool_calls)
+                    if tool_call.get('name') == 'load_extra_skill'
+                ),
+                None,
+            )
         )
         loaded_skill_result = None
         for index, tool_call in enumerate(tool_calls):
@@ -463,6 +473,22 @@ class AgentReACT:
         if arguments_error:
             self._record_tool_error(
                 tool_call, arguments, arguments_error, step, usage, response_retries,
+                started_at,
+            )
+            return False, None
+
+        active_skill_id = self.context.get('skill_id')
+        if tool_name == 'load_extra_skill' and active_skill_id:
+            self._record_tool_error(
+                tool_call,
+                arguments,
+                ValueError(
+                    f'Extra skill "{active_skill_id}" is already active for this '
+                    f'{self.phase_spec.phase} phase; do not reload or switch skills.'
+                ),
+                step,
+                usage,
+                response_retries,
                 started_at,
             )
             return False, None
