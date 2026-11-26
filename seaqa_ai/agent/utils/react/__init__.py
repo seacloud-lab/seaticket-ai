@@ -417,13 +417,43 @@ class AgentReACT:
         }
 
     def _execute_tool_calls(self, tool_calls, step, usage, retries):
+        skill_call_index = next(
+            (
+                index
+                for index, tool_call in enumerate(tool_calls)
+                if tool_call.get('name') == 'load_extra_skill'
+            ),
+            None,
+        )
+        loaded_skill_result = None
         for index, tool_call in enumerate(tool_calls):
-            self._execute_tool_call(
+            call_usage = usage if index == 0 else {}
+            call_retries = retries if index == 0 else []
+            if skill_call_index is not None and index != skill_call_index:
+                self._record_skipped_tool_call(
+                    tool_call,
+                    reason=(
+                        'Not executed because load_extra_skill was called in the same turn. '
+                        'Read the loaded extra skill instructions first, then re-issue any '
+                        'needed tool calls in the next turn.'
+                    ),
+                    step=step,
+                    usage=call_usage,
+                    retries=call_retries,
+                )
+                continue
+
+            ok, raw_result = self._execute_tool_call(
                 tool_call,
                 step,
-                usage if index == 0 else {},
-                retries if index == 0 else [],
+                call_usage,
+                call_retries,
             )
+            if ok and index == skill_call_index:
+                loaded_skill_result = raw_result
+
+        if loaded_skill_result is not None:
+            self._append_skill_activation_prompt(loaded_skill_result)
 
     def _execute_tool_call(self, tool_call, step, usage, response_retries):
         tool_name = tool_call.get('name', '')
@@ -431,10 +461,11 @@ class AgentReACT:
         started_at = time.monotonic()
         arguments, arguments_error = self._parse_tool_arguments(tool_call)
         if arguments_error:
-            return self._record_tool_error(
+            self._record_tool_error(
                 tool_call, arguments, arguments_error, step, usage, response_retries,
                 started_at,
             )
+            return False, None
 
         retries = []
         try:
@@ -487,9 +518,7 @@ class AgentReACT:
                                 suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
                             )
                     self._append_tool_output(tool_call, observation)
-                    if tool_name == 'load_extra_skill':
-                        self._append_skill_activation_prompt(raw_result)
-                    return True
+                    return True, raw_result
                 except InvalidToolArgumentsException:
                     raise
                 except Exception as error:
@@ -505,10 +534,11 @@ class AgentReACT:
                     raise
         except Exception as error:
             tool_token_usage = self.tool_executor.pop_token_usage()
-            return self._record_tool_error(
+            self._record_tool_error(
                 tool_call, arguments, error, step, usage, response_retries + retries,
                 started_at, tool_token_usage,
             )
+            return False, None
 
     def _get_suggestion_targets(self, result):
         if not isinstance(result, dict) or result.get('status') != 'pending':
@@ -555,6 +585,29 @@ class AgentReACT:
         if not isinstance(arguments, dict):
             return {}, TypeError('Tool arguments must be a JSON object.')
         return arguments, None
+
+    def _record_skipped_tool_call(self, tool_call, *, reason, step, usage, retries):
+        tool_name = tool_call.get('name', '')
+        started_at = time.monotonic()
+        arguments, _ = self._parse_tool_arguments(tool_call)
+        self.tool_executor.log_skipped(
+            tool_call,
+            'deferred_until_extra_skill_loaded',
+            self._tool_log_fields(step),
+        )
+        payload = {
+            'status': 'skipped',
+            'tool_name': tool_name,
+            'reason': reason,
+        }
+        observation = self._format_observation(payload)
+        self._trace(
+            action_type='tool_call', action_status='skipped', step=step,
+            tool_name=tool_name, tool_arguments=arguments,
+            observation=observation, result=payload,
+            statistics=self._statistics(started_at, usage, retries),
+        )
+        self._append_tool_output(tool_call, observation)
 
     def _record_tool_error(self, tool_call, arguments, error, step, usage, retries, started_at,
                            tool_token_usage=None):
