@@ -74,7 +74,7 @@ additional_output:
 - Do not infer resolution from a thank-you, quoted mail, or acknowledgement.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_records` are permitted.
+- Permitted tools: `issues_search`, `documents_search`, and `get_records`, plus `load_extra_skill` when an available extra skill matches.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Use the alternate search tool only if the first leaves material evidence uncertainty.
 - Make specific, non-redundant searches from symptoms, version, requested capability, or configuration term.
@@ -82,7 +82,7 @@ additional_output:
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop when evidence directly supports the decision.
 - Also stop after two consecutive searches without material evidence gain, at budget exhaustion, or when more search cannot change the action.
-- **Never call suggestion tools or any undeclared tool, or read records unrelated to the remaining evidence gap.**
+- **Never call suggestion tools or any other undeclared tool, or read records unrelated to the remaining evidence gap.**
 - Never include secrets, personal contacts, financial details, credentials, or full sensitive message text in a query.
 
 ## Required Output

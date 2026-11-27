@@ -69,7 +69,7 @@ additional_output:
 
 ## Tool Rules
 - For Spam and Notification, perform no search.
-- Only `issues_search`, `documents_search`, and `get_records` are available for support content.
+- For support content, permitted tools are `issues_search`, `documents_search`, and `get_records`, plus `load_extra_skill` when an available extra skill matches.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - For support content, start with the search tool selected from the concrete request and use the other only if necessary.
 - Use specific, non-redundant terms; redact contacts, payment details, credentials, and secrets.
@@ -77,7 +77,7 @@ additional_output:
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop on sufficient evidence, after two consecutive searches without material gain, at budget exhaustion, or when more search cannot affect the decision.
 - A substantive answer needs direct evidence; a tracked-case answer needs strong overlap and a usable URL. An accompanying acknowledgement or clarification may use the observed request alone.
-- Never call suggestion tools or undeclared tools, or read records unrelated to the remaining evidence gap.
+- Never call suggestion tools or other undeclared tools, or read records unrelated to the remaining evidence gap.
 
 ## Required Output
 - Return all required Analysis JSON fields.

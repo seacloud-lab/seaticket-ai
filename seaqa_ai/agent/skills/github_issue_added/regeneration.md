@@ -52,7 +52,7 @@ tools:
 - Tool failure does not justify substitution, retry, or additional suggestions.
 
 ## Tool Rules
-- Permitted tools: metadata-declared suggestion tools, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
+- Permitted tools: metadata-declared suggestion tools, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
 - Never call `get_records` or search.
 - Never invoke a suggestion absent from this skill's tools.
 - Never use a suggestion tool more than needed for its one requested action.

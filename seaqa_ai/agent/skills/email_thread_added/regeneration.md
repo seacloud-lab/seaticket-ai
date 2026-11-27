@@ -42,9 +42,9 @@ tools:
 - Successful suggestion creation is not delivery, a mailbox move, or a sent email.
 
 ## Tool Rules
-- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
-- Never call `get_records`, search, or undeclared tools.
-- Invoke only a tool allowed by this skill and requested by the user instruction.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_move_to_spam`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+- Never call `get_records`, search, or other undeclared tools.
+- Invoke only suggestion and draft-editing tools allowed by this skill and requested by the user instruction (plus `load_extra_skill` when needed).
 - Do not use tools to send email, alter payment data, or modify account security state.
 
 ## Required Output

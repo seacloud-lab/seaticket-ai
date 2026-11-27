@@ -44,10 +44,10 @@ tools:
 - Never assert that an assignee was actually informed.
 
 ## Tool Rules
-- Permitted tools: `suggest_notify_assignee` and `suggest_close_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
+- Permitted tools: `suggest_notify_assignee` and `suggest_close_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
 - Do not read, search, browse, refresh, or inspect linked records.
-- Do not call undeclared validation, status, or communication tools.
-- Call a requested tool no more than once.
+- Do not call other undeclared validation, status, or communication tools.
+- Call a requested suggestion tool no more than once.
 - **Do not retry, poll, or create a compensating suggestion.**
 - Tool output is reporting data, not a new Analysis decision.
 

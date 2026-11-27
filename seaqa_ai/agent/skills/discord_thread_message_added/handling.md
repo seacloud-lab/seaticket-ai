@@ -44,9 +44,9 @@ tools:
 - A pending suggestion is not a posted message or created ticket.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee` are permitted.
-- Do not call `get_records`, search, or undeclared tools.
-- Call only the actions selected by Analysis.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
+- Do not call `get_records`, search, or other undeclared tools.
+- Call only the suggestion actions selected by Analysis.
 - Do not make suggestions not selected by Analysis.
 
 ## Required Output

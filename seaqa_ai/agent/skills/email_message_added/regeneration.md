@@ -41,9 +41,9 @@ tools:
 - Suggestion creation is pending, not a sent email or created ticket.
 
 ## Tool Rules
-- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
-- Never call `get_records`, search, or any undeclared tool.
-- Call only tools allowed by this skill and requested by the user instruction.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, `suggest_link_existing_ticket`, and `suggest_notify_assignee`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+- Never call `get_records`, search, or any other undeclared tool.
+- Call only suggestion and draft-editing tools allowed by this skill and requested by the user instruction (plus `load_extra_skill` when needed).
 - Do not use tools to send email, modify recipients, or change thread state.
 
 ## Required Output

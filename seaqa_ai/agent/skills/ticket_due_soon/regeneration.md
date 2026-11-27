@@ -42,10 +42,10 @@ tools:
 - Use the cited custom rule only if it was supplied; never manufacture policy justification.
 
 ## Tool Rules
-- Permitted tools: `suggest_notify_assignee` and `suggest_close_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
+- Permitted tools: `suggest_notify_assignee` and `suggest_close_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
 - Do not read, refresh, search, browse, inspect links, or inspect notification history.
-- Do not use any undeclared tool, even to validate the ticket or recipients.
-- Call each requested tool at most once.
+- Do not use any other undeclared tool, even to validate the ticket or recipients.
+- Call each requested suggestion tool at most once.
 - **Do not retry failures or make compensating calls.**
 - Do not interpret a tool result as a reason to add an action.
 

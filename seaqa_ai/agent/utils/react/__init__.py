@@ -11,6 +11,7 @@ from seaqa_ai.utils.record import ensure_record_context
 from seaqa_ai.utils.record.identity import validate_record_identity
 from seaqa_ai.utils.tools.get_records import GetRecords
 from seaqa_ai.skills.registry import SkillRegistry
+from seaqa_ai.skills.tool import LoadExtraSkill
 from seaqa_ai.utils import (
     get_answer_and_sources,
     remove_sources_content_and_snippets,
@@ -71,6 +72,12 @@ class AgentReACT:
         self.phase_spec = phase_spec
         self.context = ensure_record_context(dict(phase_spec.context or {}))
         self.context['record_observation_scope'] = uuid.uuid4().hex
+        self.context['skill_id'] = None
+        self._extra_skills_prompt = (
+            SkillRegistry.engage_agent_skills(self.app.seadb_service, self.context)
+            if self.phase_spec.enable_extra_skills and self.app is not None
+            else ''
+        )
         self.system_prompts = [phase_spec.get_system_prompt()]
         self.system_prompts.append(GET_RECORDS_OBSERVATION_CONTRACT)
         ticket_rules_prompt = self._build_ticket_rules_prompt(ticket_rules)
@@ -116,7 +123,13 @@ class AgentReACT:
 
         self.tool_executor = OpenAIToolExecutor()
         self._tool_instances = {}
-        self._register_tools(phase_spec.tools)
+        phase_tools = list(phase_spec.tools or [])
+        if not self._extra_skills_prompt:
+            phase_tools = [
+                tool for tool in phase_tools
+                if tool is not LoadExtraSkill and not isinstance(tool, LoadExtraSkill)
+            ]
+        self._register_tools(phase_tools)
 
         memory_system_prompts = [
             {'role': 'system', 'content': system_prompt}
@@ -150,7 +163,7 @@ class AgentReACT:
                 max_steps_prompt_added = True
 
             result, usage, retries = self._request_response(
-                tools=[] if self.max_steps and step >= self.max_steps else self.tool_executor.get(),
+                tools=[] if self.max_steps and step >= self.max_steps else self._available_tools(),
                 step=step,
             )
             self._append_assistant_result(result)
@@ -293,14 +306,11 @@ class AgentReACT:
             self._append_tool_output(skill_call, observation)
 
     def _inject_extra_skills_prompt(self):
-        if not self.phase_spec.enable_extra_skills:
-            return
-        skills_prompt = SkillRegistry.engage_agent_skills(self.app.seadb_service, self.context)
-        if not skills_prompt:
+        if not self._extra_skills_prompt:
             return
 
-        self.system_prompts.append(skills_prompt)
-        self.memory += {'role': 'system', 'content': skills_prompt}
+        self.system_prompts.append(self._extra_skills_prompt)
+        self.memory += {'role': 'system', 'content': self._extra_skills_prompt}
 
 
     ############# memory operations
@@ -400,6 +410,12 @@ class AgentReACT:
                 },
             )
 
+    def _available_tools(self):
+        tools = self.tool_executor.get()
+        if self.context.get('skill_id'):
+            return [tool for tool in tools if tool.get('name') != 'load_extra_skill']
+        return tools
+
     def _tool_log_fields(self, step):
         return {
             'run_id': self.context.get('run_id'),
@@ -407,13 +423,47 @@ class AgentReACT:
         }
 
     def _execute_tool_calls(self, tool_calls, step, usage, retries):
+        skill_call_index = (
+            None
+            if self.context.get('skill_id')
+            else next(
+                (
+                    index
+                    for index, tool_call in enumerate(tool_calls)
+                    if tool_call.get('name') == 'load_extra_skill'
+                ),
+                None,
+            )
+        )
+        loaded_skill_result = None
         for index, tool_call in enumerate(tool_calls):
-            self._execute_tool_call(
+            call_usage = usage if index == 0 else {}
+            call_retries = retries if index == 0 else []
+            if skill_call_index is not None and index != skill_call_index:
+                self._record_skipped_tool_call(
+                    tool_call,
+                    reason=(
+                        'Not executed because load_extra_skill was called in the same turn. '
+                        'Read the loaded extra skill instructions first, then re-issue any '
+                        'needed tool calls in the next turn.'
+                    ),
+                    step=step,
+                    usage=call_usage,
+                    retries=call_retries,
+                )
+                continue
+
+            ok, raw_result = self._execute_tool_call(
                 tool_call,
                 step,
-                usage if index == 0 else {},
-                retries if index == 0 else [],
+                call_usage,
+                call_retries,
             )
+            if ok and index == skill_call_index:
+                loaded_skill_result = raw_result
+
+        if loaded_skill_result is not None:
+            self._append_skill_activation_prompt(loaded_skill_result)
 
     def _execute_tool_call(self, tool_call, step, usage, response_retries):
         tool_name = tool_call.get('name', '')
@@ -421,10 +471,27 @@ class AgentReACT:
         started_at = time.monotonic()
         arguments, arguments_error = self._parse_tool_arguments(tool_call)
         if arguments_error:
-            return self._record_tool_error(
+            self._record_tool_error(
                 tool_call, arguments, arguments_error, step, usage, response_retries,
                 started_at,
             )
+            return False, None
+
+        active_skill_id = self.context.get('skill_id')
+        if tool_name == 'load_extra_skill' and active_skill_id:
+            self._record_tool_error(
+                tool_call,
+                arguments,
+                ValueError(
+                    f'Extra skill "{active_skill_id}" is already active for this '
+                    f'{self.phase_spec.phase} phase; do not reload or switch skills.'
+                ),
+                step,
+                usage,
+                response_retries,
+                started_at,
+            )
+            return False, None
 
         retries = []
         try:
@@ -477,7 +544,7 @@ class AgentReACT:
                                 suggestion_payload=raw_result.get('suggestion_payload') if isinstance(raw_result.get('suggestion_payload'), dict) else {},
                             )
                     self._append_tool_output(tool_call, observation)
-                    return True
+                    return True, raw_result
                 except InvalidToolArgumentsException:
                     raise
                 except Exception as error:
@@ -493,10 +560,11 @@ class AgentReACT:
                     raise
         except Exception as error:
             tool_token_usage = self.tool_executor.pop_token_usage()
-            return self._record_tool_error(
+            self._record_tool_error(
                 tool_call, arguments, error, step, usage, response_retries + retries,
                 started_at, tool_token_usage,
             )
+            return False, None
 
     def _get_suggestion_targets(self, result):
         if not isinstance(result, dict) or result.get('status') != 'pending':
@@ -543,6 +611,29 @@ class AgentReACT:
         if not isinstance(arguments, dict):
             return {}, TypeError('Tool arguments must be a JSON object.')
         return arguments, None
+
+    def _record_skipped_tool_call(self, tool_call, *, reason, step, usage, retries):
+        tool_name = tool_call.get('name', '')
+        started_at = time.monotonic()
+        arguments, _ = self._parse_tool_arguments(tool_call)
+        self.tool_executor.log_skipped(
+            tool_call,
+            'deferred_until_extra_skill_loaded',
+            self._tool_log_fields(step),
+        )
+        payload = {
+            'status': 'skipped',
+            'tool_name': tool_name,
+            'reason': reason,
+        }
+        observation = self._format_observation(payload)
+        self._trace(
+            action_type='tool_call', action_status='skipped', step=step,
+            tool_name=tool_name, tool_arguments=arguments,
+            observation=observation, result=payload,
+            statistics=self._statistics(started_at, usage, retries),
+        )
+        self._append_tool_output(tool_call, observation)
 
     def _record_tool_error(self, tool_call, arguments, error, step, usage, retries, started_at,
                            tool_token_usage=None):
@@ -605,6 +696,18 @@ class AgentReACT:
             'type': 'function_call_output',
             'call_id': tool_call.get('call_id', ''),
             'output': observation,
+        }
+
+    def _append_skill_activation_prompt(self, raw_result):
+        if not isinstance(raw_result, dict):
+            return
+        self.memory += {
+            'role': 'system',
+            'content': (
+                f'The extra skill "{raw_result.get("name", "")}" is now active for this {self.phase_spec.phase} phase. '
+                'Apply its relevant instructions using only the tools and output format permitted in this phase, '
+                'then continue the phase workflow.'
+            ),
         }
 
     ############# final answer operations

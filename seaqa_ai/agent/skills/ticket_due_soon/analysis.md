@@ -45,7 +45,7 @@ additional_output:
 - When a matching custom rule directs closure, recommend only `suggest_close_ticket` unless that rule explicitly permits a concurrent reminder. Default deadline proximity is not independent support for adding one.
 
 ## Tool Rules
-- No tools are available in Analysis.
+- No record, search, or suggestion tools are available in Analysis; only `load_extra_skill` may be used when an available extra skill matches.
 - Do not read, refresh, search, browse, inspect history, or expand a linked record.
 - Do not invoke or simulate any suggestion tool.
 - Do not request information from a person or system.
@@ -53,7 +53,7 @@ additional_output:
 - Do not use unspecified data sources to fill a missing due date, owner, or notification history.
 
 ## Required Output
-- Return the required analysis JSON without tool use.
+- Return the required analysis JSON without calling any record, search, or suggestion tools.
 - Use only `suggest_notify_assignee`, `suggest_close_ticket`, or `no_op` in `recommended_actions`.
 - Make `no_op` the sole recommended action whenever it is selected.
 - In `analysis_report`, identify due-date and state evidence, rule effects, and deduplication findings. Do not repeat the event trigger time; the frontend presents it separately.

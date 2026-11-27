@@ -55,7 +55,7 @@ additional_output:
 - An existing related ticket prevents `suggest_create_ticket` only when its successful passive record content clearly tracks the same concrete work. It is context, not search evidence or a direct answer unless it provides a usable public URL and directly answers the thread.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_records` are permitted.
+- Permitted tools: `issues_search`, `documents_search`, and `get_records`, plus `load_extra_skill` when an available extra skill matches.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Start with the search tool selected from the concrete request.
 - Use the other search tool only when the first leaves material decision uncertainty that the other tool can resolve.
@@ -63,7 +63,7 @@ additional_output:
 - Refine a follow-up query only to resolve a stated gap by adding a distinctive symptom, version, affected component, exact error, or configuration term. Do not repeat the same semantic query with superficial wording changes.
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop on sufficient evidence, after two consecutive searches without material gain, at budget exhaustion, or when more results cannot change the recommendation.
-- **Never call suggestion tools or undeclared tools, or read records unrelated to the remaining evidence gap.**
+- **Never call suggestion tools or other undeclared tools, or read records unrelated to the remaining evidence gap.**
 
 ## Required Output
 - Return all required Analysis JSON fields.

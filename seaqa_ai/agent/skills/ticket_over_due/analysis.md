@@ -44,7 +44,7 @@ additional_output:
 - A custom rule that directs closure is exclusive unless its supplied text expressly permits a concurrent reminder. Ordinary overdue status, priority, or assignee context does not independently justify adding a notification.
 
 ## Tool Rules
-- No tools are available in Analysis.
+- No record, search, or suggestion tools are available in Analysis; only `load_extra_skill` may be used when an available extra skill matches.
 - Do not read, refresh, search, browse, or inspect the ticket or links.
 - Do not retrieve additional notification history or rules.
 - Do not invoke, simulate, or pre-create a suggestion.
@@ -52,7 +52,7 @@ additional_output:
 - Do not ask another system or person to resolve uncertainty.
 
 ## Required Output
-- Return the required analysis JSON with no tool calls.
+- Return the required analysis JSON without calling any record, search, or suggestion tools.
 - Limit `recommended_actions` to `suggest_notify_assignee`, `suggest_close_ticket`, and `no_op`.
 - When `no_op` applies, make it the only action.
 - Document overdue and state evidence, priority or owner context, rule findings, and deduplication evidence. Do not repeat the event trigger time; the frontend presents it separately.

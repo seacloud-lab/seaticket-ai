@@ -73,7 +73,7 @@ additional_output:
 - Frozen related entries may establish that work is already tracked, but cannot replace the new message as the decision subject or become a direct answer without a usable public URL and direct applicability.
 
 ## Tool Rules
-- Only `issues_search`, `documents_search`, and `get_records` are permitted.
+- Permitted tools: `issues_search`, `documents_search`, and `get_records`, plus `load_extra_skill` when an available extra skill matches.
 - Use `get_records` to read promising search candidates and explicit related_records only to resolve a material evidence gap, with targets ordered most important first. Verify at most two candidate Tickets for linking using successfully read content to confirm the same concrete work.
 - Use `documents_search` first for documentation, explanation, configuration, or how-to content.
 - Use `issues_search` first for bug, feature, or product-problem content.
@@ -81,7 +81,7 @@ additional_output:
 - Refine a follow-up query only to resolve a stated gap by adding a distinctive symptom, version, affected component, exact error, or configuration term. Do not repeat the same semantic query with superficial wording changes.
 - **The combined budget is 16 tool calls, including all searches and `get_records` calls. This is a ceiling, not a target; obey the framework's step limit if lower.**
 - Stop on sufficient evidence, after two consecutive searches without material gain, at budget exhaustion, or when more results cannot change the decision.
-- Never call suggestion tools or undeclared tools, or read records unrelated to the remaining evidence gap.
+- Never call suggestion tools or other undeclared tools, or read records unrelated to the remaining evidence gap.
 
 ## Required Output
 - Return all required Analysis JSON fields.

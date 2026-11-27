@@ -13,7 +13,7 @@ tools:
 
 ## Input Contract
 - Use only the triggering event, successful `get_records` tool observations, `analysis_report`, `recommended_actions`, and declared Analysis fields.
-- `recommended_actions` limits every allowed tool call.
+- `recommended_actions` limits every allowed suggestion tool call.
 - The current unresolved request selected by Analysis remains the reply or ticket subject.
 - Do not add GitHub issue metadata to a Discourse topic.
 
@@ -35,9 +35,9 @@ tools:
 - Suggestion creation is pending work, not publication or resolution.
 
 ## Tool Rules
-- Only `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket` are permitted.
-- Do not call `get_records`, search, or undeclared tools.
-- Use only an action explicitly present in `recommended_actions`.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
+- Do not call `get_records`, search, or other undeclared tools.
+- Use only a suggestion action explicitly present in `recommended_actions`.
 - Do not use a tool to change topic state, category, tags, or author data.
 
 ## Required Output

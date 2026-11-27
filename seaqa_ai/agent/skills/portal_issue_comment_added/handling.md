@@ -25,5 +25,8 @@ tools:
 - A failed call does not permit retry or substitution.
 - Pending suggestions are not executed actions.
 
+## Tool Rules
+- Permitted tools: the declared suggestion tools, plus `load_extra_skill` before creating suggestions when an available extra skill matches and handling is not skipped.
+
 ## Forbidden Behavior
 - Do not search, retrieve records, add unselected actions, expose private data, or claim a reply/Ticket was already delivered.

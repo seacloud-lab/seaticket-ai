@@ -1,11 +1,13 @@
 from functools import cached_property
 from pathlib import Path
+from typing import ClassVar
 
 from seaqa_ai.agent.models.phase import AgentPhaseSpec
 
 
 class RegenerationPhaseSpec(AgentPhaseSpec):
     """Specification for user-instruction-driven suggestion regeneration."""
+    enable_extra_skills: ClassVar[bool] = True
 
     @cached_property
     def tools(self) -> list:

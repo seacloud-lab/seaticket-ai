@@ -6,7 +6,7 @@ from seaqa_ai.skills.loader import (
     load_builtin_skill,
     load_builtin_skill_summaries_map,
 )
-from seaqa_ai.skills.parser import parse_skill_markdown
+from seaqa_ai.skills.parser import SKILL_NAME_RE, parse_skill_markdown
 from seaqa_ai.skills.scenario import (
     AGENT_SCENARIO_CONTEXT_KEY,
     SkillScenario,
@@ -83,7 +83,7 @@ class SkillRegistry:
     def _load_custom_skill(cls, seadb_service, skill_id, context=None):
         context = context or {}
         project_uuid = context.get('project_uuid')
-        if not project_uuid or not seadb_service:
+        if not project_uuid or not seadb_service or not SKILL_NAME_RE.fullmatch(skill_id or ''):
             return None
 
         table_name = SchemaTables.SKILLS.table_name()
@@ -163,42 +163,56 @@ class SkillRegistry:
 
         scenario = SkillScenario.from_context(context)
         is_chat = scenario.kind is SkillScenarioKind.CHAT
-        intro = (
-            'Skills provide specialized instructions and workflows for specific tasks.'
-            if is_chat
-            else (
-                'Skills provide specialized instructions and workflows for the current phase. '
-                'The phase output contract and event skill rules have higher priority than loaded extra skills.'
-            )
-        )
-
-        lines = [
-            intro,
-            'Use the `load_extra_skill` tool to load a skill when the task matches its description.',
-            '',
-            'When to load a skill:',
-            '- The current task clearly matches one skill description, including any restrictions stated in that description.',
-            '- Load the skill before doing the work, so its instructions can shape the whole approach.',
-            '- Pass the exact skill name from the list below.',
-            '',
-            'When not to load a skill:',
-            '- No skill description clearly matches the task. Proceed normally instead of forcing the closest one.',
-            '- The task is simple enough to complete well without specialized instructions.',
-            '- You only want to see what a skill contains. Never load a skill to explore it.',
-            '- A skill is already active for this request. Do not reload it or switch to another skill mid-task.',
-            '',
-            'After loading a skill:',
-            '- Follow its instructions for the rest of the task, including its tool policy and output requirements.',
-            (
-                '- Skill instructions never override the global tool rules, output format rules, or citation rules above.'
-                if is_chat
-                else '- Skill instructions never override the phase output contract, the event skill, or the final output schema.'
-            ),
-            '- Loading a skill is not an answer by itself. Continue the task in the same request.',
-            '- Do not tell the user that a skill was loaded and do not quote the skill instructions back to them.',
-            '',
-            '<available_skills>',
-        ]
+        if is_chat:
+            lines = [
+                'Skills provide specialized instructions and workflows for specific tasks.',
+                'Use the `load_extra_skill` tool to load a skill when the task matches its description.',
+                '',
+                'When to load a skill:',
+                '- The current task clearly matches one skill description, including any restrictions stated in that description.',
+                '- Load the skill before doing the work, so its instructions can shape the whole approach.',
+                '- Pass the exact skill name from the list below.',
+                '',
+                'When not to load a skill:',
+                '- No skill description clearly matches the task. Proceed normally instead of forcing the closest one.',
+                '- The task is simple enough to complete well without specialized instructions.',
+                '- You only want to see what a skill contains. Never load a skill to explore it.',
+                '- A skill is already active for this request. Do not reload it or switch to another skill mid-task.',
+                '',
+                'After loading a skill:',
+                '- Follow its instructions for the rest of the task, including its tool policy and output requirements.',
+                '- Skill instructions never override the global tool rules, output format rules, or citation rules above.',
+                '- Loading a skill is not an answer by itself. Continue the task in the same request.',
+                '- Do not tell the user that a skill was loaded and do not quote the skill instructions back to them.',
+                '',
+                '<available_skills>',
+            ]
+        else:
+            lines = [
+                'Extra skills provide specialized domain knowledge, decision guidance, and drafting workflows for the current phase.',
+                'The `load_extra_skill` tool is explicitly permitted in this phase even when the injected event skill (`load_event_skill`) restricts other tools, and it does not count toward search, record-reading, or suggestion call limits.',
+                'Use the `load_extra_skill` tool to load an extra skill when the current event, request, or user instruction matches its description.',
+                '',
+                'When to load an extra skill:',
+                '- The current event, request, or user instruction clearly matches one extra skill description, including any phase or scope restrictions stated in that description.',
+                '- Load the extra skill first, before calling search, record-reading, or suggestion tools, so its instructions can guide this phase.',
+                '- Pass the exact skill name from the list below.',
+                '',
+                'When not to load an extra skill:',
+                '- No extra skill description clearly matches the task. Proceed normally instead of forcing the closest one.',
+                '- Handling is skipped or the phase decision is `no_op` requiring no action.',
+                '- You only want to see what a skill contains. Never load a skill to explore it.',
+                '- An extra skill was already loaded via `load_extra_skill` in this phase (`load_event_skill` does not count as an extra skill). Do not reload it or switch to another extra skill mid-phase.',
+                '',
+                'After loading an extra skill:',
+                '- Apply its relevant domain rules, analysis criteria, and drafting/style instructions within this phase, using only the tools permitted in this phase.',
+                '- Ignore any step in the extra skill that requires tools unavailable in this phase (such as search tools during handling/regeneration, suggestion tools during analysis, or chat-only artifact tools).',
+                '- Extra skill instructions never override the phase output contract, the final output schema, the allowed business action set (`recommended_actions` in handling), or citation and privacy rules.',
+                '- Loading an extra skill is not an answer or action by itself. Continue the phase workflow in the same request.',
+                '- Do not mention in user-facing replies or reports that an extra skill was loaded, and do not quote its instructions verbatim.',
+                '',
+                '<available_skills>',
+            ]
         for skill in described:
             lines.extend([
                 '  <skill>',

@@ -35,9 +35,9 @@ tools:
 - Suggestion creation is pending work, not publication or resolution.
 
 ## Tool Rules
-- Permitted tools: `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts.
-- Do not call `get_records`, search, or undeclared tools.
-- Use only an action allowed by this skill and requested by the user instruction.
+- Permitted tools: `suggest_reply`, `suggest_create_ticket`, and `suggest_link_existing_ticket`, plus `modify_suggestion` and `remove_suggestion` for existing drafts, and `load_extra_skill` when an available extra skill matches.
+- Do not call `get_records`, search, or other undeclared tools.
+- Use only suggestion and draft-editing tools allowed by this skill and requested by the user instruction (plus `load_extra_skill` when needed).
 
 ## Required Output
 - State the requested action, call attempted, evidence URL use, and outcome.
