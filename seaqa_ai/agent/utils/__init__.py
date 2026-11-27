@@ -140,11 +140,12 @@ def compact_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             if isinstance(event.get('old_value'), dict):
                 for field, value in event['old_value'].items():
                     old_value.setdefault(field, value)
-        compacted.append({
-            'type': event_type,
-            'old_value': old_value or None,
-            'new_value': new_value or None,
-        })
+        compacted_event: dict[str, Any] = {'type': event_type}
+        if old_value:
+            compacted_event['old_value'] = old_value
+        if new_value:
+            compacted_event['new_value'] = new_value
+        compacted.append(compacted_event)
     return compacted
 
 

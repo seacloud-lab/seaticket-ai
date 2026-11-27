@@ -110,16 +110,17 @@ class TaskManager:
     @staticmethod
     def _task_with_event(template: AgentTask, event: dict) -> AgentTask:
         trigger = template.trigger_event
+        normalized_event = {'type': event['type']}
+        for key in ('old_value', 'new_value'):
+            value = event.get(key)
+            if isinstance(value, dict) and value:
+                normalized_event[key] = dict(value)
         trigger_event = AgentEvent(
             project_uuid=trigger.project_uuid,
             source_type=trigger.source_type,
             record_id=trigger.record_id,
             event_type=event['type'],
-            event={
-                'type': event['type'],
-                'old_value': event.get('old_value') or {},
-                'new_value': event.get('new_value') or {},
-            },
+            event=normalized_event,
             connection_id=trigger.connection_id,
             modified_time=trigger.modified_time,
             received_at=trigger.received_at,

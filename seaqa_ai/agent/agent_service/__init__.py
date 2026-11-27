@@ -263,11 +263,18 @@ class AgentService:
         trigger_source_title,
     ):
         event = dict(task.trigger_event.event)
-        new_value = event.get('new_value')
-        if isinstance(new_value, dict):
-            event['new_value'] = {
-                key: value for key, value in new_value.items() if key != 'content'
-            }
+        for value_key in ('old_value', 'new_value'):
+            value = event.get(value_key)
+            if isinstance(value, dict):
+                stripped = {
+                    key: field_value for key, field_value in value.items() if key != 'content'
+                }
+                if stripped:
+                    event[value_key] = stripped
+                else:
+                    event.pop(value_key, None)
+            elif value is None:
+                event.pop(value_key, None)
         # The record that the triggering event fired on. When the run is owned by
         # a linked ticket this differs from owner_source_* and lets the UI jump
         # to the actual source record (e.g. the GitHub issue, not the ticket).

@@ -49,8 +49,12 @@ class EventsValidator:
         else:
             connection_id = self._parse_int(connection_id, 'connection_id')
 
-        event['old_value'] = self._as_dict(event.get('old_value'))
-        event['new_value'] = self._as_dict(event.get('new_value'))
+        for key in ('old_value', 'new_value'):
+            value = event.get(key)
+            if isinstance(value, dict) and value:
+                event[key] = dict(value)
+            else:
+                event.pop(key, None)
         modified_time = self._parse_modified_time(data.get('modified_time'))
 
         return AgentEvent(
@@ -70,10 +74,6 @@ class EventsValidator:
             return int(value)
         except (TypeError, ValueError) as error:
             raise EventValidationError(f'{field_name} must be an integer') from error
-
-    @staticmethod
-    def _as_dict(value: Any) -> dict[str, Any]:
-        return dict(value) if isinstance(value, dict) else {}
 
     @staticmethod
     def _parse_modified_time(value: Any) -> datetime | None:
