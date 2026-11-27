@@ -117,7 +117,7 @@ class AIServices:
             'tags': [],
         }
 
-    def _get_ticket_field_context(self, project_uuid):
+    def get_ticket_field_context(self, project_uuid):
         field_context = {'type_options': [], 'tags': []}
         if not project_uuid:
             return field_context
@@ -243,7 +243,7 @@ class AIServices:
             context = context or {}
             project_uuid = context.get('project_uuid')
             target_lang = self._get_project_target_language(project_uuid)
-            field_context = self._get_ticket_field_context(project_uuid)
+            field_context = self.get_ticket_field_context(project_uuid)
             lang_instruction = (
                 f"Output language requirement: You must write the generated ticket in {target_lang}."
             )

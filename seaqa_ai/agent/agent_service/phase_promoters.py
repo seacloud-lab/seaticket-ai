@@ -419,6 +419,7 @@ class AgentPhasePromoter:
         if drafts is None:
             raise ValueError('Regeneration requires a suggestion draft store')
         message_input['current_suggestions'] = drafts.snapshot()
+        self._inject_ticket_field_context(message_input)
         if error_message:
             message_input['error_message'] = str(error_message)
         if analysis_output:
@@ -462,6 +463,38 @@ class AgentPhasePromoter:
             records_input, analysis_output.get('reference_related_records', []),
         )
         return message_input, records_input
+
+    def _inject_ticket_field_context(self, message_input):
+        """Attach ticket type and tag options when regeneration can create or edit ticket drafts."""
+        has_ticket_action = 'suggest_create_ticket' in (message_input.get('recommended_actions') or ())
+        has_ticket_draft = any(
+            suggestion.get('tool_name') == 'suggest_create_ticket'
+            for suggestion in (message_input.get('current_suggestions') or ())
+        )
+        if not (has_ticket_action or has_ticket_draft):
+            return
+        ai_services = getattr(self.app, 'ai_services', None)
+        if ai_services is None or not hasattr(ai_services, 'get_ticket_field_context'):
+            return
+        field_context = ai_services.get_ticket_field_context(self.task.project_uuid)
+        if field_context is None:
+            return
+        self.context['ticket_field_context'] = field_context
+        message_input['available_ticket_fields'] = {
+            'types': [
+                option['name']
+                for option in (field_context.get('type_options') or [])
+                if option.get('name')
+            ],
+            'tags': [
+                (
+                    {'name': tag['name'], 'description': tag['description']}
+                    if tag.get('description') else {'name': tag['name']}
+                )
+                for tag in (field_context.get('tags') or [])
+                if tag.get('name')
+            ],
+        }
 
     def _build_default_message_input(self):
         return {

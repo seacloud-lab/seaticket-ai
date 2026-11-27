@@ -30,9 +30,24 @@ class ModifySuggestion(BasicTool):
                             'properties': {
                                 'title': {'type': 'string'},
                                 'content': {'type': 'string'},
-                                'type': {'type': 'string'},
-                                'priority': {'type': 'integer', 'minimum': 0},
-                                'tags': {'type': 'array', 'items': {'type': 'string'}},
+                                'type': {
+                                    'type': 'string',
+                                    'description': (
+                                        'Exact ticket type name from available_ticket_fields.types, '
+                                        'or empty string to clear.'
+                                    ),
+                                },
+                                'priority': {
+                                    'type': 'integer',
+                                    'minimum': 0,
+                                    'maximum': 4,
+                                    'description': '0 no priority, 1 low, 2 medium, 3 high, 4 urgent.',
+                                },
+                                'tags': {
+                                    'type': 'array',
+                                    'items': {'type': 'string'},
+                                    'description': 'Exact tag names from available_ticket_fields.tags.',
+                                },
                             },
                             'minProperties': 1,
                             'additionalProperties': False,

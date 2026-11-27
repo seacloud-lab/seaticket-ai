@@ -83,6 +83,10 @@ def validate_suggestion_content(tool_name, content):
     _validate_ticket_object(ticket)
 
 
+def _is_positive_int(value):
+    return not isinstance(value, bool) and isinstance(value, int) and value > 0
+
+
 def _validate_ticket_object(ticket):
     if not isinstance(ticket.get('title'), str) or not ticket['title'].strip():
         raise ValueError('Ticket suggestion title must not be empty')
@@ -97,9 +101,9 @@ def _validate_ticket_object(ticket):
         raise ValueError('Ticket suggestion priority must be a non-negative integer')
     if 'tags' in ticket and (
         not isinstance(ticket['tags'], list)
-        or not all(isinstance(tag, str) for tag in ticket['tags'])
+        or not all(_is_positive_int(tag) for tag in ticket['tags'])
     ):
-        raise ValueError('Ticket suggestion tags must be an array of strings')
+        raise ValueError('Ticket suggestion tags must be an array of positive integers')
 
 
 def _ticket_object_from_content(content):
@@ -128,31 +132,81 @@ def _ticket_object_from_content(content):
     }
 
 
-def _validate_ticket_field(field, value):
-    if field in ('title', 'content', 'type'):
+def _resolve_ticket_type(value, field_context):
+    if not isinstance(value, str):
+        raise ValueError('Ticket suggestion type is invalid')
+    stripped = value.strip()
+    if not stripped:
+        return ''
+    options = (field_context or {}).get('type_options')
+    if options is None:
+        raise ValueError('Ticket type options are unavailable')
+    lowered = stripped.casefold()
+    for option in options:
+        option_id = str(option.get('id') or '').strip()
+        option_name = str(option.get('name') or '').strip()
+        if option_id and option_name and lowered == option_name.casefold():
+            return option_id
+    raise ValueError('Ticket suggestion type must match an available ticket type')
+
+
+def _resolve_ticket_tags(value, field_context):
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError('Ticket suggestion tags must be an array of tag names')
+    if not value:
+        return []
+    tags = (field_context or {}).get('tags')
+    if not tags:
+        raise ValueError('No project tags are available to set on ticket suggestions')
+
+    ids_by_name = {}
+    for tag in tags:
+        tag_id = tag.get('id')
+        if not _is_positive_int(tag_id):
+            continue
+        name_key = str(tag.get('name') or '').strip().casefold()
+        if name_key and name_key not in ids_by_name:
+            ids_by_name[name_key] = tag_id
+
+    resolved = []
+    seen = set()
+    for item in value:
+        raw = item.strip()
+        if not raw:
+            raise ValueError('Ticket suggestion tags must not contain empty names')
+        tag_id = ids_by_name.get(raw.casefold())
+        if tag_id is None:
+            raise ValueError('Ticket suggestion tags must be selected from available project tags')
+        if tag_id not in seen:
+            seen.add(tag_id)
+            resolved.append(tag_id)
+    return resolved
+
+
+def _normalize_ticket_field(field, value, field_context=None):
+    if field in ('title', 'content'):
         if not isinstance(value, str) or (field == 'title' and not value.strip()):
             raise ValueError(f'Ticket suggestion {field} is invalid')
-        return
+        return value
+    if field == 'type':
+        return _resolve_ticket_type(value, field_context)
     if field == 'priority':
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise ValueError('Ticket suggestion priority must be a non-negative integer')
-        return
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 4:
+            raise ValueError('Ticket suggestion priority must be an integer between 0 and 4')
+        return value
     if field == 'tags':
-        if not isinstance(value, list) or not all(isinstance(tag, str) for tag in value):
-            raise ValueError('Ticket suggestion tags must be an array of strings')
-        return
+        return _resolve_ticket_tags(value, field_context)
     raise ValueError('ticket_fields contains unsupported fields')
 
 
-def apply_ticket_fields(content, ticket_fields):
+def apply_ticket_fields(content, ticket_fields, field_context=None):
     if not isinstance(ticket_fields, dict) or not ticket_fields:
         raise ValueError('ticket_fields must be a non-empty object')
     if set(ticket_fields) - set(TICKET_FIELDS):
         raise ValueError('ticket_fields contains unsupported fields')
     ticket = _ticket_object_from_content(content)
     for field, value in ticket_fields.items():
-        _validate_ticket_field(field, value)
-        ticket[field] = value
+        ticket[field] = _normalize_ticket_field(field, value, field_context)
     _validate_ticket_object(ticket)
     return json.dumps(ticket, ensure_ascii=False)
 
@@ -259,7 +313,9 @@ def apply_suggestion_changes(draft, changes, context):
         candidate['suggestion_reason'] = reason
     if 'ticket_fields' in changes:
         candidate['suggestion_content'] = apply_ticket_fields(
-            candidate['suggestion_content'], changes['ticket_fields'],
+            candidate['suggestion_content'],
+            changes['ticket_fields'],
+            (context or {}).get('ticket_field_context'),
         )
     if 'suggestion_content' in changes:
         validate_suggestion_content(tool_name, changes['suggestion_content'])
