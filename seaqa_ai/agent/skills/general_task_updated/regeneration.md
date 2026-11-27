@@ -34,6 +34,7 @@ tools:
    - Use a concise, friendly, safe non-empty reply.
    - Provide a non-empty reason.
    - Use intended non-task external record identities from successful `get_records` observations in `reply_targets`.
+   - For any `email` target in `reply_targets`, preserve `reply_to` from `previous_drafts` or set it to the original requester's observed email address(es) when the thread was forwarded on behalf of another requester, unless `user_instruction` specifies otherwise.
    - The tool validates that each target is linked to the Ticket, removes duplicates, and excludes the triggering record.
    - When `user_instruction` explicitly asks for a link, include a public link that already appears in a successful `get_records` observation of the task (for example, a pull request URL in a public repository). Copy it verbatim; never construct, guess, or complete a URL. If no such link is present, omit it and state that in the report.
 5. Say work is complete or ready for verification only when Analysis or the user instruction explicitly supports that wording.

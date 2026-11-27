@@ -25,7 +25,7 @@ tools:
 2. Create the suggestions requested by the user, using only permitted tools:
     - When the user wants no action, make no tool call and state why.
     - When the user selects spam handling, call only `suggest_move_to_spam` with a non-empty minimal reason limited to its triage basis.
-    - For a reply, call `suggest_reply` with a non-empty courteous reply, grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs.
+    - For a reply, call `suggest_reply` with a non-empty courteous reply, grounded reason, greeting, direct helpful body, closing, and only selected-evidence URLs. Preserve `reply_to` from `previous_drafts` (its `suggestion_payload.reply_to`) or Analysis unless `user_instruction` explicitly asks to change or clear the recipient; pass any selected recipients in the `reply_to` tool argument rather than the reply body.
     - For a ticket, call `suggest_create_ticket` with a non-empty reason that preserves unresolved reported facts and uncertainty.
     - For an existing-ticket link, call `suggest_link_existing_ticket` with a positive integer `related_ticket` and a non-empty reason; if `related_ticket` is missing or not positive, omit the call and report the constraint.
 3. Preserve unmentioned suggestions. Use `modify_suggestion` for requested field changes, `remove_suggestion` before replacing a suggestion, and `suggest_*` only to add a missing suggestion.

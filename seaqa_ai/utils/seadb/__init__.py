@@ -44,8 +44,13 @@ class SeaDBService:
     def get_records_by_pks(self, base_id, table_name, pks, fields_str='*'):
         return self._query_service.get_records_by_pks(base_id, table_name, pks, fields_str)
 
+    def get_thread_messages(self, base_id, thread_ids, *, query):
+        return self._query_service.get_first_and_recent_thread_messages(
+            base_id, thread_ids, query=query,
+        )
+
     def get_thread_content(self, base_id, thread_ids, *, query, budget,
-                           bodies_by_thread_id=None, extras_by_thread_id=None):
+                           bodies_by_thread_id=None):
         """Fetch each thread's candidate messages and fit them with its body into the budget.
 
         Returns {thread_id: ThreadContent}.
@@ -53,27 +58,18 @@ class SeaDBService:
         thread_ids = list(thread_ids or [])
         if not thread_ids:
             return {}
-        messages_by_thread_id = self._query_service.get_first_and_recent_thread_messages(
+        messages_by_thread_id = self.get_thread_messages(
             base_id, thread_ids, query=query,
         )
         bodies_by_thread_id = bodies_by_thread_id or {}
-        extras_by_thread_id = extras_by_thread_id or {}
         return {
             thread_id: fit_thread_content_to_budget(
                 body=bodies_by_thread_id.get(thread_id),
                 messages=messages_by_thread_id.get(thread_id, []),
                 budget=budget,
-                extras=extras_by_thread_id.get(thread_id),
             )
             for thread_id in thread_ids
         }
-
-    def get_first_thread_messages(self, base_id, thread_ids, *, query):
-        """Fetch each thread's single oldest message, in thread order.
-
-        Returns {thread_id: message_row}.
-        """
-        return self._query_service.get_first_messages(base_id, thread_ids, query=query)
 
 
 __all__ = [
